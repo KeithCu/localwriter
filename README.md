@@ -77,11 +77,78 @@ After installation and model setup:
 
 ## Settings
 
-In the settings, you can configure:
+### Configuration Priority
 
-*   Maximum number of additional tokens for "Extend Selection."
-*   Maximum number of additional tokens (above the number of letters in the original selection) for "Edit Selection."
-*   Custom "system prompts" for both "Extend Selection" and "Edit Selection." These prompts are prepended to the selection before sending it to the language model.  For example, you can use a sample of your writing to guide the model's style.
+LocalWriter loads configuration in the following order (highest priority first):
+
+1. **Environment Variables** (prefixed with `LOCALWRITER_`) - useful for keeping secrets out of files
+2. **Configuration File** (`localwriter.json`)
+3. **Default Values**
+
+Example using environment variables:
+```bash
+export LOCALWRITER_API_KEY="sk-your-secret-key"
+export LOCALWRITER_ENDPOINT="https://api.openai.com"
+/Applications/LibreOffice.app/Contents/MacOS/soffice --writer
+```
+
+### Configuration Files
+
+See [CONFIG_EXAMPLES.md](CONFIG_EXAMPLES.md) for ready-to-use configuration examples.
+
+Configuration file location:
+- macOS: `~/Library/Application Support/LibreOffice/4/user/localwriter.json`
+- Linux: `~/.config/libreoffice/4/user/localwriter.json`
+- Windows: `%APPDATA%\LibreOffice\4\user\localwriter.json`
+
+### Available Settings
+
+In the settings dialog, you can configure:
+
+*   **Endpoint URL**: The URL of your LLM server (e.g., `http://localhost:3000` for OpenWebUI, `https://api.openai.com` for OpenAI)
+*   **Model**: The model name (e.g., `llama2`, `gpt-3.5-turbo`)
+*   **API Key**: Authentication key for OpenAI-compatible endpoints (optional for local servers)
+*   **API Type**: `chat` or `completions` (see explanation below ⭐)
+*   **Is OpenWebUI endpoint?**: Check this if using OpenWebUI (changes API path from `/v1/` to `/api/`)
+*   **OpenAI Compatible Endpoint?**: Check this for servers that strictly follow OpenAI format
+*   **Extend Selection Max Tokens**: Maximum number of tokens for text extension
+*   **Extend Selection System Prompt**: Instructions prepended to guide the model's style for extension
+*   **Edit Selection Max New Tokens**: Additional tokens allowed above original selection length
+*   **Edit Selection System Prompt**: Instructions for guiding text editing behavior
+
+### ⭐ Understanding API Type (chat vs completions)
+
+The **API Type** setting determines the format of requests sent to your LLM server:
+
+#### `chat` (Recommended - Modern Format)
+Uses structured messages with roles:
+```json
+{
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant"},
+    {"role": "user", "content": "Hello"}
+  ]
+}
+```
+**Use `chat` for:**
+- OpenAI (GPT-4, GPT-3.5-turbo)
+- OpenWebUI
+- Ollama with `/api/chat` endpoint
+- Most modern LLM APIs
+
+#### `completions` (Legacy Format)
+Uses a simple text prompt:
+```json
+{
+  "prompt": "SYSTEM: You are a helpful assistant\nUSER: Hello"
+}
+```
+**Use `completions` for:**
+- Older OpenAI models (GPT-3 base)
+- Simple local inference servers
+- Some LM Studio configurations
+
+**Simple rule:** If your server has a `/chat/completions` endpoint, use `chat`. Otherwise use `completions`.
 
 ## Contributing
 

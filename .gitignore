@@ -1,0 +1,24 @@
+# Configuration files with secrets
+localwriter.json
+
+# Build artifacts
+*.oxt
+*.pyc
+__pycache__/
+
+# System files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Log files
+log.txt
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Temporary files
+*.tmp
