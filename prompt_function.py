@@ -146,7 +146,12 @@ class PromptFunction(unohelper.Base, XPromptFunction):
                 debug_log(f"=== prompt called with: {headers} '{json_data}' ===")
                 request = urllib.request.Request(url, data=json_data, headers=headers, method='POST')
 
-                with urllib.request.urlopen(request) as response:
+                timeout = 120
+                try:
+                    timeout = int(self.get_config("request_timeout", 120))
+                except (TypeError, ValueError):
+                    pass
+                with urllib.request.urlopen(request, timeout=timeout) as response:
                     response_data = response.read()
                     response_json = json.loads(response_data.decode('utf-8'))
                     #return response_json["choices"][0]["text"]

@@ -272,6 +272,20 @@ class MainJob(unohelper.Base, XJobExecutor):
         request = self.make_api_request(prompt, system_prompt, max_tokens, api_type=api_type)
         self.stream_request(request, api_type, append_callback)
 
+    def get_full_document_text(self, model, max_chars=8000):
+        """Get full document text for Writer, truncated to max_chars."""
+        try:
+            text = model.getText()
+            cursor = text.createTextCursor()
+            cursor.gotoStart(False)
+            cursor.gotoEnd(True)
+            full = cursor.getString()
+            if len(full) > max_chars:
+                full = full[:max_chars] + "\n\n[... document truncated ...]"
+            return full
+        except Exception:
+            return ""
+
     def stream_request(self, request, api_type, append_callback):
         """
         Stream a completion/chat response and append incremental chunks via the provided callback.
@@ -436,6 +450,32 @@ class MainJob(unohelper.Base, XJobExecutor):
                 except Exception as e:
                     text_range.setString(original_text)  # Restore original on failure
                     self.show_error(str(e), "LocalWriter: Edit Selection")
+
+            elif args == "ChatWithDocument":
+                try:
+                    max_context = int(self.get_config("chat_context_length", 8000))
+                    doc_text = self.get_full_document_text(model, max_context)
+                    if not doc_text.strip():
+                        self.show_error("Document is empty.", "Chat with Document")
+                        return
+                    user_query = self.input_box("Ask a question about your document:", "Chat with Document", "")
+                    if not user_query:
+                        return
+                    prompt = f"Document content:\n\n{doc_text}\n\nUser question: {user_query}"
+                    system_prompt = self.get_config("chat_system_prompt", "You are a helpful assistant. Answer the user's question based on the document content provided.")
+                    max_tokens = int(self.get_config("chat_max_tokens", 512))
+                    api_type = str(self.get_config("api_type", "completions")).lower()
+                    text = model.Text
+                    cursor = text.createTextCursor()
+                    cursor.gotoEnd(False)
+                    cursor.insertString("\n\n--- Chat response ---\n\n", False)
+
+                    def append_chunk(chunk_text):
+                        cursor.insertString(chunk_text, False)
+
+                    self.stream_completion(prompt, system_prompt, max_tokens, api_type, append_chunk)
+                except Exception as e:
+                    self.show_error(str(e), "LocalWriter: Chat with Document")
             
             elif args == "settings":
                 try:
@@ -485,6 +525,9 @@ class MainJob(unohelper.Base, XJobExecutor):
                     self.show_error(str(e), "LocalWriter: Settings")
         elif hasattr(model, "Sheets"):
             try:
+                if args == "ChatWithDocument":
+                    self.show_error("Chat with Document is only available in Writer.", "LocalWriter")
+                    return
                 sheet = model.CurrentController.ActiveSheet
                 selection = model.CurrentController.Selection
 
