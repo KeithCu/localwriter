@@ -7,6 +7,7 @@ This roadmap outlines a progression of increasingly sophisticated features to en
 - **Phase 1 scope was overreaching:** `get_document_structure()` is explicitly deferred as too hard; viewport content (`get_visible_content()`) and full outline extraction are expensive or fragile in LibreOffice UNO. Prioritize low-risk context primitives first.
 - **Safety and observability must come before new features:** AGENTS.md and IMPROVEMENT_PLAN.md call out shared API helper, request timeout, and user-facing error handling (message boxes, no errors written into the document). These are cross-cutting and should be Phase 0.
 - **Priority order should reflect dependencies:** Reliability and token/context guardrails enable confident rollout of new tools; context precision enables better edits; editing power tools and analysis follow; real-time and multi-document work are high-risk and belong in a research appendix with prototype gates.
+- **Add hard-but-high-value predictive writing early:** AI "future words" suggestions are technically difficult (latency, UX, acceptance/rejection flow), but should be scheduled early in Phase 2 because they can deliver immediate writing speed/quality gains.
 - **Acceptance and rollback are underspecified:** Each feature should have clear acceptance criteria (latency, error behavior, undo safety). AI-applied edits need a defined rollback/safety policy and "propose-first" workflow for suggestions.
 - **UNO and performance risks:** Real-time monitoring, viewport content, and multi-document orchestration assume capabilities that are costly or uncertain in UNO; document these in a risk register and defer to research until foundation is solid.
 
@@ -73,7 +74,24 @@ This roadmap outlines a progression of increasingly sophisticated features to en
 
 **Goal:** More powerful document transformations and writing assistance, with safety and propose-first workflows.
 
-#### 2.1 Advanced Text Manipulation
+#### 2.1 Predictive Continuation (hard, prioritize early)
+
+- **Feature:** AI future-words suggestions while writing (propose-first)
+- **Implementation:**
+  - `suggest_continuation()` - Predict next words/phrase from current cursor context and nearby text.
+  - Trigger only in controlled moments (e.g. explicit action or debounce) to avoid noisy real-time behavior.
+  - Show inline or sidebar suggestion chips with explicit accept/reject so no text is inserted automatically.
+  - **Accept/reject interaction options (hard UX decision):**
+    - **Option A: Tab to accept** (familiar from code editors) - likely conflict risk with LibreOffice navigation/indent behavior; only viable if conflict-free binding is confirmed.
+    - **Option B: Right Arrow at end-of-suggestion to accept next token/phrase** - low conflict and supports incremental acceptance.
+    - **Option C: Ctrl+Right Arrow (or Ctrl+Shift+Right Arrow) to accept full suggestion** - explicit and less likely to collide with core typing flow.
+    - **Option D: Enter/Return to accept** - generally not recommended as default because Enter already maps to newline behavior and can cause accidental inserts.
+    - **Option E: Click-to-accept ghost text/chip** - accessible fallback when keyboard shortcut is unavailable.
+  - **Recommendation:** Default to explicit, low-conflict accept key (e.g. Ctrl+Right Arrow) plus click-to-accept; make keybinding configurable in settings; treat Tab as optional profile only if user enables it.
+  - Keep strict latency budget and fast timeout/fallback path so typing never feels blocked.
+- **Benefit:** High-impact writing acceleration with better-quality continuation than basic local heuristics.
+
+#### 2.2 Advanced Text Manipulation
 
 - **Feature:** Power tools for text transformation (only after Phase 0 safety and confirmations in place)
 - **Implementation:**
@@ -82,7 +100,7 @@ This roadmap outlines a progression of increasingly sophisticated features to en
   - `extract_and_format()` - Extract structured data and format it
 - **Benefit:** Complex document restructuring with controlled risk
 
-#### 2.2 Context-Aware Suggestions (propose-first)
+#### 2.3 Context-Aware Suggestions (propose-first)
 
 - **Feature:** AI writing assistance that proposes rather than auto-applies
 - **Implementation:**
@@ -91,7 +109,7 @@ This roadmap outlines a progression of increasingly sophisticated features to en
   - `check_consistency()` - Terminology and style consistency; report only, no direct edits
 - **Benefit:** Writing assistant that improves quality without unexpected document changes
 
-#### 2.3 Document Analysis
+#### 2.4 Document Analysis
 
 - **Feature:** Document analytics and insights (read-only / report-only where possible)
 - **Implementation:**
@@ -258,7 +276,7 @@ The following are deferred until foundation and earlier phases are stable. Treat
 
 1. **Phase 0 (Foundation and Safety)** — Must complete before any new context or editing features. Delivers: shared API helper + timeout, user-facing errors only (no doc-inserted errors), context/token guardrails, optional logging.
 2. **Phase 1 (Context)** — Depends on Phase 0. Delivers: `get_selection_context()`, `get_cursor_context()`, lightweight `get_current_position()`, optional `get_document_metadata()` / `get_style_information()`. Defer full document structure and viewport.
-3. **Phase 2 (Editing and assistance)** — Depends on Phase 0 and 1. Delivers: advanced text manipulation (regex, pattern style) with confirmations; context-aware suggestions and analysis in propose-first or report-only form.
+3. **Phase 2 (Editing and assistance)** — Depends on Phase 0 and 1. Delivers: early hard feature `suggest_continuation()` (future words) with strict latency/accept-reject UX, plus advanced text manipulation (regex, pattern style) with confirmations; context-aware suggestions and analysis in propose-first or report-only form.
 4. **Phase 3 (Versioning)** — Depends on Phase 0–2. Delivers: snapshot, compare, revert for safer experimentation.
 5. **Phase 4 (Domain-specific)** — Depends on stable foundation and prior phases. Long-term.
 6. **Research / Future ideas** — Not on critical path; prototype gates only (real-time, multi-document, full structure).
