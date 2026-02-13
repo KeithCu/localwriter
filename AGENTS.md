@@ -96,6 +96,17 @@ localwriter/
 
 ---
 
+## 5b. Log Files
+
+- **Chat sidebar debug log**: `~/.config/libreoffice/4/user/config/localwriter_chat_debug.log`
+  - Written by `_debug_log()` in `chat_panel.py`
+  - Contains tool-calling loop details, import status, API round-trip info
+- **General API log**: `~/log.txt`
+  - Written by `log_to_file()` in `main.py`
+  - Contains API request URLs, headers, response status for all completions/chat requests
+
+---
+
 ## 6. Build and Install
 
 ```bash

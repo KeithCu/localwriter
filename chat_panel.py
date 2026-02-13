@@ -269,7 +269,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # 3. Set up MainJob and config
         job = MainJob(self.ctx)
         max_context = int(job.get_config("chat_context_length", 8000))
-        max_tokens = int(job.get_config("chat_max_tokens", 4096))
+        max_tokens = int(job.get_config("chat_max_tokens", 16384))
         api_type = str(job.get_config("api_type", "completions")).lower()
         _debug_log(self.ctx, "_do_send: config loaded: api_type=%s, max_tokens=%d, max_context=%d" %
                     (api_type, max_tokens, max_context))
