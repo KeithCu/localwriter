@@ -32,6 +32,18 @@ USER_AGENT = (
     'Chrome/114.0.0.0 Safari/537.36'
 )
 
+DEFAULT_CHAT_SYSTEM_PROMPT = """You are a document editing assistant integrated into LibreOffice Writer.
+You have tools to read and modify the user's document. USE THEM PROACTIVELY.
+
+IMPORTANT RULES:
+- TRANSLATION: You CAN translate. Call get_document_text, translate the content yourself, then replace_text or search_and_replace_all to apply it. NEVER refuse or say you lack a translation tool.
+- For edit, rewrite, or transform requests: call get_document_text, then use replace_text or search_and_replace_all. You produce the new text; the tools apply it.
+- For questions about the document: call get_document_text first, then answer.
+- Only answer without tools for general questions unrelated to the document.
+- Be concise. Do NOT write long reasoning chains, step-by-step plans, or repeated conclusions. Think briefly and act: call tools directly. Avoid phrases like 'Thus we need to...' or re-explaining the obvious.
+- After making edits, briefly confirm what you changed (one sentence).
+- Do not make changes the user did not ask for."""
+
 # Use workspace path so logs are readable when extension runs from LibreOffice install
 DEBUG_LOG_PATH = "/home/keithcu/Desktop/Python/localwriter/.cursor/debug.log"
 
@@ -600,6 +612,9 @@ class MainJob(unohelper.Base, XJobExecutor):
             {"name": "extend_selection_system_prompt", "value": str(self.get_config("extend_selection_system_prompt", ""))},
             {"name": "edit_selection_max_new_tokens", "value": str(self.get_config("edit_selection_max_new_tokens", "0")), "type": "int"},
             {"name": "edit_selection_system_prompt", "value": str(self.get_config("edit_selection_system_prompt", ""))},
+            {"name": "chat_max_tokens", "value": str(self.get_config("chat_max_tokens", "16384")), "type": "int"},
+            {"name": "chat_context_length", "value": str(self.get_config("chat_context_length", "8000")), "type": "int"},
+            {"name": "chat_system_prompt", "value": str(self.get_config("chat_system_prompt", "") or DEFAULT_CHAT_SYSTEM_PROMPT)},
         ]
 
         pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
@@ -776,7 +791,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     if not user_query:
                         return
                     prompt = f"Document content:\n\n{doc_text}\n\nUser question: {user_query}"
-                    system_prompt = self.get_config("chat_system_prompt", "You are a helpful assistant. Answer the user's question based on the document content provided.")
+                    system_prompt = self.get_config("chat_system_prompt", "") or DEFAULT_CHAT_SYSTEM_PROMPT
                     max_tokens = int(self.get_config("chat_max_tokens", 512))
                     api_type = str(self.get_config("api_type", "completions")).lower()
                     text = model.Text
@@ -841,6 +856,15 @@ class MainJob(unohelper.Base, XJobExecutor):
                         
                     if "seed" in result:                
                         self.set_config("seed", result["seed"])
+
+                    if "chat_max_tokens" in result:
+                        self.set_config("chat_max_tokens", result["chat_max_tokens"])
+
+                    if "chat_context_length" in result:
+                        self.set_config("chat_context_length", result["chat_context_length"])
+
+                    if "chat_system_prompt" in result:
+                        self.set_config("chat_system_prompt", result["chat_system_prompt"])
 
 
                 except Exception as e:
@@ -911,6 +935,15 @@ class MainJob(unohelper.Base, XJobExecutor):
 
                         if "seed" in result:                
                             self.set_config("seed", result["seed"])
+
+                        if "chat_max_tokens" in result:
+                            self.set_config("chat_max_tokens", result["chat_max_tokens"])
+
+                        if "chat_context_length" in result:
+                            self.set_config("chat_context_length", result["chat_context_length"])
+
+                        if "chat_system_prompt" in result:
+                            self.set_config("chat_system_prompt", result["chat_system_prompt"])
                     except Exception as e:
                         # #region agent log
                         try:

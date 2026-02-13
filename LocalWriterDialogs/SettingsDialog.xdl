@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
 <dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" xmlns:script="http://openoffice.org/2000/script"
-  dlg:id="SettingsDialog" dlg:left="100" dlg:top="50" dlg:width="420" dlg:height="275"
+  dlg:id="SettingsDialog" dlg:left="100" dlg:top="50" dlg:width="420" dlg:height="400"
   dlg:closeable="true" dlg:moveable="true" dlg:resizeable="true" dlg:title="Settings">
  <dlg:bulletinboard>
   <dlg:text dlg:id="label_endpoint" dlg:left="8" dlg:top="12" dlg:width="180" dlg:height="10" dlg:value="Endpoint URL/Port:" dlg:align="left"/>
@@ -28,6 +28,12 @@
   <dlg:textfield dlg:id="edit_selection_max_new_tokens" dlg:left="195" dlg:top="210" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="0"/>
   <dlg:text dlg:id="label_edit_selection_system_prompt" dlg:left="8" dlg:top="232" dlg:width="180" dlg:height="10" dlg:value="Edit Selection System Prompt:" dlg:align="left"/>
   <dlg:textfield dlg:id="edit_selection_system_prompt" dlg:left="195" dlg:top="230" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:button dlg:id="btn_ok" dlg:left="160" dlg:top="250" dlg:width="100" dlg:height="18" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
+  <dlg:text dlg:id="label_chat_max_tokens" dlg:left="8" dlg:top="252" dlg:width="180" dlg:height="10" dlg:value="Chat Max Tokens:" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_max_tokens" dlg:left="195" dlg:top="250" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="16384"/>
+  <dlg:text dlg:id="label_chat_context_length" dlg:left="8" dlg:top="272" dlg:width="180" dlg:height="10" dlg:value="Chat Context Length (chars):" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_context_length" dlg:left="195" dlg:top="270" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="8000"/>
+  <dlg:text dlg:id="label_chat_system_prompt" dlg:left="8" dlg:top="292" dlg:width="180" dlg:height="10" dlg:value="Chat System Prompt:" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_system_prompt" dlg:left="8" dlg:top="304" dlg:width="402" dlg:height="65" dlg:tabstop="true" dlg:multiline="true"/>
+  <dlg:button dlg:id="btn_ok" dlg:left="160" dlg:top="375" dlg:width="100" dlg:height="18" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
  </dlg:bulletinboard>
 </dlg:window>

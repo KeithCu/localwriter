@@ -39,22 +39,8 @@ def _agent_log(location, message, data=None, hypothesis_id=None, run_id=None):
         pass
     # #endregion
 
-# Default system prompt for the chat sidebar
-DEFAULT_SYSTEM_PROMPT = (
-    "You are a document editing assistant integrated into LibreOffice Writer.\n"
-    "You have tools to read and modify the user's document. USE THEM PROACTIVELY.\n\n"
-    "IMPORTANT RULES:\n"
-    "- TRANSLATION: You CAN translate. Call get_document_text, translate the content yourself, "
-    "then replace_text or search_and_replace_all to apply it. NEVER refuse or say you lack a translation tool.\n"
-    "- For edit, rewrite, or transform requests: call get_document_text, then use replace_text "
-    "or search_and_replace_all. You produce the new text; the tools apply it.\n"
-    "- For questions about the document: call get_document_text first, then answer.\n"
-    "- Only answer without tools for general questions unrelated to the document.\n"
-    "- Be concise. Do NOT write long reasoning chains, step-by-step plans, or repeated conclusions. "
-    "Think briefly and act: call tools directly. Avoid phrases like 'Thus we need to...' or re-explaining the obvious.\n"
-    "- After making edits, briefly confirm what you changed (one sentence).\n"
-    "- Do not make changes the user did not ask for."
-)
+# Default system prompt for the chat sidebar (imported from main inside methods to avoid unopkg errors)
+DEFAULT_SYSTEM_PROMPT_FALLBACK = "You are a helpful assistant."
 
 
 def _debug_log(ctx, msg):
@@ -122,7 +108,7 @@ def _ensure_extension_on_path(ctx):
 class ChatSession:
     """Maintains the message history for one sidebar chat session."""
 
-    def __init__(self, system_prompt=DEFAULT_SYSTEM_PROMPT):
+    def __init__(self, system_prompt=None):
         self.messages = []
         if system_prompt:
             self.messages.append({"role": "system", "content": system_prompt})
@@ -730,16 +716,15 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         try:
             # Read system prompt from config
             _debug_log(self.ctx, "_wireControls: importing MainJob...")
-            from main import MainJob
+            from main import MainJob, DEFAULT_CHAT_SYSTEM_PROMPT
             job = MainJob(self.ctx)
-            system_prompt = job.get_config("chat_system_prompt", DEFAULT_SYSTEM_PROMPT)
-            _debug_log(self.ctx, "_wireControls: config loaded, api_type=%s" %
-                        job.get_config("api_type", "completions"))
+            system_prompt = job.get_config("chat_system_prompt", DEFAULT_CHAT_SYSTEM_PROMPT)
+            _debug_log(self.ctx, "_wireControls: config loaded")
         except Exception as e:
             import traceback
             _show_init_error("MainJob config: %s" % e)
             _debug_log(self.ctx, traceback.format_exc())
-            system_prompt = DEFAULT_SYSTEM_PROMPT
+            system_prompt = DEFAULT_SYSTEM_PROMPT_FALLBACK
 
         # Create session
         self.session = ChatSession(system_prompt)
