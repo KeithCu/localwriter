@@ -32,6 +32,9 @@ USER_AGENT = (
     'Chrome/114.0.0.0 Safari/537.36'
 )
 
+# Use workspace path so logs are readable when extension runs from LibreOffice install
+DEBUG_LOG_PATH = "/home/keithcu/Desktop/Python/localwriter/.cursor/debug.log"
+
 def log_to_file(message):
     # Get the user's home directory
     home_directory = os.path.expanduser('~')
@@ -568,6 +571,14 @@ class MainJob(unohelper.Base, XJobExecutor):
     def settings_box(self, title="", x=None, y=None):
         """ Settings dialog loaded from XDL (LocalWriterDialogs/SettingsDialog.xdl).
         Uses DialogProvider for proper Map AppFont sizing. """
+        # #region agent log
+        try:
+            _log = open(DEBUG_LOG_PATH, "a")
+            _log.write('{"location":"main.py:settings_box","message":"settings_box entered","data":{},"hypothesisId":"H3,H4","timestamp":%d}\n' % (int(__import__("time").time() * 1000)))
+            _log.close()
+        except Exception:
+            pass
+        # #endregion
         import uno
         ctx = uno.getComponentContext()
         smgr = ctx.getServiceManager()
@@ -590,14 +601,67 @@ class MainJob(unohelper.Base, XJobExecutor):
         ]
 
         dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
-        dlg = dp.createDialog("vnd.sun.star.script:LocalWriterDialogs.SettingsDialog?location=application")
+        # #region agent log
+        try:
+            _log = open(DEBUG_LOG_PATH, "a")
+            _log.write('{"location":"main.py:settings_box","message":"before createDialog","data":{},"hypothesisId":"H3","timestamp":%d}\n' % (int(__import__("time").time() * 1000)))
+            _log.close()
+        except Exception:
+            pass
+        # #endregion
+        try:
+            dlg = dp.createDialog("vnd.sun.star.script:LocalWriterDialogs.SettingsDialog?location=application")
+        except BaseException as ex:
+            # #region agent log
+            try:
+                _log = open(DEBUG_LOG_PATH, "a")
+                _log.write('{"location":"main.py:settings_box","message":"createDialog failed","data":{"error":%s,"type":%s},"hypothesisId":"H3","timestamp":%d}\n' % (json.dumps(str(ex)), json.dumps(type(ex).__name__), int(__import__("time").time() * 1000)))
+                _log.close()
+            except Exception:
+                pass
+            # #endregion
+            raise
+        finally:
+            # #region agent log
+            try:
+                _log = open(DEBUG_LOG_PATH, "a")
+                _log.write('{"location":"main.py:settings_box","message":"createDialog block exited","data":{},"hypothesisId":"H3","timestamp":%d}\n' % (int(__import__("time").time() * 1000)))
+                _log.close()
+            except Exception:
+                pass
+            # #endregion
+        # #region agent log
+        try:
+            _log = open(DEBUG_LOG_PATH, "a")
+            _log.write('{"location":"main.py:settings_box","message":"createDialog succeeded","data":{},"hypothesisId":"H3","timestamp":%d}\n' % (int(__import__("time").time() * 1000)))
+            _log.close()
+        except Exception:
+            pass
+        # #endregion
         try:
             for field in field_specs:
                 ctrl = dlg.getControl(field["name"])
                 if ctrl:
                     ctrl.getModel().Text = field["value"]
             dlg.getControl("endpoint").setFocus()
-            if dlg.execute():
+            # #region agent log
+            try:
+                _log = open(DEBUG_LOG_PATH, "a")
+                _log.write('{"location":"main.py:settings_box","message":"before dlg.execute","data":{},"hypothesisId":"H4","timestamp":%d}\n' % (int(__import__("time").time() * 1000)))
+                _log.close()
+            except Exception:
+                pass
+            # #endregion
+            exec_result = dlg.execute()
+            # #region agent log
+            try:
+                _log = open(DEBUG_LOG_PATH, "a")
+                _log.write('{"location":"main.py:settings_box","message":"after dlg.execute","data":{"exec_result":%s},"hypothesisId":"H4","timestamp":%d}\n' % (str(exec_result), int(__import__("time").time() * 1000)))
+                _log.close()
+            except Exception:
+                pass
+            # #endregion
+            if exec_result:
                 result = {}
                 for field in field_specs:
                     ctrl = dlg.getControl(field["name"])
@@ -621,12 +685,37 @@ class MainJob(unohelper.Base, XJobExecutor):
         return result
 
     def trigger(self, args):
+        # #region agent log
+        try:
+            _log = open(DEBUG_LOG_PATH, "a")
+            _log.write('{"location":"main.py:trigger","message":"trigger called","data":{"args":%s},"hypothesisId":"H1,H2","timestamp":%d}\n' % (json.dumps(str(args)), int(__import__("time").time() * 1000)))
+            _log.close()
+        except Exception:
+            pass
+        # #endregion
         desktop = self.ctx.ServiceManager.createInstanceWithContext(
             "com.sun.star.frame.Desktop", self.ctx)
         model = desktop.getCurrentComponent()
+        # #region agent log
+        try:
+            _log = open(DEBUG_LOG_PATH, "a")
+            _log.write('{"location":"main.py:trigger","message":"model state","data":{"model_is_none":%s,"has_text":%s,"has_sheets":%s},"hypothesisId":"H2","timestamp":%d}\n' % (str(model is None), str(hasattr(model, "Text") if model else False), str(hasattr(model, "Sheets") if model else False), int(__import__("time").time() * 1000)))
+            _log.close()
+        except Exception:
+            pass
+        # #endregion
         #if not hasattr(model, "Text"):
         #    model = self.desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
 
+        if args == "settings" and (not model or (not hasattr(model, "Text") and not hasattr(model, "Sheets"))):
+            # #region agent log
+            try:
+                _log = open(DEBUG_LOG_PATH, "a")
+                _log.write('{"location":"main.py:trigger","message":"settings requested but no Writer/Calc document","data":{"args":%s},"hypothesisId":"H2","timestamp":%d}\n' % (json.dumps(str(args)), int(__import__("time").time() * 1000)))
+                _log.close()
+            except Exception:
+                pass
+            # #endregion
         if hasattr(model, "Text"):
             text = model.Text
             selection = model.CurrentController.getSelection()
@@ -700,6 +789,14 @@ class MainJob(unohelper.Base, XJobExecutor):
             
             elif args == "settings":
                 try:
+                    # #region agent log
+                    try:
+                        _log = open(DEBUG_LOG_PATH, "a")
+                        _log.write('{"location":"main.py:trigger","message":"about to call settings_box (Writer)","data":{},"hypothesisId":"H1,H2","timestamp":%d}\n' % (int(__import__("time").time() * 1000)))
+                        _log.close()
+                    except Exception:
+                        pass
+                    # #endregion
                     result = self.settings_box("Settings")
                                     
                     if "extend_selection_max_tokens" in result:
@@ -743,6 +840,14 @@ class MainJob(unohelper.Base, XJobExecutor):
 
 
                 except Exception as e:
+                    # #region agent log
+                    try:
+                        _log = open(DEBUG_LOG_PATH, "a")
+                        _log.write('{"location":"main.py:trigger","message":"settings exception (Writer)","data":{"error":%s},"hypothesisId":"H5","timestamp":%d}\n' % (json.dumps(str(e)), int(__import__("time").time() * 1000)))
+                        _log.close()
+                    except Exception:
+                        pass
+                    # #endregion
                     self.show_error(str(e), "LocalWriter: Settings")
         elif hasattr(model, "Sheets"):
             try:
@@ -754,6 +859,14 @@ class MainJob(unohelper.Base, XJobExecutor):
 
                 if args == "settings":
                     try:
+                        # #region agent log
+                        try:
+                            _log = open(DEBUG_LOG_PATH, "a")
+                            _log.write('{"location":"main.py:trigger","message":"about to call settings_box (Calc)","data":{},"hypothesisId":"H1,H2","timestamp":%d}\n' % (int(__import__("time").time() * 1000)))
+                            _log.close()
+                        except Exception:
+                            pass
+                        # #endregion
                         result = self.settings_box("Settings")
                                         
                         if "extend_selection_max_tokens" in result:
@@ -795,6 +908,14 @@ class MainJob(unohelper.Base, XJobExecutor):
                         if "seed" in result:                
                             self.set_config("seed", result["seed"])
                     except Exception as e:
+                        # #region agent log
+                        try:
+                            _log = open(DEBUG_LOG_PATH, "a")
+                            _log.write('{"location":"main.py:trigger","message":"settings exception (Calc)","data":{"error":%s},"hypothesisId":"H5","timestamp":%d}\n' % (json.dumps(str(e)), int(__import__("time").time() * 1000)))
+                            _log.close()
+                        except Exception:
+                            pass
+                        # #endregion
                         self.show_error(str(e), "LocalWriter: Settings")
                     return
 

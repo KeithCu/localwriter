@@ -50,7 +50,8 @@ DEFAULT_SYSTEM_PROMPT = (
     "or search_and_replace_all. You produce the new text; the tools apply it.\n"
     "- For questions about the document: call get_document_text first, then answer.\n"
     "- Only answer without tools for general questions unrelated to the document.\n"
-    "- Keep reasoning minimal, then act. Do not repeat conclusions or over-explain.\n"
+    "- Be concise. Do NOT write long reasoning chains, step-by-step plans, or repeated conclusions. "
+    "Think briefly and act: call tools directly. Avoid phrases like 'Thus we need to...' or re-explaining the obvious.\n"
     "- After making edits, briefly confirm what you changed (one sentence).\n"
     "- Do not make changes the user did not ask for."
 )
@@ -199,12 +200,27 @@ class SendButtonListener(unohelper.Base, XActionListener):
         except Exception:
             pass
 
+    def _scroll_response_to_bottom(self):
+        """Scroll the response area to show the bottom (newest content).
+        Uses XTextComponent.setSelection to place caret at end, which scrolls the view."""
+        try:
+            if self.response_control:
+                model = self.response_control.getModel()
+                if model and hasattr(self.response_control, "setSelection"):
+                    text = model.Text or ""
+                    length = len(text)
+                    self.response_control.setSelection(
+                        uno.createUnoStruct("com.sun.star.awt.Selection", length, length))
+        except Exception:
+            pass
+
     def _append_response(self, text):
         """Append text to the response area."""
         try:
             if self.response_control and self.response_control.getModel():
                 current = self.response_control.getModel().Text or ""
                 self.response_control.getModel().Text = current + text
+                self._scroll_response_to_bottom()
                 toolkit = self.ctx.getServiceManager().createInstanceWithContext(
                     "com.sun.star.awt.Toolkit", self.ctx)
                 toolkit.processEventsToIdle()

@@ -76,6 +76,12 @@ localwriter/
 - **Menu fallback**: Menu item "Chat with Document" opens input dialog, appends streaming response to document end (no tool-calling).
 - **Config keys** (used by chat, not all in Settings UI): `chat_context_length`, `chat_max_tokens`, `chat_system_prompt`.
 
+### System prompt and reasoning (latest)
+
+- **DEFAULT_SYSTEM_PROMPT** in `chat_panel.py` instructs the model to: (1) use tools proactively; (2) for translate/edit/rewrite: call `get_document_text`, produce the new text, then `replace_text` or `search_and_replace_all` — never refuse translation; (3) keep reasoning minimal and act; (4) confirm edits briefly.
+- **Reasoning tokens**: `main.py` sends `reasoning: { effort: 'minimal' }` on all chat requests (OpenRouter and other providers). Providers that support it allocate fewer tokens for thinking; others ignore the param.
+- **Thinking display**: Reasoning/thinking tokens are streamed and shown in the response area as `[Thinking] ... /thinking` so users see progress. The model can still be verbose; `effort: 'minimal'` helps but does not eliminate it.
+
 See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for implementation details.
 
 ---
@@ -162,7 +168,7 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 
 ### Chat Sidebar Enhancement Roadmap
 
-See [CHAT_SIDEBAR_ROADMAP.md](CHAT_SIDEBAR_ROADMAP.md) for a comprehensive roadmap of advanced features to enhance the chat with document functionality.
+See [Chat Sidebar Improvement Plan.md](Chat%20Sidebar%20Improvement%20Plan.md) for current capabilities, recent improvements, and advanced roadmap.
 
 ---
 
