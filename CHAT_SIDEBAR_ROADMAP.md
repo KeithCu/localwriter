@@ -2,6 +2,14 @@
 
 This roadmap outlines a progression of increasingly sophisticated features to enhance the "Chat with Document" sidebar functionality, focusing on context awareness, document understanding, and intelligent editing capabilities.
 
+## Key Findings (Priorities and Rationale)
+
+- **Phase 1 scope was overreaching:** `get_document_structure()` is explicitly deferred as too hard; viewport content (`get_visible_content()`) and full outline extraction are expensive or fragile in LibreOffice UNO. Prioritize low-risk context primitives first.
+- **Safety and observability must come before new features:** AGENTS.md and IMPROVEMENT_PLAN.md call out shared API helper, request timeout, and user-facing error handling (message boxes, no errors written into the document). These are cross-cutting and should be Phase 0.
+- **Priority order should reflect dependencies:** Reliability and token/context guardrails enable confident rollout of new tools; context precision enables better edits; editing power tools and analysis follow; real-time and multi-document work are high-risk and belong in a research appendix with prototype gates.
+- **Acceptance and rollback are underspecified:** Each feature should have clear acceptance criteria (latency, error behavior, undo safety). AI-applied edits need a defined rollback/safety policy and "propose-first" workflow for suggestions.
+- **UNO and performance risks:** Real-time monitoring, viewport content, and multi-document orchestration assume capabilities that are costly or uncertain in UNO; document these in a risk register and defer to research until foundation is solid.
+
 ## Current Capabilities (Baseline)
 
 ✅ **Working Features:**
@@ -26,97 +34,90 @@ This roadmap outlines a progression of increasingly sophisticated features to en
 
 ## Roadmap Phases
 
+### Phase 0: Foundation and Safety (Prerequisite)
+
+**Goal:** Establish reliability, observability, and safe defaults before adding context or editing features.
+
+- **Shared API helper and request timeout:** Single code path for chat/completion with configurable timeout; avoid duplicated logic and hanging requests.
+- **Unified user-facing error handling:** Message boxes for failures; never write error text into the document or selection.
+- **Token/context budget guardrails:** Enforce truncation policy (e.g. respect `chat_context_length`), document how truncation is applied, and avoid unbounded context growth.
+- **Structured logging toggles:** Optional debug logging (e.g. controlled by config) and minimal counters for tool success/failure to support diagnostics without noise.
+
+**Definition of done:** Timeout and errors verified in manual tests; no silent or doc-inserted failures; config-driven context limit enforced; logging can be turned off for production.
+
 ### Phase 1: Enhanced Context Awareness (Short-term)
 
-**Goal:** Make the AI more aware of document structure, user context, and editing environment.
+**Goal:** Make the AI more aware of user focus and position using low-risk, UNO-friendly primitives only.
 
-#### 1.1 Document Structure Understanding
+#### 1.1 Selection and Cursor Context (priority)
 
-- **Feature:** Provide document structure metadata to AI
-- **Implementation:** Add new tools/functions:
-  - `get_document_structure()` - Returns outline/heading hierarchy IGNORE FOR NOW -- TOO HARD
-  - `get_current_position()` - Returns cursor position, current paragraph, section
-  - `get_visible_content()` - Returns text visible in current viewport
-- **Benefit:** AI can understand document organization and user's current focus area
-
-#### 1.2 Selection and Cursor Context
-
-- **Feature:** Enhanced selection awareness
+- **Feature:** Enhanced selection and cursor context
 - **Implementation:**
-  - Track selection changes and provide context about what's selected
-  - Add `get_selection_context()` - Returns surrounding text around selection
-  - Add `get_cursor_context()` - Returns text around cursor position
-- **Benefit:** AI can make more targeted edits based on exact user focus
+  - Add `get_selection_context()` - Returns surrounding text around selection (configurable window, e.g. N chars/paragraphs).
+  - Add `get_cursor_context()` - Returns text around cursor position.
+  - Lightweight `get_current_position()` - Returns paragraph index, current paragraph style name, selection length (no full outline; avoid heavy structure APIs).
+- **Deferred:** `get_document_structure()` (outline/heading hierarchy) and `get_visible_content()` (viewport) - marked too hard or expensive for current phase; revisit after Phase 1 validation.
 
-#### 1.3 Document Metadata
+#### 1.2 Document Metadata
 
-- **Feature:** Provide document properties to AI
+- **Feature:** Basic document properties for AI
 - **Implementation:**
-  - `get_document_metadata()` - Returns title, author, creation date, word count, etc.
-  - `get_style_information()` - Returns available styles and their usage
-- **Benefit:** AI can tailor responses based on document type and purpose
+  - `get_document_metadata()` - Title, author, creation date, word count.
+  - `get_style_information()` - Available styles and their usage (keep scope bounded for performance).
+
+**Definition of done:** New tools return correct data on test documents; system prompt updated to use context; no regressions in existing tool calls; sidebar and Writer compatibility checked.
+
+**Go/no-go checkpoint:** Phase 1 is done when manual test checklist (see Validation Plan) passes for new context tools and existing tools; no new crashes or error paths.
 
 ### Phase 2: Intelligent Editing Assistance (Medium-term)
 
-**Goal:** Enable AI to perform more sophisticated document transformations and provide intelligent suggestions.
+**Goal:** More powerful document transformations and writing assistance, with safety and propose-first workflows.
 
 #### 2.1 Advanced Text Manipulation
 
-- **Feature:** More powerful text transformation tools
+- **Feature:** Power tools for text transformation (only after Phase 0 safety and confirmations in place)
 - **Implementation:**
-  - `find_and_replace_with_regex()` - Regex-based search/replace
+  - `find_and_replace_with_regex()` - Regex-based search/replace (with clear confirmation or preview where appropriate)
   - `apply_style_to_pattern()` - Apply styles based on text patterns
   - `extract_and_format()` - Extract structured data and format it
-- **Benefit:** Enable complex document restructuring operations
+- **Benefit:** Complex document restructuring with controlled risk
 
-#### 2.2 Context-Aware Suggestions
+#### 2.2 Context-Aware Suggestions (propose-first)
 
-- **Feature:** AI-powered writing assistance
+- **Feature:** AI writing assistance that proposes rather than auto-applies
 - **Implementation:**
-  - `suggest_improvements()` - Grammar, style, and clarity suggestions
+  - `suggest_improvements()` - Grammar, style, clarity; present as suggestions for user accept/reject
   - `generate_alternatives()` - Multiple phrasing alternatives
-  - `check_consistency()` - Terminology and style consistency checking
-- **Benefit:** Transform chat into a writing assistant that helps improve document quality
+  - `check_consistency()` - Terminology and style consistency; report only, no direct edits
+- **Benefit:** Writing assistant that improves quality without unexpected document changes
 
 #### 2.3 Document Analysis
 
-- **Feature:** Document analytics and insights
+- **Feature:** Document analytics and insights (read-only / report-only where possible)
 - **Implementation:**
   - `analyze_readability()` - Readability scores and suggestions
   - `identify_key_concepts()` - Extract main themes and topics
   - `generate_summary()` - Automatic document summarization
-- **Benefit:** Help users understand and improve their documents
+- **Benefit:** Help users understand and improve documents without mandatory edits
 
-### Phase 3: Collaborative Editing (Advanced)
+**Definition of done:** New tools implemented with propose-first or report-only behavior where specified; regex and pattern tools have confirmation/preview where applicable; manual tests pass for new and existing tools.
 
-**Goal:** Enable AI to work alongside users in real-time editing sessions.
+**Go/no-go checkpoint:** Phase 2 is done when assistance features do not auto-apply without user action; editing power tools respect safety policy; no regressions in Phase 0/1 behavior.
 
-#### 3.1 Real-time Collaboration
+### Phase 3: Versioning and Safer Experimentation
 
-- **Feature:** AI as co-editor
-- **Implementation:**
-  - `monitor_changes()` - Track user edits and provide feedback
-  - `suggest_edits()` - Proactive edit suggestions as user types
-  - `auto-format()` - Automatic formatting as user writes
-- **Benefit:** Create a collaborative editing experience
-
-#### 3.2 Version Control Integration
+**Goal:** Enable safe experimentation with AI edits via snapshots and rollback.
 
 - **Feature:** Document versioning and change tracking
 - **Implementation:**
-  - `create_snapshot()` - Save document state
+  - `create_snapshot()` - Save document state before risky or batch operations
   - `compare_versions()` - Show differences between versions
-  - `revert_changes()` - Roll back to previous versions
-- **Benefit:** Enable safe experimentation with AI edits
+  - `revert_changes()` - Roll back to a previous version
+- **Benefit:** Users can try AI edits with a clear rollback path
 
-#### 3.3 Multi-Document Workflow
+**Definition of done:** Snapshot/compare/revert work on test documents; undo safety preserved; no data loss in rollback scenarios.
 
-- **Feature:** Work with multiple documents simultaneously
-- **Implementation:**
-  - `open_related_documents()` - Access related files
-  - `cross_reference()` - Create links between documents
-  - `merge_documents()` - Combine content from multiple sources
-- **Benefit:** Support complex document workflows
+**Go/no-go checkpoint:** Phase 3 is done when rollback and comparison are validated manually; no new failure modes introduced.
 
 ### Phase 4: Domain-Specific Intelligence (Long-term)
 
@@ -149,6 +150,38 @@ This roadmap outlines a progression of increasingly sophisticated features to en
   - `knowledge_base_query()` - Access curated knowledge bases
   - `data_lookup()` - Retrieve structured data from databases
 - **Benefit:** Enable AI to provide up-to-date, accurate information
+
+### Research / Future Ideas (Prototype Gates)
+
+The following are deferred until foundation and earlier phases are stable. Treat as research: validate UNO feasibility and performance before committing to a phase.
+
+- **Real-time collaboration:** `monitor_changes()`, proactive `suggest_edits()` as user types, `auto-format()` - require proof-of-concept that UNO event listeners and document change tracking are viable and performant.
+- **Multi-document workflow:** `open_related_documents()`, `cross_reference()`, `merge_documents()` - require clear multi-document API and security model before scheduling.
+- **Document structure (full outline):** `get_document_structure()` / heading hierarchy - revisit when UNO APIs and perf are better understood; keep out of near-term phases.
+
+## Acceptance Criteria and Testing Gates
+
+- **All tools:** Failures surface via user-visible message (no silent failures, no errors written into document); tool calls are undoable where they modify document; latency remains acceptable (e.g. no multi-second UI freezes for single tool call on typical documents).
+- **Phase 0:** Request timeout enforced; context truncation respects config; logging can be disabled; error paths tested (network failure, invalid response, timeout).
+- **Phase 1 context tools:** Returned context is accurate and bounded in size; empty selection/cursor edge cases handled; no regressions in existing `get_document_text` / `get_selection` behavior.
+- **Phase 2 editing/suggestions:** Suggest-only tools do not modify document without explicit user accept; regex/pattern tools have defined limits (e.g. match cap) and confirmation or preview where appropriate.
+- **Phase 3 versioning:** Snapshot captures state needed for revert; revert restores that state; comparison is readable and correct.
+
+**Definition of done** for each phase is stated in the phase description; **go/no-go checkpoints** must pass before starting the next phase.
+
+## Risk Register (by Area)
+
+| Area | Risk | Mitigation |
+|------|------|------------|
+| UNO APIs | Document structure, viewport, event listeners may be missing or costly | Defer full structure/viewport; use only lightweight position/context; research phase for event-driven |
+| Large documents | High memory or slow context extraction | Enforce context budget and truncation; avoid loading full document multiple times |
+| Model behavior | Hallucination or wrong tool args leading to bad edits | Propose-first for suggestions; confirmations for bulk/regex; Phase 3 snapshots for rollback |
+| Tool schema changes | Existing prompts or configs break when tools change | Add migration/backward compatibility section; version tool schemas if needed |
+
+## Migration and Backward Compatibility
+
+- **Tool schema:** When adding or changing tools (names, parameters), preserve backward compatibility for existing system prompts and configs. Prefer additive changes (new tools, optional params); if a tool is renamed or removed, document migration path and support old name for at least one release if feasible.
+- **Config:** New config keys (e.g. context window size for `get_selection_context`) should have defaults so existing `localwriter.json` files keep working.
 
 ## Technical Implementation Plan
 
@@ -219,69 +252,23 @@ This roadmap outlines a progression of increasingly sophisticated features to en
   - Background processing for heavy operations
   - Adaptive token budgeting
 
-## Implementation Priority Matrix
+## Dependency-Aware Sequencing and Rollout
 
+**Order of work (what must exist before what):**
 
-| Feature                        | Impact | Effort    | Priority |
-| -------------------------------- | -------- | ----------- | ---------- |
-| Document structure tools       | High   | Medium    | 1        |
-| Enhanced selection context     | High   | Low       | 1        |
-| Advanced text manipulation     | Medium | Medium    | 2        |
-| Context-aware suggestions      | High   | High      | 2        |
-| Real-time collaboration        | High   | Very High | 3        |
-| Document analysis              | Medium | Medium    | 2        |
-| Version control                | Medium | High      | 3        |
-| Domain-specific tools          | High   | Very High | 4        |
-| External knowledge integration | Medium | Very High | 4        |
+1. **Phase 0 (Foundation and Safety)** — Must complete before any new context or editing features. Delivers: shared API helper + timeout, user-facing errors only (no doc-inserted errors), context/token guardrails, optional logging.
+2. **Phase 1 (Context)** — Depends on Phase 0. Delivers: `get_selection_context()`, `get_cursor_context()`, lightweight `get_current_position()`, optional `get_document_metadata()` / `get_style_information()`. Defer full document structure and viewport.
+3. **Phase 2 (Editing and assistance)** — Depends on Phase 0 and 1. Delivers: advanced text manipulation (regex, pattern style) with confirmations; context-aware suggestions and analysis in propose-first or report-only form.
+4. **Phase 3 (Versioning)** — Depends on Phase 0–2. Delivers: snapshot, compare, revert for safer experimentation.
+5. **Phase 4 (Domain-specific)** — Depends on stable foundation and prior phases. Long-term.
+6. **Research / Future ideas** — Not on critical path; prototype gates only (real-time, multi-document, full structure).
 
-## Recommended First Steps
+**Rollout criteria:** Before marking a phase complete, run the manual test checklist for that phase; meet the go/no-go checkpoint; and ensure no regressions in previous phases. Track the three launch metrics (tool success rate, user-visible error rate, undo/recovery success) from Phase 0 onward.
 
-### Immediate (1-2 weeks)
+## Validation Plan
 
-1. **Implement document structure tools**
-
-   - Add `get_document_structure()` tool
-   - Add `get_current_position()` tool
-   - Update system prompt to use structural context
-2. **Enhance selection awareness**
-
-   - Add `get_selection_context()` tool
-   - Add `get_cursor_context()` tool
-   - Improve selection tracking
-3. **Add basic document analysis**
-
-   - Implement `analyze_readability()`
-   - Implement `generate_summary()`
-
-### Short-term (2-4 weeks)
-
-1. **Advanced text manipulation tools**
-
-   - Add regex search/replace
-   - Add pattern-based styling
-2. **Context-aware suggestions**
-
-   - Implement grammar/style checking
-   - Add phrasing alternatives
-3. **UI improvements**
-
-   - Add tool palette to sidebar
-   - Add context preview pane
-
-### Medium-term (1-2 months)
-
-1. **Real-time collaboration features**
-
-   - Implement change monitoring
-   - Add proactive suggestions
-2. **Version control integration**
-
-   - Add snapshot capability
-   - Implement change comparison
-3. **Domain-specific enhancements**
-
-   - Add document type detection
-   - Implement basic domain tools
+- **Manual test checklist (focused):** Cover sidebar open/send/streaming (`chat_panel.py`), each document tool invoke and error path (`document_tools.py`), and API/timeout/error display (`main.py`). Verify: open panel, send message, receive response, invoke one of each tool type, trigger timeout or invalid response and confirm message box (no doc insert), undo after tool edit.
+- **Launch metrics (track first):** (1) Tool success rate (successful tool calls / total tool calls), (2) User-visible error rate (errors shown to user / sessions or requests), (3) Undo/recovery success (undo after AI edit restores state correctly). Use these before adding more quantitative metrics.
 
 ## Success Metrics
 
@@ -321,6 +308,4 @@ This roadmap outlines a progression of increasingly sophisticated features to en
 
 ## Conclusion
 
-This roadmap provides a clear path from the current working implementation to a sophisticated, context-aware document editing assistant. By focusing on incremental enhancements that build on the existing tool-calling framework, we can create a powerful AI assistant that truly understands documents and helps users work more effectively.
-
-The key to success is maintaining the current strengths (reliable tool execution, good context provision) while gradually adding more sophisticated capabilities that leverage the AI's understanding of document structure, user intent, and editing workflows.
+This roadmap orders work by dependency: foundation and safety first (Phase 0), then low-risk context (Phase 1), then editing and assistance with propose-first and confirmations (Phase 2), then versioning (Phase 3) and domain-specific work (Phase 4). Real-time collaboration and multi-document workflows are deferred to a research appendix with prototype gates. Success depends on completing each phase’s definition of done and go/no-go checkpoint before advancing, and on tracking tool success rate, user-visible error rate, and undo/recovery success from the start.
