@@ -1,33 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
 <dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" xmlns:script="http://openoffice.org/2000/script"
-  dlg:id="SettingsDialog" dlg:left="100" dlg:top="50" dlg:width="420" dlg:height="385"
+  dlg:id="SettingsDialog" dlg:left="100" dlg:top="50" dlg:width="420" dlg:height="275"
   dlg:closeable="true" dlg:moveable="true" dlg:resizeable="true" dlg:title="Settings">
  <dlg:bulletinboard>
-  <dlg:text dlg:id="label_endpoint" dlg:left="8" dlg:top="8" dlg:width="404" dlg:height="10" dlg:value="Endpoint URL/Port:" dlg:align="left"/>
-  <dlg:textfield dlg:id="endpoint" dlg:left="8" dlg:top="19" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value="http://127.0.0.1:5000"/>
-  <dlg:text dlg:id="label_model" dlg:left="8" dlg:top="37" dlg:width="404" dlg:height="10" dlg:value="Model (Required by Ollama/OpenAI):" dlg:align="left"/>
-  <dlg:textfield dlg:id="model" dlg:left="8" dlg:top="48" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:text dlg:id="label_api_key" dlg:left="8" dlg:top="66" dlg:width="404" dlg:height="10" dlg:value="API Key (for OpenAI-compatible endpoints):" dlg:align="left"/>
-  <dlg:textfield dlg:id="api_key" dlg:left="8" dlg:top="77" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:text dlg:id="label_api_type" dlg:left="8" dlg:top="95" dlg:width="404" dlg:height="10" dlg:value="API Type (completions/chat):" dlg:align="left"/>
-  <dlg:textfield dlg:id="api_type" dlg:left="8" dlg:top="106" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value="completions"/>
-  <dlg:text dlg:id="label_is_openwebui" dlg:left="8" dlg:top="124" dlg:width="404" dlg:height="10" dlg:value="Is OpenWebUI endpoint? (true/false):" dlg:align="left"/>
-  <dlg:textfield dlg:id="is_openwebui" dlg:left="8" dlg:top="135" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value="false"/>
-  <dlg:text dlg:id="label_openai_compatibility" dlg:left="8" dlg:top="153" dlg:width="404" dlg:height="10" dlg:value="OpenAI Compatible Endpoint? (true/false):" dlg:align="left"/>
-  <dlg:textfield dlg:id="openai_compatibility" dlg:left="8" dlg:top="164" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value="true"/>
-  <dlg:text dlg:id="label_temperature" dlg:left="8" dlg:top="182" dlg:width="404" dlg:height="10" dlg:value="Temperature:" dlg:align="left"/>
-  <dlg:textfield dlg:id="temperature" dlg:left="8" dlg:top="193" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value="0.5"/>
-  <dlg:text dlg:id="label_seed" dlg:left="8" dlg:top="211" dlg:width="404" dlg:height="10" dlg:value="Random Seed:" dlg:align="left"/>
-  <dlg:textfield dlg:id="seed" dlg:left="8" dlg:top="222" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:text dlg:id="label_extend_selection_max_tokens" dlg:left="8" dlg:top="240" dlg:width="404" dlg:height="10" dlg:value="Extend Selection Max Tokens:" dlg:align="left"/>
-  <dlg:textfield dlg:id="extend_selection_max_tokens" dlg:left="8" dlg:top="251" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value="70"/>
-  <dlg:text dlg:id="label_extend_selection_system_prompt" dlg:left="8" dlg:top="269" dlg:width="404" dlg:height="10" dlg:value="Extend Selection System Prompt:" dlg:align="left"/>
-  <dlg:textfield dlg:id="extend_selection_system_prompt" dlg:left="8" dlg:top="280" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:text dlg:id="label_edit_selection_max_new_tokens" dlg:left="8" dlg:top="298" dlg:width="404" dlg:height="10" dlg:value="Edit Selection Max New Tokens:" dlg:align="left"/>
-  <dlg:textfield dlg:id="edit_selection_max_new_tokens" dlg:left="8" dlg:top="309" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value="0"/>
-  <dlg:text dlg:id="label_edit_selection_system_prompt" dlg:left="8" dlg:top="327" dlg:width="404" dlg:height="10" dlg:value="Edit Selection System Prompt:" dlg:align="left"/>
-  <dlg:textfield dlg:id="edit_selection_system_prompt" dlg:left="8" dlg:top="338" dlg:width="404" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:button dlg:id="btn_ok" dlg:left="160" dlg:top="358" dlg:width="100" dlg:height="18" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
+  <dlg:text dlg:id="label_endpoint" dlg:left="8" dlg:top="12" dlg:width="180" dlg:height="10" dlg:value="Endpoint URL/Port:" dlg:align="left"/>
+  <dlg:textfield dlg:id="endpoint" dlg:left="195" dlg:top="10" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="http://127.0.0.1:5000"/>
+  <dlg:text dlg:id="label_model" dlg:left="8" dlg:top="32" dlg:width="180" dlg:height="10" dlg:value="Model (Required by Ollama/OpenAI):" dlg:align="left"/>
+  <dlg:textfield dlg:id="model" dlg:left="195" dlg:top="30" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_api_key" dlg:left="8" dlg:top="52" dlg:width="180" dlg:height="10" dlg:value="API Key (for OpenAI-compatible endpoints):" dlg:align="left"/>
+  <dlg:textfield dlg:id="api_key" dlg:left="195" dlg:top="50" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_api_type" dlg:left="8" dlg:top="72" dlg:width="180" dlg:height="10" dlg:value="API Type (completions/chat):" dlg:align="left"/>
+  <dlg:textfield dlg:id="api_type" dlg:left="195" dlg:top="70" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="completions"/>
+  <dlg:text dlg:id="label_is_openwebui" dlg:left="8" dlg:top="92" dlg:width="180" dlg:height="10" dlg:value="Is OpenWebUI endpoint? (true/false):" dlg:align="left"/>
+  <dlg:textfield dlg:id="is_openwebui" dlg:left="195" dlg:top="90" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="false"/>
+  <dlg:text dlg:id="label_openai_compatibility" dlg:left="8" dlg:top="112" dlg:width="180" dlg:height="10" dlg:value="OpenAI Compatible Endpoint? (true/false):" dlg:align="left"/>
+  <dlg:textfield dlg:id="openai_compatibility" dlg:left="195" dlg:top="110" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="true"/>
+  <dlg:text dlg:id="label_temperature" dlg:left="8" dlg:top="132" dlg:width="180" dlg:height="10" dlg:value="Temperature:" dlg:align="left"/>
+  <dlg:textfield dlg:id="temperature" dlg:left="195" dlg:top="130" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="0.5"/>
+  <dlg:text dlg:id="label_seed" dlg:left="8" dlg:top="152" dlg:width="180" dlg:height="10" dlg:value="Random Seed:" dlg:align="left"/>
+  <dlg:textfield dlg:id="seed" dlg:left="195" dlg:top="150" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_extend_selection_max_tokens" dlg:left="8" dlg:top="172" dlg:width="180" dlg:height="10" dlg:value="Extend Selection Max Tokens:" dlg:align="left"/>
+  <dlg:textfield dlg:id="extend_selection_max_tokens" dlg:left="195" dlg:top="170" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="70"/>
+  <dlg:text dlg:id="label_extend_selection_system_prompt" dlg:left="8" dlg:top="192" dlg:width="180" dlg:height="10" dlg:value="Extend Selection System Prompt:" dlg:align="left"/>
+  <dlg:textfield dlg:id="extend_selection_system_prompt" dlg:left="195" dlg:top="190" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_edit_selection_max_new_tokens" dlg:left="8" dlg:top="212" dlg:width="180" dlg:height="10" dlg:value="Edit Selection Max New Tokens:" dlg:align="left"/>
+  <dlg:textfield dlg:id="edit_selection_max_new_tokens" dlg:left="195" dlg:top="210" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="0"/>
+  <dlg:text dlg:id="label_edit_selection_system_prompt" dlg:left="8" dlg:top="232" dlg:width="180" dlg:height="10" dlg:value="Edit Selection System Prompt:" dlg:align="left"/>
+  <dlg:textfield dlg:id="edit_selection_system_prompt" dlg:left="195" dlg:top="230" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:button dlg:id="btn_ok" dlg:left="160" dlg:top="250" dlg:width="100" dlg:height="18" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
  </dlg:bulletinboard>
 </dlg:window>
