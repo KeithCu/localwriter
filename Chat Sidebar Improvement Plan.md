@@ -1,8 +1,14 @@
 Chat Sidebar Improvement Plan
 
-Current State (updated 2026-02-12)
+Current State (updated 2026-02-13)
 
 The chat sidebar has conversation history, tool-calling, and 8 curated Writer document tools. The AI can read, search, replace, format, and style text in the open Writer document via the OpenAI-compatible tool-calling protocol.
+
+**Recent improvements (Feb 2026):**
+- **Translation behavior**: Models were refusing translation ("I don't have a translation tool"). Prompt now explicitly states: "You CAN translate. Call get_document_text, translate the content yourself, then replace_text or search_and_replace_all. NEVER refuse." Result: model correctly uses get_document_text → translate → replace_text.
+- **Reasoning verbosity**: Added `reasoning: { effort: 'minimal' }` to all chat requests (provider-agnostic). Thinking is still displayed for progress; model may remain verbose but no longer wastes tokens arguing with itself about whether it can perform tasks.
+- **Prompt brevity**: "Keep reasoning minimal, then act. Do not repeat conclusions or over-explain." Reduces circular reasoning in thinking output.
+- **Reasoning/thinking tokens**: Streamed and displayed as `[Thinking] ... /thinking` in the response area (progress indicator).
 
 Key files:
 - chat_panel.py -- ChatSession (conversation history), SendButtonListener (tool-calling loop), ClearButtonListener, ChatPanelElement/ChatToolPanel/ChatPanelFactory (sidebar plumbing)
@@ -59,9 +65,12 @@ Implemented in chat_panel.py SendButtonListener:
 
 Phase 5: System Prompt Engineering -- PARTIALLY DONE
 
-A default system prompt is injected by ChatSession. Still TODO:
+Implemented:
+- DEFAULT_SYSTEM_PROMPT in chat_panel.py with: (1) translation rule — get_document_text → translate → replace_text; never refuse; (2) edit/rewrite/transform — same pattern; (3) reasoning brevity — think briefly, act, avoid long chains; (4) post-edit confirmation (one sentence).
+- main.py sends `reasoning: { effort: 'minimal' }` on all chat requests (provider-agnostic).
+
+Still TODO:
 - Make chat_system_prompt editable in the Settings dialog
-- Tune the default prompt based on testing (especially around when the AI should use tools vs. answer directly)
 - Add instructions about formatting tools (bold, italic, paragraph styles) so the AI uses them effectively
 
 
@@ -123,3 +132,36 @@ Priority order for remaining work:
 4. System prompt tuning (Phase 5): Iterate on the default prompt based on real testing.
 5. UI polish (Phase 6 remaining): Enter-to-send, auto-scroll, busy state (disable Send during API call).
 6. Dynamic resize (Phase 6 FIXME): Investigate sidebar resize lifecycle and re-implement PanelResizeListener. See FIXME comments in chat_panel.py.
+
+
+Advanced Roadmap (Future Phases)
+
+Key findings: Phase 1 scope was overreaching — `get_document_structure()` and viewport content are expensive/fragile in UNO. Safety and observability must come before new features. Prioritize low-risk context primitives first.
+
+**Phase 0: Foundation and Safety (Prerequisite)**
+- Shared API helper and request timeout
+- Unified user-facing error handling (message boxes; never write errors into document)
+- Token/context budget guardrails
+- Structured logging toggles
+
+**Phase 1: Enhanced Context Awareness**
+- `get_selection_context()`, `get_cursor_context()`, lightweight `get_current_position()`
+- `get_document_metadata()`, `get_style_information()`
+- Deferred: `get_document_structure()`, `get_visible_content()` (too hard/expensive)
+
+**Phase 2: Intelligent Editing Assistance**
+- Predictive continuation (future-words suggestions, propose-first)
+- Advanced text manipulation (regex search/replace, pattern styling)
+- Context-aware suggestions (grammar, style, alternatives)
+- Document analysis (readability, key concepts, summary)
+
+**Phase 3: Versioning and Safer Experimentation**
+- `create_snapshot()`, `compare_versions()`, `revert_changes()`
+
+**Phase 4: Domain-Specific Intelligence**
+- Document type detection, templates, domain-specific tools
+- Integration with external knowledge (web search, knowledge bases)
+
+**Research / Deferred:** Real-time collaboration, multi-document workflow, full document structure.
+
+**Risk Register:** Model refusal (mitigated by explicit prompt); UNO API limits (defer heavy structure); large documents (context budget); tool schema changes (backward compatibility).
