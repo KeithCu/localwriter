@@ -552,10 +552,12 @@ class MainJob(unohelper.Base, XJobExecutor):
     def input_box(self, message, title="", default="", x=None, y=None):
         """ Shows input dialog (EditInputDialog.xdl). Returns edit text if OK, else "". """
         import uno
-        ctx = uno.getComponentContext()
+        ctx = self.ctx
         smgr = ctx.getServiceManager()
+        pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
+        base_url = pip.getPackageLocation("org.extension.localwriter")
         dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
-        dlg = dp.createDialog("vnd.sun.star.script:LocalWriterDialogs.EditInputDialog?location=application")
+        dlg = dp.createDialog(base_url + "/LocalWriterDialogs/EditInputDialog.xdl")
         try:
             dlg.getControl("label").getModel().Label = str(message)
             dlg.getControl("edit").getModel().Text = str(default)
@@ -580,7 +582,7 @@ class MainJob(unohelper.Base, XJobExecutor):
             pass
         # #endregion
         import uno
-        ctx = uno.getComponentContext()
+        ctx = self.ctx
         smgr = ctx.getServiceManager()
 
         openai_compatibility_value = "true" if self._as_bool(self.get_config("openai_compatibility", False)) else "false"
@@ -600,6 +602,8 @@ class MainJob(unohelper.Base, XJobExecutor):
             {"name": "edit_selection_system_prompt", "value": str(self.get_config("edit_selection_system_prompt", ""))},
         ]
 
+        pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
+        base_url = pip.getPackageLocation("org.extension.localwriter")
         dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
         # #region agent log
         try:
@@ -610,7 +614,7 @@ class MainJob(unohelper.Base, XJobExecutor):
             pass
         # #endregion
         try:
-            dlg = dp.createDialog("vnd.sun.star.script:LocalWriterDialogs.SettingsDialog?location=application")
+            dlg = dp.createDialog(base_url + "/LocalWriterDialogs/SettingsDialog.xdl")
         except BaseException as ex:
             # #region agent log
             try:
