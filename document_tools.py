@@ -139,6 +139,10 @@ WRITER_TOOLS = [
 # Returns a JSON string with the result.
 # ---------------------------------------------------------------------------
 
+def _tool_error(message):
+    """Helper to create error response."""
+    return json.dumps({"status": "error", "message": message})
+
 def tool_replace_text(model, ctx, args):
     """Replace one or all occurrences."""
     all_matches = args.get("all_matches", False)
@@ -176,7 +180,7 @@ def tool_insert_text(model, ctx, args):
     elif position == "end":
         cursor.gotoEnd(False)
     else:
-        return json.dumps({"status": "error", "message": "Unknown position: %s" % position})
+        return _tool_error("Unknown position: %s" % position)
 
     text_obj.insertString(cursor, insert_str, False)
     return json.dumps({"status": "ok", "message": "Inserted text at %s." % position})
@@ -276,7 +280,7 @@ def tool_set_paragraph_style(model, ctx, args):
                 para.setPropertyValue("ParaStyleName", style_name)
                 count += 1
             except Exception as e:
-                return json.dumps({"status": "error", "message": "Style '%s' not found or error: %s" % (style_name, e)})
+                return _tool_error("Style '%s' not found or error: %s" % (style_name, e))
             if not all_matches:
                 break
 

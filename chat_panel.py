@@ -194,28 +194,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
         return None
 
     def _set_button_states(self, send_enabled, stop_enabled):
-        """Set Send/Stop button enabled states.
-        Updates both the model property AND the control peer directly,
-        because processEventsToIdle() during streaming can disconnect
-        the model-to-view listener."""
-        try:
-            if self.send_control:
-                self.send_control.getModel().Enabled = send_enabled
-                self.send_control.setEnable(send_enabled)
-        except Exception as e:
-            debug_log(self.ctx, "_set_button_states: send Enabled=%s failed: %s" % (send_enabled, e))
-        try:
-            if self.stop_control:
-                self.stop_control.getModel().Enabled = stop_enabled
-                self.stop_control.setEnable(stop_enabled)
-        except Exception as e:
-            debug_log(self.ctx, "_set_button_states: stop Enabled=%s failed: %s" % (stop_enabled, e))
-        try:
-            t = self.ctx.getServiceManager().createInstanceWithContext(
-                "com.sun.star.awt.Toolkit", self.ctx)
-            t.processEventsToIdle()
-        except Exception:
-            pass
+        """Set Send/Stop button enabled states."""
+        # Button enable/disable functionality is currently not working
+        # This method is kept as a placeholder for future implementation
+        pass
 
     def actionPerformed(self, evt):
         from core.logging import log_to_file
@@ -236,6 +218,12 @@ class SendButtonListener(unohelper.Base, XActionListener):
             if not had_error:
                 try:
                     self._set_status("Ready")
+                    try:
+                        t = self.ctx.getServiceManager().createInstanceWithContext(
+                            "com.sun.star.awt.Toolkit", self.ctx)
+                        t.processEventsToIdle()
+                    except Exception:
+                        pass
                 except Exception as e:
                     debug_log(self.ctx, "finally: _set_status failed: %s" % e)
             self._set_button_states(send_enabled=True, stop_enabled=False)
@@ -401,6 +389,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
             "com.sun.star.awt.Toolkit", self.ctx)
         for round_num in range(MAX_TOOL_ROUNDS):
             self._set_status("Connecting..." if round_num == 0 else "Connecting (round %d)..." % (round_num + 1))
+            try:
+                toolkit.processEventsToIdle()
+            except Exception:
+                pass
             debug_log(self.ctx, "Tool loop round %d: sending %d messages to API..." %
                         (round_num, len(self.session.messages)))
             waiting_for_model = [True]
@@ -413,6 +405,12 @@ class SendButtonListener(unohelper.Base, XActionListener):
             try:
                 # Give a brief moment for 'Connecting' to show, then switch to 'Waiting'
                 self._set_status("Waiting for model...")
+                try:
+                    toolkit.processEventsToIdle()
+                except Exception:
+                    pass
+                log_to_file("Tool loop round %d: calling stream_request_with_tools (next: blocking until API responds)..." % round_num)
+                debug_log(self.ctx, "Tool loop round %d: calling stream_request_with_tools..." % round_num)
                 response = client.stream_request_with_tools(
                     self.session.messages, max_tokens, tools=tools,
                     append_callback=append_chunk,
@@ -470,6 +468,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     self._append_response("\n[AI returned empty response]\n")
                 log_to_file(f"Tool loop: Finished on round {round_num}. Setting status to Ready.")
                 self._set_status("Ready")
+                try:
+                    toolkit.processEventsToIdle()
+                except Exception:
+                    pass
                 return
 
             # Model wants to call tools
@@ -488,6 +490,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 call_id = tc.get("id", "")
 
                 self._set_status("Running: %s" % func_name)
+                try:
+                    toolkit.processEventsToIdle()
+                except Exception:
+                    pass
 
                 try:
                     func_args = json.loads(func_args_str)
@@ -523,6 +529,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
             # (prevents stale "Running: tool_name" during the blocking API call)
             if not self.stop_requested:
                 self._set_status("Sending results to AI...")
+                try:
+                    toolkit.processEventsToIdle()
+                except Exception:
+                    pass
 
             # Continue the loop -- send tool results back to model
 
@@ -553,7 +563,11 @@ class SendButtonListener(unohelper.Base, XActionListener):
         if thinking_open[0]:
             self._append_response(" /thinking")
         self._append_response("\n")
-        self._set_status("")
+        self._set_status("Ready")
+        try:
+            toolkit.processEventsToIdle()
+        except Exception:
+            pass
 
     def _do_simple_stream(self, client, max_tokens, api_type):
         """Legacy path: simple streaming without tool-calling."""
@@ -800,8 +814,9 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             
             if stop_btn:
                 stop_btn.addActionListener(StopButtonListener(send_listener))
-                stop_btn.getModel().Enabled = False  # Disabled until Send is clicked
-                stop_btn.setEnable(False)
+                # Send/Stop enable-disable not working; don't force Stop disabled on init
+                # stop_btn.getModel().Enabled = False  # Disabled until Send is clicked
+                # stop_btn.setEnable(False)
                 debug_log(self.ctx, "Stop button wired")
         except Exception as e:
             _show_init_error("Send/Stop button: %s" % e)

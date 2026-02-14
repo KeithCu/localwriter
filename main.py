@@ -57,41 +57,38 @@ class MainJob(unohelper.Base, XJobExecutor):
 
     def _apply_settings_result(self, result):
         """Apply settings dialog result to config. Shared by Writer and Calc."""
-        if "extend_selection_max_tokens" in result:
-            self.set_config("extend_selection_max_tokens", result["extend_selection_max_tokens"])
-        if "extend_selection_system_prompt" in result:
-            self.set_config("extend_selection_system_prompt", result["extend_selection_system_prompt"])
-        if "edit_selection_max_new_tokens" in result:
-            self.set_config("edit_selection_max_new_tokens", result["edit_selection_max_new_tokens"])
-        if "edit_selection_system_prompt" in result:
-            self.set_config("edit_selection_system_prompt", result["edit_selection_system_prompt"])
+        # Define config keys that can be set directly
+        direct_keys = [
+            "extend_selection_max_tokens",
+            "extend_selection_system_prompt", 
+            "edit_selection_max_new_tokens",
+            "edit_selection_system_prompt",
+            "api_key",
+            "is_openwebui",
+            "openai_compatibility",
+            "model",
+            "temperature",
+            "seed",
+            "chat_max_tokens",
+            "chat_context_length",
+            "chat_system_prompt",
+            "request_timeout"
+        ]
+        
+        # Set direct keys
+        for key in direct_keys:
+            if key in result:
+                self.set_config(key, result[key])
+        
+        # Handle special cases
         if "endpoint" in result and result["endpoint"].startswith("http"):
             self.set_config("endpoint", result["endpoint"])
-        if "api_key" in result:
-            self.set_config("api_key", result["api_key"])
+        
         if "api_type" in result:
             api_type_value = str(result["api_type"]).strip().lower()
             if api_type_value not in ("chat", "completions"):
                 api_type_value = "completions"
             self.set_config("api_type", api_type_value)
-        if "is_openwebui" in result:
-            self.set_config("is_openwebui", result["is_openwebui"])
-        if "openai_compatibility" in result:
-            self.set_config("openai_compatibility", result["openai_compatibility"])
-        if "model" in result:
-            self.set_config("model", result["model"])
-        if "temperature" in result:
-            self.set_config("temperature", result["temperature"])
-        if "seed" in result:
-            self.set_config("seed", result["seed"])
-        if "chat_max_tokens" in result:
-            self.set_config("chat_max_tokens", result["chat_max_tokens"])
-        if "chat_context_length" in result:
-            self.set_config("chat_context_length", result["chat_context_length"])
-        if "chat_system_prompt" in result:
-            self.set_config("chat_system_prompt", result["chat_system_prompt"])
-        if "request_timeout" in result:
-            self.set_config("request_timeout", result["request_timeout"])
 
     def _get_client(self):
         """Create LlmClient with current config."""
@@ -101,15 +98,13 @@ class MainJob(unohelper.Base, XJobExecutor):
     def show_error(self, message, title="LocalWriter Error"):
         """Show an error message in a dialog instead of writing to the document."""
         try:
-            desktop = self.sm.createInstanceWithContext(
-                "com.sun.star.frame.Desktop", self.ctx)
+            desktop = self.sm.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
             frame = desktop.getCurrentFrame()
             if frame and frame.ActiveFrame:
                 frame = frame.ActiveFrame
             window_peer = frame.getContainerWindow() if frame else None
             if window_peer:
-                toolkit = self.sm.createInstanceWithContext(
-                    "com.sun.star.awt.Toolkit", self.ctx)
+                toolkit = self.sm.createInstanceWithContext("com.sun.star.awt.Toolkit", self.ctx)
                 box = toolkit.createMessageBox(window_peer, ERRORBOX, BUTTONS_OK, title, str(message))
                 box.execute()
         except Exception:

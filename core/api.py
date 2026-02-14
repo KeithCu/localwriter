@@ -57,27 +57,27 @@ def _get_ssl_context():
 
 def _extract_thinking_from_delta(chunk_delta):
     """Extract reasoning/thinking text from a stream delta for display in UI."""
-    reasoning = (
-        chunk_delta.get("reasoning_content")
-        or chunk_delta.get("thought")
-        or chunk_delta.get("thinking")
-        or ""
-    )
-    if isinstance(reasoning, str) and reasoning:
-        return reasoning
-
+    # Try direct fields first
+    for field in ["reasoning_content", "thought", "thinking"]:
+        thinking = chunk_delta.get(field)
+        if isinstance(thinking, str) and thinking:
+            return thinking
+    
+    # Try reasoning_details array
     details = chunk_delta.get("reasoning_details")
-    if not isinstance(details, list):
-        return ""
-    parts = []
-    for item in details:
-        if not isinstance(item, dict):
-            continue
-        if item.get("type") in ("reasoning.text", "thought", "reasoning"):
-            parts.append(item.get("text") or "")
-        elif item.get("type") == "reasoning.summary":
-            parts.append(item.get("summary") or "")
-    return "".join(parts) if parts else ""
+    if isinstance(details, list):
+        parts = []
+        for item in details:
+            if isinstance(item, dict):
+                item_type = item.get("type")
+                if item_type in ("reasoning.text", "thought", "reasoning"):
+                    parts.append(item.get("text") or "")
+                elif item_type == "reasoning.summary":
+                    parts.append(item.get("summary") or "")
+        if parts:
+            return "".join(parts)
+    
+    return ""
 
 
 def _normalize_message_content(raw):
@@ -89,10 +89,11 @@ def _normalize_message_content(raw):
     if isinstance(raw, list):
         parts = []
         for item in raw:
-            if isinstance(item, dict) and item.get("type") == "text":
-                parts.append(item.get("text") or "")
-            elif isinstance(item, dict) and "text" in item:
-                parts.append(item.get("text") or "")
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(item.get("text") or "")
+                elif "text" in item:
+                    parts.append(item.get("text") or "")
         return "".join(parts) if parts else None
     return str(raw)
 
@@ -413,6 +414,7 @@ class LlmClient:
         stop_checker=None,
     ):
         """Streaming chat request with tools. Returns same shape as request_with_tools."""
+        log_to_file("stream_request_with_tools: building request (%d messages)..." % len(messages))
         request = self.make_chat_request(
             messages, max_tokens, tools=tools, stream=True
         )
