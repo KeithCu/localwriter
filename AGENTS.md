@@ -27,7 +27,7 @@ localwriter/
 │   ├── config.py        # get_config, set_config, get_api_config (localwriter.json)
 │   ├── api.py           # LlmClient: streaming, chat, tool-calling
 │   ├── document.py      # get_full_document_text (Writer)
-│   ├── logging.py       # log_to_file (~/log.txt)
+│   ├── logging.py       # log_to_file, agent_log, debug_log, debug_log_paths
 │   └── constants.py     # DEFAULT_CHAT_SYSTEM_PROMPT
 ├── prompt_function.py   # Calc =PROMPT() formula
 ├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
@@ -95,11 +95,23 @@ localwriter/
 
 ### System prompt and reasoning (latest)
 
-- **DEFAULT_CHAT_SYSTEM_PROMPT** in `main.py` (imported by `chat_panel.py`) instructs the model to: (1) use tools proactively; (2) use internal linguistic knowledge for translate/proofread/edit; (3) for translate: call `get_document_text`, translate internally, then apply via tools — NEVER refuse translation; (4) keep reasoning minimal and act; (5) confirm edits briefly.
+- **DEFAULT_CHAT_SYSTEM_PROMPT** in `core/constants.py` (imported by `main.py`, `chat_panel.py`) instructs the model to: (1) use tools proactively; (2) use internal linguistic knowledge for translate/proofread/edit; (3) for translate: call `get_document_text`, translate internally, then apply via tools — NEVER refuse translation; (4) keep reasoning minimal and act; (5) confirm edits briefly.
 - **Reasoning tokens**: `main.py` sends `reasoning: { effort: 'minimal' }` on all chat requests (OpenRouter and other providers).
 - **Thinking display**: Reasoning tokens are shown in the response area as `[Thinking] ... /thinking`.
 
 See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for implementation details.
+
+---
+
+## 3c. Shared Helpers
+
+- **`MainJob._apply_settings_result(self, result)`** (`main.py`): Applies settings dialog result to config. Used by both Writer and Calc settings branches.
+- **`core/logging.py`**:
+  - `agent_log(location, message, data=None, hypothesis_id=None, run_id=None)` — NDJSON agent log. Paths: `{ext_dir}/.cursor/debug.log`, `~/localwriter_agent_debug.log`, `/tmp/localwriter_agent_debug.log`.
+  - `debug_log(ctx, msg)` — chat debug log. Paths: UserConfig, `~/localwriter_chat_debug.log`, `/tmp/localwriter_chat_debug.log`.
+  - `debug_log_paths(ctx)` — returns writable paths for chat debug.
+- **`SendButtonListener._make_stream_callbacks(self, toolkit=None, waiting_for_model=None, thinking_open=None, on_chunk=None)`** (`chat_panel.py`): Returns `(append_chunk, append_thinking)` for streaming. Params: `toolkit` for `processEventsToIdle`; `waiting_for_model` / `thinking_open` as `[bool]` lists; `on_chunk` for accumulation (e.g. `collected.append`).
+- **`core/api.format_error_for_display(e)`**: Returns user-friendly error string for cells/dialogs (e.g. `"Error: Connection refused..."`).
 
 ---
 
@@ -147,11 +159,12 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
 
 ## 5b. Log Files
 
-- **Chat sidebar debug log**: Same folder as `localwriter.json`, e.g. `~/.config/libreoffice/4/user/localwriter_chat_debug.log` (no `config` subfolder). Fallbacks: `~/localwriter_chat_debug.log`, `/tmp/localwriter_chat_debug.log`. `_debug_log_paths()` in `chat_panel.py` uses `PathSettings.UserConfig`.
-  - Written by `_debug_log()` in `chat_panel.py`
-  - Contains tool-calling loop details, import status, API round-trip info
+- **Agent log** (NDJSON): `core/logging.agent_log()`. Paths tried: `{ext_dir}/.cursor/debug.log`, `~/localwriter_agent_debug.log`, `/tmp/localwriter_agent_debug.log`.
+  - Used by `main.py`, `chat_panel.py`, `document_tools.py` for hypothesis/debug tracking.
+- **Chat sidebar debug log**: `core/logging.debug_log()`. Paths: UserConfig dir (`localwriter_chat_debug.log`), `~/localwriter_chat_debug.log`, `/tmp/localwriter_chat_debug.log`.
+  - Contains tool-calling loop details, import status, API round-trip info.
 - **General API log**: `~/log.txt`
-  - Written by `log_to_file()` in `main.py`
+  - Written by `log_to_file()` in `core/logging.py`
   - Contains API request URLs, headers, response status for all completions/chat requests
 
 ---
@@ -171,7 +184,8 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 
 ### High priority (from IMPROVEMENT_PLAN.md) — DONE
 - ~~Extract shared API helper; add request timeout~~ (implemented: `stream_completion`, `_get_request_timeout`, config `request_timeout`)
-- ~~Improve error handling (message box instead of writing errors into selection)~~ (implemented: `show_error()` with MessageBox, `_format_error_message()`)
+- ~~Improve error handling (message box instead of writing errors into selection)~~ (implemented: `show_error()` with MessageBox, `format_error_message()`)
+- ~~Refactor duplicate logic~~ (see Section 3c Shared Helpers)
 
 ### Dialog-related
 - **Config presets**: Add "Load from file" or preset dropdown in Settings so users can switch between `localwriter.json`, `localwriter.openrouter.json`, etc.
@@ -199,6 +213,7 @@ See [Chat Sidebar Improvement Plan.md](Chat%20Sidebar%20Improvement%20Plan.md) f
 - **dtd reference**: XDL uses `<!DOCTYPE dlg:window PUBLIC "... "dialog.dtd">`. LibreOffice resolves this from its installation.
 - **Chat sidebar visibility**: After `createContainerWindow()`, call `setVisible(True)` on the returned window; otherwise the panel content stays blank.
 - **Chat panel imports**: `chat_panel.py` uses `_ensure_extension_on_path()` to add the extension dir to `sys.path` so `from main import MainJob` and `from document_tools import ...` work.
+- **Logging**: Use `core.logging.agent_log()` for NDJSON agent logs and `core.logging.debug_log(ctx, msg)` for chat debug logs. Do not add new ad-hoc log paths.
 
 ---
 
