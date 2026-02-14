@@ -13,6 +13,7 @@ fi
 # Create the new package
 echo "Creating package ${EXTENSION_NAME}.oxt..."
 zip -r "${EXTENSION_NAME}.oxt" \
+    core/ \
     Accelerators.xcu \
     Addons.xcu \
     description.xml \

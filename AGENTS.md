@@ -22,7 +22,9 @@ Config is stored in `localwriter.json` in LibreOffice's user config directory. S
 
 ```
 localwriter/
-├── main.py              # MainJob: trigger(), API calls, config, dialogs
+├── main.py              # MainJob: trigger(), API calls, dialogs
+├── core/                # Shared core logic
+│   └── config.py        # get_config, set_config (localwriter.json)
 ├── prompt_function.py   # Calc =PROMPT() formula
 ├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
 ├── document_tools.py    # 7 Writer tools + executor for OpenAI tool-calling
@@ -133,7 +135,7 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
   - macOS: `~/Library/Application Support/LibreOffice/4/user/localwriter.json`
   - Windows: `%APPDATA%\LibreOffice\4\user\localwriter.json`
 - **Single file**: No presets or multiple configs. To use a different setup (e.g. `localwriter.openrouter.json`), copy it to the path above as `localwriter.json`.
-- **Settings dialog** reads/writes this file via `get_config()` / `set_config()`.
+- **Settings dialog** reads/writes this file via `get_config()` / `set_config()` in `core/config.py`.
 - **Chat-related keys** (used by `chat_panel.py` and menu Chat): `chat_context_length` (default 8000), `chat_max_tokens` (default 512 menu / 16384 sidebar), `chat_system_prompt`. Also `api_key`, `api_type` (in Settings) for OpenRouter/OpenAI-compatible endpoints.
 - **Note**: `chat_context_length`, `chat_max_tokens`, `chat_system_prompt` are now in the Settings dialog.
 

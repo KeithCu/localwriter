@@ -1,12 +1,20 @@
+import os
+import sys
+
+# Ensure extension directory is on path so core can be imported
+_ext_dir = os.path.dirname(os.path.abspath(__file__))
+if _ext_dir not in sys.path:
+    sys.path.insert(0, _ext_dir)
+
 import uno
 import unohelper
 import json
 import urllib.request
 import urllib.parse
-import os
 # from com.sun.star.lang import XServiceInfo
 # from com.sun.star.sheet import XAddIn
 from org.extension.localwriter.PromptFunction import XPromptFunction
+from core.config import get_config
 
 # Enable debug logging
 DEBUG = True
@@ -106,14 +114,14 @@ class PromptFunction(unohelper.Base, XPromptFunction):
         aProgrammaticName = "PROMPT"
         if aProgrammaticName == "PROMPT":
             try:
-                system_prompt = systemPrompt if systemPrompt is not None else self.get_config("extend_selection_system_prompt", "")
-                model = model if model is not None else self.get_config("model", "")
-                max_tokens = maxTokens if maxTokens is not None else self.get_config("extend_selection_max_tokens", 70)
-                seed = self.get_config("seed", None)
+                system_prompt = systemPrompt if systemPrompt is not None else get_config(self.ctx, "extend_selection_system_prompt", "")
+                model = model if model is not None else get_config(self.ctx, "model", "")
+                max_tokens = maxTokens if maxTokens is not None else get_config(self.ctx, "extend_selection_max_tokens", 70)
+                seed = get_config(self.ctx, "seed", None)
                 seed = int(seed) if seed is not None and len(str(seed)) else None
-                temperature = self.get_config("temperature", 0.5)
+                temperature = get_config(self.ctx, "temperature", 0.5)
 
-                url = self.get_config("endpoint", "http://127.0.0.1:5000") + "/v1/chat/completions"
+                url = get_config(self.ctx, "endpoint", "http://127.0.0.1:5000") + "/v1/chat/completions"
                 headers = {
                     'Content-Type': 'application/json',
                     'User-Agent': (
@@ -122,7 +130,7 @@ class PromptFunction(unohelper.Base, XPromptFunction):
                         'Chrome/114.0.0.0 Safari/537.36'
                     )
                 }
-                api_key = self.get_config("api_key", "")
+                api_key = get_config(self.ctx, "api_key", "")
                 if api_key:
                     headers['Authorization'] = f"Bearer {api_key}"
 
@@ -148,7 +156,7 @@ class PromptFunction(unohelper.Base, XPromptFunction):
 
                 timeout = 120
                 try:
-                    timeout = int(self.get_config("request_timeout", 120))
+                    timeout = int(get_config(self.ctx, "request_timeout", 120))
                 except (TypeError, ValueError):
                     pass
                 with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -169,24 +177,6 @@ class PromptFunction(unohelper.Base, XPromptFunction):
                 return f"Error: {e}"
         return ""
 
-    def get_config(self, key, default):
-        # This is a simplified version of the get_config function from main.py
-        # We will need to find a way to share this code.
-        name_file = "localwriter.json"
-        path_settings = self.ctx.getServiceManager().createInstanceWithContext('com.sun.star.util.PathSettings', self.ctx)
-        user_config_path = getattr(path_settings, "UserConfig")
-        if user_config_path.startswith('file://'):
-            user_config_path = str(uno.fileUrlToSystemPath(user_config_path))
-        config_file_path = os.path.join(user_config_path, name_file)
-        if not os.path.exists(config_file_path):
-            return default
-        try:
-            with open(config_file_path, 'r') as file:
-                config_data = json.load(file)
-        except (IOError, json.JSONDecodeError):
-            return default
-        return config_data.get(key, default)
-    
     # XServiceInfo implementation
     def getImplementationName(self):
         return "org.extension.localwriter.PromptFunction"

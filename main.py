@@ -14,12 +14,12 @@ import urllib.parse
 import ssl
 
 from streaming_deltas import accumulate_delta
+from core.config import get_config, set_config, as_bool
 from com.sun.star.task import XJobExecutor
 from com.sun.star.awt import MessageBoxButtons as MSG_BUTTONS
 from com.sun.star.awt.MessageBoxType import ERRORBOX
 from com.sun.star.awt.MessageBoxButtons import BUTTONS_OK
 import uno
-import os 
 import logging
 import re
 
@@ -74,81 +74,17 @@ class MainJob(unohelper.Base, XJobExecutor):
                 "com.sun.star.frame.Desktop", self.ctx)
     
 
-    def get_config(self,key,default):
-  
-        name_file ="localwriter.json"
-        #path_settings = create_instance('com.sun.star.util.PathSettings')
-        
-        
-        path_settings = self.sm.createInstanceWithContext('com.sun.star.util.PathSettings', self.ctx)
-
-        user_config_path = getattr(path_settings, "UserConfig")
-
-        if user_config_path.startswith('file://'):
-            user_config_path = str(uno.fileUrlToSystemPath(user_config_path))
-        
-        # Ensure the path ends with the filename
-        config_file_path = os.path.join(user_config_path, name_file)
-
-        # Check if the file exists
-        if not os.path.exists(config_file_path):
-            return default
-
-        # Try to load the JSON content from the file
-        try:
-            with open(config_file_path, 'r') as file:
-                config_data = json.load(file)
-        except (IOError, json.JSONDecodeError):
-            return default
-
-        # Return the value corresponding to the key, or the default value if the key is not found
-        return config_data.get(key, default)
+    def get_config(self, key, default):
+        """Delegate to core.config. Kept for API compatibility (chat_panel, etc.)."""
+        return get_config(self.ctx, key, default)
 
     def set_config(self, key, value):
-        name_file = "localwriter.json"
-        
-        path_settings = self.sm.createInstanceWithContext('com.sun.star.util.PathSettings', self.ctx)
-        user_config_path = getattr(path_settings, "UserConfig")
-
-        if user_config_path.startswith('file://'):
-            user_config_path = str(uno.fileUrlToSystemPath(user_config_path))
-
-        # Ensure the path ends with the filename
-        config_file_path = os.path.join(user_config_path, name_file)
-
-        # Load existing configuration if the file exists
-        if os.path.exists(config_file_path):
-            try:
-                with open(config_file_path, 'r') as file:
-                    config_data = json.load(file)
-            except (IOError, json.JSONDecodeError):
-                config_data = {}
-        else:
-            config_data = {}
-
-        # Update the configuration with the new key-value pair
-        config_data[key] = value
-
-        # Write the updated configuration back to the file
-        try:
-            with open(config_file_path, 'w') as file:
-                json.dump(config_data, file, indent=4)
-        except IOError as e:
-            # Handle potential IO errors (optional)
-            print(f"Error writing to {config_file_path}: {e}")
-
-    def _as_bool(self, value):
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.strip().lower() in ("1", "true", "yes", "on")
-        if isinstance(value, (int, float)):
-            return value != 0
-        return False
+        """Delegate to core.config."""
+        set_config(self.ctx, key, value)
 
     def _is_openai_compatible(self):
         endpoint = str(self.get_config("endpoint", "http://127.0.0.1:5000"))
-        compatibility_flag = self._as_bool(self.get_config("openai_compatibility", False))
+        compatibility_flag = as_bool(self.get_config("openai_compatibility", False))
         return compatibility_flag or ("api.openai.com" in endpoint.lower())
 
     def make_api_request(self, prompt, system_prompt="", max_tokens=70, api_type=None):
@@ -181,7 +117,7 @@ class MainJob(unohelper.Base, XJobExecutor):
             headers['Authorization'] = f'Bearer {api_key}'
 
         # Detect OpenWebUI endpoints (they use /api/ instead of /v1/)
-        is_openwebui = self._as_bool(self.get_config("is_openwebui", False)) or "open-webui" in endpoint.lower() or "openwebui" in endpoint.lower()
+        is_openwebui = as_bool(self.get_config("is_openwebui", False)) or "open-webui" in endpoint.lower() or "openwebui" in endpoint.lower()
         api_path = "/api" if is_openwebui else "/v1"
         
         log_to_file(f"Is OpenWebUI: {is_openwebui}")
@@ -377,7 +313,7 @@ class MainJob(unohelper.Base, XJobExecutor):
         api_key = str(self.get_config("api_key", ""))
         model_name = str(self.get_config("model", ""))
 
-        is_openwebui = (self._as_bool(self.get_config("is_openwebui", False))
+        is_openwebui = (as_bool(self.get_config("is_openwebui", False))
                         or "open-webui" in endpoint.lower()
                         or "openwebui" in endpoint.lower())
         api_path = "/api" if is_openwebui else "/v1"
@@ -669,8 +605,8 @@ class MainJob(unohelper.Base, XJobExecutor):
         ctx = self.ctx
         smgr = ctx.getServiceManager()
 
-        openai_compatibility_value = "true" if self._as_bool(self.get_config("openai_compatibility", False)) else "false"
-        is_openwebui_value = "true" if self._as_bool(self.get_config("is_openwebui", False)) else "false"
+        openai_compatibility_value = "true" if as_bool(self.get_config("openai_compatibility", False)) else "false"
+        is_openwebui_value = "true" if as_bool(self.get_config("is_openwebui", False)) else "false"
         field_specs = [
             {"name": "endpoint", "value": str(self.get_config("endpoint", "http://127.0.0.1:5000"))},
             {"name": "model", "value": str(self.get_config("model", ""))},
@@ -762,7 +698,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     if field_type == "int":
                         result[field["name"]] = int(control_text) if control_text.isdigit() else control_text
                     elif field_type == "bool":
-                        result[field["name"]] = self._as_bool(control_text)
+                        result[field["name"]] = as_bool(control_text)
                     elif field_type == "float":
                         try:
                             result[field["name"]] = float(control_text)
