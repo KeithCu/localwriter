@@ -192,31 +192,33 @@ class SendButtonListener(unohelper.Base, XActionListener):
         return None
 
     def _set_button_states(self, send_enabled, stop_enabled):
-        """Set Send/Stop button enabled states via control model's Enabled property (UNO standard)."""
-        def set_control_enabled(control, enabled):
-            if control is None:
-                return
-            try:
-                model = control.getModel()
-                if model is not None and hasattr(model, "setPropertyValue"):
-                    model.setPropertyValue("Enabled", bool(enabled))
-                    return
-            except Exception as e1:
-                debug_log(self.ctx, "_set_button_states (model) failed: %s" % e1)
-            try:
-                if hasattr(control, "setEnable"):
-                    control.setEnable(enabled)
-            except Exception as e2:
-                debug_log(self.ctx, "_set_button_states (setEnable) failed: %s" % e2)
-        set_control_enabled(self.send_control, send_enabled)
-        set_control_enabled(self.stop_control, stop_enabled)
+        """Set Send/Stop button enabled states. No-op for now to avoid stuck buttons if state machine fails."""
+        pass
+        # def set_control_enabled(control, enabled):
+        #     if control is None:
+        #         return
+        #     try:
+        #         model = control.getModel()
+        #         if model is not None and hasattr(model, "setPropertyValue"):
+        #             model.setPropertyValue("Enabled", bool(enabled))
+        #             return
+        #     except Exception as e1:
+        #         debug_log(self.ctx, "_set_button_states (model) failed: %s" % e1)
+        #     try:
+        #         if hasattr(control, "setEnable"):
+        #             control.setEnable(enabled)
+        #     except Exception as e2:
+        #         debug_log(self.ctx, "_set_button_states (setEnable) failed: %s" % e2)
+        # set_control_enabled(self.send_control, send_enabled)
+        # set_control_enabled(self.stop_control, stop_enabled)
 
     def actionPerformed(self, evt):
         from core.logging import log_to_file
         try:
             self.stop_requested = False
             self._terminal_status = "Ready"
-            self._set_button_states(send_enabled=False, stop_enabled=True)
+            # Don't disable Send in case the state machine fails and never re-enables it.
+            self._set_button_states(send_enabled=True, stop_enabled=True)
             self._do_send()
         except Exception as e:
             self._terminal_status = "Error"

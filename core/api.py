@@ -10,6 +10,10 @@ from streaming_deltas import accumulate_delta
 
 from core.logging import log_to_file
 
+# Set True to call toolkit.processEventsToIdle() when stream chunks arrive (refreshes UI;
+# can cause hangs on some systems). Leave code in place, toggle when needed.
+PROCESS_EVENTS_DURING_STREAM = True
+
 
 def format_error_message(e):
     """Map common exceptions to user-friendly advice."""
@@ -336,6 +340,11 @@ class LlmClient:
                                 append_thinking_callback(thinking)
                             if content:
                                 append_callback(content)
+                            if PROCESS_EVENTS_DURING_STREAM and ((thinking and append_thinking_callback) or content):
+                                try:
+                                    toolkit.processEventsToIdle()
+                                except Exception:
+                                    pass
 
                             if finish_reason:
                                 break
@@ -485,6 +494,11 @@ class LlmClient:
                         append_thinking_callback(thinking)
                     if content:
                         append_callback(content)
+                    if PROCESS_EVENTS_DURING_STREAM and (thinking or content):
+                        try:
+                            toolkit.processEventsToIdle()
+                        except Exception:
+                            pass
 
                     if delta:
                         accumulate_delta(message_snapshot, delta)
