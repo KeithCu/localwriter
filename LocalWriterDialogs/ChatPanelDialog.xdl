@@ -6,7 +6,7 @@
  <dlg:bulletinboard>
   <dlg:text dlg:id="response_label" dlg:left="4" dlg:top="4" dlg:width="185" dlg:height="10" dlg:value="Chat:" dlg:align="left"/>
   <dlg:textfield dlg:id="response" dlg:left="4" dlg:top="16" dlg:width="185" dlg:height="160" dlg:tabstop="true" dlg:value="" dlg:readonly="true" dlg:multiline="true" dlg:vscroll="true"/>
-  <dlg:text dlg:id="status" dlg:left="4" dlg:top="178" dlg:width="185" dlg:height="10" dlg:value="" dlg:align="left"/>
+  <dlg:textfield dlg:id="status" dlg:left="4" dlg:top="178" dlg:width="185" dlg:height="10" dlg:value="" dlg:readonly="true" dlg:border="none" dlg:tabstop="false"/>
   <dlg:text dlg:id="query_label" dlg:left="4" dlg:top="190" dlg:width="185" dlg:height="10" dlg:value="Ask / instruct:" dlg:align="left"/>
   <dlg:textfield dlg:id="query" dlg:left="4" dlg:top="202" dlg:width="185" dlg:height="30" dlg:tabstop="true" dlg:value="" dlg:multiline="true" dlg:vscroll="true"/>
   <dlg:button dlg:id="send" dlg:left="4" dlg:top="234" dlg:width="59" dlg:height="22" dlg:value="Send" dlg:tabstop="true"/>

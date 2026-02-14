@@ -139,15 +139,16 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self.stop_requested = False
 
     def _set_status(self, text):
-        """Update the status label in the sidebar."""
+        """Update the status field in the sidebar (read-only TextField).
+        Uses setText() (XTextComponent) to write directly to the control/peer,
+        bypassing model→view notifications which can desync after document edits."""
         try:
-            if self.status_control and self.status_control.getModel():
-                self.status_control.getModel().Label = text
-                toolkit = self.ctx.getServiceManager().createInstanceWithContext(
-                    "com.sun.star.awt.Toolkit", self.ctx)
-                toolkit.processEventsToIdle()
-        except Exception:
-            pass
+            if self.status_control:
+                self.status_control.setText(text)
+            else:
+                debug_log(self.ctx, "_set_status: NO CONTROL for '%s'" % text)
+        except Exception as e:
+            debug_log(self.ctx, "_set_status('%s') EXCEPTION: %s" % (text, e))
 
     def _scroll_response_to_bottom(self):
         """Scroll the response area to show the bottom (newest content).
@@ -192,15 +193,36 @@ class SendButtonListener(unohelper.Base, XActionListener):
             return model
         return None
 
+    def _set_button_states(self, send_enabled, stop_enabled):
+        """Set Send/Stop button enabled states.
+        Updates both the model property AND the control peer directly,
+        because processEventsToIdle() during streaming can disconnect
+        the model-to-view listener."""
+        try:
+            if self.send_control:
+                self.send_control.getModel().Enabled = send_enabled
+                self.send_control.setEnable(send_enabled)
+        except Exception as e:
+            debug_log(self.ctx, "_set_button_states: send Enabled=%s failed: %s" % (send_enabled, e))
+        try:
+            if self.stop_control:
+                self.stop_control.getModel().Enabled = stop_enabled
+                self.stop_control.setEnable(stop_enabled)
+        except Exception as e:
+            debug_log(self.ctx, "_set_button_states: stop Enabled=%s failed: %s" % (stop_enabled, e))
+        try:
+            t = self.ctx.getServiceManager().createInstanceWithContext(
+                "com.sun.star.awt.Toolkit", self.ctx)
+            t.processEventsToIdle()
+        except Exception:
+            pass
+
     def actionPerformed(self, evt):
         from core.logging import log_to_file
         had_error = False
         try:
             self.stop_requested = False
-            if self.send_control:
-                self.send_control.setEnable(False)
-            if self.stop_control:
-                self.stop_control.setEnable(True)
+            self._set_button_states(send_enabled=False, stop_enabled=True)
             self._do_send()
         except Exception as e:
             had_error = True
@@ -210,30 +232,14 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._append_response("\n\n[Error: %s]\n%s\n" % (str(e), tb))
             debug_log(self.ctx, "SendButton error: %s\n%s" % (e, tb))
         finally:
-            try:
-                if not had_error:
+            debug_log(self.ctx, "actionPerformed finally: resetting UI (had_error=%s)" % had_error)
+            if not had_error:
+                try:
                     self._set_status("Ready")
-                if self.send_control:
-                    self.send_control.setEnable(True)
-                    try:
-                        m = self.send_control.getModel()
-                        if m and hasattr(m, "setPropertyValue"):
-                            m.setPropertyValue("Enabled", True)
-                    except Exception:
-                        pass
-                if self.stop_control:
-                    self.stop_control.setEnable(False)
-                    try:
-                        m = self.stop_control.getModel()
-                        if m and hasattr(m, "setPropertyValue"):
-                            m.setPropertyValue("Enabled", False)
-                    except Exception:
-                        pass
-                t = self.ctx.getServiceManager().createInstanceWithContext(
-                    "com.sun.star.awt.Toolkit", self.ctx)
-                t.processEventsToIdle()
-            except Exception:
-                pass
+                except Exception as e:
+                    debug_log(self.ctx, "finally: _set_status failed: %s" % e)
+            self._set_button_states(send_enabled=True, stop_enabled=False)
+            debug_log(self.ctx, "actionPerformed finally: done")
 
     def _do_send(self):
         self._set_status("Starting...")
@@ -434,6 +440,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 thinking_open[0] = False
 
             tool_calls = response.get("tool_calls")
+            # Normalize: some models return empty list instead of None/absent
+            if isinstance(tool_calls, list) and len(tool_calls) == 0:
+                tool_calls = None
             content = response.get("content")
             finish_reason = response.get("finish_reason")
             # #region agent log
@@ -509,6 +518,11 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
                 # Add tool result to session
                 self.session.add_tool_result(call_id, result)
+
+            # Update status before starting the next API round
+            # (prevents stale "Running: tool_name" during the blocking API call)
+            if not self.stop_requested:
+                self._set_status("Sending results to AI...")
 
             # Continue the loop -- send tool results back to model
 
@@ -630,8 +644,8 @@ class ClearButtonListener(unohelper.Base, XActionListener):
         try:
             if self.response_control and self.response_control.getModel():
                 self.response_control.getModel().Text = ""
-            if self.status_control and self.status_control.getModel():
-                self.status_control.getModel().Label = ""
+            if self.status_control:
+                self.status_control.setText("")
         except Exception:
             pass
 
@@ -786,7 +800,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             
             if stop_btn:
                 stop_btn.addActionListener(StopButtonListener(send_listener))
-                stop_btn.setEnable(False)  # Disabled until Send is clicked
+                stop_btn.getModel().Enabled = False  # Disabled until Send is clicked
+                stop_btn.setEnable(False)
                 debug_log(self.ctx, "Stop button wired")
         except Exception as e:
             _show_init_error("Send/Stop button: %s" % e)

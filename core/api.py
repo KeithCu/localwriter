@@ -511,6 +511,17 @@ class LlmClient:
                         "stream_request_with_tools: last chunk choices_len=%s finish_reason=%s keys=%s"
                         % (len(choices), fr, list(last_chunk.keys()))
                     )
+                # Infer finish_reason if the stream ended without an explicit one
+                # (common when providers only send [DONE] without a finish_reason chunk)
+                if not last_finish_reason:
+                    if message_snapshot.get("tool_calls"):
+                        last_finish_reason = "tool_calls"
+                    else:
+                        last_finish_reason = "stop"
+                    log_to_file(
+                        "stream_request_with_tools: Inferred finish_reason=%s"
+                        % last_finish_reason
+                    )
         except Exception as e:
             err_msg = format_error_message(e)
             log_to_file(
