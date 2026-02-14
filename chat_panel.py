@@ -233,7 +233,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         return None
 
     def actionPerformed(self, evt):
-        from main import log_to_file
+        from core.logging import log_to_file
         try:
             self.stop_requested = False
             if self.send_control:
@@ -265,12 +265,15 @@ class SendButtonListener(unohelper.Base, XActionListener):
         _ensure_extension_on_path(self.ctx)
 
         try:
-            _debug_log(self.ctx, "_do_send: importing MainJob...")
-            from main import MainJob
-            _debug_log(self.ctx, "_do_send: MainJob imported OK")
+            _debug_log(self.ctx, "_do_send: importing core modules...")
+            from core.config import get_config, get_api_config
+            from core.api import LlmClient
+            from core.document import get_full_document_text
+            from core.logging import log_to_file
+            _debug_log(self.ctx, "_do_send: core modules imported OK")
         except Exception as e:
-            _debug_log(self.ctx, "_do_send: MainJob import FAILED: %s" % e)
-            self._append_response("\n[Import error - main: %s]\n" % e)
+            _debug_log(self.ctx, "_do_send: core import FAILED: %s" % e)
+            self._append_response("\n[Import error - core: %s]\n" % e)
             self._set_status("Error")
             return
 
@@ -307,20 +310,22 @@ class SendButtonListener(unohelper.Base, XActionListener):
             return
         _debug_log(self.ctx, "_do_send: got document model OK")
 
-        # 3. Set up MainJob and config
-        job = MainJob(self.ctx)
-        max_context = int(job.get_config("chat_context_length", 8000))
-        max_tokens = int(job.get_config("chat_max_tokens", 16384))
-        api_type = str(job.get_config("api_type", "completions")).lower()
+        # 3. Set up config and LlmClient
+        max_context = int(get_config(self.ctx, "chat_context_length", 8000))
+        max_tokens = int(get_config(self.ctx, "chat_max_tokens", 16384))
+        api_type = str(get_config(self.ctx, "api_type", "completions")).lower()
         _debug_log(self.ctx, "_do_send: config loaded: api_type=%s, max_tokens=%d, max_context=%d" %
                     (api_type, max_tokens, max_context))
 
         # Determine if tool-calling is available (requires chat API)
         use_tools = (api_type == "chat")
 
+        api_config = get_api_config(self.ctx)
+        client = LlmClient(api_config, self.ctx)
+
         # 4. Refresh document context in session
         self._set_status("Reading document...")
-        doc_text = job.get_full_document_text(model, max_context)
+        doc_text = get_full_document_text(model, max_context)
         _debug_log(self.ctx, "_do_send: document text length=%d" % len(doc_text))
         # #region agent log
         _agent_log("chat_panel.py:doc_context", "Document context for AI", data={"doc_length": len(doc_text), "doc_prefix_first_200": (doc_text or "")[:200], "max_context": max_context}, hypothesis_id="B")
@@ -337,10 +342,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     (use_tools, len(self.session.messages)))
 
         if use_tools:
-            self._do_tool_calling_loop(job, model, max_tokens, WRITER_TOOLS, execute_tool)
+            self._do_tool_calling_loop(client, model, max_tokens, WRITER_TOOLS, execute_tool)
         else:
             # Legacy path: simple streaming without tools
-            self._do_simple_stream(job, max_tokens, api_type)
+            self._do_simple_stream(client, max_tokens, api_type)
 
         if self.stop_requested:
             self._append_response("\n[Stopped by user]\n")
@@ -348,7 +353,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         log_to_file("=== _do_send END ===")
         _debug_log(self.ctx, "=== _do_send END ===")
 
-    def _do_tool_calling_loop(self, job, model, max_tokens, tools, execute_tool_fn):
+    def _do_tool_calling_loop(self, client, model, max_tokens, tools, execute_tool_fn):
         """Run the tool-calling conversation loop. Wraps tool execution in an
         UndoManager context when the document supports it, so the user can undo
         all AI edits with one Ctrl+Z."""
@@ -367,7 +372,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 undo_manager = None
 
         try:
-            self._do_tool_calling_loop_impl(job, model, max_tokens, tools, execute_tool_fn)
+            self._do_tool_calling_loop_impl(client, model, max_tokens, tools, execute_tool_fn)
         finally:
             if undo_manager:
                 try:
@@ -376,9 +381,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 except Exception as e:
                     _debug_log(self.ctx, "leaveUndoContext failed: %s" % e)
 
-    def _do_tool_calling_loop_impl(self, job, model, max_tokens, tools, execute_tool_fn):
+    def _do_tool_calling_loop_impl(self, client, model, max_tokens, tools, execute_tool_fn):
         """Inner implementation of the tool-calling loop (without undo wrapper)."""
-        from main import MainJob, log_to_file
+        from core.logging import log_to_file
         _debug_log(self.ctx, "=== Tool-calling loop START (max %d rounds) ===" % MAX_TOOL_ROUNDS)
         for round_num in range(MAX_TOOL_ROUNDS):
             self._set_status("Connecting..." if round_num == 0 else "Connecting (round %d)..." % (round_num + 1))
@@ -417,7 +422,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             try:
                 # Give a brief moment for 'Connecting' to show, then switch to 'Waiting'
                 self._set_status("Waiting for model...")
-                response = job.stream_request_with_tools(
+                response = client.stream_request_with_tools(
                     self.session.messages, max_tokens, tools=tools,
                     append_callback=append_chunk,
                     append_thinking_callback=append_thinking,
@@ -546,7 +551,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         self.session._last_streamed = ""
         try:
-            job.stream_chat_response(
+            client.stream_chat_response(
                 self.session.messages, max_tokens, append_chunk, append_thinking,
                 stop_checker=lambda: self.stop_requested
             )
@@ -559,7 +564,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self._append_response("\n")
         self._set_status("")
 
-    def _do_simple_stream(self, job, max_tokens, api_type):
+    def _do_simple_stream(self, client, max_tokens, api_type):
         """Legacy path: simple streaming without tool-calling."""
         _debug_log(self.ctx, "=== Simple stream START (api_type=%s) ===" % api_type)
         self._set_status("Waiting for model...")
@@ -606,7 +611,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._append_response(thinking_text)
 
         try:
-            job.stream_completion(
+            client.stream_completion(
                 prompt, system_prompt, max_tokens, api_type, append_chunk,
                 append_thinking_callback=append_thinking,
                 stop_checker=lambda: self.stop_requested
@@ -795,14 +800,14 @@ class ChatPanelElement(unohelper.Base, XUIElement):
 
         try:
             # Read system prompt from config
-            _debug_log(self.ctx, "_wireControls: importing MainJob...")
-            from main import MainJob, DEFAULT_CHAT_SYSTEM_PROMPT
-            job = MainJob(self.ctx)
-            system_prompt = job.get_config("chat_system_prompt", DEFAULT_CHAT_SYSTEM_PROMPT)
+            _debug_log(self.ctx, "_wireControls: importing core config...")
+            from core.config import get_config
+            from core.constants import DEFAULT_CHAT_SYSTEM_PROMPT
+            system_prompt = get_config(self.ctx, "chat_system_prompt", DEFAULT_CHAT_SYSTEM_PROMPT)
             _debug_log(self.ctx, "_wireControls: config loaded")
         except Exception as e:
             import traceback
-            _show_init_error("MainJob config: %s" % e)
+            _show_init_error("Config: %s" % e)
             _debug_log(self.ctx, traceback.format_exc())
             system_prompt = DEFAULT_SYSTEM_PROMPT_FALLBACK
 

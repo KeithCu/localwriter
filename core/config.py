@@ -62,3 +62,38 @@ def as_bool(value):
     if isinstance(value, (int, float)):
         return value != 0
     return False
+
+
+def _safe_float(value, default):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_int(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def get_api_config(ctx):
+    """Build API config dict from ctx for LlmClient. Pass to LlmClient(config, ctx)."""
+    endpoint = str(get_config(ctx, "endpoint", "http://127.0.0.1:5000")).rstrip("/")
+    is_openwebui = (
+        as_bool(get_config(ctx, "is_openwebui", False))
+        or "open-webui" in endpoint.lower()
+        or "openwebui" in endpoint.lower()
+    )
+    return {
+        "endpoint": endpoint,
+        "api_key": str(get_config(ctx, "api_key", "")),
+        "model": str(get_config(ctx, "model", "")),
+        "api_type": str(get_config(ctx, "api_type", "completions")).lower(),
+        "is_openwebui": is_openwebui,
+        "openai_compatibility": as_bool(get_config(ctx, "openai_compatibility", False)),
+        "temperature": _safe_float(get_config(ctx, "temperature", 0.5), 0.5),
+        "seed": get_config(ctx, "seed", ""),
+        "request_timeout": _safe_int(get_config(ctx, "request_timeout", 120), 120),
+    }

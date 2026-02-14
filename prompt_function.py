@@ -8,13 +8,13 @@ if _ext_dir not in sys.path:
 
 import uno
 import unohelper
-import json
 import urllib.request
 import urllib.parse
 # from com.sun.star.lang import XServiceInfo
 # from com.sun.star.sheet import XAddIn
 from org.extension.localwriter.PromptFunction import XPromptFunction
-from core.config import get_config
+from core.config import get_config, get_api_config
+from core.api import LlmClient
 
 # Enable debug logging
 DEBUG = True
@@ -115,66 +115,28 @@ class PromptFunction(unohelper.Base, XPromptFunction):
         if aProgrammaticName == "PROMPT":
             try:
                 system_prompt = systemPrompt if systemPrompt is not None else get_config(self.ctx, "extend_selection_system_prompt", "")
-                model = model if model is not None else get_config(self.ctx, "model", "")
+                model_name = model if model is not None else get_config(self.ctx, "model", "")
                 max_tokens = maxTokens if maxTokens is not None else get_config(self.ctx, "extend_selection_max_tokens", 70)
-                seed = get_config(self.ctx, "seed", None)
-                seed = int(seed) if seed is not None and len(str(seed)) else None
-                temperature = get_config(self.ctx, "temperature", 0.5)
+                try:
+                    max_tokens = int(max_tokens)
+                except (TypeError, ValueError):
+                    max_tokens = 70
 
-                url = get_config(self.ctx, "endpoint", "http://127.0.0.1:5000") + "/v1/chat/completions"
-                headers = {
-                    'Content-Type': 'application/json',
-                    'User-Agent': (
-                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                        'Chrome/114.0.0.0 Safari/537.36'
-                    )
-                }
-                api_key = get_config(self.ctx, "api_key", "")
-                if api_key:
-                    headers['Authorization'] = f"Bearer {api_key}"
-
-                prompt = f"SYSTEM PROMPT\n{system_prompt}\nEND SYSTEM PROMPT\n{message}" if system_prompt else message
                 messages = []
                 if system_prompt:
                     messages.append({"role": "system", "content": system_prompt})
                 messages.append({"role": "user", "content": message})
-                data = {
-                    #'prompt': prompt,
-                    'messages': messages,
-                    'max_tokens': int(max_tokens),
-                    'temperature': float(temperature),
-                    'top_p': 0.9,
-                    'seed': seed
-                }
-                if model:
-                    data["model"] = model
 
-                json_data = json.dumps(data).encode('utf-8')
-                debug_log(f"=== prompt called with: {headers} '{json_data}' ===")
-                request = urllib.request.Request(url, data=json_data, headers=headers, method='POST')
-
-                timeout = 120
-                try:
-                    timeout = int(get_config(self.ctx, "request_timeout", 120))
-                except (TypeError, ValueError):
-                    pass
-                with urllib.request.urlopen(request, timeout=timeout) as response:
-                    response_data = response.read()
-                    response_json = json.loads(response_data.decode('utf-8'))
-                    #return response_json["choices"][0]["text"]
-                    return response_json["choices"][0]["message"]["content"]
-            except urllib.error.HTTPError as e:
-                error_msg = e.read().decode('utf-8')
-                error_msg = f"HTTP Error {e.code}: {error_msg}"
-                debug_log(error_msg)
-                return error_msg
-            except urllib.error.URLError as e:
-                error_msg = f"URL Error: {e.reason}"
-                debug_log(error_msg)
-                return error_msg
+                config = get_api_config(self.ctx)
+                if model is not None:
+                    config = dict(config, model=str(model_name))
+                client = LlmClient(config, self.ctx)
+                return client.chat_completion_sync(messages, max_tokens=max_tokens)
             except Exception as e:
-                return f"Error: {e}"
+                from core.api import format_error_message
+                err_msg = format_error_message(e)
+                debug_log("PROMPT error: %s" % err_msg)
+                return "Error: %s" % err_msg
         return ""
 
     # XServiceInfo implementation

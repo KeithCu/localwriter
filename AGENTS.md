@@ -22,9 +22,13 @@ Config is stored in `localwriter.json` in LibreOffice's user config directory. S
 
 ```
 localwriter/
-├── main.py              # MainJob: trigger(), API calls, dialogs
+├── main.py              # MainJob: trigger(), dialogs, delegates to core
 ├── core/                # Shared core logic
-│   └── config.py        # get_config, set_config (localwriter.json)
+│   ├── config.py        # get_config, set_config, get_api_config (localwriter.json)
+│   ├── api.py           # LlmClient: streaming, chat, tool-calling
+│   ├── document.py      # get_full_document_text (Writer)
+│   ├── logging.py       # log_to_file (~/log.txt)
+│   └── constants.py     # DEFAULT_CHAT_SYSTEM_PROMPT
 ├── prompt_function.py   # Calc =PROMPT() formula
 ├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
 ├── document_tools.py    # 7 Writer tools + executor for OpenAI tool-calling

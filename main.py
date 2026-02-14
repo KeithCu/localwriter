@@ -9,12 +9,12 @@ if _ext_dir not in sys.path:
 import unohelper
 import officehelper
 import json
-import urllib.request
-import urllib.parse
-import ssl
 
-from streaming_deltas import accumulate_delta
-from core.config import get_config, set_config, as_bool
+from core.config import get_config, set_config, as_bool, get_api_config
+from core.api import LlmClient
+from core.document import get_full_document_text
+from core.logging import log_to_file
+from core.constants import DEFAULT_CHAT_SYSTEM_PROMPT
 from com.sun.star.task import XJobExecutor
 from com.sun.star.awt import MessageBoxButtons as MSG_BUTTONS
 from com.sun.star.awt.MessageBoxType import ERRORBOX
@@ -32,30 +32,8 @@ USER_AGENT = (
     'Chrome/114.0.0.0 Safari/537.36'
 )
 
-DEFAULT_CHAT_SYSTEM_PROMPT = """You are a document editing assistant integrated into LibreOffice Writer.
-Use the tools to read and modify the user's document as requested.
-
-IMPORTANT RULES:
-- TRANSLATION: You CAN translate. Call get_document_text, translate the content yourself, then replace_text or search_and_replace_all to apply it. NEVER refuse or say you lack a translation tool.
-- For edit, rewrite, or transform requests: call get_document_text, then use replace_text or search_and_replace_all. You produce the new text; the tools apply it.
-- For questions about the document: call get_document_text first, then answer.
-- NO PREAMBLE: Do not explain what you are going to do. Proceed to tool calls immediately.
-- CONCISE: Think briefly only to select the correct tools. Do not output long reasoning chains or conversational filler.
-- CONFIRM: After edits, provide a one-sentence confirmation of what was changed."""
-
 # Use workspace path so logs are readable when extension runs from LibreOffice install
 DEBUG_LOG_PATH = "/home/keithcu/Desktop/Python/localwriter/.cursor/debug.log"
-
-def log_to_file(message):
-    try:
-        import datetime
-        home = os.path.expanduser('~')
-        log_path = os.path.join(home, 'log.txt')
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"{now} - {message}\n")
-    except Exception:
-        pass
 
 
 # The MainJob is a UNO component derived from unohelper.Base class
@@ -82,168 +60,10 @@ class MainJob(unohelper.Base, XJobExecutor):
         """Delegate to core.config."""
         set_config(self.ctx, key, value)
 
-    def _is_openai_compatible(self):
-        endpoint = str(self.get_config("endpoint", "http://127.0.0.1:5000"))
-        compatibility_flag = as_bool(self.get_config("openai_compatibility", False))
-        return compatibility_flag or ("api.openai.com" in endpoint.lower())
-
-    def make_api_request(self, prompt, system_prompt="", max_tokens=70, api_type=None):
-        """
-        Build a streaming completion/chat request that can target local or OpenAI-compatible endpoints.
-        """
-        try:
-            max_tokens = int(max_tokens)
-        except (TypeError, ValueError):
-            max_tokens = 70
-
-        endpoint = str(self.get_config("endpoint", "http://127.0.0.1:5000")).rstrip("/")
-        api_key = str(self.get_config("api_key", ""))
-        if api_type is None:
-            api_type = str(self.get_config("api_type", "completions")).lower()
-        api_type = "chat" if api_type == "chat" else "completions"
-        model = str(self.get_config("model", ""))
-        
-        log_to_file(f"=== API Request Debug ===")
-        log_to_file(f"Endpoint: {endpoint}")
-        log_to_file(f"API Type: {api_type}")
-        log_to_file(f"Model: {model}")
-        log_to_file(f"Max Tokens: {max_tokens}")
-
-        headers = {
-            'Content-Type': 'application/json'
-        }
-
-        if api_key:
-            headers['Authorization'] = f'Bearer {api_key}'
-
-        # Detect OpenWebUI endpoints (they use /api/ instead of /v1/)
-        is_openwebui = as_bool(self.get_config("is_openwebui", False)) or "open-webui" in endpoint.lower() or "openwebui" in endpoint.lower()
-        api_path = "/api" if is_openwebui else "/v1"
-        
-        log_to_file(f"Is OpenWebUI: {is_openwebui}")
-        log_to_file(f"API Path: {api_path}")
-
-        temperature = self.get_config("temperature", 0.5)
-        try:
-            temperature = float(temperature)
-        except (TypeError, ValueError):
-            temperature = 0.5
-        seed_val = self.get_config("seed", "")
-
-        if api_type == "chat":
-            url = endpoint + api_path + "/chat/completions"
-            log_to_file(f"Full URL: {url}")
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
-            data = {
-                'messages': messages,
-                'max_tokens': max_tokens,
-                'temperature': temperature,
-                'top_p': 0.9,
-                'stream': True
-            }
-        else:
-            url = endpoint + api_path + "/completions"
-            full_prompt = prompt
-            if system_prompt:
-                full_prompt = f"SYSTEM PROMPT\n{system_prompt}\nEND SYSTEM PROMPT\n{prompt}"
-            data = {
-                'prompt': full_prompt,
-                'max_tokens': max_tokens,
-                'temperature': temperature,
-                'top_p': 0.9,
-                'stream': True
-            }
-            if not self._is_openai_compatible() or seed_val:
-                try:
-                    data['seed'] = int(seed_val) if seed_val else 10
-                except (TypeError, ValueError):
-                    data['seed'] = 10
-
-        if model:
-            data["model"] = model
-
-        json_data = json.dumps(data).encode('utf-8')
-        log_to_file(f"Request data: {json.dumps(data, indent=2)}")
-        log_to_file(f"Headers: {headers}")
-        
-        # Note: method='POST' is implicit when data is provided
-        request = urllib.request.Request(url, data=json_data, headers=headers)
-        request.get_method = lambda: 'POST'
-        return request
-
-    def _extract_thinking_from_delta(self, chunk_delta):
-        """Extract reasoning/thinking text from a stream delta for display in UI."""
-        # OpenRouter / some providers: delta.reasoning_content or thought/thinking keys
-        reasoning = (chunk_delta.get("reasoning_content") or 
-                     chunk_delta.get("thought") or 
-                     chunk_delta.get("thinking") or "")
-        if isinstance(reasoning, str) and reasoning:
-            return reasoning
-        
-        # OpenRouter-style: delta.reasoning_details (array of {type, text?, summary?})
-        details = chunk_delta.get("reasoning_details")
-        if not isinstance(details, list):
-            return ""
-        parts = []
-        for item in details:
-            if not isinstance(item, dict):
-                continue
-            if item.get("type") in ("reasoning.text", "thought", "reasoning"):
-                parts.append(item.get("text") or "")
-            elif item.get("type") == "reasoning.summary":
-                parts.append(item.get("summary") or "")
-        return "".join(parts) if parts else ""
-
-    def extract_content_from_response(self, chunk, api_type="completions"):
-        """
-        Extract text content and optional thinking from API response chunk.
-        Returns (content, finish_reason, thinking, delta) where thinking may be "".
-        """
-        choices = chunk.get("choices", [])
-        choice = choices[0] if choices else {}
-        delta = choice.get("delta", {})
-        
-        # Check finish_reason in choice first, then top-level chunk, then anywhere in choices
-        finish_reason = choice.get("finish_reason") if choice else None
-        if not finish_reason:
-            finish_reason = chunk.get("finish_reason")
-        if not finish_reason and choices:
-            for c in choices:
-                if isinstance(c, dict) and c.get("finish_reason"):
-                    finish_reason = c.get("finish_reason")
-                    break
-
-        if api_type == "chat":
-            content = (delta.get("content") or "") if delta else ""
-        else:
-            content = (choice.get("text") or "") if choice else ""
-
-        # Extract thinking from delta or top-level (some models put it outside choices)
-        thinking = self._extract_thinking_from_delta(delta) if delta else ""
-        if not thinking:
-            thinking = self._extract_thinking_from_delta(chunk)
-
-        return content, finish_reason, thinking, delta
-
-    def get_ssl_context(self):
-        """
-        Create an SSL context that doesn't verify certificates.
-        This is needed for some environments where SSL certificates are not properly configured.
-        """
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        return ssl_context
-
-    def _get_request_timeout(self):
-        """Get request timeout in seconds from config (default 120)."""
-        try:
-            return int(self.get_config("request_timeout", 120))
-        except (TypeError, ValueError):
-            return 120
+    def _get_client(self):
+        """Create LlmClient with current config."""
+        config = get_api_config(self.ctx)
+        return LlmClient(config, self.ctx)
 
     def show_error(self, message, title="LocalWriter Error"):
         """Show an error message in a dialog instead of writing to the document."""
@@ -262,149 +82,38 @@ class MainJob(unohelper.Base, XJobExecutor):
         except Exception:
             pass  # Fallback: if dialog fails, at least we don't crash
 
-    def _format_error_message(self, e):
-        """Map common exceptions to user-friendly advice."""
-        import urllib.error
-        import socket
-        
-        msg = str(e)
-        if isinstance(e, urllib.error.HTTPError):
-            if e.code == 401:
-                return "Invalid API Key. Please check your settings."
-            if e.code == 403:
-                return "API access Forbidden. Your key may lack permissions for this model."
-            if e.code == 404:
-                return "Endpoint not found (404). Check your URL and Model name."
-            if e.code >= 500:
-                return "Server error (%d). The AI provider is having issues." % e.code
-            return "HTTP Error %d: %s" % (e.code, e.reason)
-        
-        if isinstance(e, urllib.error.URLError):
-            reason = str(e.reason)
-            if "Connection refused" in reason or "111" in reason:
-                return "Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
-            if "getaddrinfo failed" in reason:
-                return "DNS Error. Could not resolve the endpoint URL."
-            return "Connection Error: %s" % reason
-            
-        if isinstance(e, socket.timeout) or "timed out" in msg.lower():
-            return "Request Timed Out. Try increasing 'Request Timeout' in Settings."
-            
-        return msg
-
-    def stream_completion(self, prompt, system_prompt, max_tokens, api_type, append_callback,
-                          append_thinking_callback=None):
+    def stream_completion(
+        self,
+        prompt,
+        system_prompt,
+        max_tokens,
+        api_type,
+        append_callback,
+        append_thinking_callback=None,
+        stop_checker=None,
+    ):
         """Single entry point for streaming completions. Raises on error."""
-        request = self.make_api_request(prompt, system_prompt, max_tokens, api_type=api_type)
-        self.stream_request(request, api_type, append_callback, append_thinking_callback)
+        self._get_client().stream_completion(
+            prompt,
+            system_prompt,
+            max_tokens,
+            api_type,
+            append_callback,
+            append_thinking_callback=append_thinking_callback,
+            stop_checker=stop_checker,
+        )
 
     def make_chat_request(self, messages, max_tokens=512, tools=None, stream=False):
-        """
-        Build a chat completions request from a full messages array.
-        Supports tool-calling when tools are provided.
-        Returns a urllib Request object.
-        """
-        try:
-            max_tokens = int(max_tokens)
-        except (TypeError, ValueError):
-            max_tokens = 512
-
-        endpoint = str(self.get_config("endpoint", "http://127.0.0.1:5000")).rstrip("/")
-        api_key = str(self.get_config("api_key", ""))
-        model_name = str(self.get_config("model", ""))
-
-        is_openwebui = (as_bool(self.get_config("is_openwebui", False))
-                        or "open-webui" in endpoint.lower()
-                        or "openwebui" in endpoint.lower())
-        api_path = "/api" if is_openwebui else "/v1"
-        url = endpoint + api_path + "/chat/completions"
-
-        headers = {'Content-Type': 'application/json'}
-        if api_key:
-            headers['Authorization'] = 'Bearer %s' % api_key
-
-        temperature = self.get_config("temperature", 0.5)
-        try:
-            temperature = float(temperature)
-        except (TypeError, ValueError):
-            temperature = 0.5
-
-        data = {
-            'messages': messages,
-            'max_tokens': max_tokens,
-            'temperature': temperature,
-            'top_p': 0.9,
-            'stream': stream,
-        }
-        if model_name:
-            data['model'] = model_name
-        # Limit reasoning verbosity for thinking models (OpenRouter and other providers)
-        data['reasoning'] = {'effort': 'minimal'}
-        if tools:
-            data['tools'] = tools
-            data['tool_choice'] = 'auto'
-            data['parallel_tool_calls'] = False
-
-        json_data = json.dumps(data).encode('utf-8')
-        log_to_file("=== Chat Request (tools=%s, stream=%s) ===" % (bool(tools), stream))
-        log_to_file("URL: %s" % url)
-        log_to_file("Data: %s" % json.dumps(data, indent=2))
-
-        request = urllib.request.Request(url, data=json_data, headers=headers)
-        request.get_method = lambda: 'POST'
-        return request
-
-    def _normalize_message_content(self, raw):
-        """Return a single string from API message content (string or list of parts)."""
-        if raw is None:
-            return None
-        if isinstance(raw, str):
-            return raw
-        if isinstance(raw, list):
-            parts = []
-            for item in raw:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    parts.append(item.get("text") or "")
-                elif isinstance(item, dict) and "text" in item:
-                    parts.append(item.get("text") or "")
-            return "".join(parts) if parts else None
-        return str(raw)
+        """Delegate to LlmClient."""
+        return self._get_client().make_chat_request(
+            messages, max_tokens, tools=tools, stream=stream
+        )
 
     def request_with_tools(self, messages, max_tokens=512, tools=None):
-        """
-        Non-streaming chat request that returns the parsed response.
-        Used for tool-calling rounds where we need the full response at once.
-        Returns dict: {"role": "assistant", "content": ..., "tool_calls": [...] or None}
-        """
-        request = self.make_chat_request(messages, max_tokens, tools=tools, stream=False)
-        ssl_context = self.get_ssl_context()
-        timeout = self._get_request_timeout()
-
-        try:
-            with urllib.request.urlopen(request, context=ssl_context, timeout=timeout) as response:
-                body = response.read().decode("utf-8")
-                result = json.loads(body)
-        except Exception as e:
-            err_msg = self._format_error_message(e)
-            log_to_file("request_with_tools ERROR: %s -> %s" % (e, err_msg))
-            raise Exception(err_msg)
-
-        log_to_file("=== Tool response: %s" % json.dumps(result, indent=2))
-
-        # Support both OpenAI shape (choices[0].message) and Ollama shape (top-level message)
-        choice = result.get("choices", [{}])[0] if result.get("choices") else {}
-        message = choice.get("message") or result.get("message") or {}
-        finish_reason = choice.get("finish_reason") or result.get("done_reason")
-
-        raw_content = message.get("content")
-        content = self._normalize_message_content(raw_content)
-
-        return {
-            "role": "assistant",
-            "content": content,
-            "tool_calls": message.get("tool_calls"),
-            "finish_reason": finish_reason,
-        }
+        """Delegate to LlmClient."""
+        return self._get_client().request_with_tools(
+            messages, max_tokens, tools=tools
+        )
 
     def stream_request_with_tools(
         self,
@@ -415,159 +124,36 @@ class MainJob(unohelper.Base, XJobExecutor):
         append_thinking_callback=None,
         stop_checker=None,
     ):
-        """
-        Streaming chat request with tools. Accumulates deltas into a full message,
-        calls append_callback(content_delta) and append_thinking_callback(thinking) as chunks arrive,
-        then returns the same shape as request_with_tools so the tool loop can run tools.
-        Optional stop_checker() callback can return True to abort the stream.
-        """
-        request = self.make_chat_request(messages, max_tokens, tools=tools, stream=True)
-        toolkit = self.ctx.getServiceManager().createInstanceWithContext(
-            "com.sun.star.awt.Toolkit", self.ctx
+        """Delegate to LlmClient."""
+        return self._get_client().stream_request_with_tools(
+            messages,
+            max_tokens,
+            tools=tools,
+            append_callback=append_callback,
+            append_thinking_callback=append_thinking_callback,
+            stop_checker=stop_checker,
         )
-        ssl_context = self.get_ssl_context()
-        timeout = self._get_request_timeout()
 
-        message_snapshot = {}
-        last_finish_reason = None
-
-        append_callback = append_callback or (lambda t: None)
-        append_thinking_callback = append_thinking_callback or (lambda t: None)
-
-        log_to_file(f"stream_request_with_tools: Opening URL: {request.full_url}")
-        try:
-            with urllib.request.urlopen(
-                request, context=ssl_context, timeout=timeout
-            ) as response:
-                for line in response:
-                    # Check for stop request
-                    if stop_checker and stop_checker():
-                        log_to_file("stream_request_with_tools: Stop requested by user.")
-                        last_finish_reason = "stop"
-                        break
-
-                    if not line.strip() or not line.startswith(b"data: "):
-                        continue
-                    payload = line[len(b"data: "):].decode("utf-8").strip()
-                    if payload == "[DONE]":
-                        log_to_file("stream_request_with_tools: [DONE] received")
-                        break
-                    try:
-                        chunk = json.loads(payload)
-                    except json.JSONDecodeError:
-                        log_to_file(f"stream_request_with_tools: JSON decode error for payload: {payload[:100]}...")
-                        continue
-
-                    content, finish_reason, thinking, delta = self.extract_content_from_response(
-                        chunk, "chat"
-                    )
-                    log_to_file(f"stream_request_with_tools chunk: content={len(content) if content else 0}, thinking={len(thinking) if thinking else 0}, finish={finish_reason}, has_delta={bool(delta)}")
-                    
-                    if thinking:
-                        append_thinking_callback(thinking)
-                        toolkit.processEventsToIdle()
-                    if content:
-                        append_callback(content)
-                        toolkit.processEventsToIdle()
-
-                    if delta:
-                        accumulate_delta(message_snapshot, delta)
-                    
-                    last_finish_reason = finish_reason
-                    if last_finish_reason:
-                        log_to_file(f"stream_request_with_tools: Breaking on finish_reason: {last_finish_reason}")
-                        break
-                
-                log_to_file("stream_request_with_tools: Response stream closed naturally.")
-        except Exception as e:
-            err_msg = self._format_error_message(e)
-            log_to_file("stream_request_with_tools ERROR: %s -> %s" % (e, err_msg))
-            raise Exception(err_msg)
-
-        raw_content = message_snapshot.get("content")
-        content = self._normalize_message_content(raw_content)
-        tool_calls = message_snapshot.get("tool_calls")
-
-        log_to_file(f"stream_request_with_tools: Returning. Content len={len(content) if content else 0}, finish={last_finish_reason}")
-        return {
-            "role": "assistant",
-            "content": content,
-            "tool_calls": tool_calls,
-            "finish_reason": last_finish_reason,
-        }
-
-    def stream_chat_response(self, messages, max_tokens, append_callback, append_thinking_callback=None, stop_checker=None):
-        """Stream a final chat response (no tools) using the messages array."""
-        request = self.make_chat_request(messages, max_tokens, tools=None, stream=True)
-        self.stream_request(request, "chat", append_callback, append_thinking_callback, stop_checker=stop_checker)
+    def stream_chat_response(
+        self,
+        messages,
+        max_tokens,
+        append_callback,
+        append_thinking_callback=None,
+        stop_checker=None,
+    ):
+        """Delegate to LlmClient."""
+        self._get_client().stream_chat_response(
+            messages,
+            max_tokens,
+            append_callback,
+            append_thinking_callback=append_thinking_callback,
+            stop_checker=stop_checker,
+        )
 
     def get_full_document_text(self, model, max_chars=8000):
-        """Get full document text for Writer, truncated to max_chars."""
-        try:
-            text = model.getText()
-            cursor = text.createTextCursor()
-            cursor.gotoStart(False)
-            cursor.gotoEnd(True)
-            full = cursor.getString()
-            if len(full) > max_chars:
-                full = full[:max_chars] + "\n\n[... document truncated ...]"
-            return full
-        except Exception:
-            return ""
-
-    def stream_request(self, request, api_type, append_callback, append_thinking_callback=None, stop_checker=None):
-        """
-        Stream a completion/chat response and append incremental chunks via callbacks.
-        Optional append_thinking_callback receives reasoning/thinking text when present.
-        Optional stop_checker() callback can return True to abort the stream.
-        """
-        toolkit = self.ctx.getServiceManager().createInstanceWithContext(
-            "com.sun.star.awt.Toolkit", self.ctx
-        )
-        ssl_context = self.get_ssl_context()
-        
-        log_to_file(f"=== Starting stream request ===")
-        log_to_file(f"Request URL: {request.full_url}")
-        log_to_file(f"Request method: {request.get_method()}")
-        
-        timeout = self._get_request_timeout()
-        try:
-            with urllib.request.urlopen(request, context=ssl_context, timeout=timeout) as response:
-                log_to_file(f"Response status: {response.status}")
-                log_to_file(f"Response headers: {response.headers}")
-                
-                for line in response:
-                    # Check for stop request
-                    if stop_checker and stop_checker():
-                        log_to_file("stream_request: Stop requested by user.")
-                        break
-
-                    try:
-                        if line.strip() and line.startswith(b"data: "):
-                            payload = line[len(b"data: "):].decode("utf-8").strip()
-                            try:
-                                chunk = json.loads(payload)
-                            except json.JSONDecodeError:
-                                continue
-                            content, finish_reason, thinking, _ = self.extract_content_from_response(
-                                chunk, api_type
-                            )
-                            if thinking and append_thinking_callback:
-                                append_thinking_callback(thinking)
-                                toolkit.processEventsToIdle()
-                            if content:
-                                append_callback(content)
-                                toolkit.processEventsToIdle()
-                            
-                            if finish_reason:
-                                break
-                    except Exception as e:
-                        log_to_file(f"Error processing line: {str(e)}")
-                        raise
-        except Exception as e:
-            err_msg = self._format_error_message(e)
-            log_to_file("ERROR in stream_request: %s -> %s" % (e, err_msg))
-            raise Exception(err_msg)
+        """Delegate to core.document."""
+        return get_full_document_text(model, max_chars)
 
     def input_box(self, message, title="", default="", x=None, y=None):
         """ Shows input dialog (EditInputDialog.xdl). Returns edit text if OK, else "". """
