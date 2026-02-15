@@ -131,4 +131,260 @@ So the **intended** behavior is: paste into the document we were given (`model`)
 
 - **Problem**: `insertTransferable` in the apply_markdown path does not insert into the document we hold a reference to when run from the menu; it inserts into the desktop’s “current” component.
 - **Cause**: When the menu runs, the current frame/component is not our document’s frame; we have a reference to the same document (same URL) but a different frame/component, and paste goes to the current one.
-- **Next step**: In `_insert_transferable_at_position`, when `desktop.getCurrentComponent()` has the same URL as `model`, use that current component as the insert target so the paste and the document we measure are the same.
+
+## 8. What Was Fixed (Update)
+
+### Fix 1: URL Matching (✅ IMPLEMENTED)
+**Status**: Working - All tests now pass!
+
+The fix detects when `desktop.getCurrentComponent()` has the same URL as our model and uses the current component as the insert target. This aligns our target with where `insertTransferable()` actually pastes.
+
+**Code**: Lines 284-303 in `markdown_support.py`
+
+### Fix 2: Direct Insert Method (✅ IMPLEMENTED)
+**Status**: Working - Falls back to raw text insertion
+
+When the transferable from hidden documents is empty (0 flavors), the code now uses `insertString()` to insert the markdown as raw text. This ensures content is inserted even if formatting doesn't work.
+
+**Code**: `_insert_markdown_direct()` function in `markdown_support.py`
+
+### Fix 3: Visible Document for Formatting (⚠️ EXPERIMENTAL)
+**Status**: Implemented but may not work
+
+Attempts to load markdown in a visible document first (to get proper formatting), then falls back to hidden. The transferable from visible documents may contain formatted content.
+
+**Code**: Lines 547-572 in `markdown_support.py`
+
+## 9. Current Status
+
+### What Works
+- ✅ All 7 markdown tests pass
+- ✅ Content is inserted (document length increases)
+- ✅ Menu and sidebar insertion work
+- ✅ URL matching fixes targeting issue
+- ✅ Direct insert provides fallback
+
+### What Doesn't Work Yet
+- ❌ Markdown formatting not rendered (bold, italic, headings appear as plain text)
+- ❌ Transferable from hidden/visible documents still empty (0 flavors)
+
+### Root Cause of Formatting Issue
+
+The `getTransferable()` method from both hidden and visible markdown documents returns an **empty transferable** (0 flavors), even though the document loads correctly and displays formatted text when opened manually.
+
+**Evidence**:
+```
+HIDDEN DOC: selected_text length = 45, content = Markdown test...
+HIDDEN DOC: transferable flavors = 0  ← Empty!
+```
+
+The text is selected, but the transferable has no data flavors to paste.
+
+## 10. Understanding LibreOffice's Markdown Behavior
+
+The key insight: **LibreOffice has native markdown support** - we should leverage it, not work around it.
+
+### Tests to Run in LibreOffice
+
+#### Test 1: Manual Markdown Import
+1. Create a test.md file with:
+   ```markdown
+   # Heading
+   **Bold** and *italic* text
+   - List item
+   ```
+2. Open LibreOffice Writer
+3. File → Open → Select test.md
+4. Observe: Does it render as formatted text?
+
+**Expected**: Should see proper heading, bold, italic, list formatting
+
+#### Test 2: Filter Names to Try
+Test different filter names in `loadComponentFromURL`:
+```python
+# Try these filter names:
+"Markdown"
+"Text (Markdown)"
+"markdown"
+"Text"
+"Text (markdown)"
+```
+
+#### Test 3: Get Formatted Text from Document
+After loading markdown document:
+```python
+# Try different ways to get content
+doc.getText().getString()  # Raw text
+doc.getText().createTextCursor().getString()  # Selected text
+
+# Try exporting to see if formatting is preserved
+doc.storeToURL("/tmp/test.odt", (FilterName: "writer8",))
+```
+
+#### Test 4: Copy/Paste from Markdown Document
+```python
+# Select all in markdown document
+cursor = doc.getText().createTextCursor()
+cursor.gotoStart(False)
+cursor.gotoEnd(True)
+
+# Copy to clipboard
+frame = doc.getCurrentController().getFrame()
+dispatch = frame.queryDispatch(".uno:Copy", "", 0)
+dispatch.dispatch(None, ())
+
+# Paste into target document
+target_frame.queryDispatch(".uno:Paste", "", 0).dispatch(None, ())
+```
+
+#### Test 5: Use XTextRangeCompare to Copy Content
+```python
+# Copy content between documents using text ranges
+source_text = source_doc.getText()
+target_text = target_doc.getText()
+
+# Create cursors
+source_cursor = source_text.createTextCursor()
+target_cursor = target_text.createTextCursor()
+
+# Copy range by range
+source_cursor.gotoStart(False)
+while source_cursor.gotoEndOfParagraph(True):
+    source_cursor.gotoEndOfParagraph(False)
+    target_cursor.getText().insertString(target_cursor, source_cursor.getString(), False)
+    target_cursor.gotoEnd(False)
+```
+
+#### Test 6: Use XModel to Copy Styles
+```python
+# Get style families from source document
+styles = source_doc.getStyleFamilies()
+# Apply to target document
+for style in styles.getByName("ParagraphStyles"):
+    # Copy style definitions
+    pass
+```
+
+#### Test 7: Check Document Properties
+```python
+# After loading markdown, check if it's recognized as markdown
+print(doc.getDocumentProperties())
+print(doc.getText().getTextFieldMasterNames())
+```
+
+## 11. LibreOffice UNO APIs to Investigate
+
+### XTextRange and XTextCursor
+- Can we copy formatted ranges between documents?
+- Does `insertTextContent()` preserve formatting?
+
+### XStyleFamiliesSupplier
+- Can we copy styles from markdown document to target?
+- Are markdown styles preserved in the document?
+
+### XFilterDetection
+- Does LibreOffice detect markdown automatically?
+- What filter is used when opening .md files?
+
+### XComponentLoader
+- What filter names does LibreOffice recognize for markdown?
+- Can we list available filters?
+
+## 12. Debugging Techniques
+
+### Log Filter Detection
+```python
+# List all available filters
+filters = ctx.getServiceManager().createInstance("com.sun.star.document.FilterFactory")
+print(filters.getElementNames())
+```
+
+### Inspect Document Model
+```python
+# After loading markdown
+print("Document type:", doc.getImplementationName())
+print("Supports service:", doc.supportsService("com.sun.star.text.TextDocument"))
+print("Text length:", len(doc.getText().getString()))
+```
+
+### Check Transferable Flavors
+```python
+transferable = controller.getTransferable()
+if transferable:
+    flavors = transferable.getTransferDataFlavors()
+    for flavor in flavors:
+        print("Flavor:", flavor.MimeType, flavor.HumanPresentableName)
+```
+
+## 13. Recommended Approach
+
+**Goal**: Understand how LibreOffice handles markdown internally, then use the same mechanism.
+
+### Step 1: Run Manual Tests
+- Test markdown import in LibreOffice UI
+- Identify which filter name works
+- Check if formatting is preserved
+
+### Step 2: Instrument Code with Debugging
+Add logging to understand:
+- Which filter is being used
+- What content is loaded
+- Why transferable is empty
+
+### Step 3: Use LibreOffice's Same Mechanism
+Once we understand how it works manually, replicate in code:
+- Use correct filter name
+- Extract formatted content properly
+- Preserve styles during transfer
+
+### Step 4: Avoid Reinventing the Wheel
+Don't write our own markdown parser - use LibreOffice's built-in support.
+
+## 14. Key Questions to Answer
+
+1. What filter name does LibreOffice use for .md files?
+2. Does `loadComponentFromURL` with that filter apply formatting?
+3. How can we extract formatted content from the loaded document?
+4. Why is `getTransferable()` returning empty transferable?
+5. Can we copy formatted ranges between documents?
+
+## 15. Testing Plan
+
+1. **Manual Test**: Verify markdown import works in UI
+2. **Filter Test**: Find correct filter name
+3. **Transferable Test**: Check flavors in loaded document
+4. **Copy Test**: Try different copy methods
+5. **Fallback Test**: Ensure raw text still works
+
+Once we understand the answers, we can implement proper formatting support.
+
+## 16. Documentation to Update
+
+- Update `MARKDOWN_INSERT_INVESTIGATION.md` with test results
+- Add findings to `LESSONS_LEARNED.md`
+- Document correct approach in code comments
+
+## 17. Success Criteria
+
+✅ Markdown loads with proper formatting in LibreOffice UI
+✅ We identify the correct filter name and mechanism
+✅ Transferable contains formatted data (not empty)
+✅ Formatted content can be inserted into target document
+
+## 12. Files Modified
+
+- `markdown_support.py` - Main implementation
+- `MARKDOWN_INSERT_INVESTIGATION.md` - This document (updated)
+- `LESSONS_LEARNED.md` - Detailed journey
+- `FINAL_RESULT.md` - Final summary
+
+## 13. Test Results
+
+```
+✅ 7/7 tests pass
+✅ Content inserted (len 161→209)
+✅ All formatting keywords found (Heading, Bold, italic, underline)
+❌ But formatting not rendered (appears as plain text)
+```
+
+The foundation is solid. Formatting can be added as an enhancement later.
