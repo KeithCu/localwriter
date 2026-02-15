@@ -32,7 +32,8 @@ localwriter/
 │   └── async_stream.py  # run_stream_completion_async: worker + queue + main-thread drain (no UNO Timer)
 ├── prompt_function.py   # Calc =PROMPT() formula
 ├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
-├── document_tools.py    # 7 Writer tools + executor for OpenAI tool-calling
+├── document_tools.py    # WRITER_TOOLS (get_markdown, apply_markdown only), execute_tool; legacy tools present but not exposed
+├── markdown_support.py  # Markdown read/write: document_to_markdown, apply_markdown (hidden doc + transferable)
 ├── XPromptFunction.rdb  # Type library for PromptFunction
 ├── LocalWriterDialogs/  # XDL dialogs (XML, Map AppFont units)
 │   ├── SettingsDialog.xdl
@@ -88,9 +89,9 @@ localwriter/
   - **Auto-scroll**: The response area automatically scrolls to the bottom as text is streamed or tools are called, ensuring the latest AI output is always visible.
   - **Stop button**: A dedicated "Stop" button allows users to halt AI generation mid-stream. It is enabled only while the AI is active and disabled when idle.
   - **Undo grouping**: AI edits performed during tool-calling rounds are grouped into a single undo context ("AI Edit"). Users can revert all changes from an AI turn with a single Ctrl+Z.
-  - **Send button disable**: The Send button is programmatically disabled via `setEnable(False)` when the tool-calling loop starts and re-enabled in a `finally` block when done. This prevents multiple concurrent requests.
+  - **Send/Stop button state (lifecycle-based)**: "AI is busy" is defined by the single run of `actionPerformed`: Send is disabled (Stop enabled) at the **start** of the run, and re-enabled (Stop disabled) **only** in the `finally` block when `_do_send()` has returned. No dependence on internal job_done or drain-loop state. `_set_button_states(send_enabled, stop_enabled)` uses per-control try/except (prefer `control.setEnable()`, fallback to model `Enabled`) so a UNO failure on one control cannot leave Send stuck disabled. `SendButtonListener._send_busy` is set True at run start and False in finally for external checks. This prevents multiple concurrent requests.
 - **Implementation**: `chat_panel.py` (ChatPanelFactory, ChatPanelElement, ChatToolPanel); `ContainerWindowProvider` + `ChatPanelDialog.xdl`; `setVisible(True)` required after `createContainerWindow()`.
-- **Tool-calling**: `document_tools.py` defines 7 tools: `replace_text`, `insert_text`, `get_selection`, `replace_selection`, `format_text`, `set_paragraph_style`, `get_document_text`.
+- **Tool-calling**: The AI sees only two tools (markdown-centric). `document_tools.py` exposes **WRITER_TOOLS** = `get_markdown`, `apply_markdown`. Implementations live in `markdown_support.py`; `document_tools.py` imports them and defines `TOOL_DISPATCH` for `execute_tool`. Legacy tools (`replace_text`, `insert_text`, `get_selection`, `replace_selection`, `format_text`, `set_paragraph_style`, `get_document_text`) remain in `document_tools.py` but are **not** in WRITER_TOOLS and their TOOL_DISPATCH entries are commented out (kept for possible future use).
 - **Menu fallback**: Menu item "Chat with Document" opens input dialog, appends streaming response to document end (no tool-calling). Both sidebar and menu use the same document context (see below).
 - **Config keys** (used by chat): `chat_context_length`, `chat_max_tokens`, `chat_system_prompt` (in Settings).
 
@@ -104,9 +105,14 @@ localwriter/
 - **Scope**: Chat with Document only. Extend Selection and Edit Selection are legacy and unchanged.
 - **Helpers**: `get_document_end(model, max_chars)`, `get_selection_range(model)` → `(start_offset, end_offset)`; `_inject_markers_into_excerpt()` for placing markers in start/end excerpts.
 
+### Markdown tool-calling (current)
+
+- **get_markdown**: Returns the document (or current selection) as Markdown. Parameters: optional `max_chars`, optional `scope` (`"full"` or `"selection"`). Implementation: tries `XStorable.storeToURL` with FilterName `"Markdown"` to a temp file (system temp dir via `tempfile.gettempdir()`); on failure or for `scope="selection"` uses structural fallback (paragraph enumeration + `ParaStyleName` → headings, lists, blockquote). See `markdown_support.py`.
+- **apply_markdown**: Inserts or replaces content using Markdown. Parameters: `markdown` (string), `target` (`"beginning"` | `"end"` | `"selection"` | `"search"`); when `target="search"`, also `search`, optional `all_matches`, `case_sensitive`. Implementation: write markdown to a temp file in the system temp dir, load it in a **hidden** Writer document (Desktop, FilterName `"Markdown"`), select all, get `XTransferable`, then in the main document position cursor (at beginning/end/selection or at each search match) and `insertTransferable`. Hidden doc is closed and temp file deleted. Replaces the previous separate insert/replace-selection/replace-text tools with one combined tool. See `markdown_support.py`.
+
 ### System prompt and reasoning (latest)
 
-- **DEFAULT_CHAT_SYSTEM_PROMPT** in `core/constants.py` (imported by `main.py`, `chat_panel.py`) instructs the model to: (1) use tools proactively; (2) use internal linguistic knowledge for translate/proofread/edit; (3) for translate: call `get_document_text`, translate internally, then apply via tools — NEVER refuse translation; (4) keep reasoning minimal and act; (5) confirm edits briefly.
+- **DEFAULT_CHAT_SYSTEM_PROMPT** in `core/constants.py` (imported by `main.py`, `chat_panel.py`) instructs the model to: (1) use tools proactively; (2) use internal linguistic knowledge for translate/proofread/edit; (3) for translate: use `get_markdown` to read and `apply_markdown` to write — NEVER refuse translation; (4) keep reasoning minimal and act; (5) confirm edits briefly.
 - **Reasoning tokens**: `main.py` sends `reasoning: { effort: 'minimal' }` on all chat requests (OpenRouter and other providers).
 - **Thinking display**: Reasoning tokens are shown in the response area as `[Thinking] ... /thinking`. When thinking ends we append a newline after ` /thinking` so the following response text starts on a new line.
 
@@ -132,6 +138,7 @@ All streaming paths (sidebar tool-calling, sidebar simple stream, Writer Extend/
   - `debug_log(ctx, msg)` — chat debug log. Paths: UserConfig, `~/localwriter_chat_debug.log`, `/tmp/localwriter_chat_debug.log`.
   - `debug_log_paths(ctx)` — returns writable paths for chat debug.
 - **`SendButtonListener._make_stream_callbacks(self, toolkit=None, waiting_for_model=None, thinking_open=None, on_chunk=None)`** (`chat_panel.py`): Returns `(append_chunk, append_thinking)` for streaming. Params: `toolkit` for `processEventsToIdle`; `waiting_for_model` / `thinking_open` as `[bool]` lists; `on_chunk` for accumulation (e.g. `collected.append`).
+- **`SendButtonListener._send_busy`** (`chat_panel.py`): Boolean; True from run start until the `finally` block of `actionPerformed` (single source of truth for "is the AI running?"). Used together with lifecycle-based `_set_button_states(send_enabled, stop_enabled)`.
 - **`core/api.format_error_for_display(e)`**: Returns user-friendly error string for cells/dialogs (e.g. `"Error: Connection refused..."`).
 
 ---

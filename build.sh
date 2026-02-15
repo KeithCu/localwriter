@@ -21,6 +21,7 @@ zip -r "${EXTENSION_NAME}.oxt" \
     prompt_function.py \
     chat_panel.py \
     document_tools.py \
+    markdown_support.py \
     streaming_deltas.py \
     XPromptFunction.rdb \
     LocalWriterDialogs/ \

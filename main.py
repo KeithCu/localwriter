@@ -287,6 +287,18 @@ class MainJob(unohelper.Base, XJobExecutor):
 
         if args == "settings" and (not model or (not hasattr(model, "Text") and not hasattr(model, "Sheets"))):
             agent_log("main.py:trigger", "settings requested but no Writer/Calc document", data={"args": str(args)}, hypothesis_id="H2")
+
+        if args == "RunMarkdownTests":
+            try:
+                from markdown_support import run_markdown_tests
+                writer_model = model if (model and hasattr(model, "getText")) else None
+                p, f, log = run_markdown_tests(self.ctx, writer_model)
+                msg = "Markdown tests: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
+                self.show_error(msg, "Markdown tests")
+            except Exception as e:
+                self.show_error("Tests failed to run: %s" % e, "Markdown tests")
+            return
+
         if hasattr(model, "Text"):
             text = model.Text
             selection = model.CurrentController.getSelection()
