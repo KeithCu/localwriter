@@ -54,6 +54,17 @@
               <value>_self</value>
             </prop>
           </node>
+          <node oor:name="M4" oor:op="replace">
+            <prop oor:name="Title">
+              <value xml:lang="en-US">Run markdown tests</value>
+            </prop>
+            <prop oor:name="URL">
+              <value>service:org.extension.localwriter.Main?RunMarkdownTests</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
         </node>
       </node>
     </node>
