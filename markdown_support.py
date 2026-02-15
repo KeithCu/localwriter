@@ -289,11 +289,11 @@ MARKDOWN_TOOLS = [
         "type": "function",
         "function": {
             "name": "apply_markdown",
-            "description": "Insert or replace content using Markdown. The markdown is converted to formatted document content. Use target to choose where: beginning or end of document, current selection (replace selection or insert at cursor), or search for exact text to replace.",
+            "description": "Insert or replace content using Markdown. The content is converted to formatted text. Markdown string or list of strings. Use standard JSON format with double-quoted strings; escape internal quotes.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "markdown": {"type": "string", "description": "The content in Markdown format."},
+                    "markdown": {"type": "string", "description": "The content in Markdown format (string or list of strings)."},
                     "target": {
                         "type": "string",
                         "enum": ["beginning", "end", "selection", "search"],
@@ -331,6 +331,16 @@ def tool_apply_markdown(model, ctx, args):
     """Tool: insert or replace content using Markdown (combined edit)."""
     markdown = args.get("markdown")
     target = args.get("target")
+    
+    # Debug: log the start of content to check for wrapping issues
+    if markdown:
+        debug_log(ctx, "tool_apply_markdown: input type=%s starts with: %s" % (type(markdown), repr(markdown)[:50]))
+        
+        # Accommodate list input (LLM sometimes ignores schema and sends array)
+        if isinstance(markdown, list):
+             debug_log(ctx, "tool_apply_markdown: joining list input with newlines")
+             markdown = "\n".join(str(x) for x in markdown)
+    
     if not markdown and markdown != "":
         return _tool_error("markdown is required")
     if not target:
@@ -543,5 +553,30 @@ def run_markdown_tests(ctx, model=None):
     except Exception as e:
         failed += 1
         log.append("FAIL: search-and-replace test raised: %s" % e)
+
+    # Test G: Real list input support (accommodating fix)
+    try:
+        # Pass a REAL list, expect joined content
+        list_input = ["**list**", "*item*"]
+        len_before = _doc_text_length(doc)[0]
+        result = tool_apply_markdown(doc, ctx, {
+            "markdown": list_input,
+            "target": "end",
+        })
+        data = json.loads(result)
+        full_text = _read_doc_text(doc)
+        
+        has_content = "list" in full_text and "item" in full_text
+        
+        if data.get("status") == "ok" and has_content:
+            passed += 1
+            ok("list input accommodation: handled list input successfully")
+        else:
+            failed += 1
+            fail("list input accommodation: status=%s, has_content=%s (input was %s)" % (
+                data.get("status"), has_content, list_input))
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: list input test raised: %s" % e)
 
     return passed, failed, log

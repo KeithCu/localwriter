@@ -492,7 +492,14 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 try:
                     func_args = json.loads(func_args_str)
                 except (json.JSONDecodeError, TypeError):
-                    func_args = {}
+                    # Fallback: try Python literal eval for single-quoted JSON or Python dicts
+                    try:
+                        import ast
+                        func_args = ast.literal_eval(func_args_str)
+                        if not isinstance(func_args, dict):
+                            func_args = {}
+                    except Exception:
+                        func_args = {}
                 agent_log("chat_panel.py:tool_execute", "Executing tool", data={"tool": func_name, "round": r}, hypothesis_id="C,D,E")
                 debug_log(self.ctx, "Tool call: %s(%s)" % (func_name, func_args_str))
                 result = execute_tool_fn(func_name, func_args, model, self.ctx)
@@ -673,7 +680,14 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 try:
                     func_args = json.loads(func_args_str)
                 except (json.JSONDecodeError, TypeError):
-                    func_args = {}
+                    # Fallback: try Python literal eval for single-quoted JSON or Python dicts
+                    try:
+                        import ast
+                        func_args = ast.literal_eval(func_args_str)
+                        if not isinstance(func_args, dict):
+                            func_args = {}
+                    except Exception:
+                        func_args = {}
 
                 # #region agent log
                 snippet = {}

@@ -168,9 +168,28 @@ def run_streaming_with_tools(prompt: str):
             args_str = fn.get("arguments", "{}")
             try:
                 args = json.loads(args_str) if args_str else {}
+                print(f"  [{i}] {name}({args})")
+                if name == "apply_markdown":
+                    md = args.get("markdown")
+                    print(f"    -> Analysis: json.loads successful. markdown type={type(md)}")
+                    if isinstance(md, str):
+                        print(f"    -> content preview: {repr(md[:50])}...")
+                        if md.strip().startswith("['") and md.strip().endswith("']"):
+                             print("    -> WARNING: Content looks like a stringified list!")
+                    elif isinstance(md, list):
+                        print(f"    -> content is list of {len(md)} items.")
             except json.JSONDecodeError:
-                args = args_str
-            print(f"  [{i}] {name}({args})")
+                print(f"  [{i}] {name}(raw: {args_str})")
+                print("    -> Analysis: json.loads FAILED.")
+                try:
+                    import ast
+                    args_ast = ast.literal_eval(args_str)
+                    print(f"    -> Analysis: ast.literal_eval SUCCEEDED. args={args_ast}")
+                    if name == "apply_markdown":
+                        md = args_ast.get("markdown")
+                        print(f"    -> markdown type via AST={type(md)}")
+                except Exception as e:
+                    print(f"    -> Analysis: ast.literal_eval also FAILED: {e}")
     print(f"Finish reason: {last_finish_reason}")
 
 
@@ -180,6 +199,21 @@ if __name__ == "__main__":
         "to read the document, then briefly summarize what you would do with it. "
         "If you cannot call tools, just say 'No tools available'."
     )
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1] == "--analyze-resume":
+        print("Analyzing Markdown generation behavior...")
+        prompt = (
+            "You are a helpful assistant. Write a brief resume for a software engineer in Markdown format. "
+            "Use headings, bullet points, and bold text. "
+            "Call the apply_markdown tool to insert it into the document. "
+            "Do not just output text, you MUST call the tool."
+        )
+    elif len(sys.argv) > 1:
         prompt = " ".join(sys.argv[1:])
+    else:
+        prompt = (
+            "You have access to document tools. Call get_document_text with max_chars 100 "
+            "to read the document, then briefly summarize what you would do with it. "
+            "If you cannot call tools, just say 'No tools available'."
+        )
+    
     run_streaming_with_tools(prompt)
