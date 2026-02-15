@@ -7,7 +7,7 @@ import json
 
 from core.logging import agent_log
 
-from markdown_support import MARKDOWN_TOOLS, tool_get_markdown, tool_apply_markdown
+from markdown_support import MARKDOWN_TOOLS, tool_get_markdown, tool_apply_markdown, tool_find_text
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +174,7 @@ def tool_get_document_text(model, ctx, args):
 TOOL_DISPATCH = {
     "get_markdown": tool_get_markdown,
     "apply_markdown": tool_apply_markdown,
+    "find_text": tool_find_text,
     # Unused (not in WRITER_TOOLS); uncomment to re-enable:
     # "get_selection": tool_get_selection,
     # "replace_text": tool_replace_text,

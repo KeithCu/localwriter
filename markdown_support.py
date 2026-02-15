@@ -339,6 +339,55 @@ def _apply_markdown_at_search(model, ctx, markdown_string, search_string, all_ma
             pass
 
 
+def _find_text_ranges(model, ctx, search_string, start=0, limit=None, case_sensitive=True):
+    """Find occurrences of search_string, returning list of {start, end} dicts.
+    Optional start offset to search from, and limit on number of matches."""
+    matches = []
+    try:
+        sd = model.createSearchDescriptor()
+        sd.SearchString = search_string
+        sd.SearchRegularExpression = False
+        sd.SearchCaseSensitive = case_sensitive
+        
+        from core.document import get_document_length
+        doc_len = get_document_length(model)
+        if start >= doc_len:
+            return []
+
+        # Manual iteration with findFirst/findNext is safer for 'limit' and 'start'.
+        # We start searching from the beginning and skip matches before 'start'.
+        
+        # Optimization: Use a cursor at 'start' to restrict search? 
+        # model.findNext(start_cursor, sd) -- start_cursor determines start position.
+        
+        cursor = model.getText().createTextCursor()
+        cursor.gotoStart(False)
+        cursor.goRight(start, False) # Move to start offset
+
+        found = model.findNext(cursor, sd)
+        while found:
+            # We need absolute offsets.
+            # Reuse get_selection_range logic inline for performance
+            measure_cursor = found.getText().createTextCursor()
+            measure_cursor.gotoStart(False)
+            measure_cursor.gotoRange(found.getStart(), True)
+            m_start = len(measure_cursor.getString())
+            
+            m_end = m_start + len(found.getString())
+            
+            matches.append({"start": m_start, "end": m_end})
+            
+            if limit and len(matches) >= limit:
+                break
+            
+            found = model.findNext(found, sd)
+            
+        return matches
+    except Exception as e:
+        debug_log(ctx, "markdown_support: _find_text_ranges failed: %s" % e)
+        return []
+
+
 # ---------------------------------------------------------------------------
 # Tool schemas and executors
 # ---------------------------------------------------------------------------
@@ -386,6 +435,24 @@ MARKDOWN_TOOLS = [
                     "case_sensitive": {"type": "boolean", "description": "When target is 'search', whether the search is case-sensitive. Default true."},
                 },
                 "required": ["markdown", "target"],
+                "additionalProperties": False
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_text",
+            "description": "Find occurrences of text in the document. Returns a list of ranges ({start, end}) that can be used with apply_markdown(target='range').",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "search": {"type": "string", "description": "Text to search for."},
+                    "start": {"type": "integer", "description": "Start offset to search from (default 0)."},
+                    "limit": {"type": "integer", "description": "Maximum number of matches to return (optional)."},
+                    "case_sensitive": {"type": "boolean", "description": "Case sensitive search. Default true."},
+                },
+                "required": ["search"],
                 "additionalProperties": False
             }
         }
@@ -484,6 +551,19 @@ def tool_apply_markdown(model, ctx, args):
     return _tool_error("Unknown target: %s" % target)
 
 
+def tool_find_text(model, ctx, args):
+    """Tool: find text ranges."""
+    search = args.get("search")
+    if not search:
+        return _tool_error("search parameter is required")
+    start = args.get("start", 0)
+    limit = args.get("limit")
+    case_sensitive = args.get("case_sensitive", True)
+    
+    ranges = _find_text_ranges(model, ctx, search, start=start, limit=limit, case_sensitive=case_sensitive)
+    return json.dumps({"status": "ok", "ranges": ranges})
+
+
 # ---------------------------------------------------------------------------
 # In-LibreOffice test runner (called from main.py menu: Run markdown tests)
 # ---------------------------------------------------------------------------
@@ -542,6 +622,13 @@ def run_markdown_tests(ctx, model=None):
         failed += 1
         log.append("FAIL: tool_get_markdown raised: %s" % e)
 
+
+    def _read_doc_text(d):
+        raw = d.getText().createTextCursor()
+        raw.gotoStart(False)
+        raw.gotoEnd(True)
+        return raw.getString()
+
     # Test: get_markdown returns document_length
     try:
         result = tool_get_markdown(doc, ctx, {"scope": "full"})
@@ -559,12 +646,6 @@ def run_markdown_tests(ctx, model=None):
 
     test_markdown = "## Markdown test\n\nThis was inserted by the test."
     insert_needle = "Markdown test"
-
-    def _read_doc_text(d):
-        raw = d.getText().createTextCursor()
-        raw.gotoStart(False)
-        raw.gotoEnd(True)
-        return raw.getString()
 
     # Test A: apply at end with use_process_events=False (diagnostic: often fails)
     try:
@@ -763,5 +844,44 @@ def run_markdown_tests(ctx, model=None):
     except Exception as e:
         failed += 1
         log.append("FAIL: get_markdown scope=range raised: %s" % e)
+
+    # Test K: tool_find_text
+    try:
+        # Insert unique text to find
+        marker_find = "FIND_ME_UNIQUE_xyz"
+        text = doc.getText()
+        cursor = text.createTextCursor()
+        cursor.gotoEnd(False)
+        text.insertString(cursor, "\n" + marker_find, False)
+        
+        # Search for it
+        result = tool_find_text(doc, ctx, {
+            "search": marker_find,
+            "case_sensitive": True
+        })
+        data = json.loads(result)
+        
+        if data.get("status") == "ok" and "ranges" in data:
+            ranges = data["ranges"]
+            if len(ranges) == 1:
+                r = ranges[0]
+                # Verify we can extract the text at that range
+                text_at_range = _read_doc_text(doc)[r["start"]:r["end"]] # Python slice of full text
+                if text_at_range == marker_find:
+                    passed += 1
+                    ok("find_text: found correct range (text '%s' matches)" % text_at_range)
+                else:
+                    failed += 1
+                    fail("find_text: range text mismatch. Expected '%s', got '%s'" % (marker_find, text_at_range))
+            else:
+                failed += 1
+                fail("find_text: expected 1 match, got %d" % len(ranges))
+        else:
+            failed += 1
+            fail("find_text: status=%s" % data.get("status"))
+            
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: find_text raised: %s" % e)
 
     return passed, failed, log

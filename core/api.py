@@ -247,7 +247,7 @@ class LlmClient:
         }
         if model_name:
             data["model"] = model_name
-        data["reasoning"] = {"effort": "minimal"}
+        data["reasoning"] = {"effort": "low", "enabled": True}
         if tools:
             data["tools"] = tools
             data["tool_choice"] = "auto"
