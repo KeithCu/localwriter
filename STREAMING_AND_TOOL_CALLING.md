@@ -190,76 +190,35 @@ Once you’ve run these tests, you can document the **actual** chunk shapes and 
 
 ---
 
-## 6. Existing implementations: piecing streams together and firing tool calls
+## 6. Implementation: `streaming_deltas.py`
 
-You don't have to hand-roll accumulation. These options already do the job.
+We chose the **lightweight, dependency-free** approach:
 
-### 6.1 OpenAI Python SDK (recommended if you can add a dependency)
+- We copied **[`accumulate_delta`](https://github.com/openai/openai-python/blob/main/src/openai/lib/streaming/_deltas.py)** from the OpenAI Python SDK into **`streaming_deltas.py`**.
+- This function handles the complex logic of merging partial tool call arguments (which can be split across many chunks) and concatenating content strings.
+- logic: `accumulate_delta(snapshot, delta)` -> updates snapshot in place.
 
-The **[openai](https://pypi.org/project/openai/) package** implements streaming with tool-call accumulation and exposes a state object you can feed chunks into.
+This avoids adding the heavy `openai` dependency to the LibreOffice extension while ensuring 100% compatibility with OpenAI-style streaming deltas.
 
-- **Stream API:** Use the client with `stream=True` and iterate; the stream yields parsed chunks and the library can give you a final completion with full `message.content` and `message.tool_calls` once the stream is done.
-- **Manual chunk feeding:** If you already have SSE (e.g. from `urllib`), you can use the SDK's accumulation logic by building their chunk type from each JSON payload and calling the state handler.
+---
 
-**Relevant code:**
+## 7. Error Handling in Streaming
 
-- **[`openai.lib.streaming.chat._completions`](https://github.com/openai/openai-python/blob/main/src/openai/lib/streaming/chat/_completions.py)**  
-  - `ChatCompletionStreamState`: call `handle_chunk(chunk)` for each `ChatCompletionChunk`; when the stream ends, `get_final_completion()` returns a `ParsedChatCompletion` with `choices[0].message.content` and `choices[0].message.tool_calls` ready to execute.
-  - The docstring shows standalone use: create a state, loop over your stream, call `state.handle_chunk(chunk)` each time, then `state.get_final_completion()`.
-- **[`openai.lib.streaming._deltas`](https://github.com/openai/openai-python/blob/main/src/openai/lib/streaming/_deltas.py)**  
-  - `accumulate_delta(acc, delta)`: generic merge of a delta into an accumulated dict. For `tool_calls`, it uses each item's `index`, finds the same index in the accumulator, and recursively merges (so `function.arguments` strings are concatenated). This is the core logic that "pieces it all together."
+Since networking runs on a background thread to keep the LibreOffice UI responsive, errors must be carefully propagated to the main thread.
 
-**Using the client with OpenRouter (or any OpenAI-compatible endpoint):**
+**The Pattern:**
 
-```python
-from openai import OpenAI
+1.  **Worker Thread (Producer):**
+    - Runs the blocking `urllib` streaming loop.
+    - Wraps the entire operation in a `try...except` block.
+    - If an exception occurs (network, timeout, API error), it puts `("error", exception_obj)` into the shared `queue.Queue` and exits.
 
-client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key="...")
-stream = client.chat.completions.create(
-    model="...",
-    messages=[...],
-    tools=[...],
-    tool_choice="auto",
-    stream=True,
-)
-# Option A: use the stream context manager and get the final completion
-with stream as s:
-    for event in s:
-        # e.g. content.delta, tool_calls.function.arguments.delta
-        ...
-    completion = s.get_final_completion()
-# completion.choices[0].message has .content and .tool_calls — run tools, append tool results, repeat
-```
+2.  **Main Thread (Consumer):**
+    - Runs a "drain loop" that checks the queue.
+    - Uses `toolkit.processEventsToIdle()` to keep the UI alive.
+    - When it pops `("error", e)`, it:
+        - Displays the error message in the chat panel (e.g., `[Error: Connection timeout]`).
+        - Sets the UI status to "Error".
+        - Stops the spinner/busy state.
 
-So: use the SDK's stream, consume it until done, then call `get_final_completion()` and fire off the tool calls from `message.tool_calls`.
-
-### 6.2 Dependency-free: reuse the accumulation algorithm
-
-If you must avoid the `openai` dependency (e.g. LibreOffice extension with minimal deps), you can reuse the same **algorithm** as the SDK:
-
-1. **Accumulate deltas:** Implement or copy **[`accumulate_delta`](https://github.com/openai/openai-python/blob/main/src/openai/lib/streaming/_deltas.py)** (plain dicts in, dicts out). Rules: same key → merge; for lists of objects use `index` to find the element and merge recursively; for strings, concatenate.
-2. **Initial snapshot:** From the first chunk, build an initial "message" snapshot (e.g. `role`, empty `content`, empty `tool_calls` list).
-3. **Loop:** For each subsequent chunk, `accumulate_delta(snapshot["choices"][0]["message"], chunk["choices"][0]["delta"])` (adjust keys to match the API; the delta often lives under `choices[0].delta`). After each merge, you can emit `delta.content` or `delta.reasoning_details` to the UI.
-4. **When the stream ends** (`finish_reason` set or `data: [DONE]`): the snapshot's `message.tool_calls` is complete. Parse each `function.arguments` as JSON, run your tools, append tool results to `messages`, and send the next request (again with `stream=True` if you want streaming for the next round).
-
-So "piece it all together" = one accumulated message state per stream; "fire off the tool calls when complete" = when the stream ends, read `message.tool_calls`, execute each, then continue the conversation loop.
-
-### 6.3 OpenRouter Python SDK
-
-If you only target OpenRouter, their **[Python SDK](https://openrouter.ai/docs/sdks/python)** supports chat with `stream=True` and handles responses. Check their [chat API reference](https://openrouter.ai/docs/sdks/python/api-reference/chat) for the exact stream shape and whether they expose a final message with `tool_calls` after the stream (similar to the OpenAI client).
-
-### 6.4 Lightweight / FOSS-friendly: minimal deps, no full OpenAI SDK
-
-The full **openai** package is a large dependency. If you want to stay minimal and widely compatible with FOSS setups (Ollama, local servers, OpenRouter), you have two practical options.
-
-**Option A: Vendor the accumulation algorithm (zero new dependencies)**
-
-There is no widely used, small, OpenAI-compatible library that does streaming + tool-call accumulation in one place besides the official SDK. The **lightweight approach** that many FOSS projects use is to **copy the accumulation logic** and keep your existing HTTP (e.g. `urllib` or `httpx`):
-
-- **[`openai.lib.streaming._deltas.accumulate_delta`](https://github.com/openai/openai-python/blob/main/src/openai/lib/streaming/_deltas.py)** is ~60 lines, pure Python, no SDK imports in the function itself. It operates on plain dicts: you pass the accumulated message and the chunk’s `delta`, and it merges (strings concatenate, lists of objects merge by `index`). You can copy this function into your codebase (same license as your project; OpenAI’s repo is Apache 2.0). Then your loop is: parse SSE → build `delta` dict from `choices[0].delta` → `accumulate_delta(snapshot, delta)` → when stream ends, read `tool_calls` and run tools. **No new package required.**
-
-**Option B: ollama-python (Ollama-native only)**
-
-**[ollama-python](https://github.com/ollama/ollama-python)** is small (deps: `httpx`, `pydantic`), MIT-licensed, and very popular with FOSS/Ollama users. It talks to **Ollama’s native API** (e.g. `POST /api/chat`), not the OpenAI-compatible `/v1/chat/completions` endpoint. So it is not a drop-in for code that must work with OpenRouter, OpenAI, or “any OpenAI-compatible endpoint.” If you only ever call a local Ollama and are fine using its native API, ollama-python is a good lightweight client; when streaming with tools, you still have to **accumulate** partial `tool_calls` from chunks yourself (the library does not do that). Ollama also exposes an [OpenAI-compatible API](https://docs.ollama.com/openai) at `http://localhost:11434/v1/`; for that endpoint you’d use an OpenAI-compatible client (e.g. the full SDK or your own urllib + vendored `accumulate_delta`), not ollama-python’s native client.
-
-**Summary:** For “small dependency, works with any OpenAI-compatible endpoint (Ollama compat mode, OpenRouter, etc.) and streams + tool calls,” the practical FOSS-friendly approach is **Option A**: keep your current HTTP, copy `accumulate_delta`, and do the small accumulation loop yourself. The full OpenAI SDK remains the only ready-made implementation that does everything in one place.
+This ensures that network failures on the worker thread don't silently fail or crash the extension; they are always surfaced to the user in the UI.
