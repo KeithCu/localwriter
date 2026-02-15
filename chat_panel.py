@@ -903,10 +903,11 @@ class ClearButtonListener(unohelper.Base, XActionListener):
 class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
     """Holds the panel window; implements XToolPanel and XSidebarPanel."""
 
-    def __init__(self, panel_window, ctx):
+    def __init__(self, panel_window, parent_window, ctx):
         self.ctx = ctx
         self.PanelWindow = panel_window
         self.Window = panel_window
+        self.parent_window = parent_window
 
     def getWindow(self):
         return self.Window
@@ -915,6 +916,16 @@ class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         return self.PanelWindow
 
     def getHeightForWidth(self, width):
+        debug_log(self.ctx, "getHeightForWidth(width=%s)" % width)
+        # Constrain panel to sidebar width (and parent height when available).
+        if self.parent_window and self.PanelWindow and width > 0:
+            try:
+                parent_rect = self.parent_window.getPosSize()
+                h = parent_rect.Height if parent_rect.Height > 0 else 280
+                self.PanelWindow.setPosSize(0, 0, width, h, 15)
+                debug_log(self.ctx, "panel constrained to W=%s H=%s" % (width, h))
+            except Exception as e:
+                debug_log(self.ctx, "panel size not set: %s" % e)
         # Min 280, preferred -1 (let sidebar decide), max 280 — matches working Git layout.
         return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 280, -1, 280)
 
@@ -944,7 +955,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 _ensure_extension_on_path(self.ctx)
                 root_window = self._getOrCreatePanelRootWindow()
                 debug_log(self.ctx, "root_window created: %s" % (root_window is not None))
-                self.toolpanel = ChatToolPanel(root_window, self.ctx)
+                self.toolpanel = ChatToolPanel(root_window, self.xParentWindow, self.ctx)
                 self._wireControls(root_window)
                 debug_log(self.ctx, "getRealInterface completed successfully")
             except Exception as e:
@@ -970,6 +981,16 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         # Sidebar does not show the panel content without this (framework does not make it visible).
         if self.m_panelRootWindow and hasattr(self.m_panelRootWindow, "setVisible"):
             self.m_panelRootWindow.setVisible(True)
+        # Constrain panel only when parent already has size (layout may be 0x0 here).
+        try:
+            parent_rect = self.xParentWindow.getPosSize()
+            if parent_rect.Width > 0 and parent_rect.Height > 0:
+                self.m_panelRootWindow.setPosSize(
+                    0, 0, parent_rect.Width, parent_rect.Height, 15)
+                debug_log(self.ctx, "panel constrained to W=%s H=%s" % (
+                    parent_rect.Width, parent_rect.Height))
+        except Exception as e:
+            debug_log(self.ctx, "panel size not set: %s" % e)
         return self.m_panelRootWindow
 
     def _wireControls(self, root_window):
