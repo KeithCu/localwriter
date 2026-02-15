@@ -510,6 +510,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 except Exception:
                     note = "done"
                 self._append_response("[%s: %s]\n" % (func_name, note))
+                # Prototype: when 0 replacements, show tool params in response for easier debugging
+                if func_name == "apply_markdown" and (note or "").strip().startswith("Replaced 0 occurrence"):
+                    params_display = func_args_str if len(func_args_str) <= 800 else func_args_str[:800] + "..."
+                    self._append_response("[Debug: params %s]\n" % params_display)
                 self.session.add_tool_result(call_id, result)
             if not self.stop_requested:
                 self._set_status("Sending results to AI...")
@@ -744,6 +748,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 except Exception:
                     note = "done"
                 self._append_response("[%s: %s]\n" % (func_name, note))
+                # Prototype: when 0 replacements, show tool params in response for easier debugging
+                if func_name == "apply_markdown" and (note or "").strip().startswith("Replaced 0 occurrence"):
+                    params_display = func_args_str if len(func_args_str) <= 800 else func_args_str[:800] + "..."
+                    self._append_response("[Debug: params %s]\n" % params_display)
 
                 # Add tool result to session
                 self.session.add_tool_result(call_id, result)
