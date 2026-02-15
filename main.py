@@ -12,6 +12,7 @@ import officehelper
 from core.config import get_config, set_config, as_bool, get_api_config
 from core.api import LlmClient
 from core.document import get_full_document_text, get_document_context_for_chat
+from core.async_stream import run_stream_completion_async
 from core.logging import log_to_file, agent_log
 from core.constants import DEFAULT_CHAT_SYSTEM_PROMPT
 from com.sun.star.task import XJobExecutor
@@ -300,11 +301,17 @@ class MainJob(unohelper.Base, XJobExecutor):
                         prompt = text_range.getString()
                         max_tokens = self.get_config("extend_selection_max_tokens", 70)
                         api_type = str(self.get_config("api_type", "completions")).lower()
+                        client = self._get_client()
 
-                        def append_text(chunk_text):
-                            text_range.setString(text_range.getString() + chunk_text)
+                        def apply_chunk(chunk_text, is_thinking=False):
+                            if not is_thinking:
+                                text_range.setString(text_range.getString() + chunk_text)
 
-                        self.stream_completion(prompt, system_prompt, max_tokens, api_type, append_text)
+                        run_stream_completion_async(
+                            self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                            apply_chunk, lambda: None,
+                            lambda e: self.show_error(str(e), "LocalWriter: Extend Selection"),
+                        )
                     except Exception as e:
                         self.show_error(str(e), "LocalWriter: Extend Selection")
 
@@ -315,20 +322,31 @@ class MainJob(unohelper.Base, XJobExecutor):
                     user_input = self.input_box("Please enter edit instructions!", "Input", "")
                     if not user_input:
                         return
-                    
-                    prompt = "ORIGINAL VERSION:\n" + original_text + "\n Below is an edited version according to the following instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
-                    system_prompt = self.get_config("edit_selection_system_prompt", "")
-                    max_tokens = len(original_text) + self.get_config("edit_selection_max_new_tokens", 0)
-                    api_type = str(self.get_config("api_type", "completions")).lower()
-                    
-                    text_range.setString("")
+                except Exception as e:
+                    self.show_error(str(e), "LocalWriter: Edit Selection")
+                    return
+                prompt = "ORIGINAL VERSION:\n" + original_text + "\n Below is an edited version according to the following instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
+                system_prompt = self.get_config("edit_selection_system_prompt", "")
+                max_tokens = len(original_text) + self.get_config("edit_selection_max_new_tokens", 0)
+                api_type = str(self.get_config("api_type", "completions")).lower()
+                text_range.setString("")
+                client = self._get_client()
 
-                    def append_text(chunk_text):
+                def apply_chunk(chunk_text, is_thinking=False):
+                    if not is_thinking:
                         text_range.setString(text_range.getString() + chunk_text)
 
-                    self.stream_completion(prompt, system_prompt, max_tokens, api_type, append_text)
+                def on_error(e):
+                    text_range.setString(original_text)
+                    self.show_error(str(e), "LocalWriter: Edit Selection")
+
+                try:
+                    run_stream_completion_async(
+                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                        apply_chunk, lambda: None, on_error,
+                    )
                 except Exception as e:
-                    text_range.setString(original_text)  # Restore original on failure
+                    text_range.setString(original_text)
                     self.show_error(str(e), "LocalWriter: Edit Selection")
 
             elif args == "ChatWithDocument":
@@ -349,11 +367,17 @@ class MainJob(unohelper.Base, XJobExecutor):
                     cursor = text.createTextCursor()
                     cursor.gotoEnd(False)
                     cursor.insertString("\n\n--- Chat response ---\n\n", False)
+                    client = self._get_client()
 
-                    def append_chunk(chunk_text):
-                        cursor.insertString(chunk_text, False)
+                    def apply_chunk(chunk_text, is_thinking=False):
+                        if chunk_text:
+                            cursor.insertString(chunk_text, False)
 
-                    self.stream_completion(prompt, system_prompt, max_tokens, api_type, append_chunk)
+                    run_stream_completion_async(
+                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                        apply_chunk, lambda: None,
+                        lambda e: self.show_error(str(e), "LocalWriter: Chat with Document"),
+                    )
                 except Exception as e:
                     self.show_error(str(e), "LocalWriter: Chat with Document")
             
@@ -406,35 +430,53 @@ class MainJob(unohelper.Base, XJobExecutor):
                 except (TypeError, ValueError):
                     edit_max_new_tokens = 0
 
+                # Build list of (cell, prompt, system_prompt, max_tokens, original_for_restore or None)
+                tasks = []
                 for row in row_range:
                     for col in col_range:
                         cell = sheet.getCellByPosition(col, row)
-
                         if args == "ExtendSelection":
                             cell_text = cell.getString()
                             if not cell_text:
                                 continue
-                            try:
-                                def append_cell_text(chunk_text, target_cell=cell):
-                                    target_cell.setString(target_cell.getString() + chunk_text)
-                                self.stream_completion(cell_text, extend_system_prompt, extend_max_tokens, api_type, append_cell_text)
-                            except Exception as e:
-                                self.show_error(str(e), "LocalWriter: Extend Selection (Calc)")
+                            tasks.append((cell, cell_text, extend_system_prompt, extend_max_tokens, None))
                         elif args == "EditSelection":
                             cell_original = cell.getString()
-                            try:
-                                prompt = "ORIGINAL VERSION:\n" + cell_original + "\n Below is an edited version according to the following instructions. Don't waste time thinking, be as fast as you can. The edited text will be a shorter or longer version of the original text based on the instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
-                                max_tokens = len(cell_original) + edit_max_new_tokens
+                            prompt = "ORIGINAL VERSION:\n" + cell_original + "\n Below is an edited version according to the following instructions. Don't waste time thinking, be as fast as you can. The edited text will be a shorter or longer version of the original text based on the instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
+                            max_tokens = len(cell_original) + edit_max_new_tokens
+                            tasks.append((cell, prompt, edit_system_prompt, max_tokens, cell_original))
 
-                                cell.setString("")
+                client = self._get_client()
+                task_index = [0]
 
-                                def append_edit_text(chunk_text, target_cell=cell):
-                                    target_cell.setString(target_cell.getString() + chunk_text)
+                def run_next_cell():
+                    if task_index[0] >= len(tasks):
+                        return
+                    cell, prompt, system_prompt, max_tokens, original = tasks[task_index[0]]
+                    task_index[0] += 1
+                    if args == "EditSelection" and original is not None:
+                        cell.setString("")
 
-                                self.stream_completion(prompt, edit_system_prompt, max_tokens, api_type, append_edit_text)
-                            except Exception as e:
-                                cell.setString(cell_original)  # Restore original on failure
-                                self.show_error(str(e), "LocalWriter: Edit Selection (Calc)")
+                    def apply_chunk(chunk_text, is_thinking=False):
+                        if not is_thinking:
+                            cell.setString(cell.getString() + chunk_text)
+
+                    def on_done():
+                        run_next_cell()
+
+                    def on_error(e):
+                        if original is not None:
+                            cell.setString(original)
+                        self.show_error(str(e), "LocalWriter: Edit Selection (Calc)" if args == "EditSelection" else "LocalWriter: Extend Selection (Calc)")
+                        # Stop on first error: do not call run_next_cell()
+
+                    run_stream_completion_async(
+                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                        apply_chunk, on_done, on_error,
+                    )
+
+                if tasks:
+                    run_next_cell()
             except Exception:
                 pass
 # Starting from Python IDE

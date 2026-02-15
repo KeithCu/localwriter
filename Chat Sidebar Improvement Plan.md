@@ -5,6 +5,7 @@ Current State (updated 2026-02-14)
 The chat sidebar has conversation history, tool-calling, and 8 curated Writer document tools. The AI can read, search, replace, format, and style text in the open Writer document via the OpenAI-compatible tool-calling protocol.
 
 **Recent improvements (Feb 2026):**
+- **Streaming I/O: pure Python queue + main-thread drain (no UNO Timer)**: All streaming—sidebar tool-calling, sidebar simple stream, Writer Extend/Edit/menu Chat, Calc—uses the same pattern: a **worker thread** puts chunks/thinking/stream_done/error/stopped on a **`queue.Queue`**; the **main thread** runs a drain loop: `q.get(timeout=0.05)` → process item → **`toolkit.processEventsToIdle()`**. No UNO Timer or `XTimerListener` (that type is unavailable in the sidebar context). Interface is just the queue; only UNO used is toolkit by string name and `processEventsToIdle()`. Multiple chunks can be applied between redraws, so multiple inserts are shown in one repaint—fewer redraws and faster perceived speed. Implemented in `chat_panel.py` `_start_tool_calling_async()` (tool path) and in `core/async_stream.py` `run_stream_completion_async()` (simple stream + Writer/Calc flows). See AGENTS.md Section 3b "Streaming I/O".
 - **Document context for chat**: Context sent to the AI now includes (1) **start and end excerpts** of the document (split of `chat_context_length`, e.g. 4000 + 4000) so long documents show both beginning and end; (2) **selection/cursor as inline markers** inside that text: `[SELECTION_START]` and `[SELECTION_END]` at the actual character positions. No separate selection block and no duplication—the selection is the span between the two markers (or both markers at the cursor when nothing is selected, indicating insertion point). Implemented in `core/document.py`: `get_document_end()`, `get_selection_range()` (start/end character offsets), `get_document_context_for_chat()`, and marker injection. Context is refreshed every Send; the single `[DOCUMENT CONTENT]` message is replaced so conversation history grows without duplicating the document. Both sidebar and menu "Chat with Document" use this. Scope: Chat with Document only; Extend Selection / Edit Selection are legacy and unchanged. Very long selections are capped (e.g. 2000 chars) so context stays usable.
 - **Thinking display**: When the AI finishes thinking we append a newline after ` /thinking` so the following response starts on a new line.
 - **Translation behavior**: Models were refusing translation ("I don't have a translation tool"). Prompt now explicitly states: "You CAN translate. Call get_document_text, translate the content yourself, then replace_text or search_and_replace_all. NEVER refuse." Result: model correctly uses get_document_text → translate → replace_text.
@@ -16,9 +17,10 @@ The chat sidebar has conversation history, tool-calling, and 8 curated Writer do
 
 Key files:
 - core/document.py -- get_full_document_text(), get_document_end(), get_selection_range(), get_document_context_for_chat() (start/end excerpts + inline selection markers)
-- chat_panel.py -- ChatSession (conversation history), SendButtonListener (tool-calling loop), ClearButtonListener, ChatPanelElement/ChatToolPanel/ChatPanelFactory (sidebar plumbing)
+- core/async_stream.py -- run_stream_completion_async(): worker + queue + main-thread drain loop (used by sidebar simple stream and by main.py for Writer/Calc streaming)
+- chat_panel.py -- ChatSession (conversation history), SendButtonListener (tool-calling loop with queue+drain in _start_tool_calling_async), ClearButtonListener, ChatPanelElement/ChatToolPanel/ChatPanelFactory (sidebar plumbing)
 - document_tools.py -- WRITER_TOOLS JSON schemas, executor functions, TOOL_DISPATCH table
-- main.py -- make_chat_request(), request_with_tools(), stream_chat_response() (API plumbing for tool-calling)
+- main.py -- uses run_stream_completion_async for Extend/Edit/menu Chat and Calc; API plumbing in core/api.py
 - LocalWriterDialogs/ChatPanelDialog.xdl -- compact fixed-size panel layout (120x180 AppFont units)
 
 **Document context design decisions (for future reference):**
@@ -27,6 +29,9 @@ Key files:
 - Context is refreshed every Send; the single [DOCUMENT CONTENT] message is replaced (not appended), so the conversation history grows without sending the document again and again.
 - Scope: Chat with Document only; Extend Selection and Edit Selection are legacy and were not changed.
 - Multiselect can be added later with the same approach (multiple marker pairs).
+
+**Streaming/threading design (for future reference):**
+- Use **pure Python** for the streaming pipeline: worker thread + `queue.Queue` + main-thread drain loop calling `toolkit.processEventsToIdle()`. Do **not** use UNO Timer or `XTimerListener` for draining—in the sidebar context `com.sun.star.util.XTimerListener` is not available (getClass/import fails). The queue is the only cross-thread interface; UNO is limited to creating the toolkit by string name and calling `processEventsToIdle()`. This pattern is used in both `chat_panel.py` (tool-calling and simple stream) and `core/async_stream.py` (Writer/Calc). Multiple chunks can be applied between `processEventsToIdle()` calls, giving fewer repaints and faster perceived speed.
 
 Known issue: The panel uses a fixed layout (no dynamic resizing). The PanelResizeListener was removed because the sidebar's resize lifecycle gives the panel a very large initial height before settling, which positions controls off-screen. See FIXME comments in chat_panel.py. The XDL is set to a compact fixed size that works at the default sidebar width.
 
@@ -68,11 +73,10 @@ Each tool function receives (model, args, ctx) and returns JSON result string. T
 Phase 4: The Tool-Calling Conversation Loop -- DONE
 
 Implemented in chat_panel.py SendButtonListener:
-- _do_tool_calling_loop() orchestrates multi-round tool calling (up to 10 iterations)
-- Non-streaming request_with_tools() for tool-calling rounds (simpler parsing)
-- Streaming stream_chat_response() for final text-only response
+- **Tool path**: `_start_tool_calling_async()` — worker thread + `queue.Queue` + main-thread drain loop with `toolkit.processEventsToIdle()` (pure Python; no UNO Timer). Worker runs `stream_request_with_tools`, puts chunk/thinking/stream_done/error/stopped on queue; main thread drains and updates UI. Same pattern as `core/async_stream.run_stream_completion_async()` for consistency.
+- **Simple stream**: When api_type is not "chat", uses `run_stream_completion_async()` (same queue+drain pattern).
+- Multi-round tool calling (up to MAX_TOOL_ROUNDS); streaming for final text-only response.
 - Status updates shown in status label: "Thinking...", "Calling replace_text...", "Streaming response..."
-- Falls back to simple streaming (_do_simple_stream) when api_type is not "chat"
 - _ensure_extension_on_path() resolves sys.path issues for cross-module imports in extension context
 
 

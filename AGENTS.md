@@ -28,7 +28,8 @@ localwriter/
 │   ├── api.py           # LlmClient: streaming, chat, tool-calling
 │   ├── document.py      # get_full_document_text, get_document_end, get_selection_range, get_document_context_for_chat (Writer)
 │   ├── logging.py       # log_to_file, agent_log, debug_log, debug_log_paths
-│   └── constants.py     # DEFAULT_CHAT_SYSTEM_PROMPT
+│   ├── constants.py     # DEFAULT_CHAT_SYSTEM_PROMPT
+│   └── async_stream.py  # run_stream_completion_async: worker + queue + main-thread drain (no UNO Timer)
 ├── prompt_function.py   # Calc =PROMPT() formula
 ├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
 ├── document_tools.py    # 7 Writer tools + executor for OpenAI tool-calling
@@ -110,6 +111,16 @@ localwriter/
 - **Thinking display**: Reasoning tokens are shown in the response area as `[Thinking] ... /thinking`. When thinking ends we append a newline after ` /thinking` so the following response text starts on a new line.
 
 See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for implementation details.
+
+### Streaming I/O: pure Python queue + main-thread drain
+
+All streaming paths (sidebar tool-calling, sidebar simple stream, Writer Extend/Edit/menu Chat, Calc) use the same pattern so the UI stays responsive without relying on UNO Timer/listeners:
+
+- **Worker thread**: Runs blocking API/streaming (e.g. `stream_completion`, `stream_request_with_tools`), puts items on a **`queue.Queue`** (`("chunk", text)`, `("thinking", text)`, `("stream_done", ...)`, `("error", e)`, `("stopped",)`).
+- **Main thread**: After starting the worker, runs a **drain loop**: `q.get(timeout=0.05)` → process item (append text, update status, call on_done/on_error) → **`toolkit.processEventsToIdle()`**. Repeats until job_done.
+- **UNO usage**: Only `ctx.getServiceManager().createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)` (string-based, no `com` import) and `toolkit.processEventsToIdle()`. No Timer, no `XTimerListener`—avoids "XTimerListener unknown" in the sidebar context and keeps the design consistent everywhere.
+- **Why it’s better**: Standard Python (`queue`, `threading`); interface is just the queue; multiple chunks can be applied between `processEventsToIdle()` calls so multiple inserts are shown in one redraw (fewer repaints, faster perceived speed).
+- **Where**: **Sidebar** — `chat_panel.py` `_start_tool_calling_async()` (tool path) and simple stream via `run_stream_completion_async()`. **Writer/Calc** — `main.py` calls `core/async_stream.run_stream_completion_async()` for Extend Selection, Edit Selection, menu Chat with Document, and Calc Extend/Edit.
 
 ---
 
@@ -224,6 +235,7 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - **Chat sidebar visibility**: After `createContainerWindow()`, call `setVisible(True)` on the returned window; otherwise the panel content stays blank.
 - **Chat panel imports**: `chat_panel.py` uses `_ensure_extension_on_path()` to add the extension dir to `sys.path` so `from main import MainJob` and `from document_tools import ...` work.
 - **Logging**: Use `core.logging.agent_log()` for NDJSON agent logs and `core.logging.debug_log(ctx, msg)` for chat debug logs. Do not add new ad-hoc log paths.
+- **Streaming in sidebar**: Do not use UNO Timer or `XTimerListener` for draining the stream queue—the type is not available in the sidebar context. Use the pure Python pattern: worker + `queue.Queue` + main-thread loop with `toolkit.processEventsToIdle()` (see "Streaming I/O" in Section 3b).
 
 ---
 

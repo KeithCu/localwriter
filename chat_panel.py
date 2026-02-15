@@ -5,6 +5,8 @@
 import os
 import sys
 import json
+import queue
+import threading
 import uno
 import unohelper
 
@@ -14,6 +16,7 @@ if _ext_dir not in sys.path:
     sys.path.insert(0, _ext_dir)
 
 from core.logging import agent_log, debug_log, update_activity_state, start_watchdog_thread
+from core.async_stream import run_stream_completion_async
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
 from com.sun.star.ui.UIElementType import TOOLPANEL
@@ -322,16 +325,12 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     (use_tools, len(self.session.messages)))
 
         if use_tools:
-            self._do_tool_calling_loop(client, model, max_tokens, WRITER_TOOLS, execute_tool)
+            self._start_tool_calling_async(client, model, max_tokens, WRITER_TOOLS, execute_tool)
         else:
-            # Legacy path: simple streaming without tools
-            self._do_simple_stream(client, max_tokens, api_type)
+            self._start_simple_stream_async(client, max_tokens, api_type)
 
-        if self.stop_requested:
-            self._append_response("\n[Stopped by user]\n")
-
-        log_to_file("=== _do_send END ===")
-        debug_log(self.ctx, "=== _do_send END ===")
+        log_to_file("=== _do_send END (async started) ===")
+        debug_log(self.ctx, "=== _do_send END (async started) ===")
 
     def _do_tool_calling_loop(self, client, model, max_tokens, tools, execute_tool_fn):
         """Run the tool-calling conversation loop. Wraps tool execution in an
@@ -385,6 +384,187 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._append_response(thinking_text)
 
         return append_chunk, append_thinking
+
+    def _start_tool_calling_async(self, client, model, max_tokens, tools, execute_tool_fn):
+        """Tool-calling loop: worker thread + queue, main thread drains queue with processEventsToIdle (pure Python threading, no UNO Timer)."""
+        from core.logging import log_to_file
+        debug_log(self.ctx, "=== Tool-calling loop START (max %d rounds) ===" % MAX_TOOL_ROUNDS)
+        self._append_response("\nAI: ")
+        q = queue.Queue()
+        round_num = [0]
+        thinking_open = [False]
+        job_done = [False]
+
+        def start_worker():
+            r = round_num[0]
+            update_activity_state("tool_loop", round_num=r)
+            debug_log(self.ctx, "Tool loop round %d: sending %d messages to API..." % (r, len(self.session.messages)))
+            self._set_status("Waiting for model..." if r == 0 else "Connecting (round %d)..." % (r + 1))
+
+            def run():
+                try:
+                    response = client.stream_request_with_tools(
+                        self.session.messages, max_tokens, tools=tools,
+                        append_callback=lambda t: q.put(("chunk", t)),
+                        append_thinking_callback=lambda t: q.put(("thinking", t)),
+                        stop_checker=lambda: self.stop_requested,
+                        dispatch_events=False,
+                    )
+                    if self.stop_requested:
+                        q.put(("stopped",))
+                    else:
+                        update_activity_state("tool_loop", round_num=r)
+                        q.put(("stream_done", response))
+                except Exception as e:
+                    debug_log(self.ctx, "Tool loop round %d: API ERROR: %s" % (r, e))
+                    q.put(("error", e))
+
+            threading.Thread(target=run, daemon=True).start()
+
+        def start_final_stream():
+            update_activity_state("exhausted_rounds")
+            self._set_status("Finishing...")
+            self._append_response("\nAI: ")
+            thinking_open[0] = False
+            self.session._last_streamed = [""]
+
+            def run_final():
+                try:
+                    def append_c(c):
+                        q.put(("chunk", c))
+                        self.session._last_streamed[0] += c
+
+                    def append_t(t):
+                        q.put(("thinking", t))
+
+                    client.stream_chat_response(
+                        self.session.messages, max_tokens, append_c, append_t,
+                        stop_checker=lambda: self.stop_requested,
+                        dispatch_events=False,
+                    )
+                    if self.stop_requested:
+                        q.put(("stopped",))
+                    else:
+                        q.put(("stream_done", {"content": self.session._last_streamed[0]}))
+                except Exception as e:
+                    q.put(("error", e))
+
+            threading.Thread(target=run_final, daemon=True).start()
+
+        def process_stream_done(response):
+            r = round_num[0]
+            tool_calls = response.get("tool_calls")
+            if isinstance(tool_calls, list) and len(tool_calls) == 0:
+                tool_calls = None
+            content = response.get("content")
+            finish_reason = response.get("finish_reason")
+            agent_log("chat_panel.py:tool_round", "Tool loop round response",
+                      data={"round": r, "has_tool_calls": bool(tool_calls), "num_tool_calls": len(tool_calls) if tool_calls else 0}, hypothesis_id="A")
+            if not tool_calls:
+                agent_log("chat_panel.py:exit_no_tools", "Exiting loop: no tool_calls", data={"round": r}, hypothesis_id="A")
+                if content:
+                    log_to_file("Tool loop: Adding assistant message to session")
+                    self.session.add_assistant_message(content=content)
+                    self._append_response("\n")
+                elif finish_reason == "length":
+                    self._append_response(
+                        "\n[Response truncated -- the model ran out of tokens...]\n")
+                else:
+                    self._append_response("\n[AI returned empty response]\n")
+                job_done[0] = True
+                self._terminal_status = "Ready"
+                self._set_status("Ready")
+                return
+            self.session.add_assistant_message(content=content, tool_calls=tool_calls)
+            if content:
+                self._append_response("\n")
+            for tc in tool_calls:
+                if self.stop_requested:
+                    break
+                func_name = tc.get("function", {}).get("name", "unknown")
+                func_args_str = tc.get("function", {}).get("arguments", "{}")
+                call_id = tc.get("id", "")
+                self._set_status("Running: %s" % func_name)
+                update_activity_state("tool_execute", round_num=r, tool_name=func_name)
+                try:
+                    func_args = json.loads(func_args_str)
+                except (json.JSONDecodeError, TypeError):
+                    func_args = {}
+                agent_log("chat_panel.py:tool_execute", "Executing tool", data={"tool": func_name, "round": r}, hypothesis_id="C,D,E")
+                debug_log(self.ctx, "Tool call: %s(%s)" % (func_name, func_args_str))
+                result = execute_tool_fn(func_name, func_args, model, self.ctx)
+                debug_log(self.ctx, "Tool result: %s" % result)
+                try:
+                    result_data = json.loads(result)
+                    note = result_data.get("message", result_data.get("status", "done"))
+                except Exception:
+                    note = "done"
+                self._append_response("[%s: %s]\n" % (func_name, note))
+                self.session.add_tool_result(call_id, result)
+            if not self.stop_requested:
+                self._set_status("Sending results to AI...")
+            round_num[0] += 1
+            if round_num[0] >= MAX_TOOL_ROUNDS:
+                agent_log("chat_panel.py:exit_exhausted", "Exiting loop: exhausted MAX_TOOL_ROUNDS", data={"rounds": MAX_TOOL_ROUNDS}, hypothesis_id="A")
+                start_final_stream()
+            else:
+                start_worker()
+
+        try:
+            toolkit = self.ctx.getServiceManager().createInstanceWithContext(
+                "com.sun.star.awt.Toolkit", self.ctx)
+        except Exception as e:
+            self._append_response("\n[Error: %s]\n" % str(e))
+            self._terminal_status = "Error"
+            self._set_status("Error")
+            return
+
+        start_worker()
+
+        # Main-thread drain loop: queue + processEventsToIdle only (no UNO Timer)
+        while not job_done[0]:
+            try:
+                item = q.get(timeout=0.05)
+            except queue.Empty:
+                toolkit.processEventsToIdle()
+                continue
+            try:
+                kind = item[0] if isinstance(item, tuple) else item
+                if kind == "chunk":
+                    if thinking_open[0]:
+                        self._append_response(" /thinking\n")
+                        thinking_open[0] = False
+                    self._append_response(item[1])
+                elif kind == "thinking":
+                    if not thinking_open[0]:
+                        self._append_response("[Thinking] ")
+                        thinking_open[0] = True
+                    self._append_response(item[1])
+                elif kind == "stream_done":
+                    if thinking_open[0]:
+                        self._append_response(" /thinking\n")
+                        thinking_open[0] = False
+                    process_stream_done(item[1])
+                elif kind == "stopped":
+                    if thinking_open[0]:
+                        self._append_response(" /thinking\n")
+                    job_done[0] = True
+                    self._terminal_status = "Stopped"
+                    self._set_status("Stopped")
+                    self._append_response("\n[Stopped by user]\n")
+                elif kind == "error":
+                    if thinking_open[0]:
+                        self._append_response(" /thinking\n")
+                    job_done[0] = True
+                    self._append_response("\n[API error: %s]\n" % str(item[1]))
+                    self._terminal_status = "Error"
+                    self._set_status("Error")
+            except Exception as e:
+                job_done[0] = True
+                self._append_response("\n[Error: %s]\n" % str(e))
+                self._terminal_status = "Error"
+                self._set_status("Error")
+            toolkit.processEventsToIdle()
 
     def _do_tool_calling_loop_impl(self, client, model, max_tokens, tools, execute_tool_fn):
         """Inner implementation of the tool-calling loop (without undo wrapper)."""
@@ -556,15 +736,12 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._append_response(" /thinking\n")
         self._append_response("\n")
 
-    def _do_simple_stream(self, client, max_tokens, api_type):
-        """Legacy path: simple streaming without tool-calling."""
+    def _start_simple_stream_async(self, client, max_tokens, api_type):
+        """Start simple streaming (no tools) via async helper; returns immediately."""
         debug_log(self.ctx, "=== Simple stream START (api_type=%s) ===" % api_type)
         self._set_status("Waiting for model...")
         self._append_response("\nAI: ")
-        
-        waiting_for_model = [True]
 
-        # Build a simple prompt from the last user message and doc context
         last_user = ""
         doc_context = ""
         for msg in reversed(self.session.messages):
@@ -572,7 +749,6 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 last_user = msg["content"]
             if msg["role"] == "system" and "[DOCUMENT CONTENT]" in (msg.get("content") or ""):
                 doc_context = msg["content"]
-
         prompt = "%s\n\nUser question: %s" % (doc_context, last_user) if doc_context else last_user
         system_prompt = ""
         for msg in self.session.messages:
@@ -581,26 +757,30 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 break
 
         collected = []
-        thinking_open = [False]
-        append_chunk, append_thinking = self._make_stream_callbacks(
-            waiting_for_model=waiting_for_model, thinking_open=thinking_open,
-            on_chunk=collected.append)
 
-        try:
-            client.stream_completion(
-                prompt, system_prompt, max_tokens, api_type, append_chunk,
-                append_thinking_callback=append_thinking,
-                stop_checker=lambda: self.stop_requested
-            )
+        def apply_chunk(chunk_text, is_thinking=False):
+            self._append_response(chunk_text)
+            if not is_thinking:
+                collected.append(chunk_text)
+
+        def on_done():
             full_response = "".join(collected)
             self.session.add_assistant_message(content=full_response)
             self._terminal_status = "Ready"
-        except Exception as e:
+            self._set_status("Ready")
+            self._append_response("\n")
+            if self.stop_requested:
+                self._append_response("\n[Stopped by user]\n")
+
+        def on_error(e):
             self._append_response("[Error: %s]\n" % str(e))
             self._terminal_status = "Error"
-        if thinking_open[0]:
-            self._append_response(" /thinking\n")
-        self._append_response("\n")
+            self._set_status("Error")
+
+        run_stream_completion_async(
+            self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+            apply_chunk, on_done, on_error, stop_checker=lambda: self.stop_requested,
+        )
 
     def disposing(self, evt):
         pass

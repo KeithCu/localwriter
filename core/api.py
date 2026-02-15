@@ -273,6 +273,7 @@ class LlmClient:
         append_callback,
         append_thinking_callback=None,
         stop_checker=None,
+        dispatch_events=True,
     ):
         """Stream a completion/chat response via callbacks."""
         request = self.make_api_request(
@@ -284,6 +285,7 @@ class LlmClient:
             append_callback,
             append_thinking_callback,
             stop_checker=stop_checker,
+            dispatch_events=dispatch_events,
         )
 
     def stream_request(
@@ -293,11 +295,12 @@ class LlmClient:
         append_callback,
         append_thinking_callback=None,
         stop_checker=None,
+        dispatch_events=True,
     ):
         """Stream a completion/chat response and append chunks via callbacks."""
         toolkit = self.ctx.getServiceManager().createInstanceWithContext(
             "com.sun.star.awt.Toolkit", self.ctx
-        )
+        ) if dispatch_events else None
         ssl_context = _get_ssl_context()
         timeout = self._timeout()
 
@@ -340,7 +343,7 @@ class LlmClient:
                                 append_thinking_callback(thinking)
                             if content:
                                 append_callback(content)
-                            if PROCESS_EVENTS_DURING_STREAM and ((thinking and append_thinking_callback) or content):
+                            if dispatch_events and PROCESS_EVENTS_DURING_STREAM and toolkit and ((thinking and append_thinking_callback) or content):
                                 try:
                                     toolkit.processEventsToIdle()
                                 except Exception:
@@ -363,6 +366,7 @@ class LlmClient:
         append_callback,
         append_thinking_callback=None,
         stop_checker=None,
+        dispatch_events=True,
     ):
         """Stream a final chat response (no tools) using the messages array."""
         request = self.make_chat_request(
@@ -374,6 +378,7 @@ class LlmClient:
             append_callback,
             append_thinking_callback,
             stop_checker=stop_checker,
+            dispatch_events=dispatch_events,
         )
 
     def request_with_tools(self, messages, max_tokens=512, tools=None):
@@ -419,6 +424,7 @@ class LlmClient:
         append_callback=None,
         append_thinking_callback=None,
         stop_checker=None,
+        dispatch_events=True,
     ):
         """Streaming chat request with tools. Returns same shape as request_with_tools."""
         log_to_file("stream_request_with_tools: building request (%d messages)..." % len(messages))
@@ -427,7 +433,7 @@ class LlmClient:
         )
         toolkit = self.ctx.getServiceManager().createInstanceWithContext(
             "com.sun.star.awt.Toolkit", self.ctx
-        )
+        ) if dispatch_events else None
         ssl_context = _get_ssl_context()
         timeout = self._timeout()
 
@@ -502,7 +508,7 @@ class LlmClient:
                         append_thinking_callback(thinking)
                     if content:
                         append_callback(content)
-                    if PROCESS_EVENTS_DURING_STREAM and (thinking or content):
+                    if dispatch_events and PROCESS_EVENTS_DURING_STREAM and toolkit and (thinking or content):
                         try:
                             toolkit.processEventsToIdle()
                         except Exception:
