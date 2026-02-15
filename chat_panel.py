@@ -13,7 +13,7 @@ _ext_dir = os.path.dirname(os.path.abspath(__file__))
 if _ext_dir not in sys.path:
     sys.path.insert(0, _ext_dir)
 
-from core.logging import agent_log, debug_log
+from core.logging import agent_log, debug_log, update_activity_state, start_watchdog_thread
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
 from com.sun.star.ui.UIElementType import TOOLPANEL
@@ -233,10 +233,12 @@ class SendButtonListener(unohelper.Base, XActionListener):
             except Exception as e:
                 debug_log(self.ctx, "actionPerformed finally: _set_status failed: %s" % e)
             self._set_button_states(send_enabled=True, stop_enabled=False)
-            debug_log(self.ctx, "actionPerformed finally: done")
+            debug_log(self.ctx, "control returned to LibreOffice")
+            update_activity_state("")  # clear phase so watchdog does not report after we return
 
     def _do_send(self):
         self._set_status("Starting...")
+        update_activity_state("do_send")
         debug_log(self.ctx, "=== _do_send START ===")
 
         # Ensure extension directory is on sys.path
@@ -392,6 +394,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             "com.sun.star.awt.Toolkit", self.ctx)
         for round_num in range(MAX_TOOL_ROUNDS):
             self._set_status("Connecting..." if round_num == 0 else "Connecting (round %d)..." % (round_num + 1))
+            update_activity_state("tool_loop", round_num=round_num)
             debug_log(self.ctx, "Tool loop round %d: sending %d messages to API..." %
                         (round_num, len(self.session.messages)))
             waiting_for_model = [True]
@@ -416,6 +419,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     self._terminal_status = "Stopped"
                     return
 
+                update_activity_state("tool_loop", round_num=round_num)
                 debug_log(self.ctx, "Tool loop round %d: got response, content=%s, tool_calls=%s" %
                             (round_num, bool(response.get("content")), bool(response.get("tool_calls"))))
             except Exception as e:
@@ -481,6 +485,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 call_id = tc.get("id", "")
 
                 self._set_status("Running: %s" % func_name)
+                update_activity_state("tool_execute", round_num=round_num, tool_name=func_name)
 
                 try:
                     func_args = json.loads(func_args_str)
@@ -511,6 +516,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
                 # Add tool result to session
                 self.session.add_tool_result(call_id, result)
+                update_activity_state("tool_execute", round_num=round_num, tool_name=func_name)
 
             # Update status before starting the next API round
             # (prevents stale "Running: tool_name" during the blocking API call)
@@ -523,6 +529,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         agent_log("chat_panel.py:exit_exhausted", "Exiting loop: exhausted MAX_TOOL_ROUNDS", data={"rounds": MAX_TOOL_ROUNDS}, hypothesis_id="A")
         # #endregion
         # If we exhausted rounds, stream a final response without tools
+        update_activity_state("exhausted_rounds")
         self._set_status("Finishing...")
         self._append_response("\nAI: ")
 
@@ -792,7 +799,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 status_ctrl, self.session)
             send_btn.addActionListener(send_listener)
             debug_log(self.ctx, "Send button wired")
-            
+            start_watchdog_thread(self.ctx, status_ctrl)
+
             if stop_btn:
                 stop_btn.addActionListener(StopButtonListener(send_listener))
                 # Send/Stop enable-disable not working; don't force Stop disabled on init

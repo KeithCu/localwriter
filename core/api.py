@@ -8,7 +8,7 @@ import urllib.request
 
 from streaming_deltas import accumulate_delta
 
-from core.logging import log_to_file
+from core.logging import log_to_file, debug_log, update_activity_state
 
 # Set True to call toolkit.processEventsToIdle() when stream chunks arrive (refreshes UI;
 # can cause hangs on some systems). Leave code in place, toggle when needed.
@@ -439,10 +439,13 @@ class LlmClient:
         append_thinking_callback = append_thinking_callback or (lambda t: None)
 
         log_to_file("stream_request_with_tools: Opening URL: %s" % request.full_url)
+        update_activity_state("stream_request_with_tools")
+        debug_log(self.ctx, "stream_request_with_tools: about to open URL (blocking)")
         try:
             with urllib.request.urlopen(
                 request, context=ssl_context, timeout=timeout
             ) as response:
+                first_line_logged = False
                 for line in response:
                     if stop_checker and stop_checker():
                         log_to_file(
@@ -472,6 +475,11 @@ class LlmClient:
                         continue
 
                     last_chunk = chunk
+
+                    if not first_line_logged:
+                        first_line_logged = True
+                        update_activity_state("stream_first_chunk")
+                        debug_log(self.ctx, "stream_request_with_tools: first SSE line received")
 
                     # Grok/xAI sends a final chunk with empty choices + usage
                     # after the finish_reason chunk; treat it as end-of-stream
@@ -514,6 +522,8 @@ class LlmClient:
                 log_to_file(
                     "stream_request_with_tools: Exited stream loop."
                 )
+                update_activity_state("stream_loop_exited")
+                debug_log(self.ctx, "stream_request_with_tools: exited stream loop")
                 if last_chunk:
                     choices = last_chunk.get("choices", [])
                     fr = None
