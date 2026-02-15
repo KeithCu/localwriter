@@ -65,7 +65,7 @@ After installation and model setup:
 
 1.  Enable the local OpenAI API (this ensures the API responds in a format similar to OpenAI).
 2.  Verify that the intended model is working (e.g., openchat3.5, suitable for 8GB VRAM setups).
-3.  Set the endpoint in Localwriter to `localhost:5000` (or the configured port).
+3.  Set the endpoint in Localwriter settings to `http://localhost:5000` (or the configured port). The default endpoint changed to Ollama's port (11434) in version 0.0.9, so text-generation-webui users must set this explicitly.
 
 #### Ollama
 
@@ -77,11 +77,26 @@ After installation and model setup:
 
 ## Settings
 
-In the settings, you can configure:
+Settings can be configured via the settings dialog in LibreOffice (localwriter menu > Settings).
 
-*   Maximum number of additional tokens for "Extend Selection."
-*   Maximum number of additional tokens (above the number of letters in the original selection) for "Edit Selection."
-*   Custom "system prompts" for both "Extend Selection" and "Edit Selection." These prompts are prepended to the selection before sending it to the language model.  For example, you can use a sample of your writing to guide the model's style.
+Configuration file location:
+- macOS: `~/Library/Application Support/LibreOffice/4/user/localwriter.json`
+- Linux: `~/.config/libreoffice/4/user/localwriter.json`
+- Windows: `%APPDATA%\LibreOffice\4\user\localwriter.json`
+
+### Available Settings
+
+*   **Endpoint URL**: The URL of your LLM server (default: `http://localhost:11434` for Ollama)
+*   **Model**: The model name (e.g., `llama2`, `gpt-3.5-turbo`)
+*   **API Key**: Authentication key for OpenAI-compatible endpoints (optional for local servers)
+*   **API Type**: `completions` (default) or `chat` — use `chat` for OpenAI or servers with a `/chat/completions` endpoint
+*   **Is OpenWebUI endpoint?**: Set to `true` if using OpenWebUI (changes API path from `/v1/` to `/api/`)
+*   **OpenAI Compatible Endpoint?**: Set to `true` for servers that strictly follow OpenAI format
+*   **Disable SSL Verification**: Set to `true` to skip certificate checks — only use for local servers with self-signed certs
+*   **Extend Selection Max Tokens**: Maximum number of tokens for text extension
+*   **Extend Selection System Prompt**: Instructions prepended to guide the model's style for extension
+*   **Edit Selection Max New Tokens**: Additional tokens allowed above original selection length
+*   **Edit Selection System Prompt**: Instructions for guiding text editing behavior
 
 ## Contributing
 
@@ -144,6 +159,7 @@ zip -r localwriter.oxt \
   assets \
   description.xml \
   main.py \
+  pythonpath \
   META-INF \
   registration \
   README.md
