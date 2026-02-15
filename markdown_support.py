@@ -373,7 +373,7 @@ MARKDOWN_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "markdown": {"type": "string", "description": "The content in Markdown format (string or list of strings)."},
+                    "markdown": {"type": "string", "description": "Markdown content. Use newlines for line/paragraph breaks (\\n in JSON). Literal backslash-n in the string is normalized to newlines so headings, lists, and paragraphs render correctly. String or list of strings."},
                     "target": {
                         "type": "string",
                         "enum": ["beginning", "end", "selection", "search", "full", "range"],
@@ -435,6 +435,10 @@ def tool_apply_markdown(model, ctx, args):
         if isinstance(markdown, list):
              debug_log(ctx, "tool_apply_markdown: joining list input with newlines")
              markdown = "\n".join(str(x) for x in markdown)
+        # Normalize literal \n and \t so multi-line markdown renders correctly
+        # (handles over-escaped or stream-chunked output where we get backslash-n instead of newline)
+        if isinstance(markdown, str):
+            markdown = markdown.replace("\\n", "\n").replace("\\t", "\t")
     
     if not markdown and markdown != "":
         return _tool_error("markdown is required")
