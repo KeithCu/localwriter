@@ -2,6 +2,7 @@
 # Converts document to/from Markdown; uses system temp dir (cross-platform) and
 # insertDocumentFromURL for inserting formatted markdown content.
 
+import contextlib
 import json
 import os
 import tempfile
@@ -9,7 +10,7 @@ import time
 import urllib.parse
 import urllib.request
 
-from core.logging import agent_log, debug_log
+from core.logging import debug_log
 
 
 # System temp dir: /tmp on Linux, /var/folders/... on macOS, %TEMP% on Windows
@@ -31,17 +32,54 @@ def _create_property_value(name, value):
     return p
 
 
+@contextlib.contextmanager
+def _with_temp_markdown(content=None):
+    """Create a temp .md file. If content is not None, write it; else create empty file. Yields (path, file_url). Unlinks in finally."""
+    fd, path = tempfile.mkstemp(suffix=".md", dir=TEMP_DIR)
+    try:
+        if content is not None:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(content)
+        else:
+            os.close(fd)
+        file_url = _file_url(path)
+        yield (path, file_url)
+    finally:
+        try:
+            os.unlink(path)
+        except Exception:
+            pass
+
+
 # ---------------------------------------------------------------------------
 # Document → Markdown
 # ---------------------------------------------------------------------------
 
-def _document_to_markdown_structural(model, max_chars=None, scope="full", selection_start=0, selection_end=0):
-    """Walk document structure and emit Markdown. scope='full', 'selection', or 'range'."""
+# com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK
+_PARAGRAPH_BREAK = 0
+
+
+def _range_to_markdown_via_temp_doc(model, ctx, selection_start, selection_end, max_chars=None):
+    """Copy the character range [selection_start, selection_end) into a temporary Writer document
+    (preserving paragraph styles), then export it to Markdown via storeToURL. Returns markdown string or \"\" on failure."""
+    temp_doc = None
     try:
+        smgr = ctx.getServiceManager()
+        desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+        load_props = (_create_property_value("Hidden", True),)
+        temp_doc = desktop.loadComponentFromURL("private:factory/swriter", "_default", 0, load_props)
+        if not temp_doc or not hasattr(temp_doc, "getText"):
+            if temp_doc:
+                temp_doc.close(True)
+            debug_log(ctx, "markdown_support: _range_to_markdown_via_temp_doc could not create temp document")
+            return ""
+        temp_text = temp_doc.getText()
+        temp_cursor = temp_text.createTextCursor()
         text = model.getText()
         enum = text.createEnumeration()
-        lines = []
         current_offset = 0
+        first_para = True
+        added_any = False
         while enum.hasMoreElements():
             el = enum.nextElement()
             if not hasattr(el, "getString"):
@@ -50,55 +88,61 @@ def _document_to_markdown_structural(model, max_chars=None, scope="full", select
                 style = el.getPropertyValue("ParaStyleName") if hasattr(el, "getPropertyValue") else ""
             except Exception:
                 style = ""
+            style = style or ""
             para_text = el.getString()
             para_start = current_offset
             para_end = current_offset + len(para_text)
             current_offset = para_end
 
-            if scope in ("selection", "range") and (para_end <= selection_start or para_start >= selection_end):
+            if para_end <= selection_start or para_start >= selection_end:
                 continue
-            if scope in ("selection", "range") and (para_start < selection_start or para_end > selection_end):
+            if para_start < selection_start or para_end > selection_end:
                 trim_start = max(0, selection_start - para_start)
                 trim_end = len(para_text) - max(0, para_end - selection_end)
                 para_text = para_text[trim_start:trim_end]
 
-            prefix = ""
-            style_lower = (style or "").strip().lower()
-            if "heading 1" in style_lower or style == "Heading 1":
-                prefix = "# "
-            elif "heading 2" in style_lower or style == "Heading 2":
-                prefix = "## "
-            elif "heading 3" in style_lower or style == "Heading 3":
-                prefix = "### "
-            elif "heading 4" in style_lower or style == "Heading 4":
-                prefix = "#### "
-            elif "heading 5" in style_lower or style == "Heading 5":
-                prefix = "##### "
-            elif "heading 6" in style_lower or style == "Heading 6":
-                prefix = "###### "
-            elif "list bullet" in style_lower or style == "List Bullet":
-                prefix = "- "
-            elif "list number" in style_lower or style == "List Number":
-                prefix = "1. "
-            elif "quotations" in style_lower or style == "Quotations":
-                prefix = "> "
+            if first_para:
+                temp_cursor.gotoStart(False)
+                temp_cursor.setString(para_text)
+                try:
+                    temp_cursor.setPropertyValue("ParaStyleName", style)
+                except Exception:
+                    pass
+                first_para = False
+            else:
+                temp_cursor.gotoEnd(False)
+                temp_text.insertControlCharacter(temp_cursor, _PARAGRAPH_BREAK, False)
+                try:
+                    temp_cursor.setPropertyValue("ParaStyleName", style)
+                except Exception:
+                    pass
+                temp_cursor.setString(para_text)
+            added_any = True
 
-            line = prefix + para_text
-            if max_chars and sum(len(l) + 1 for l in lines) + len(line) + 1 > max_chars:
-                line = line[: max_chars - sum(len(l) + 1 for l in lines) - 10] + "\n\n[... truncated ...]"
-                lines.append(line)
-                break
-            lines.append(line)
-        out = "\n".join(lines)
-        if max_chars and len(out) > max_chars:
-            out = out[:max_chars] + "\n\n[... truncated ...]"
-        return out
+        if not added_any:
+            return ""
+
+        with _with_temp_markdown(None) as (path, file_url):
+            props = (_create_property_value("FilterName", "Markdown"),)
+            temp_doc.storeToURL(file_url, props)
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        if max_chars and len(content) > max_chars:
+            content = content[:max_chars] + "\n\n[... truncated ...]"
+        return content
     except Exception as e:
+        debug_log(ctx, "markdown_support: _range_to_markdown_via_temp_doc failed: %s" % e)
         return ""
+    finally:
+        if temp_doc is not None:
+            try:
+                temp_doc.close(True)
+            except Exception:
+                pass
 
 
 def document_to_markdown(model, ctx, max_chars=None, scope="full", range_start=None, range_end=None):
-    """Get document (or selection/range) as Markdown. Tries storeToURL for full scope, then structural fallback."""
+    """Get document (or selection/range) as Markdown. Uses storeToURL for full scope; for selection/range uses temp document + storeToURL."""
     selection_start, selection_end = 0, 0
     if scope == "selection":
         try:
@@ -122,10 +166,7 @@ def document_to_markdown(model, ctx, max_chars=None, scope="full", range_start=N
         try:
             storable = model
             if hasattr(storable, "storeToURL"):
-                fd, path = tempfile.mkstemp(suffix=".md", dir=TEMP_DIR)
-                try:
-                    os.close(fd)
-                    file_url = _file_url(path)
+                with _with_temp_markdown(None) as (path, file_url):
                     props = (_create_property_value("FilterName", "Markdown"),)
                     storable.storeToURL(file_url, props)
                     with open(path, "r", encoding="utf-8", errors="replace") as f:
@@ -133,17 +174,10 @@ def document_to_markdown(model, ctx, max_chars=None, scope="full", range_start=N
                     if max_chars and len(content) > max_chars:
                         content = content[:max_chars] + "\n\n[... truncated ...]"
                     return content
-                finally:
-                    try:
-                        os.unlink(path)
-                    except Exception:
-                        pass
         except Exception as e:
-            debug_log(ctx, "markdown_support: storeToURL failed (%s), using structural" % e)
-    return _document_to_markdown_structural(
-        model, max_chars=max_chars, scope=scope,
-        selection_start=selection_start, selection_end=selection_end,
-    )
+            debug_log(ctx, "markdown_support: storeToURL failed (%s)" % e)
+            return ""
+    return _range_to_markdown_via_temp_doc(model, ctx, selection_start, selection_end, max_chars)
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +201,7 @@ def _doc_text_length(model):
         return (-1, "")
 
 
-def _insert_markdown_at_position(model, ctx, markdown_string, position, use_process_events=True):
+def _insert_markdown_at_position(model, ctx, markdown_string, position):
     """Write markdown to a temp file, then use insertDocumentFromURL to insert it as
     formatted content at the given position in the target document.
 
@@ -176,90 +210,56 @@ def _insert_markdown_at_position(model, ctx, markdown_string, position, use_proc
     no clipboard needed.
 
     position: 'beginning' | 'end' | 'selection'.
-    use_process_events: ignored (kept for API compatibility).
     """
-    fd, path = tempfile.mkstemp(suffix=".md", dir=TEMP_DIR)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(markdown_string)
-    except Exception:
-        os.close(fd)
+    with _with_temp_markdown(markdown_string) as (path, file_url):
         try:
-            os.unlink(path)
-        except Exception:
-            pass
-        raise
+            text = model.getText()
+            cursor = text.createTextCursor()
 
-    file_url = _file_url(path)
-    try:
-        text = model.getText()
-        cursor = text.createTextCursor()
-
-        if position == "beginning":
-            cursor.gotoStart(False)
-        elif position == "end":
-            cursor.gotoEnd(False)
-        elif position == "selection":
-            try:
-                controller = model.getCurrentController()
-                sel = controller.getSelection()
-                if sel and sel.getCount() > 0:
-                    rng = sel.getByIndex(0)
-                    rng.setString("")  # Clear selected text
-                    cursor.gotoRange(rng.getStart(), False)
-                else:
-                    vc = controller.getViewCursor()
-                    cursor.gotoRange(vc.getStart(), False)
-            except Exception:
+            if position == "beginning":
+                cursor.gotoStart(False)
+            elif position == "end":
                 cursor.gotoEnd(False)
-        else:
-            raise ValueError("Unknown position: %s" % position)
+            elif position == "selection":
+                try:
+                    controller = model.getCurrentController()
+                    sel = controller.getSelection()
+                    if sel and sel.getCount() > 0:
+                        rng = sel.getByIndex(0)
+                        rng.setString("")  # Clear selected text
+                        cursor.gotoRange(rng.getStart(), False)
+                    else:
+                        vc = controller.getViewCursor()
+                        cursor.gotoRange(vc.getStart(), False)
+                except Exception:
+                    cursor.gotoEnd(False)
+            else:
+                raise ValueError("Unknown position: %s" % position)
 
-        filter_props = (_create_property_value("FilterName", "Markdown"),)
-        cursor.insertDocumentFromURL(file_url, filter_props)
-        debug_log(ctx, "markdown_support: insertDocumentFromURL succeeded at position=%s" % position)
-    except Exception as e:
-        debug_log(ctx, "markdown_support: insertDocumentFromURL failed: %s" % e)
-        raise
-    finally:
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
+            filter_props = (_create_property_value("FilterName", "Markdown"),)
+            cursor.insertDocumentFromURL(file_url, filter_props)
+            debug_log(ctx, "markdown_support: insertDocumentFromURL succeeded at position=%s" % position)
+        except Exception as e:
+            debug_log(ctx, "markdown_support: insertDocumentFromURL failed: %s" % e)
+            raise
 
 
 def _insert_markdown_full(model, ctx, markdown_string):
     """Replace entire document with the given markdown (clear all, then insert at start)."""
-    fd, path = tempfile.mkstemp(suffix=".md", dir=TEMP_DIR)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(markdown_string)
-    except Exception:
-        os.close(fd)
+    with _with_temp_markdown(markdown_string) as (path, file_url):
         try:
-            os.unlink(path)
-        except Exception:
-            pass
-        raise
-    file_url = _file_url(path)
-    try:
-        text = model.getText()
-        cursor = text.createTextCursor()
-        cursor.gotoStart(False)
-        cursor.gotoEnd(True)
-        cursor.setString("")
-        cursor.gotoStart(False)
-        filter_props = (_create_property_value("FilterName", "Markdown"),)
-        cursor.insertDocumentFromURL(file_url, filter_props)
-        debug_log(ctx, "markdown_support: insertDocumentFromURL succeeded at position=full")
-    except Exception as e:
-        debug_log(ctx, "markdown_support: _insert_markdown_full failed: %s" % e)
-        raise
-    finally:
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
+            text = model.getText()
+            cursor = text.createTextCursor()
+            cursor.gotoStart(False)
+            cursor.gotoEnd(True)
+            cursor.setString("")
+            cursor.gotoStart(False)
+            filter_props = (_create_property_value("FilterName", "Markdown"),)
+            cursor.insertDocumentFromURL(file_url, filter_props)
+            debug_log(ctx, "markdown_support: insertDocumentFromURL succeeded at position=full")
+        except Exception as e:
+            debug_log(ctx, "markdown_support: _insert_markdown_full failed: %s" % e)
+            raise
 
 
 def _apply_markdown_at_range(model, ctx, markdown_string, start_offset, end_offset):
@@ -268,31 +268,15 @@ def _apply_markdown_at_range(model, ctx, markdown_string, start_offset, end_offs
     cursor = get_text_cursor_at_range(model, start_offset, end_offset)
     if cursor is None:
         raise ValueError("Invalid range or could not create cursor for range (%d, %d)" % (start_offset, end_offset))
-    fd, path = tempfile.mkstemp(suffix=".md", dir=TEMP_DIR)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(markdown_string)
-    except Exception:
-        os.close(fd)
+    with _with_temp_markdown(markdown_string) as (path, file_url):
         try:
-            os.unlink(path)
-        except Exception:
-            pass
-        raise
-    file_url = _file_url(path)
-    try:
-        cursor.setString("")
-        filter_props = (_create_property_value("FilterName", "Markdown"),)
-        cursor.insertDocumentFromURL(file_url, filter_props)
-        debug_log(ctx, "markdown_support: apply_markdown_at_range succeeded for (%d, %d)" % (start_offset, end_offset))
-    except Exception as e:
-        debug_log(ctx, "markdown_support: _apply_markdown_at_range failed: %s" % e)
-        raise
-    finally:
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
+            cursor.setString("")
+            filter_props = (_create_property_value("FilterName", "Markdown"),)
+            cursor.insertDocumentFromURL(file_url, filter_props)
+            debug_log(ctx, "markdown_support: apply_markdown_at_range succeeded for (%d, %d)" % (start_offset, end_offset))
+        except Exception as e:
+            debug_log(ctx, "markdown_support: _apply_markdown_at_range failed: %s" % e)
+            raise
 
 
 def _markdown_to_plain_via_document(ctx, markdown_string):
@@ -301,57 +285,40 @@ def _markdown_to_plain_via_document(ctx, markdown_string):
     t0 = time.time()
     if markdown_string is None:
         return None
-    fd, path = tempfile.mkstemp(suffix=".md", dir=TEMP_DIR)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(markdown_string)
-    except Exception:
-        os.close(fd)
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
-        debug_log(ctx, "markdown_support: _markdown_to_plain_via_document (write failed) took %.3fs" % (time.time() - t0))
-        return None
-    file_url = _file_url(path)
-    try:
-        smgr = ctx.getServiceManager()
-        desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-        load_props = (
-            _create_property_value("FilterName", "Markdown"),
-            _create_property_value("Hidden", True),
-        )
-        debug_log(ctx, "markdown_support: _markdown_to_plain_via_document loading url=%s with FilterName=Markdown Hidden=True" % file_url)
-        doc = desktop.loadComponentFromURL(file_url, "_default", 0, load_props)
-        if not doc:
-            debug_log(ctx, "markdown_support: _markdown_to_plain_via_document load returned None (took %.3fs)" % (time.time() - t0))
-            return None
-        if not hasattr(doc, "getText"):
-            debug_log(ctx, "markdown_support: _markdown_to_plain_via_document loaded component has no getText (took %.3fs)" % (time.time() - t0))
+        with _with_temp_markdown(markdown_string) as (path, file_url):
+            smgr = ctx.getServiceManager()
+            desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+            load_props = (
+                _create_property_value("FilterName", "Markdown"),
+                _create_property_value("Hidden", True),
+            )
+            debug_log(ctx, "markdown_support: _markdown_to_plain_via_document loading url=%s with FilterName=Markdown Hidden=True" % file_url)
+            doc = desktop.loadComponentFromURL(file_url, "_default", 0, load_props)
+            if not doc:
+                debug_log(ctx, "markdown_support: _markdown_to_plain_via_document load returned None (took %.3fs)" % (time.time() - t0))
+                return None
+            if not hasattr(doc, "getText"):
+                debug_log(ctx, "markdown_support: _markdown_to_plain_via_document loaded component has no getText (took %.3fs)" % (time.time() - t0))
+                doc.close(True)
+                return None
+            cursor = doc.getText().createTextCursor()
+            cursor.gotoStart(False)
+            cursor.gotoEnd(True)
+            plain = cursor.getString()
             doc.close(True)
-            return None
-        cursor = doc.getText().createTextCursor()
-        cursor.gotoStart(False)
-        cursor.gotoEnd(True)
-        plain = cursor.getString()
-        doc.close(True)
-        # Strip trailing newlines so we match document paragraphs (last para in doc often has no trailing \n)
-        if plain is not None and isinstance(plain, str):
-            plain = plain.rstrip("\n\r")
-        # Log what we got so we can see if filter was applied (e.g. 'Summary') or raw markdown ('## Summary')
-        snippet = repr(plain[:200]) if plain is not None and len(plain) > 200 else repr(plain)
-        debug_log(ctx, "markdown_support: _markdown_to_plain_via_document plain len=%s snippet=%s (took %.3fs)" % (len(plain) if plain else 0, snippet, time.time() - t0))
-        return plain
+            # Strip trailing newlines so we match document paragraphs (last para in doc often has no trailing \n)
+            if plain is not None and isinstance(plain, str):
+                plain = plain.rstrip("\n\r")
+            # Log what we got so we can see if filter was applied (e.g. 'Summary') or raw markdown ('## Summary')
+            snippet = repr(plain[:200]) if plain is not None and len(plain) > 200 else repr(plain)
+            debug_log(ctx, "markdown_support: _markdown_to_plain_via_document plain len=%s snippet=%s (took %.3fs)" % (len(plain) if plain else 0, snippet, time.time() - t0))
+            return plain
     except Exception as e:
         import traceback
         debug_log(ctx, "markdown_support: _markdown_to_plain_via_document failed: %s (took %.3fs)" % (e, time.time() - t0))
         debug_log(ctx, "markdown_support: _markdown_to_plain_via_document traceback: %s" % traceback.format_exc())
         return None
-    finally:
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
 
 
 def _literal_search_candidates(source_string):
@@ -381,70 +348,58 @@ def _literal_search_candidates(source_string):
     return out
 
 
+def _search_candidates_with_plain(ctx, search_string):
+    """Return deduplicated list of search candidates: raw + normalized + LO plain variants."""
+    candidates = list(_literal_search_candidates(search_string))
+    plain = _markdown_to_plain_via_document(ctx, search_string)
+    if plain:
+        seen = set(candidates)
+        for c in _literal_search_candidates(plain):
+            if c not in seen:
+                seen.add(c)
+                candidates.append(c)
+    return candidates
+
+
 def _apply_markdown_at_search(model, ctx, markdown_string, search_string, all_matches=False, case_sensitive=True):
     """Find search_string (first or all), replace each match with rendered markdown content.
     Builds literal search candidates from the raw string and always from LO plain (when available)
     via _literal_search_candidates, so we handle markdown stripping and multiple line-ending variants."""
-    fd, path = tempfile.mkstemp(suffix=".md", dir=TEMP_DIR)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(markdown_string)
-    except Exception:
-        os.close(fd)
-        try:
-            os.unlink(path)
-        except Exception:
-            pass
-        raise
-
-    file_url = _file_url(path)
-    filter_props = (_create_property_value("FilterName", "Markdown"),)
-    search_candidates = _literal_search_candidates(search_string)
+    search_candidates = _search_candidates_with_plain(ctx, search_string)
     t0 = time.time()
-    plain = _markdown_to_plain_via_document(ctx, search_string)
-    if plain:
-        # Always merge LO plain candidates so we match document text (markdown stripping: backticks, asterisks, etc.).
-        seen = set(search_candidates)
-        for c in _literal_search_candidates(plain):
-            if c not in seen:
-                seen.add(c)
-                search_candidates.append(c)
     debug_log(ctx, "markdown_support: _apply_markdown_at_search LO plain took %.3fs, %d candidates" % (time.time() - t0, len(search_candidates)))
-    try:
-        for idx, search_candidate in enumerate(search_candidates):
-            # Log exact candidate so we can see line endings and characters (repr truncate to 400)
-            r = repr(search_candidate)
-            if len(r) > 400:
-                r = r[:400] + "..."
-            debug_log(ctx, "markdown_support: _apply_markdown_at_search candidate #%d len=%d: %s" % (idx, len(search_candidate), r))
-            sd = model.createSearchDescriptor()
-            sd.SearchString = search_candidate
-            sd.SearchRegularExpression = False
-            sd.SearchCaseSensitive = case_sensitive
-            count = 0
-            found = model.findFirst(sd)
-            while found:
-                text = found.getText()
-                cursor = text.createTextCursorByRange(found)
-                cursor.setString("")
-                cursor.insertDocumentFromURL(file_url, filter_props)
-                count += 1
-                if not all_matches:
-                    break
-                found = model.findNext(cursor.getEnd(), sd)
-            debug_log(ctx, "markdown_support: _apply_markdown_at_search candidate #%d -> replaced %d" % (idx, count))
-            if count > 0:
-                return count
-        debug_log(ctx, "markdown_support: _apply_markdown_at_search all %d candidates gave 0 replacements" % len(search_candidates))
-        return 0
-    except Exception as e:
-        debug_log(ctx, "markdown_support: _apply_markdown_at_search failed: %s" % e)
-        raise
-    finally:
+    with _with_temp_markdown(markdown_string) as (path, file_url):
+        filter_props = (_create_property_value("FilterName", "Markdown"),)
         try:
-            os.unlink(path)
-        except Exception:
-            pass
+            for idx, search_candidate in enumerate(search_candidates):
+                # Log exact candidate so we can see line endings and characters (repr truncate to 400)
+                r = repr(search_candidate)
+                if len(r) > 400:
+                    r = r[:400] + "..."
+                debug_log(ctx, "markdown_support: _apply_markdown_at_search candidate #%d len=%d: %s" % (idx, len(search_candidate), r))
+                sd = model.createSearchDescriptor()
+                sd.SearchString = search_candidate
+                sd.SearchRegularExpression = False
+                sd.SearchCaseSensitive = case_sensitive
+                count = 0
+                found = model.findFirst(sd)
+                while found:
+                    text = found.getText()
+                    cursor = text.createTextCursorByRange(found)
+                    cursor.setString("")
+                    cursor.insertDocumentFromURL(file_url, filter_props)
+                    count += 1
+                    if not all_matches:
+                        break
+                    found = model.findNext(cursor.getEnd(), sd)
+                debug_log(ctx, "markdown_support: _apply_markdown_at_search candidate #%d -> replaced %d" % (idx, count))
+                if count > 0:
+                    return count
+            debug_log(ctx, "markdown_support: _apply_markdown_at_search all %d candidates gave 0 replacements" % len(search_candidates))
+            return 0
+        except Exception as e:
+            debug_log(ctx, "markdown_support: _apply_markdown_at_search failed: %s" % e)
+            raise
 
 
 def _find_text_ranges(model, ctx, search_string, start=0, limit=None, case_sensitive=True):
@@ -495,14 +450,7 @@ def _find_text_ranges(model, ctx, search_string, start=0, limit=None, case_sensi
         debug_log(ctx, "markdown_support: _find_text_ranges first match text len=%d repr=%s" % (len(first_text), repr(first_text)[:300]))
     if not matches:
         t0_fallback = time.time()
-        candidates = _literal_search_candidates(search_string)
-        plain = _markdown_to_plain_via_document(ctx, search_string)
-        if plain:
-            seen = set(candidates)
-            for c in _literal_search_candidates(plain):
-                if c not in seen:
-                    seen.add(c)
-                    candidates.append(c)
+        candidates = _search_candidates_with_plain(ctx, search_string)
         for idx, needle in enumerate(candidates):
             r = repr(needle)
             if len(r) > 400:
@@ -792,47 +740,27 @@ def run_markdown_tests(ctx, model=None):
     test_markdown = "## Markdown test\n\nThis was inserted by the test."
     insert_needle = "Markdown test"
 
-    # Test A: apply at end with use_process_events=False (diagnostic: often fails)
+    # Test: apply at end via _insert_markdown_at_position
     try:
         len_before = _doc_text_length(doc)[0]
-        _insert_markdown_at_position(doc, ctx, test_markdown, "end", use_process_events=False)
+        _insert_markdown_at_position(doc, ctx, test_markdown, "end")
         full_text = _read_doc_text(doc)
         len_after = len(full_text)
         content_found = insert_needle in full_text
-        debug_log(ctx, "markdown_tests: strategy=no_events len_before=%s len_after=%s content_found=%s" % (
+        debug_log(ctx, "markdown_tests: apply at end len_before=%s len_after=%s content_found=%s" % (
             len_before, len_after, content_found))
         if content_found:
             passed += 1
-            ok("apply at end (no processEvents): content found (len_after=%d)" % len_after)
+            ok("apply at end: content found (len_after=%d)" % len_after)
         else:
             failed += 1
-            fail("apply at end (no processEvents): content not found (len_before=%d len_after=%d)" % (len_before, len_after))
+            fail("apply at end: content not found (len_before=%d len_after=%d)" % (len_before, len_after))
     except Exception as e:
         failed += 1
-        log.append("FAIL: apply no processEvents raised: %s" % e)
-        debug_log(ctx, "markdown_tests: strategy=no_events raised: %s" % e)
+        log.append("FAIL: apply at end raised: %s" % e)
+        debug_log(ctx, "markdown_tests: apply at end raised: %s" % e)
 
-    # Test B: apply at end with use_process_events=True (fix: should succeed)
-    try:
-        len_before = _doc_text_length(doc)[0]
-        _insert_markdown_at_position(doc, ctx, test_markdown, "end", use_process_events=True)
-        full_text = _read_doc_text(doc)
-        len_after = len(full_text)
-        content_found = insert_needle in full_text
-        debug_log(ctx, "markdown_tests: strategy=process_events len_before=%s len_after=%s content_found=%s" % (
-            len_before, len_after, content_found))
-        if content_found:
-            passed += 1
-            ok("apply at end (with processEvents): content found (len_after=%d)" % len_after)
-        else:
-            failed += 1
-            fail("apply at end (with processEvents): content not found (len_before=%d len_after=%d)" % (len_before, len_after))
-    except Exception as e:
-        failed += 1
-        log.append("FAIL: apply with processEvents raised: %s" % e)
-        debug_log(ctx, "markdown_tests: strategy=process_events raised: %s" % e)
-
-    # Test C: production path (tool_apply_markdown uses process_events=True)
+    # Test: production path (tool_apply_markdown target='end')
     try:
         result = tool_apply_markdown(doc, ctx, {
             "markdown": test_markdown,
@@ -989,6 +917,60 @@ def run_markdown_tests(ctx, model=None):
     except Exception as e:
         failed += 1
         log.append("FAIL: get_markdown scope=range raised: %s" % e)
+
+    # Test: get_markdown scope="range" returns correct partial content (AI partial read)
+    try:
+        from core.document import get_document_length
+        partial_content = "# Partial Range Test\n\nFirst paragraph here.\n\nSecond paragraph."
+        result = tool_apply_markdown(doc, ctx, {"markdown": partial_content, "target": "full"})
+        if json.loads(result).get("status") != "ok":
+            failed += 1
+            fail("partial range test setup: replace with full failed")
+        else:
+            doc_len = get_document_length(doc)
+            end_offset = min(45, doc_len)  # first ~45 chars: heading + start of first para
+            result = tool_get_markdown(doc, ctx, {"scope": "range", "start": 0, "end": end_offset})
+            data = json.loads(result)
+            md = data.get("markdown", "")
+            if data.get("status") == "ok" and md and "Partial" in md:
+                passed += 1
+                ok("get_markdown scope=range: partial content returned (AI partial read ok)")
+            else:
+                failed += 1
+                fail("get_markdown scope=range partial: status=%s len(md)=%s has_Partial=%s" % (
+                    data.get("status"), len(md), "Partial" in md))
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: get_markdown scope=range partial content raised: %s" % e)
+
+    # Test: get_markdown scope="selection" returns partial markdown (AI selection read)
+    try:
+        from core.document import get_text_cursor_at_range, get_document_length
+        doc_len = get_document_length(doc)
+        if doc_len < 10:
+            passed += 1
+            ok("get_markdown scope=selection: skipped (doc too short)")
+        else:
+            range_cursor = get_text_cursor_at_range(doc, 0, min(30, doc_len))
+            if range_cursor is None:
+                failed += 1
+                fail("get_markdown scope=selection: could not create range cursor")
+            else:
+                vc = doc.getCurrentController().getViewCursor()
+                vc.gotoRange(range_cursor.getStart(), False)
+                vc.gotoRange(range_cursor.getEnd(), True)
+                result = tool_get_markdown(doc, ctx, {"scope": "selection"})
+                data = json.loads(result)
+                md = data.get("markdown", "")
+                if data.get("status") == "ok" and isinstance(md, str) and len(md) > 0:
+                    passed += 1
+                    ok("get_markdown scope=selection: partial markdown returned (AI selection read ok)")
+                else:
+                    failed += 1
+                    fail("get_markdown scope=selection: status=%s len(md)=%s" % (data.get("status"), len(md)))
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: get_markdown scope=selection raised: %s" % e)
 
     # Test K: tool_find_text
     try:
