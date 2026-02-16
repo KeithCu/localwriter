@@ -7,7 +7,7 @@
   <dlg:text dlg:id="label_endpoint" dlg:left="8" dlg:top="12" dlg:width="180" dlg:height="10" dlg:value="Endpoint URL/Port:" dlg:align="left"/>
   <dlg:textfield dlg:id="endpoint" dlg:left="195" dlg:top="10" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="http://127.0.0.1:5000"/>
   <dlg:text dlg:id="label_model" dlg:left="8" dlg:top="26" dlg:width="180" dlg:height="10" dlg:value="Model (Required by Ollama/OpenAI):" dlg:align="left"/>
-  <dlg:textfield dlg:id="model" dlg:left="195" dlg:top="24" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:combobox dlg:id="model" dlg:left="195" dlg:top="24" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
   <dlg:text dlg:id="label_api_key" dlg:left="8" dlg:top="40" dlg:width="180" dlg:height="10" dlg:value="API Key (for OpenAI-compatible endpoints):" dlg:align="left"/>
   <dlg:textfield dlg:id="api_key" dlg:left="195" dlg:top="38" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
   <dlg:text dlg:id="label_api_type" dlg:left="8" dlg:top="54" dlg:width="180" dlg:height="10" dlg:value="API Type (completions/chat):" dlg:align="left"/>

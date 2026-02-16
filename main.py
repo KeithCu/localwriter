@@ -79,7 +79,20 @@ class MainJob(unohelper.Base, XJobExecutor):
         # Set direct keys
         for key in direct_keys:
             if key in result:
-                self.set_config(key, result[key])
+                val = result[key]
+                self.set_config(key, val)
+                
+                # Update model LRU history
+                if key == "model" and val:
+                    lru = self.get_config("model_lru", [])
+                    if not isinstance(lru, list):
+                        lru = []
+                    val_str = str(val).strip()
+                    if val_str:
+                        if val_str in lru:
+                            lru.remove(val_str)
+                        lru.insert(0, val_str)
+                        self.set_config("model_lru", lru[:10])
         
         # Handle special cases
         if "endpoint" in result and result["endpoint"].startswith("http"):
@@ -248,6 +261,40 @@ class MainJob(unohelper.Base, XJobExecutor):
             for field in field_specs:
                 ctrl = dlg.getControl(field["name"])
                 if ctrl:
+                    if field["name"] == "model":
+                        try:
+                            model = ctrl.getModel()
+                            # Set dropdown properties BEFORE adding items
+                            props = [
+                                ("Dropdown", True),
+                                ("DropDown", True), # Quirk: case sensitivity vary
+                                ("LineCount", 10),
+                                ("Border", 1),
+                                ("NativeWidget", False) # Force UNO rendering if OS theme hides arrow
+                            ]
+                            for p_name, p_val in props:
+                                if hasattr(model, p_name):
+                                    setattr(model, p_name, p_val)
+                                elif hasattr(model, "setPropertyValue"):
+                                    try:
+                                        model.setPropertyValue(p_name, p_val)
+                                    except:
+                                        pass
+
+                            lru = self.get_config("model_lru", [])
+                            if not isinstance(lru, list):
+                                lru = []
+                            # Ensure current value is in the dropdown list
+                            curr_val = str(field["value"]).strip()
+                            to_show = list(lru)
+                            if curr_val and curr_val not in to_show:
+                                to_show.insert(0, curr_val)
+                            
+                            if to_show:
+                                agent_log("main.py:settings_box", "Populating model items", data={"count": len(to_show)}, hypothesis_id="LRU")
+                                ctrl.addItems(tuple(to_show), 0)
+                        except Exception as e:
+                            agent_log("main.py:settings_box", "Error configuring model combobox", data={"error": str(e)}, hypothesis_id="LRU")
                     ctrl.getModel().Text = field["value"]
             dlg.getControl("endpoint").setFocus()
             agent_log("main.py:settings_box", "before dlg.execute", hypothesis_id="H4")
