@@ -6,7 +6,7 @@
 module org { module extension { module localwriter { module PromptFunction {
     interface XPromptFunction : com::sun::star::uno::XInterface
     {
-        string prompt( [in] string message );
+        string prompt( [in] string message, [in] any systemPrompt, [in] any model, [in] any maxTokens ); 
     };
 }; }; }; };
 

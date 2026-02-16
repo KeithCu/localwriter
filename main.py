@@ -1,35 +1,36 @@
 import sys
+import os
+
+# Ensure extension directory is on path so core.streaming_deltas can be imported
+_ext_dir = os.path.dirname(os.path.abspath(__file__))
+if _ext_dir not in sys.path:
+    sys.path.insert(0, _ext_dir)
+
 import unohelper
 import officehelper
-import json
-import urllib.request
-import urllib.parse
-import ssl
+
+from core.config import get_config, set_config, as_bool, get_api_config
+from core.api import LlmClient
+from core.document import get_full_document_text, get_document_context_for_chat
+from core.async_stream import run_stream_completion_async
+from core.logging import log_to_file, agent_log
+from core.constants import DEFAULT_CHAT_SYSTEM_PROMPT
 from com.sun.star.task import XJobExecutor
 from com.sun.star.awt import MessageBoxButtons as MSG_BUTTONS
+from com.sun.star.awt.MessageBoxType import ERRORBOX
+from com.sun.star.awt.MessageBoxButtons import BUTTONS_OK
 import uno
-import os
 import logging
 import re
 
 from com.sun.star.beans import PropertyValue
 from com.sun.star.container import XNamed
 
-from llm import (as_bool, is_openai_compatible, build_api_request,
-                 extract_content, make_ssl_context, stream_response)
-
-
-_debug_logging_enabled = False
-
-def log_to_file(message):
-    if not _debug_logging_enabled:
-        return
-    log_dir = os.path.join(os.path.expanduser('~'), '.localwriter')
-    os.makedirs(log_dir, exist_ok=True)
-    log_file_path = os.path.join(log_dir, 'log.txt')
-    logging.basicConfig(filename=log_file_path, level=logging.INFO, format='%(asctime)s - %(message)s')
-    logging.info(message)
-
+USER_AGENT = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/114.0.0.0 Safari/537.36'
+)
 
 # The MainJob is a UNO component derived from unohelper.Base class
 # and also the XJobExecutor, the implemented interface
@@ -47,438 +48,315 @@ class MainJob(unohelper.Base, XJobExecutor):
                 "com.sun.star.frame.Desktop", self.ctx)
     
 
-    def get_config(self,key,default):
-  
-        name_file ="localwriter.json"
-        #path_settings = create_instance('com.sun.star.util.PathSettings')
-        
-        
-        path_settings = self.sm.createInstanceWithContext('com.sun.star.util.PathSettings', self.ctx)
-
-        user_config_path = getattr(path_settings, "UserConfig")
-
-        if user_config_path.startswith('file://'):
-            user_config_path = str(uno.fileUrlToSystemPath(user_config_path))
-        
-        # Ensure the path ends with the filename
-        config_file_path = os.path.join(user_config_path, name_file)
-
-        # Check if the file exists
-        if not os.path.exists(config_file_path):
-            return default
-
-        # Try to load the JSON content from the file
-        try:
-            with open(config_file_path, 'r') as file:
-                config_data = json.load(file)
-        except (IOError, json.JSONDecodeError):
-            return default
-
-        # Return the value corresponding to the key, or the default value if the key is not found
-        return config_data.get(key, default)
+    def get_config(self, key, default):
+        """Delegate to core.config. Kept for API compatibility (chat_panel, etc.)."""
+        return get_config(self.ctx, key, default)
 
     def set_config(self, key, value):
-        name_file = "localwriter.json"
+        """Delegate to core.config."""
+        set_config(self.ctx, key, value)
+
+    def _apply_settings_result(self, result):
+        """Apply settings dialog result to config. Shared by Writer and Calc."""
+        # Define config keys that can be set directly
+        direct_keys = [
+            "extend_selection_max_tokens",
+            "extend_selection_system_prompt", 
+            "edit_selection_max_new_tokens",
+            "edit_selection_system_prompt",
+            "api_key",
+            "is_openwebui",
+            "openai_compatibility",
+            "model",
+            "temperature",
+            "seed",
+            "chat_max_tokens",
+            "chat_context_length",
+            "chat_system_prompt",
+            "request_timeout"
+        ]
         
-        path_settings = self.sm.createInstanceWithContext('com.sun.star.util.PathSettings', self.ctx)
-        user_config_path = getattr(path_settings, "UserConfig")
+        # Set direct keys
+        for key in direct_keys:
+            if key in result:
+                val = result[key]
+                self.set_config(key, val)
+                
+                # Update model LRU history
+                if key == "model" and val:
+                    lru = self.get_config("model_lru", [])
+                    if not isinstance(lru, list):
+                        lru = []
+                    val_str = str(val).strip()
+                    if val_str:
+                        if val_str in lru:
+                            lru.remove(val_str)
+                        lru.insert(0, val_str)
+                        self.set_config("model_lru", lru[:10])
 
-        if user_config_path.startswith('file://'):
-            user_config_path = str(uno.fileUrlToSystemPath(user_config_path))
+        
+        # Handle special cases
+        if "endpoint" in result and result["endpoint"].startswith("http"):
+            self.set_config("endpoint", result["endpoint"])
+        
+        if "api_type" in result:
+            api_type_value = str(result["api_type"]).strip().lower()
+            if api_type_value not in ("chat", "completions"):
+                api_type_value = "completions"
+            self.set_config("api_type", api_type_value)
 
-        # Ensure the path ends with the filename
-        config_file_path = os.path.join(user_config_path, name_file)
 
-        # Load existing configuration if the file exists
-        if os.path.exists(config_file_path):
-            try:
-                with open(config_file_path, 'r') as file:
-                    config_data = json.load(file)
-            except (IOError, json.JSONDecodeError):
-                config_data = {}
-        else:
-            config_data = {}
+    def _get_client(self):
+        """Create LlmClient with current config."""
+        config = get_api_config(self.ctx)
+        return LlmClient(config, self.ctx)
 
-        # Update the configuration with the new key-value pair
-        config_data[key] = value
-
-        # Write the updated configuration back to the file
+    def show_error(self, message, title="LocalWriter Error"):
+        """Show an error message in a dialog instead of writing to the document."""
         try:
-            with open(config_file_path, 'w') as file:
-                json.dump(config_data, file, indent=4)
-        except IOError as e:
-            # Handle potential IO errors (optional)
-            print(f"Error writing to {config_file_path}: {e}")
+            desktop = self.sm.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
+            frame = desktop.getCurrentFrame()
+            if frame and frame.ActiveFrame:
+                frame = frame.ActiveFrame
+            window_peer = frame.getContainerWindow() if frame else None
+            if window_peer:
+                toolkit = self.sm.createInstanceWithContext("com.sun.star.awt.Toolkit", self.ctx)
+                box = toolkit.createMessageBox(window_peer, ERRORBOX, BUTTONS_OK, title, str(message))
+                box.execute()
+        except Exception:
+            pass  # Fallback: if dialog fails, at least we don't crash
 
-    def _as_bool(self, value):
-        return as_bool(value)
-
-    def _is_openai_compatible(self):
-        endpoint = str(self.get_config("endpoint", "http://localhost:11434"))
-        compatibility_flag = self.get_config("openai_compatibility", False)
-        return is_openai_compatible(endpoint, compatibility_flag)
-
-    def make_api_request(self, prompt, system_prompt="", max_tokens=70, api_type=None):
-        endpoint = str(self.get_config("endpoint", "http://localhost:11434"))
-        api_key = str(self.get_config("api_key", ""))
-        if api_type is None:
-            api_type = str(self.get_config("api_type", "completions")).lower()
-        model = str(self.get_config("model", ""))
-        is_owui = self.get_config("is_openwebui", False)
-        openai_compat = self.get_config("openai_compatibility", False)
-        return build_api_request(prompt, endpoint, api_key, api_type, model,
-                                 is_owui, openai_compat, system_prompt, max_tokens,
-                                 log_fn=log_to_file)
-
-    def extract_content_from_response(self, chunk, api_type="completions"):
-        return extract_content(chunk, api_type)
-
-    def get_ssl_context(self):
-        disable = self.get_config("disable_ssl_verification", False)
-        return make_ssl_context(disable)
-
-    def stream_request(self, request, api_type, append_callback):
-        toolkit = self.ctx.getServiceManager().createInstanceWithContext(
-            "com.sun.star.awt.Toolkit", self.ctx
+    def stream_completion(
+        self,
+        prompt,
+        system_prompt,
+        max_tokens,
+        api_type,
+        append_callback,
+        append_thinking_callback=None,
+        stop_checker=None,
+    ):
+        """Single entry point for streaming completions. Raises on error."""
+        self._get_client().stream_completion(
+            prompt,
+            system_prompt,
+            max_tokens,
+            api_type,
+            append_callback,
+            append_thinking_callback=append_thinking_callback,
+            stop_checker=stop_checker,
         )
-        ssl_ctx = self.get_ssl_context()
-        stream_response(request, api_type, ssl_ctx, append_callback,
-                        on_idle=toolkit.processEventsToIdle, log_fn=log_to_file)
 
-    #retrieved from https://wiki.documentfoundation.org/Macros/General/IO_to_Screen
-    #License: Creative Commons Attribution-ShareAlike 3.0 Unported License,
-    #License: The Document Foundation  https://creativecommons.org/licenses/by-sa/3.0/
-    #begin sharealike section 
-    def input_box(self,message, title="", default="", x=None, y=None):
-        """ Shows dialog with input box.
-            @param message message to show on the dialog
-            @param title window title
-            @param default default value
-            @param x optional dialog position in twips
-            @param y optional dialog position in twips
-            @return string if OK button pushed, otherwise zero length string
-        """
-        WIDTH = 600
-        HORI_MARGIN = VERT_MARGIN = 8
-        BUTTON_WIDTH = 100
-        BUTTON_HEIGHT = 26
-        HORI_SEP = VERT_SEP = 8
-        LABEL_HEIGHT = BUTTON_HEIGHT * 2 + 5
-        EDIT_HEIGHT = 24
-        HEIGHT = VERT_MARGIN * 2 + LABEL_HEIGHT + VERT_SEP + EDIT_HEIGHT
+    def make_chat_request(self, messages, max_tokens=512, tools=None, stream=False):
+        """Delegate to LlmClient."""
+        return self._get_client().make_chat_request(
+            messages, max_tokens, tools=tools, stream=stream
+        )
+
+    def request_with_tools(self, messages, max_tokens=512, tools=None):
+        """Delegate to LlmClient."""
+        return self._get_client().request_with_tools(
+            messages, max_tokens, tools=tools
+        )
+
+    def stream_request_with_tools(
+        self,
+        messages,
+        max_tokens=512,
+        tools=None,
+        append_callback=None,
+        append_thinking_callback=None,
+        stop_checker=None,
+    ):
+        """Delegate to LlmClient."""
+        return self._get_client().stream_request_with_tools(
+            messages,
+            max_tokens,
+            tools=tools,
+            append_callback=append_callback,
+            append_thinking_callback=append_thinking_callback,
+            stop_checker=stop_checker,
+        )
+
+    def stream_chat_response(
+        self,
+        messages,
+        max_tokens,
+        append_callback,
+        append_thinking_callback=None,
+        stop_checker=None,
+    ):
+        """Delegate to LlmClient."""
+        self._get_client().stream_chat_response(
+            messages,
+            max_tokens,
+            append_callback,
+            append_thinking_callback=append_thinking_callback,
+            stop_checker=stop_checker,
+        )
+
+    def get_full_document_text(self, model, max_chars=8000):
+        """Delegate to core.document."""
+        return get_full_document_text(model, max_chars)
+
+    def input_box(self, message, title="", default="", x=None, y=None):
+        """ Shows input dialog (EditInputDialog.xdl). Returns edit text if OK, else "". """
         import uno
-        from com.sun.star.awt.PosSize import POS, SIZE, POSSIZE
-        from com.sun.star.awt.PushButtonType import OK, CANCEL
-        from com.sun.star.util.MeasureUnit import TWIP
-        ctx = uno.getComponentContext()
-        def create(name):
-            return ctx.getServiceManager().createInstanceWithContext(name, ctx)
-        dialog = create("com.sun.star.awt.UnoControlDialog")
-        dialog_model = create("com.sun.star.awt.UnoControlDialogModel")
-        dialog.setModel(dialog_model)
-        dialog.setVisible(False)
-        dialog.setTitle(title)
-        dialog.setPosSize(0, 0, WIDTH, HEIGHT, SIZE)
-        def add(name, type, x_, y_, width_, height_, props):
-            model = dialog_model.createInstance("com.sun.star.awt.UnoControl" + type + "Model")
-            dialog_model.insertByName(name, model)
-            control = dialog.getControl(name)
-            control.setPosSize(x_, y_, width_, height_, POSSIZE)
-            for key, value in props.items():
-                setattr(model, key, value)
-        label_width = WIDTH - BUTTON_WIDTH - HORI_SEP - HORI_MARGIN * 2
-        add("label", "FixedText", HORI_MARGIN, VERT_MARGIN, label_width, LABEL_HEIGHT, 
-            {"Label": str(message), "NoLabel": True})
-        add("btn_ok", "Button", HORI_MARGIN + label_width + HORI_SEP, VERT_MARGIN, 
-                BUTTON_WIDTH, BUTTON_HEIGHT, {"PushButtonType": OK, "DefaultButton": True})
-        add("edit", "Edit", HORI_MARGIN, LABEL_HEIGHT + VERT_MARGIN + VERT_SEP, 
-                WIDTH - HORI_MARGIN * 2, EDIT_HEIGHT, {"Text": str(default)})
-        frame = create("com.sun.star.frame.Desktop").getCurrentFrame()
-        window = frame.getContainerWindow() if frame else None
-        dialog.createPeer(create("com.sun.star.awt.Toolkit"), window)
-        if not x is None and not y is None:
-            ps = dialog.convertSizeToPixel(uno.createUnoStruct("com.sun.star.awt.Size", x, y), TWIP)
-            _x, _y = ps.Width, ps.Height
-        elif window:
-            ps = window.getPosSize()
-            _x = ps.Width / 2 - WIDTH / 2
-            _y = ps.Height / 2 - HEIGHT / 2
-        dialog.setPosSize(_x, _y, 0, 0, POS)
-        edit = dialog.getControl("edit")
-        edit.setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", 0, len(str(default))))
-        edit.setFocus()
-        ret = edit.getModel().Text if dialog.execute() else ""
-        dialog.dispose()
+        ctx = self.ctx
+        smgr = ctx.getServiceManager()
+        pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
+        base_url = pip.getPackageLocation("org.extension.localwriter")
+        dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
+        dlg = dp.createDialog(base_url + "/LocalWriterDialogs/EditInputDialog.xdl")
+        try:
+            dlg.getControl("label").getModel().Label = str(message)
+            dlg.getControl("edit").getModel().Text = str(default)
+            if title:
+                dlg.getModel().Title = title
+            dlg.getControl("edit").setFocus()
+            dlg.getControl("edit").setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", 0, len(str(default))))
+            ret = dlg.getControl("edit").getModel().Text if dlg.execute() else ""
+        finally:
+            dlg.dispose()
         return ret
 
-    # Backend presets: (name, api_type, is_openwebui, openai_compat, default_endpoint)
-    BACKEND_PRESETS = [
-        ("Ollama",               "completions", False, False, "http://localhost:11434"),
-        ("LM Studio",           "completions", False, False, "http://localhost:1234"),
-        ("text-generation-webui","completions", False, False, "http://localhost:5000"),
-        ("OpenAI",               "chat",        False, False, "https://api.openai.com"),
-        ("OpenWebUI",            "chat",        True,  False, "http://localhost:3000"),
-        ("Custom",               None,          None,  None,  None),
-    ]
-
-    def _detect_backend(self):
-        api_type = str(self.get_config("api_type", "completions")).lower()
-        is_owui = self._as_bool(self.get_config("is_openwebui", False))
-        endpoint = str(self.get_config("endpoint", "http://localhost:11434"))
-        if is_owui:
-            return 4  # OpenWebUI
-        if api_type == "chat":
-            return 3  # OpenAI
-        if ":1234" in endpoint:
-            return 1  # LM Studio
-        if ":5000" in endpoint:
-            return 2  # text-generation-webui
-        return 0  # Ollama
-
-    def _read_dialog_config(self, controls):
-        """Read all control values and return a config dict."""
-        result = {}
-        # Backend preset -> api_type, is_openwebui, openai_compatibility
-        sel = controls["backend"].getModel().SelectedItems
-        backend_idx = sel[0] if sel else 0
-        preset = self.BACKEND_PRESETS[backend_idx]
-        if preset[1] is not None:  # not Custom
-            result["api_type"] = preset[1]
-            result["is_openwebui"] = preset[2]
-            result["openai_compatibility"] = preset[3]
-        else:
-            result["api_type"] = str(self.get_config("api_type", "completions"))
-            result["is_openwebui"] = self._as_bool(self.get_config("is_openwebui", False))
-            result["openai_compatibility"] = self._as_bool(
-                self.get_config("openai_compatibility", False))
-        # Text fields
-        for name in ["endpoint", "model", "api_key",
-                     "extend_selection_system_prompt", "edit_selection_system_prompt"]:
-            result[name] = controls[name].getModel().Text
-        # Checkboxes
-        for name in ["disable_ssl_verification", "debug_logging"]:
-            result[name] = controls[name].getModel().State == 1
-        # Numeric fields
-        for name in ["extend_selection_max_tokens", "edit_selection_max_new_tokens"]:
-            text = controls[name].getModel().Text
-            result[name] = int(text) if text.isdigit() else 0
-        return result
-
     def settings_box(self, title="", x=None, y=None):
-        """ Settings dialog with backend preset, checkboxes, and JSON preview """
-        WIDTH = 600
-        HORI_MARGIN = VERT_MARGIN = 8
-        BUTTON_WIDTH = 100
-        BUTTON_HEIGHT = 26
-        HORI_SEP = 8
-        VERT_SEP = 4
-        LABEL_HEIGHT = BUTTON_HEIGHT + 5
-        EDIT_HEIGHT = 24
-        CHECKBOX_HEIGHT = 20
-        JSON_HEIGHT = 120
-
+        """ Settings dialog loaded from XDL (LocalWriterDialogs/SettingsDialog.xdl).
+        Uses DialogProvider for proper Map AppFont sizing. """
+        """ Settings dialog loaded from XDL (LocalWriterDialogs/SettingsDialog.xdl).
+        Uses DialogProvider for proper Map AppFont sizing. """
         import uno
-        from com.sun.star.awt.PosSize import POS, SIZE, POSSIZE
-        from com.sun.star.awt.PushButtonType import OK, CANCEL
-        from com.sun.star.util.MeasureUnit import TWIP
-        from com.sun.star.awt import XActionListener, XItemListener
-        ctx = uno.getComponentContext()
 
-        def create(name):
-            return ctx.getServiceManager().createInstanceWithContext(name, ctx)
+        ctx = self.ctx
+        smgr = ctx.getServiceManager()
 
-        dialog = create("com.sun.star.awt.UnoControlDialog")
-        dialog_model = create("com.sun.star.awt.UnoControlDialogModel")
-        dialog.setModel(dialog_model)
-        dialog.setVisible(False)
-        dialog.setTitle(title)
-
-        def add(name, ctrl_type, x_, y_, width_, height_, props):
-            model = dialog_model.createInstance(
-                "com.sun.star.awt.UnoControl" + ctrl_type + "Model")
-            dialog_model.insertByName(name, model)
-            control = dialog.getControl(name)
-            control.setPosSize(x_, y_, width_, height_, POSSIZE)
-            for key, value in props.items():
-                setattr(model, key, value)
-            return control
-
-        label_width = WIDTH - BUTTON_WIDTH - HORI_SEP - HORI_MARGIN * 2
-        edit_width = WIDTH - HORI_MARGIN * 2
-        controls = {}
-        y = VERT_MARGIN
-
-        # --- OK button (top-right) ---
-        add("btn_ok", "Button", HORI_MARGIN + label_width + HORI_SEP, y,
-            BUTTON_WIDTH, BUTTON_HEIGHT, {"PushButtonType": OK, "DefaultButton": True})
-
-        # --- Backend dropdown ---
-        add("label_backend", "FixedText", HORI_MARGIN, y, label_width, LABEL_HEIGHT,
-            {"Label": "Backend:", "NoLabel": True})
-        y += LABEL_HEIGHT + VERT_SEP
-        backend_names = tuple(p[0] for p in self.BACKEND_PRESETS)
-        current_backend = self._detect_backend()
-        controls["backend"] = add("list_backend", "ListBox", HORI_MARGIN, y,
-            edit_width, EDIT_HEIGHT,
-            {"Dropdown": True, "StringItemList": backend_names,
-             "SelectedItems": (current_backend,), "LineCount": 6})
-        y += EDIT_HEIGHT + VERT_SEP
-
-        # --- Text fields: endpoint, model, api_key ---
-        text_fields = [
-            ("endpoint", "Endpoint URL/Port:",
-             str(self.get_config("endpoint", "http://localhost:11434"))),
-            ("model", "Model:",
-             str(self.get_config("model", ""))),
-            ("api_key", "API Key:",
-             str(self.get_config("api_key", ""))),
+        openai_compatibility_value = "true" if as_bool(self.get_config("openai_compatibility", False)) else "false"
+        is_openwebui_value = "true" if as_bool(self.get_config("is_openwebui", False)) else "false"
+        field_specs = [
+            {"name": "endpoint", "value": str(self.get_config("endpoint", "http://127.0.0.1:5000"))},
+            {"name": "model", "value": str(self.get_config("model", ""))},
+            {"name": "api_key", "value": str(self.get_config("api_key", ""))},
+            {"name": "api_type", "value": str(self.get_config("api_type", "completions"))},
+            {"name": "is_openwebui", "value": is_openwebui_value, "type": "bool"},
+            {"name": "openai_compatibility", "value": openai_compatibility_value, "type": "bool"},
+            {"name": "temperature", "value": str(self.get_config("temperature", "0.5")), "type": "float"},
+            {"name": "seed", "value": str(self.get_config("seed", ""))},
+            {"name": "extend_selection_max_tokens", "value": str(self.get_config("extend_selection_max_tokens", "70")), "type": "int"},
+            {"name": "extend_selection_system_prompt", "value": str(self.get_config("extend_selection_system_prompt", ""))},
+            {"name": "edit_selection_max_new_tokens", "value": str(self.get_config("edit_selection_max_new_tokens", "0")), "type": "int"},
+            {"name": "edit_selection_system_prompt", "value": str(self.get_config("edit_selection_system_prompt", ""))},
+            {"name": "chat_max_tokens", "value": str(self.get_config("chat_max_tokens", "16384")), "type": "int"},
+            {"name": "chat_context_length", "value": str(self.get_config("chat_context_length", "8000")), "type": "int"},
+            {"name": "chat_system_prompt", "value": str(self.get_config("chat_system_prompt", "") or DEFAULT_CHAT_SYSTEM_PROMPT)},
+            {"name": "request_timeout", "value": str(self.get_config("request_timeout", "120")), "type": "int"},
         ]
-        for name, label, value in text_fields:
-            add(f"label_{name}", "FixedText", HORI_MARGIN, y, label_width, LABEL_HEIGHT,
-                {"Label": label, "NoLabel": True})
-            y += LABEL_HEIGHT + VERT_SEP
-            controls[name] = add(f"edit_{name}", "Edit", HORI_MARGIN, y,
-                edit_width, EDIT_HEIGHT, {"Text": value})
-            y += EDIT_HEIGHT + VERT_SEP
 
-        # --- Checkboxes ---
-        disable_ssl = self._as_bool(self.get_config("disable_ssl_verification", False))
-        debug_log = self._as_bool(self.get_config("debug_logging", False))
-        checkbox_fields = [
-            ("disable_ssl_verification", "Disable SSL verification (exposes API keys to interception)", disable_ssl),
-            ("debug_logging", "Enable debug logging to ~~/.localwriter/log.txt", debug_log),
-        ]
-        for name, label, checked in checkbox_fields:
-            controls[name] = add(f"cb_{name}", "CheckBox", HORI_MARGIN, y,
-                edit_width, CHECKBOX_HEIGHT,
-                {"Label": label, "State": 1 if checked else 0})
-            y += CHECKBOX_HEIGHT + VERT_SEP
+        pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
+        base_url = pip.getPackageLocation("org.extension.localwriter")
+        dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
+        dialog_url = base_url + "/LocalWriterDialogs/SettingsDialog.xdl"
+        try:
+            dlg = dp.createDialog(dialog_url)
+        except BaseException:
+            raise
 
-        # --- Numeric fields ---
-        int_fields = [
-            ("extend_selection_max_tokens", "Extend Selection Max Tokens:",
-             str(self.get_config("extend_selection_max_tokens", "70"))),
-            ("edit_selection_max_new_tokens", "Edit Selection Max New Tokens:",
-             str(self.get_config("edit_selection_max_new_tokens", "0"))),
-        ]
-        for name, label, value in int_fields:
-            add(f"label_{name}", "FixedText", HORI_MARGIN, y, label_width, LABEL_HEIGHT,
-                {"Label": label, "NoLabel": True})
-            y += LABEL_HEIGHT + VERT_SEP
-            controls[name] = add(f"edit_{name}", "Edit", HORI_MARGIN, y,
-                edit_width, EDIT_HEIGHT, {"Text": value})
-            y += EDIT_HEIGHT + VERT_SEP
 
-        # --- System prompt fields ---
-        prompt_fields = [
-            ("extend_selection_system_prompt", "Extend Selection System Prompt:",
-             str(self.get_config("extend_selection_system_prompt", ""))),
-            ("edit_selection_system_prompt", "Edit Selection System Prompt:",
-             str(self.get_config("edit_selection_system_prompt", ""))),
-        ]
-        for name, label, value in prompt_fields:
-            add(f"label_{name}", "FixedText", HORI_MARGIN, y, label_width, LABEL_HEIGHT,
-                {"Label": label, "NoLabel": True})
-            y += LABEL_HEIGHT + VERT_SEP
-            controls[name] = add(f"edit_{name}", "Edit", HORI_MARGIN, y,
-                edit_width, EDIT_HEIGHT, {"Text": value})
-            y += EDIT_HEIGHT + VERT_SEP
+        try:
+            for field in field_specs:
+                ctrl = dlg.getControl(field["name"])
+                if ctrl:
 
-        # --- JSON preview ---
-        add("btn_refresh", "Button", HORI_MARGIN, y, BUTTON_WIDTH, BUTTON_HEIGHT,
-            {"Label": "Refresh"})
-        add("label_json", "FixedText", HORI_MARGIN + BUTTON_WIDTH + HORI_SEP, y,
-            label_width - BUTTON_WIDTH - HORI_SEP, LABEL_HEIGHT,
-            {"Label": "Configuration preview:", "NoLabel": True})
-        y += LABEL_HEIGHT + VERT_SEP
-        json_ctrl = add("edit_json", "Edit", HORI_MARGIN, y, edit_width, JSON_HEIGHT,
-            {"Text": "", "ReadOnly": True, "MultiLine": True, "VScroll": True})
-        y += JSON_HEIGHT + VERT_MARGIN
 
-        # --- Size and position ---
-        dialog_height = y
-        dialog.setPosSize(0, 0, WIDTH, dialog_height, SIZE)
-        frame = create("com.sun.star.frame.Desktop").getCurrentFrame()
-        window = frame.getContainerWindow() if frame else None
-        dialog.createPeer(create("com.sun.star.awt.Toolkit"), window)
-        if x is not None and y is not None:
-            ps = dialog.convertSizeToPixel(
-                uno.createUnoStruct("com.sun.star.awt.Size", x, y), TWIP)
-            _x, _y = ps.Width, ps.Height
-        elif window:
-            ps = window.getPosSize()
-            _x = ps.Width / 2 - WIDTH / 2
-            _y = ps.Height / 2 - dialog_height / 2
-        dialog.setPosSize(_x, _y, 0, 0, POS)
+                    if field["name"] == "model":
+                        try:
+                            # Configure combobox with LRU model history
+                            lru = self.get_config("model_lru", [])
+                            if not isinstance(lru, list):
+                                lru = []
 
-        # --- Update JSON preview from current control values ---
-        settings_box_self = self
+                            # Ensure current value is in the dropdown list
 
-        def update_json_preview():
-            config = settings_box_self._read_dialog_config(controls)
-            json_ctrl.getModel().Text = json.dumps(config, indent=2)
+                            curr_val = str(field["value"]).strip()
+                            to_show = list(lru)
+                            if curr_val and curr_val not in to_show:
+                                to_show.insert(0, curr_val)
+                            
+                            # Add items to combobox
+                            if to_show:
+                                ctrl.addItems(tuple(to_show), 0)
+                                # Set the text value to match the current value
+                                if curr_val:
+                                    ctrl.setText(curr_val)
+                        except Exception:
+                            # Fallback: just set the text value
+                            if field["value"]:
+                                ctrl.setText(field["value"])
+                    else:
+                        ctrl.getModel().Text = field["value"]
+            dlg.getControl("endpoint").setFocus()
 
-        # Show initial JSON preview
-        update_json_preview()
+            try:
+                exec_result = dlg.execute()
 
-        # --- Backend change listener: auto-fill endpoint ---
-        presets = self.BACKEND_PRESETS
+                result = {}
+                if exec_result:
+                    for field in field_specs:
+                        try:
+                            ctrl = dlg.getControl(field["name"])
+                            if ctrl:
+                                if field["name"] == "model":
+                                    # For ComboBox, use getText() to get the actual edit text (user input)
+                                    control_text = ctrl.getText()
+                                else:
+                                    control_text = ctrl.getModel().Text if ctrl else ""
+                                
+                                field_type = field.get("type", "text")
+                                if field_type == "int":
+                                    result[field["name"]] = int(control_text) if control_text.isdigit() else control_text
+                                elif field_type == "bool":
+                                    result[field["name"]] = as_bool(control_text)
+                                elif field_type == "float":
+                                    try:
+                                        result[field["name"]] = float(control_text)
+                                    except ValueError:
+                                        result[field["name"]] = control_text
+                                else:
+                                    result[field["name"]] = control_text
+                            else:
+                                result[field["name"]] = ""
+                        except Exception:
+                            result[field["name"]] = ""
+            except Exception:
+                result = {}
+                raise
 
-        class BackendListener(unohelper.Base, XItemListener):
-            def itemStateChanged(self, event):
-                sel = controls["backend"].getModel().SelectedItems
-                if not sel:
-                    return
-                idx = sel[0]
-                preset = presets[idx]
-                if preset[4] is not None:  # has default endpoint
-                    controls["endpoint"].getModel().Text = preset[4]
-                update_json_preview()
 
-            def disposing(self, source):
-                pass
-
-        controls["backend"].addItemListener(BackendListener())
-
-        # --- Refresh button listener: update preview from current controls ---
-        class RefreshListener(unohelper.Base, XActionListener):
-            def actionPerformed(self, event):
-                update_json_preview()
-
-            def disposing(self, source):
-                pass
-
-        dialog.getControl("btn_refresh").addActionListener(RefreshListener())
-
-        controls["endpoint"].setFocus()
-
-        # --- Execute and collect results ---
-        if dialog.execute():
-            result = self._read_dialog_config(controls)
-        else:
-            result = {}
-
-        dialog.dispose()
+        finally:
+            dlg.dispose()
         return result
-    #end sharealike section
-
-    def _save_settings(self, result):
-        for key, value in result.items():
-            if key == "endpoint" and not str(value).startswith("http"):
-                continue
-            if key == "api_type":
-                value = str(value).strip().lower()
-                if value not in ("chat", "completions"):
-                    value = "completions"
-            self.set_config(key, value)
 
     def trigger(self, args):
-        global _debug_logging_enabled
-        _debug_logging_enabled = self._as_bool(self.get_config("debug_logging", False))
-
+        agent_log("main.py:trigger", "trigger called", data={"args": str(args)}, hypothesis_id="H1,H2")
         desktop = self.ctx.ServiceManager.createInstanceWithContext(
             "com.sun.star.frame.Desktop", self.ctx)
         model = desktop.getCurrentComponent()
+        agent_log("main.py:trigger", "model state", data={"model_is_none": model is None, "has_text": hasattr(model, "Text") if model else False, "has_sheets": hasattr(model, "Sheets") if model else False}, hypothesis_id="H2")
+        #if not hasattr(model, "Text"):
+        #    model = self.desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
+
+        if args == "settings" and (not model or (not hasattr(model, "Text") and not hasattr(model, "Sheets"))):
+            agent_log("main.py:trigger", "settings requested but no Writer/Calc document", data={"args": str(args)}, hypothesis_id="H2")
+
+        if args == "RunMarkdownTests":
+            try:
+                from core.markdown_tests import run_markdown_tests
+                writer_model = model if (model and hasattr(model, "getText")) else None
+                p, f, log = run_markdown_tests(self.ctx, writer_model)
+                msg = "Markdown tests: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
+                self.show_error(msg, "Markdown tests")
+            except Exception as e:
+                self.show_error("Tests failed to run: %s" % e, "Markdown tests")
+            return
 
         if hasattr(model, "Text"):
             text = model.Text
@@ -490,68 +368,114 @@ class MainJob(unohelper.Base, XJobExecutor):
                 # Access the current selection
                 if len(text_range.getString()) > 0:
                     try:
-                        # Prepare request using the new unified method
                         system_prompt = self.get_config("extend_selection_system_prompt", "")
                         prompt = text_range.getString()
                         max_tokens = self.get_config("extend_selection_max_tokens", 70)
-                        
                         api_type = str(self.get_config("api_type", "completions")).lower()
-                        request = self.make_api_request(prompt, system_prompt, max_tokens, api_type=api_type)
+                        client = self._get_client()
 
-                        def append_text(chunk_text):
-                            text_range.setString(text_range.getString() + chunk_text)
+                        def apply_chunk(chunk_text, is_thinking=False):
+                            if not is_thinking:
+                                text_range.setString(text_range.getString() + chunk_text)
 
-                        self.stream_request(request, api_type, append_text)
-                                      
+                        run_stream_completion_async(
+                            self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                            apply_chunk, lambda: None,
+                            lambda e: self.show_error(str(e), "LocalWriter: Extend Selection"),
+                        )
                     except Exception as e:
-                        text_range = selection.getByIndex(0)
-                        # Append the user input to the selected text
-                        text_range.setString(text_range.getString() + ": " + str(e))
+                        self.show_error(str(e), "LocalWriter: Extend Selection")
 
             elif args == "EditSelection":
                 # Access the current selection
+                original_text = text_range.getString()
                 try:
                     user_input = self.input_box("Please enter edit instructions!", "Input", "")
-                    
-                    # Prepare the prompt for editing
-                    prompt = "ORIGINAL VERSION:\n" + text_range.getString() + "\n Below is an edited version according to the following instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
-                    
-                    system_prompt = self.get_config("edit_selection_system_prompt", "")
-                    max_tokens = len(text_range.getString()) + self.get_config("edit_selection_max_new_tokens", 0)
-                    
-                    api_type = str(self.get_config("api_type", "completions")).lower()
-                    request = self.make_api_request(prompt, system_prompt, max_tokens, api_type=api_type)
-                    
-                    text_range.setString("")
+                    if not user_input:
+                        return
+                except Exception as e:
+                    self.show_error(str(e), "LocalWriter: Edit Selection")
+                    return
+                prompt = "ORIGINAL VERSION:\n" + original_text + "\n Below is an edited version according to the following instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
+                system_prompt = self.get_config("edit_selection_system_prompt", "")
+                max_tokens = len(original_text) + self.get_config("edit_selection_max_new_tokens", 0)
+                api_type = str(self.get_config("api_type", "completions")).lower()
+                text_range.setString("")
+                client = self._get_client()
 
-                    def append_text(chunk_text):
+                def apply_chunk(chunk_text, is_thinking=False):
+                    if not is_thinking:
                         text_range.setString(text_range.getString() + chunk_text)
 
-                    self.stream_request(request, api_type, append_text)
+                def on_error(e):
+                    text_range.setString(original_text)
+                    self.show_error(str(e), "LocalWriter: Edit Selection")
 
+                try:
+                    run_stream_completion_async(
+                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                        apply_chunk, lambda: None, on_error,
+                    )
                 except Exception as e:
-                    text_range = selection.getByIndex(0)
-                    # Append the user input to the selected text
-                    text_range.setString(text_range.getString() + ": " + str(e))
+                    text_range.setString(original_text)
+                    self.show_error(str(e), "LocalWriter: Edit Selection")
+
+            elif args == "ChatWithDocument":
+                try:
+                    max_context = int(self.get_config("chat_context_length", 8000))
+                    doc_text = get_document_context_for_chat(model, max_context, include_end=True, include_selection=True)
+                    if not doc_text.strip():
+                        self.show_error("Document is empty.", "Chat with Document")
+                        return
+                    user_query = self.input_box("Ask a question about your document:", "Chat with Document", "")
+                    if not user_query:
+                        return
+                    prompt = f"Document content:\n\n{doc_text}\n\nUser question: {user_query}"
+                    system_prompt = self.get_config("chat_system_prompt", "") or DEFAULT_CHAT_SYSTEM_PROMPT
+                    max_tokens = int(self.get_config("chat_max_tokens", 512))
+                    api_type = str(self.get_config("api_type", "completions")).lower()
+                    text = model.Text
+                    cursor = text.createTextCursor()
+                    cursor.gotoEnd(False)
+                    cursor.insertString("\n\n--- Chat response ---\n\n", False)
+                    client = self._get_client()
+
+                    def apply_chunk(chunk_text, is_thinking=False):
+                        if chunk_text:
+                            cursor.insertString(chunk_text, False)
+
+                    run_stream_completion_async(
+                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                        apply_chunk, lambda: None,
+                        lambda e: self.show_error(str(e), "LocalWriter: Chat with Document"),
+                    )
+                except Exception as e:
+                    self.show_error(str(e), "LocalWriter: Chat with Document")
             
             elif args == "settings":
                 try:
+                    agent_log("main.py:trigger", "about to call settings_box (Writer)", hypothesis_id="H1,H2")
                     result = self.settings_box("Settings")
-                    self._save_settings(result)
+                    self._apply_settings_result(result)
                 except Exception as e:
-                    text_range = selection.getByIndex(0)
-                    text_range.setString(text_range.getString() + ":error: " + str(e))
+                    agent_log("main.py:trigger", "settings exception (Writer)", data={"error": str(e)}, hypothesis_id="H5")
+                    self.show_error(str(e), "LocalWriter: Settings")
         elif hasattr(model, "Sheets"):
             try:
+                if args == "ChatWithDocument":
+                    self.show_error("Chat with Document is only available in Writer.", "LocalWriter")
+                    return
                 sheet = model.CurrentController.ActiveSheet
                 selection = model.CurrentController.Selection
 
                 if args == "settings":
                     try:
+                        agent_log("main.py:trigger", "about to call settings_box (Calc)", hypothesis_id="H1,H2")
                         result = self.settings_box("Settings")
-                        self._save_settings(result)
+                        self._apply_settings_result(result)
                     except Exception as e:
-                        log_to_file(f"Calc settings error: {str(e)}")
+                        agent_log("main.py:trigger", "settings exception (Calc)", data={"error": str(e)}, hypothesis_id="H5")
+                        self.show_error(str(e), "LocalWriter: Settings")
                     return
 
                 user_input = ""
@@ -577,38 +501,53 @@ class MainJob(unohelper.Base, XJobExecutor):
                 except (TypeError, ValueError):
                     edit_max_new_tokens = 0
 
+                # Build list of (cell, prompt, system_prompt, max_tokens, original_for_restore or None)
+                tasks = []
                 for row in row_range:
                     for col in col_range:
                         cell = sheet.getCellByPosition(col, row)
-
                         if args == "ExtendSelection":
                             cell_text = cell.getString()
                             if not cell_text:
                                 continue
-                            try:
-                                request = self.make_api_request(cell_text, extend_system_prompt, extend_max_tokens, api_type=api_type)
-
-                                def append_cell_text(chunk_text, target_cell=cell):
-                                    target_cell.setString(target_cell.getString() + chunk_text)
-
-                                self.stream_request(request, api_type, append_cell_text)
-                            except Exception as e:
-                                cell.setString(cell.getString() + ": " + str(e))
+                            tasks.append((cell, cell_text, extend_system_prompt, extend_max_tokens, None))
                         elif args == "EditSelection":
-                            try:
-                                prompt =  "ORIGINAL VERSION:\n" + cell.getString() + "\n Below is an edited version according to the following instructions. Don't waste time thinking, be as fast as you can. The edited text will be a shorter or longer version of the original text based on the instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
+                            cell_original = cell.getString()
+                            prompt = "ORIGINAL VERSION:\n" + cell_original + "\n Below is an edited version according to the following instructions. Don't waste time thinking, be as fast as you can. The edited text will be a shorter or longer version of the original text based on the instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
+                            max_tokens = len(cell_original) + edit_max_new_tokens
+                            tasks.append((cell, prompt, edit_system_prompt, max_tokens, cell_original))
 
-                                max_tokens = len(cell.getString()) + edit_max_new_tokens
-                                request = self.make_api_request(prompt, edit_system_prompt, max_tokens, api_type=api_type)
+                client = self._get_client()
+                task_index = [0]
 
-                                cell.setString("")
+                def run_next_cell():
+                    if task_index[0] >= len(tasks):
+                        return
+                    cell, prompt, system_prompt, max_tokens, original = tasks[task_index[0]]
+                    task_index[0] += 1
+                    if args == "EditSelection" and original is not None:
+                        cell.setString("")
 
-                                def append_edit_text(chunk_text, target_cell=cell):
-                                    target_cell.setString(target_cell.getString() + chunk_text)
+                    def apply_chunk(chunk_text, is_thinking=False):
+                        if not is_thinking:
+                            cell.setString(cell.getString() + chunk_text)
 
-                                self.stream_request(request, api_type, append_edit_text)
-                            except Exception as e:
-                                cell.setString(cell.getString() + ": " + str(e))
+                    def on_done():
+                        run_next_cell()
+
+                    def on_error(e):
+                        if original is not None:
+                            cell.setString(original)
+                        self.show_error(str(e), "LocalWriter: Edit Selection (Calc)" if args == "EditSelection" else "LocalWriter: Extend Selection (Calc)")
+                        # Stop on first error: do not call run_next_cell()
+
+                    run_stream_completion_async(
+                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                        apply_chunk, on_done, on_error,
+                    )
+
+                if tasks:
+                    run_next_cell()
             except Exception:
                 pass
 # Starting from Python IDE
@@ -625,10 +564,11 @@ def main():
 # Starting from command line
 if __name__ == "__main__":
     main()
+
 # pythonloader loads a static g_ImplementationHelper variable
 g_ImplementationHelper = unohelper.ImplementationHelper()
 g_ImplementationHelper.addImplementation(
     MainJob,  # UNO object class
-    "org.extension.sample.do",  # implementation name (customize for yourself)
+    "org.extension.localwriter.Main",  # implementation name (customize for yourself)
     ("com.sun.star.task.Job",), )  # implemented services (only 1)
 # vim: set shiftwidth=4 softtabstop=4 expandtab:

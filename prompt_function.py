@@ -1,23 +1,50 @@
+import os
+import sys
+
+# Ensure extension directory is on path so core can be imported
+_ext_dir = os.path.dirname(os.path.abspath(__file__))
+if _ext_dir not in sys.path:
+    sys.path.insert(0, _ext_dir)
+
 import uno
 import unohelper
-import json
 import urllib.request
-import os
-
+import urllib.parse
+# from com.sun.star.lang import XServiceInfo
+# from com.sun.star.sheet import XAddIn
 from org.extension.localwriter.PromptFunction import XPromptFunction
-from llm import build_api_request, make_ssl_context
+from core.config import get_config, get_api_config
+from core.api import LlmClient
 
+# Enable debug logging
+DEBUG = True
+
+def debug_log(message):
+    """Debug logging function"""
+    if DEBUG:
+        try:
+            # Try to write to a debug file
+            debug_file = os.path.expanduser("~/libreoffice_prompt_debug.log")
+            with open(debug_file, "a", encoding="utf-8") as f:
+                f.write(f"{message}\n")
+        except:
+            # Fallback to stdout
+            print(f"DEBUG: {message}")
+            sys.stdout.flush()
 
 class PromptFunction(unohelper.Base, XPromptFunction):
     def __init__(self, ctx):
+        debug_log("=== PromptFunction.__init__ called ===")
         self.ctx = ctx
 
     def getProgrammaticFunctionName(self, aDisplayName):
+        debug_log(f"=== getProgrammaticFunctionName called with: '{aDisplayName}' ===")
         if aDisplayName == "PROMPT":
             return "prompt"
         return ""
 
     def getDisplayFunctionName(self, aProgrammaticName):
+        debug_log(f"=== getDisplayFunctionName called with: '{aProgrammaticName}' ===")
         if aProgrammaticName == "prompt":
             return "PROMPT"
         return ""
@@ -31,12 +58,24 @@ class PromptFunction(unohelper.Base, XPromptFunction):
         if aProgrammaticName == "prompt":
             if nArgument == 0:
                 return "The prompt to send to the LLM."
+            elif nArgument == 1:
+                return "The system prompt to use."
+            elif nArgument == 2:
+                return "The model to use."
+            elif nArgument == 3:
+                return "The maximum number of tokens to generate."
         return ""
-
+        
     def getArgumentName(self, aProgrammaticName, nArgument):
         if aProgrammaticName == "prompt":
             if nArgument == 0:
                 return "message"
+            elif nArgument == 1:
+                return "system_prompt"
+            elif nArgument == 2:
+                return "model"
+            elif nArgument == 3:
+                return "max_tokens"
         return ""
 
     def hasFunctionWizard(self, aProgrammaticName):
@@ -44,10 +83,12 @@ class PromptFunction(unohelper.Base, XPromptFunction):
 
     def getArgumentCount(self, aProgrammaticName):
         if aProgrammaticName == "prompt":
-            return 1
+            return 4
         return 0
 
     def getArgumentIsOptional(self, aProgrammaticName, nArgument):
+        if aProgrammaticName == "prompt":
+            return nArgument > 0
         return False
 
     def getProgrammaticCategoryName(self, aProgrammaticName):
@@ -57,7 +98,7 @@ class PromptFunction(unohelper.Base, XPromptFunction):
         return "Add-In"
 
     def getLocale(self):
-        return uno.createUnoStruct("com.sun.star.lang.Locale", "en", "US", "")
+        return self.ctx.ServiceManager.createInstance("com.sun.star.lang.Locale", ("en", "US", ""))
 
     def setLocale(self, locale):
         pass
@@ -68,70 +109,44 @@ class PromptFunction(unohelper.Base, XPromptFunction):
     def unload(self):
         pass
 
-    def prompt(self, message):
-        try:
-            endpoint = str(self.get_config("endpoint", "http://localhost:11434"))
-            api_key = str(self.get_config("api_key", ""))
-            api_type = str(self.get_config("api_type", "completions")).lower()
-            model = str(self.get_config("model", ""))
-            is_owui = self.get_config("is_openwebui", False)
-            openai_compat = self.get_config("openai_compatibility", False)
-            system_prompt = str(self.get_config("extend_selection_system_prompt", ""))
-            max_tokens = self.get_config("extend_selection_max_tokens", 70)
+    def prompt(self, message, systemPrompt, model, maxTokens):
+        debug_log(f"=== PromptFunction.PROMPT({message}) called ===")
+        aProgrammaticName = "PROMPT"
+        if aProgrammaticName == "PROMPT":
+            try:
+                system_prompt = systemPrompt if systemPrompt is not None else get_config(self.ctx, "extend_selection_system_prompt", "")
+                model_name = model if model is not None else get_config(self.ctx, "model", "")
+                max_tokens = maxTokens if maxTokens is not None else get_config(self.ctx, "extend_selection_max_tokens", 70)
+                try:
+                    max_tokens = int(max_tokens)
+                except (TypeError, ValueError):
+                    max_tokens = 70
 
-            request = build_api_request(
-                message, endpoint, api_key, api_type, model,
-                is_owui, openai_compat, system_prompt, int(max_tokens))
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": message})
 
-            # Override stream to False — Calc needs the full response at once
-            body = json.loads(request.data.decode('utf-8'))
-            body['stream'] = False
-            request.data = json.dumps(body).encode('utf-8')
+                config = get_api_config(self.ctx)
+                if model is not None:
+                    config = dict(config, model=str(model_name))
+                client = LlmClient(config, self.ctx)
+                return client.chat_completion_sync(messages, max_tokens=max_tokens)
+            except Exception as e:
+                from core.api import format_error_for_display
+                debug_log("PROMPT error: %s" % str(e))
+                return format_error_for_display(e)
+        return ""
 
-            disable_ssl = self.get_config("disable_ssl_verification", False)
-            ssl_ctx = make_ssl_context(disable_ssl)
-
-            with urllib.request.urlopen(request, context=ssl_ctx) as response:
-                response_json = json.loads(response.read().decode('utf-8'))
-                if api_type == "chat":
-                    return response_json["choices"][0]["message"]["content"]
-                else:
-                    return response_json["choices"][0]["text"]
-
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode('utf-8')
-            return f"HTTP Error {e.code}: {error_body}"
-        except urllib.error.URLError as e:
-            return f"Connection error: {e.reason}"
-        except Exception as e:
-            return f"Error: {e}"
-
-    def get_config(self, key, default):
-        name_file = "localwriter.json"
-        path_settings = self.ctx.getServiceManager().createInstanceWithContext(
-            'com.sun.star.util.PathSettings', self.ctx)
-        user_config_path = getattr(path_settings, "UserConfig")
-        if user_config_path.startswith('file://'):
-            user_config_path = str(uno.fileUrlToSystemPath(user_config_path))
-        config_file_path = os.path.join(user_config_path, name_file)
-        if not os.path.exists(config_file_path):
-            return default
-        try:
-            with open(config_file_path, 'r') as file:
-                config_data = json.load(file)
-        except (IOError, json.JSONDecodeError):
-            return default
-        return config_data.get(key, default)
-
+    # XServiceInfo implementation
     def getImplementationName(self):
         return "org.extension.localwriter.PromptFunction"
-
+    
     def supportsService(self, name):
         return name in self.getSupportedServiceNames()
-
+    
     def getSupportedServiceNames(self):
         return ("com.sun.star.sheet.AddIn",)
-
 
 g_ImplementationHelper = unohelper.ImplementationHelper()
 g_ImplementationHelper.addImplementation(
@@ -139,3 +154,16 @@ g_ImplementationHelper.addImplementation(
     "org.extension.localwriter.PromptFunction",
     ("com.sun.star.sheet.AddIn",),
 )
+
+# Test function registration
+def test_registration():
+    """Test if the function is properly registered"""
+    debug_log("=== Testing function registration ===")
+    try:
+        # This will be called when LibreOffice loads the extension
+        debug_log("Function registration test completed")
+    except Exception as e:
+        debug_log(f"Registration test failed: {e}")
+
+# Call test on module load
+test_registration()
