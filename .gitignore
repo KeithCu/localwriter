@@ -3,7 +3,6 @@ localwriter.json
 
 # Build artifacts
 *.oxt
-*.rdb
 *.pyc
 __pycache__/
 
@@ -20,12 +19,6 @@ log.txt
 .vscode/
 .idea/
 *.sublime-*
-
-# Virtual environment
-.venv/
-
-# Test cache
-.pytest_cache/
 
 # Temporary files
 *.tmp
