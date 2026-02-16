@@ -290,7 +290,7 @@ class MainJob(unohelper.Base, XJobExecutor):
 
         if args == "RunMarkdownTests":
             try:
-                from core.markdown_support import run_markdown_tests
+                from core.markdown_tests import run_markdown_tests
                 writer_model = model if (model and hasattr(model, "getText")) else None
                 p, f, log = run_markdown_tests(self.ctx, writer_model)
                 msg = "Markdown tests: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
