@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 MODEL = "x-ai/grok-4.1-fast"
 
-from streaming_deltas import accumulate_delta
+from core.streaming_deltas import accumulate_delta
 from document_tools import WRITER_TOOLS
 
 

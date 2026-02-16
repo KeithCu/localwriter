@@ -194,7 +194,7 @@ Once you’ve run these tests, you can document the **actual** chunk shapes and 
 
 We chose the **lightweight, dependency-free** approach:
 
-- We copied **[`accumulate_delta`](https://github.com/openai/openai-python/blob/main/src/openai/lib/streaming/_deltas.py)** from the OpenAI Python SDK into **`streaming_deltas.py`**.
+- We copied **[`accumulate_delta`](https://github.com/openai/openai-python/blob/main/src/openai/lib/streaming/_deltas.py)** from the OpenAI Python SDK into **`core/streaming_deltas.py`**.
 - This function handles the complex logic of merging partial tool call arguments (which can be split across many chunks) and concatenating content strings.
 - logic: `accumulate_delta(snapshot, delta)` -> updates snapshot in place.
 

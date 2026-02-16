@@ -6,7 +6,7 @@ import json
 import ssl
 import urllib.request
 
-from streaming_deltas import accumulate_delta
+from .streaming_deltas import accumulate_delta
 
 from core.logging import log_to_file, debug_log, update_activity_state
 

@@ -1,7 +1,7 @@
 import sys
 import os
 
-# Ensure extension directory is on path so streaming_deltas can be imported
+# Ensure extension directory is on path so core.streaming_deltas can be imported
 _ext_dir = os.path.dirname(os.path.abspath(__file__))
 if _ext_dir not in sys.path:
     sys.path.insert(0, _ext_dir)

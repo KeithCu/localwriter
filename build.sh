@@ -22,7 +22,6 @@ zip -r "${EXTENSION_NAME}.oxt" \
     chat_panel.py \
     document_tools.py \
     markdown_support.py \
-    streaming_deltas.py \
     XPromptFunction.rdb \
     LocalWriterDialogs/ \
     META-INF/ \
