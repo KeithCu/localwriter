@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
+<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" xmlns:script="http://openoffice.org/2000/script"
+  dlg:id="SettingsDialog" dlg:left="100" dlg:top="50" dlg:width="420" dlg:height="355"
+  dlg:closeable="true" dlg:moveable="true" dlg:resizeable="true" dlg:title="Settings">
+ <dlg:bulletinboard>
+  <dlg:text dlg:id="label_endpoint" dlg:left="8" dlg:top="12" dlg:width="180" dlg:height="10" dlg:value="Endpoint URL/Port:" dlg:align="left"/>
+  <dlg:textfield dlg:id="endpoint" dlg:left="195" dlg:top="10" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="http://127.0.0.1:5000"/>
+  <dlg:text dlg:id="label_model" dlg:left="8" dlg:top="26" dlg:width="180" dlg:height="10" dlg:value="Model (Required by Ollama/OpenAI):" dlg:align="left"/>
+  <dlg:combobox dlg:id="model" dlg:left="195" dlg:top="24" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+  <dlg:text dlg:id="label_api_key" dlg:left="8" dlg:top="40" dlg:width="180" dlg:height="10" dlg:value="API Key (for OpenAI-compatible endpoints):" dlg:align="left"/>
+  <dlg:textfield dlg:id="api_key" dlg:left="195" dlg:top="38" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_api_type" dlg:left="8" dlg:top="54" dlg:width="180" dlg:height="10" dlg:value="API Type (completions/chat):" dlg:align="left"/>
+  <dlg:textfield dlg:id="api_type" dlg:left="195" dlg:top="52" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="completions"/>
+  <dlg:text dlg:id="label_is_openwebui" dlg:left="8" dlg:top="68" dlg:width="180" dlg:height="10" dlg:value="Is OpenWebUI endpoint? (true/false):" dlg:align="left"/>
+  <dlg:textfield dlg:id="is_openwebui" dlg:left="195" dlg:top="66" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="false"/>
+  <dlg:text dlg:id="label_openai_compatibility" dlg:left="8" dlg:top="82" dlg:width="180" dlg:height="10" dlg:value="OpenAI Compatible Endpoint? (true/false):" dlg:align="left"/>
+  <dlg:textfield dlg:id="openai_compatibility" dlg:left="195" dlg:top="80" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="true"/>
+  <dlg:text dlg:id="label_temperature" dlg:left="8" dlg:top="96" dlg:width="180" dlg:height="10" dlg:value="Temperature:" dlg:align="left"/>
+  <dlg:textfield dlg:id="temperature" dlg:left="195" dlg:top="94" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="0.5"/>
+  <dlg:text dlg:id="label_seed" dlg:left="8" dlg:top="110" dlg:width="180" dlg:height="10" dlg:value="Random Seed:" dlg:align="left"/>
+  <dlg:textfield dlg:id="seed" dlg:left="195" dlg:top="108" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_extend_selection_max_tokens" dlg:left="8" dlg:top="124" dlg:width="180" dlg:height="10" dlg:value="Extend Selection Max Tokens:" dlg:align="left"/>
+  <dlg:textfield dlg:id="extend_selection_max_tokens" dlg:left="195" dlg:top="122" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="70"/>
+  <dlg:text dlg:id="label_extend_selection_system_prompt" dlg:left="8" dlg:top="138" dlg:width="180" dlg:height="10" dlg:value="Extend Selection System Prompt:" dlg:align="left"/>
+  <dlg:textfield dlg:id="extend_selection_system_prompt" dlg:left="195" dlg:top="136" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_edit_selection_max_new_tokens" dlg:left="8" dlg:top="152" dlg:width="180" dlg:height="10" dlg:value="Edit Selection Max New Tokens:" dlg:align="left"/>
+  <dlg:textfield dlg:id="edit_selection_max_new_tokens" dlg:left="195" dlg:top="150" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="0"/>
+  <dlg:text dlg:id="label_edit_selection_system_prompt" dlg:left="8" dlg:top="166" dlg:width="180" dlg:height="10" dlg:value="Edit Selection System Prompt:" dlg:align="left"/>
+  <dlg:textfield dlg:id="edit_selection_system_prompt" dlg:left="195" dlg:top="164" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_chat_max_tokens" dlg:left="8" dlg:top="180" dlg:width="180" dlg:height="10" dlg:value="Chat Max Tokens:" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_max_tokens" dlg:left="195" dlg:top="178" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="16384"/>
+  <dlg:text dlg:id="label_chat_context_length" dlg:left="8" dlg:top="194" dlg:width="180" dlg:height="10" dlg:value="Chat Context Length (chars):" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_context_length" dlg:left="195" dlg:top="192" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="8000"/>
+  <dlg:text dlg:id="label_chat_system_prompt" dlg:left="8" dlg:top="208" dlg:width="180" dlg:height="10" dlg:value="Chat System Prompt:" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_system_prompt" dlg:left="8" dlg:top="220" dlg:width="402" dlg:height="65" dlg:tabstop="true" dlg:multiline="true"/>
+  <dlg:text dlg:id="label_request_timeout" dlg:left="8" dlg:top="293" dlg:width="180" dlg:height="10" dlg:value="Request Timeout (seconds):" dlg:align="left"/>
+  <dlg:textfield dlg:id="request_timeout" dlg:left="195" dlg:top="291" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="120"/>
+  <dlg:button dlg:id="btn_ok" dlg:left="160" dlg:top="315" dlg:width="100" dlg:height="18" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
+ </dlg:bulletinboard>
+</dlg:window>

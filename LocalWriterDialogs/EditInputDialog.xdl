@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
+<dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" xmlns:script="http://openoffice.org/2000/script"
+  dlg:id="EditInputDialog" dlg:left="100" dlg:top="50" dlg:width="400" dlg:height="95"
+  dlg:closeable="true" dlg:moveable="true" dlg:resizeable="true" dlg:title="Input">
+ <dlg:bulletinboard>
+  <dlg:text dlg:id="label" dlg:left="8" dlg:top="8" dlg:width="384" dlg:height="14" dlg:value="Please enter edit instructions:" dlg:align="left" dlg:multiline="true"/>
+  <dlg:textfield dlg:id="edit" dlg:left="8" dlg:top="25" dlg:width="384" dlg:height="20" dlg:tabstop="true" dlg:value=""/>
+  <dlg:button dlg:id="btn_ok" dlg:left="150" dlg:top="52" dlg:width="100" dlg:height="22" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
+ </dlg:bulletinboard>
+</dlg:window>
