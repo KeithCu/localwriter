@@ -74,8 +74,8 @@ def tool_get_selection(model, ctx, args):
         if sel and sel.getCount() > 0:
             selected = sel.getByIndex(0).getString()
             return json.dumps({"status": "ok", "text": selected})
-    except Exception:
-        pass
+    except Exception as e:
+        return _tool_error(str(e))
     return json.dumps({"status": "ok", "text": ""})
 
 
@@ -88,8 +88,8 @@ def tool_replace_selection(model, ctx, args):
             old_len = len(rng.getString())
             rng.setString(args["new_text"])
             return json.dumps({"status": "ok", "message": "Replaced selection (%d chars)." % old_len})
-    except Exception:
-        pass
+    except Exception as e:
+        return _tool_error(str(e))
     return json.dumps({"status": "no_selection", "message": "No text is selected."})
 
 

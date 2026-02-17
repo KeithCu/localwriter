@@ -113,18 +113,15 @@ class MainJob(unohelper.Base, XJobExecutor):
 
     def show_error(self, message, title="LocalWriter Error"):
         """Show an error message in a dialog instead of writing to the document."""
-        try:
-            desktop = self.sm.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
-            frame = desktop.getCurrentFrame()
-            if frame and frame.ActiveFrame:
-                frame = frame.ActiveFrame
-            window_peer = frame.getContainerWindow() if frame else None
-            if window_peer:
-                toolkit = self.sm.createInstanceWithContext("com.sun.star.awt.Toolkit", self.ctx)
-                box = toolkit.createMessageBox(window_peer, ERRORBOX, BUTTONS_OK, title, str(message))
-                box.execute()
-        except Exception:
-            pass  # Fallback: if dialog fails, at least we don't crash
+        desktop = self.sm.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
+        frame = desktop.getCurrentFrame()
+        if frame and frame.ActiveFrame:
+            frame = frame.ActiveFrame
+        window_peer = frame.getContainerWindow() if frame else None
+        if window_peer:
+            toolkit = self.sm.createInstanceWithContext("com.sun.star.awt.Toolkit", self.ctx)
+            box = toolkit.createMessageBox(window_peer, ERRORBOX, BUTTONS_OK, title, str(message))
+            box.execute()
 
     def stream_completion(
         self,
@@ -317,7 +314,6 @@ class MainJob(unohelper.Base, XJobExecutor):
             except Exception:
                 result = {}
                 raise
-
 
         finally:
             dlg.dispose()
@@ -552,8 +548,8 @@ class MainJob(unohelper.Base, XJobExecutor):
 
                 if tasks:
                     run_next_cell()
-            except Exception:
-                pass
+            except Exception as e:
+                self.show_error(str(e), "LocalWriter: Calc Processing")
 # Starting from Python IDE
 def main():
     try:

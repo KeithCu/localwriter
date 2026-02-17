@@ -81,26 +81,19 @@ def _safe_int(value, default):
 def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key):
     """Helper to populate a combobox with values from an LRU list in config.
     Ensures current_val is at the top/selected."""
-    try:
-        lru = get_config(ctx, lru_key, [])
-        if not isinstance(lru, list):
-            lru = []
-        
-        curr_val_str = str(current_val).strip()
-        to_show = list(lru)
-        if curr_val_str and curr_val_str not in to_show:
-            to_show.insert(0, curr_val_str)
-        
-        if to_show:
-            ctrl.addItems(tuple(to_show), 0)
-            if curr_val_str:
-                ctrl.setText(curr_val_str)
-    except Exception:
-        if current_val:
-            try:
-                ctrl.setText(str(current_val))
-            except Exception:
-                pass
+    lru = get_config(ctx, lru_key, [])
+    if not isinstance(lru, list):
+        lru = []
+    
+    curr_val_str = str(current_val).strip()
+    to_show = list(lru)
+    if curr_val_str and curr_val_str not in to_show:
+        to_show.insert(0, curr_val_str)
+    
+    if to_show:
+        ctrl.addItems(tuple(to_show), 0)
+        if curr_val_str:
+            ctrl.setText(curr_val_str)
 
 
 def update_lru_history(ctx, val, lru_key, max_items=10):

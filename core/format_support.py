@@ -154,18 +154,12 @@ def _range_to_markdown_via_temp_doc(model, ctx, selection_start, selection_end, 
             if first_para:
                 temp_cursor.gotoStart(False)
                 temp_cursor.setString(para_text)
-                try:
-                    temp_cursor.setPropertyValue("ParaStyleName", style)
-                except Exception:
-                    pass
+                temp_cursor.setPropertyValue("ParaStyleName", style)
                 first_para = False
             else:
                 temp_cursor.gotoEnd(False)
                 temp_text.insertControlCharacter(temp_cursor, _PARAGRAPH_BREAK, False)
-                try:
-                    temp_cursor.setPropertyValue("ParaStyleName", style)
-                except Exception:
-                    pass
+                temp_cursor.setPropertyValue("ParaStyleName", style)
                 temp_cursor.setString(para_text)
             added_any = True
 
