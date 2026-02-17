@@ -885,7 +885,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         # Show ready message
         try:
             if response_ctrl and response_ctrl.getModel():
-                response_ctrl.getModel().Text = "Ready. I can edit or translate your document instantly. Try me!\n"
+                response_ctrl.getModel().Text = "I can edit or translate your document instantly. Try me!\n"
         except Exception:
             pass
 
@@ -896,6 +896,12 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 clear_btn.addActionListener(ClearButtonListener(
                     self.session, response_ctrl, status_ctrl))
                 debug_log(self.ctx, "Clear button wired")
+        except Exception:
+            pass
+
+        try:
+            if status_ctrl and hasattr(status_ctrl, "setText"):
+                status_ctrl.setText("Ready")
         except Exception:
             pass
 
