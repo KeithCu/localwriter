@@ -62,7 +62,7 @@ def run_stream_completion_async(
         items = []
         try:
             # Wait for at least one item or timeout
-            items.append(q.get(timeout=0.05))
+            items.append(q.get(timeout=0.1))
             # Drain all currently available items to batch updates
             try:
                 while True:

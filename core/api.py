@@ -10,10 +10,6 @@ from .streaming_deltas import accumulate_delta
 
 from core.logging import log_to_file, debug_log, update_activity_state
 
-# Set True to call toolkit.processEventsToIdle() when stream chunks arrive (refreshes UI;
-# can cause hangs on some systems). Leave code in place, toggle when needed.
-PROCESS_EVENTS_DURING_STREAM = True
-
 
 def format_error_message(e):
     """Map common exceptions to user-friendly advice."""
@@ -299,9 +295,6 @@ class LlmClient:
         dispatch_events=True,
     ):
         """Stream a completion/chat response and append chunks via callbacks."""
-        toolkit = self.ctx.getServiceManager().createInstanceWithContext(
-            "com.sun.star.awt.Toolkit", self.ctx
-        ) if dispatch_events else None
         ssl_context = _get_ssl_context()
         timeout = self._timeout()
 
@@ -344,11 +337,6 @@ class LlmClient:
                                 append_thinking_callback(thinking)
                             if content:
                                 append_callback(content)
-                            if dispatch_events and PROCESS_EVENTS_DURING_STREAM and toolkit and ((thinking and append_thinking_callback) or content):
-                                try:
-                                    toolkit.processEventsToIdle()
-                                except Exception:
-                                    pass
 
                             if finish_reason:
                                 break
@@ -432,9 +420,6 @@ class LlmClient:
         request = self.make_chat_request(
             messages, max_tokens, tools=tools, stream=True
         )
-        toolkit = self.ctx.getServiceManager().createInstanceWithContext(
-            "com.sun.star.awt.Toolkit", self.ctx
-        ) if dispatch_events else None
         ssl_context = _get_ssl_context()
         timeout = self._timeout()
 
@@ -509,11 +494,6 @@ class LlmClient:
                         append_thinking_callback(thinking)
                     if content:
                         append_callback(content)
-                    if dispatch_events and PROCESS_EVENTS_DURING_STREAM and toolkit and (thinking or content):
-                        try:
-                            toolkit.processEventsToIdle()
-                        except Exception:
-                            pass
 
                     if delta:
                         accumulate_delta(message_snapshot, delta)
