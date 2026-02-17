@@ -27,7 +27,7 @@ localwriter/
 │   ├── config.py        # get_config, set_config, get_api_config (localwriter.json)
 │   ├── api.py           # LlmClient: streaming, chat, tool-calling
 │   ├── document.py      # get_full_document_text, get_document_end, get_selection_range, get_document_length, get_text_cursor_at_range, get_document_context_for_chat (Writer)
-│   ├── logging.py       # log_to_file, agent_log, debug_log, debug_log_paths
+│   ├── logging.py       # init_logging, debug_log(msg, context), agent_log; single debug file + optional agent log
 │   ├── constants.py     # DEFAULT_CHAT_SYSTEM_PROMPT
 │   └── async_stream.py  # run_stream_completion_async: worker + queue + main-thread drain (no UNO Timer)
 ├── prompt_function.py   # Calc =PROMPT() formula
@@ -124,7 +124,7 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
 All streaming paths (sidebar tool-calling, sidebar simple stream, Writer Extend/Edit/menu Chat, Calc) use the same pattern so the UI stays responsive without relying on UNO Timer/listeners:
 
 - **Worker thread**: Runs blocking API/streaming (e.g. `stream_completion`, `stream_request_with_tools`), puts items on a **`queue.Queue`** (`("chunk", text)`, `("thinking", text)`, `("stream_done", ...)`, `("error", e)`, `("stopped",)`).
-- **Main thread**: After starting the worker, runs a **drain loop**: `q.get(timeout=0.05)` → process item (append text, update status, call on_done/on_error) → **`toolkit.processEventsToIdle()`**. Repeats until job_done.
+- **Main thread**: After starting the worker, runs a **drain loop**: `q.get(timeout=0.1)` → process item (append text, update status, call on_done/on_error) → **`toolkit.processEventsToIdle()`**. Repeats until job_done. `processEventsToIdle()` is called only after processing a full batch of queue items or on drain-loop timeout; there are no per-chunk calls in the API (per-chunk dispatch is disabled).
 - **UNO usage**: Only `ctx.getServiceManager().createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)` (string-based, no `com` import) and `toolkit.processEventsToIdle()`. No Timer, no `XTimerListener`—avoids "XTimerListener unknown" in the sidebar context and keeps the design consistent everywhere.
 - **Why it’s better**: Standard Python (`queue`, `threading`); interface is just the queue; multiple chunks can be applied between `processEventsToIdle()` calls so multiple inserts are shown in one redraw (fewer repaints, faster perceived speed).
 - **Where**: **Sidebar** — `chat_panel.py` `_start_tool_calling_async()` (tool path) and simple stream via `run_stream_completion_async()`. **Writer/Calc** — `main.py` calls `core/async_stream.run_stream_completion_async()` for Extend Selection, Edit Selection, menu Chat with Document, and Calc Extend/Edit.
@@ -152,9 +152,10 @@ The "Additional Instructions" (previously system prompts) are now unified across
 
 - **`MainJob._apply_settings_result(self, result)`** (`main.py`): Applies settings dialog result to config. Used by both Writer and Calc settings branches.
 - **`core/logging.py`**:
-  - `agent_log(location, message, data=None, hypothesis_id=None, run_id=None)` — NDJSON agent log. Paths: `{ext_dir}/.cursor/debug.log`, `~/localwriter_agent_debug.log`, `/tmp/localwriter_agent_debug.log`.
-  - `debug_log(ctx, msg)` — chat debug log. Paths: UserConfig, `~/localwriter_chat_debug.log`, `/tmp/localwriter_chat_debug.log`.
-  - `debug_log_paths(ctx)` — returns writable paths for chat debug.
+  - Call `init_logging(ctx)` once from an entry point (e.g. start of `trigger`, or when the chat panel wires controls). Sets global log paths and optional `enable_agent_log` from config.
+  - `debug_log(msg, context=None)` — single debug file. Writes to `localwriter_debug.log` in user config dir (or `~/localwriter_debug.log`). Use `context="API"`, `"Chat"`, or `"Markdown"` for prefixed lines. No ctx passed at write time.
+  - `agent_log(location, message, ...)` — NDJSON to `localwriter_agent.log` (user config or `~/`), only if config `enable_agent_log` is true.
+  - Watchdog: `update_activity_state(phase, ...)`, `start_watchdog_thread(ctx, status_control)` for hang detection (logs and status "Hung: ..." if no activity for threshold).
 - **`SendButtonListener._send_busy`** (`chat_panel.py`): Boolean; True from run start until the `finally` block of `actionPerformed` (single source of truth for "is the AI running?"). Used together with lifecycle-based `_set_button_states(send_enabled, stop_enabled)`.
 - **`core/api.format_error_for_display(e)`**: Returns user-friendly error string for cells/dialogs (e.g. `"Error: Connection refused..."`).
 
@@ -204,13 +205,9 @@ The "Additional Instructions" (previously system prompts) are now unified across
 
 ## 5b. Log Files
 
-- **Agent log** (NDJSON): `core/logging.agent_log()`. Paths tried: `{ext_dir}/.cursor/debug.log`, `~/localwriter_agent_debug.log`, `/tmp/localwriter_agent_debug.log`.
-  - Used by `main.py`, `chat_panel.py`, `document_tools.py` for hypothesis/debug tracking.
-- **Chat sidebar debug log**: `core/logging.debug_log()`. Paths: UserConfig dir (`localwriter_chat_debug.log`), `~/localwriter_chat_debug.log`, `/tmp/localwriter_chat_debug.log`.
-  - Contains tool-calling loop details, import status, API round-trip info.
-- **General API log**: `~/log.txt`
-  - Written by `log_to_file()` in `core/logging.py`
-  - Contains API request URLs, headers, response status for all completions/chat requests
+- **Unified debug log**: `localwriter_debug.log` in LibreOffice user config dir (or `~/localwriter_debug.log`). Written by `debug_log(msg, context=...)` with prefixes `[API]`, `[Chat]`, `[Markdown]`. Paths are set once via `init_logging(ctx)`; no ctx needed at call sites.
+- **Agent log** (NDJSON, optional): `localwriter_agent.log` in user config (or `~/`). Written by `agent_log(...)` only when config key `enable_agent_log` is true (default false). Used for hypothesis/debug tracking.
+- **Watchdog**: If no activity for the threshold (e.g. 30s), a line is written to the debug log and the status control shows "Hung: ...".
 
 ---
 
@@ -259,7 +256,7 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - **dtd reference**: XDL uses `<!DOCTYPE dlg:window PUBLIC "... "dialog.dtd">`. LibreOffice resolves this from its installation.
 - **Chat sidebar visibility**: After `createContainerWindow()`, call `setVisible(True)` on the returned window; otherwise the panel content stays blank.
 - **Chat panel imports**: `chat_panel.py` uses `_ensure_extension_on_path()` to add the extension dir to `sys.path` so `from main import MainJob` and `from document_tools import ...` work.
-- **Logging**: Use `core.logging.agent_log()` for NDJSON agent logs and `core.logging.debug_log(ctx, msg)` for chat debug logs. Do not add new ad-hoc log paths.
+- **Logging**: Call `init_logging(ctx)` once from an entry point that has ctx. Then use `debug_log(msg, context="API"|"Chat"|"Markdown")` and `agent_log(...)`; both use global paths. Do not add new ad-hoc log paths.
 - **Streaming in sidebar**: Do not use UNO Timer or `XTimerListener` for draining the stream queue—the type is not available in the sidebar context. Use the pure Python pattern: worker + `queue.Queue` + main-thread loop with `toolkit.processEventsToIdle()` (see "Streaming I/O" in Section 3b).
 
 ---

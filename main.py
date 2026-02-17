@@ -13,7 +13,7 @@ from core.config import get_config, set_config, as_bool, get_api_config, populat
 from core.api import LlmClient
 from core.document import get_full_document_text, get_document_context_for_chat
 from core.async_stream import run_stream_completion_async
-from core.logging import log_to_file, agent_log
+from core.logging import agent_log, init_logging
 from core.constants import DEFAULT_CHAT_SYSTEM_PROMPT
 from com.sun.star.task import XJobExecutor
 from com.sun.star.awt import MessageBoxButtons as MSG_BUTTONS
@@ -322,6 +322,7 @@ class MainJob(unohelper.Base, XJobExecutor):
         return result
 
     def trigger(self, args):
+        init_logging(self.ctx)
         agent_log("main.py:trigger", "trigger called", data={"args": str(args)}, hypothesis_id="H1,H2")
         desktop = self.ctx.ServiceManager.createInstanceWithContext(
             "com.sun.star.frame.Desktop", self.ctx)

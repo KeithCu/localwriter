@@ -15,7 +15,7 @@ _ext_dir = os.path.dirname(os.path.abspath(__file__))
 if _ext_dir not in sys.path:
     sys.path.insert(0, _ext_dir)
 
-from core.logging import agent_log, debug_log, update_activity_state, start_watchdog_thread
+from core.logging import agent_log, debug_log, update_activity_state, start_watchdog_thread, init_logging
 from core.async_stream import run_stream_completion_async, run_stream_drain_loop
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
@@ -57,11 +57,14 @@ def _ensure_extension_on_path(ctx):
             ext_path = ext_url
         if ext_path and ext_path not in sys.path:
             sys.path.insert(0, ext_path)
-            debug_log(ctx, "Added extension path to sys.path: %s" % ext_path)
+            init_logging(ctx)
+            debug_log("Added extension path to sys.path: %s" % ext_path, context="Chat")
         else:
-            debug_log(ctx, "Extension path already on sys.path: %s" % ext_path)
+            init_logging(ctx)
+            debug_log("Extension path already on sys.path: %s" % ext_path, context="Chat")
     except Exception as e:
-        debug_log(ctx, "_ensure_extension_on_path ERROR: %s" % e)
+        init_logging(ctx)
+        debug_log("_ensure_extension_on_path ERROR: %s" % e, context="Chat")
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +156,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
             if self.status_control:
                 self.status_control.setText(text)
             else:
-                debug_log(self.ctx, "_set_status: NO CONTROL for '%s'" % text)
+                debug_log("_set_status: NO CONTROL for '%s'" % text, context="Chat")
         except Exception as e:
-            debug_log(self.ctx, "_set_status('%s') EXCEPTION: %s" % (text, e))
+            debug_log("_set_status('%s') EXCEPTION: %s" % (text, e), context="Chat")
 
     def _scroll_response_to_bottom(self):
         """Scroll the response area to show the bottom (newest content).
@@ -210,17 +213,16 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     model.setPropertyValue("Enabled", val)
                     return
             except Exception as e1:
-                debug_log(self.ctx, "_set_button_states (model) failed: %s" % e1)
+                debug_log("_set_button_states (model) failed: %s" % e1, context="Chat")
             try:
                 if hasattr(control, "setEnable"):
                     control.setEnable(val)
             except Exception as e2:
-                debug_log(self.ctx, "_set_button_states (setEnable) failed: %s" % e2)
+                debug_log("_set_button_states (setEnable) failed: %s" % e2, context="Chat")
         set_control_enabled(self.send_control, send_enabled)
         set_control_enabled(self.stop_control, stop_enabled)
 
     def actionPerformed(self, evt):
-        from core.logging import log_to_file
         try:
             self.stop_requested = False
             self._terminal_status = "Ready"
@@ -232,42 +234,41 @@ class SendButtonListener(unohelper.Base, XActionListener):
             import traceback
             tb = traceback.format_exc()
             self._append_response("\n\n[Error: %s]\n%s\n" % (str(e), tb))
-            debug_log(self.ctx, "SendButton error: %s\n%s" % (e, tb))
+            debug_log("SendButton error: %s\n%s" % (e, tb), context="Chat")
         finally:
             self._send_busy = False
-            debug_log(self.ctx, "actionPerformed finally: resetting UI")
+            debug_log("actionPerformed finally: resetting UI", context="Chat")
             self._set_status(self._terminal_status)
             self._set_button_states(send_enabled=True, stop_enabled=False)
-            debug_log(self.ctx, "control returned to LibreOffice")
+            debug_log("control returned to LibreOffice", context="Chat")
             update_activity_state("")  # clear phase so watchdog does not report after we return
 
     def _do_send(self):
         self._set_status("Starting...")
         update_activity_state("do_send")
-        debug_log(self.ctx, "=== _do_send START ===")
+        debug_log("=== _do_send START ===", context="Chat")
 
         # Ensure extension directory is on sys.path
         _ensure_extension_on_path(self.ctx)
 
         try:
-            debug_log(self.ctx, "_do_send: importing core modules...")
+            debug_log("_do_send: importing core modules...", context="Chat")
             from core.config import get_config, get_api_config, update_lru_history
             from core.api import LlmClient
             from core.document import get_document_context_for_chat
-            from core.logging import log_to_file
-            debug_log(self.ctx, "_do_send: core modules imported OK")
+            debug_log("_do_send: core modules imported OK", context="Chat")
         except Exception as e:
-            debug_log(self.ctx, "_do_send: core import FAILED: %s" % e)
+            debug_log("_do_send: core import FAILED: %s" % e, context="Chat")
             self._append_response("\n[Import error - core: %s]\n" % e)
             self._terminal_status = "Error"
             return
 
         try:
-            debug_log(self.ctx, "_do_send: importing document_tools...")
+            debug_log("_do_send: importing document_tools...", context="Chat")
             from core.document_tools import WRITER_TOOLS, execute_tool
-            debug_log(self.ctx, "_do_send: document_tools imported OK (%d tools)" % len(WRITER_TOOLS))
+            debug_log("_do_send: document_tools imported OK (%d tools)" % len(WRITER_TOOLS), context="Chat")
         except Exception as e:
-            debug_log(self.ctx, "_do_send: document_tools import FAILED: %s" % e)
+            debug_log("_do_send: document_tools import FAILED: %s" % e, context="Chat")
             self._append_response("\n[Import error - document_tools: %s]\n" % e)
             self._terminal_status = "Error"
             return
@@ -304,25 +305,25 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 from core.config import set_config
                 set_config(self.ctx, "model", selected_model)
                 update_lru_history(self.ctx, selected_model, "model_lru")
-                debug_log(self.ctx, "_do_send: model updated to %s" % selected_model)
+                debug_log("_do_send: model updated to %s" % selected_model, context="Chat")
 
         # 2. Get document model
         self._set_status("Getting document...")
-        debug_log(self.ctx, "_do_send: getting document model...")
+        debug_log("_do_send: getting document model...", context="Chat")
         model = self._get_document_model()
         if not model:
-            debug_log(self.ctx, "_do_send: no Writer document found")
+            debug_log("_do_send: no Writer document found", context="Chat")
             self._append_response("\n[No Writer document open.]\n")
             self._terminal_status = "Error"
             return
-        debug_log(self.ctx, "_do_send: got document model OK")
+        debug_log("_do_send: got document model OK", context="Chat")
 
         # 3. Set up config and LlmClient
         max_context = int(get_config(self.ctx, "chat_context_length", 8000))
         max_tokens = int(get_config(self.ctx, "chat_max_tokens", 16384))
         api_type = str(get_config(self.ctx, "api_type", "completions")).lower()
-        debug_log(self.ctx, "_do_send: config loaded: api_type=%s, max_tokens=%d, max_context=%d" %
-                    (api_type, max_tokens, max_context))
+        debug_log("_do_send: config loaded: api_type=%s, max_tokens=%d, max_context=%d" %
+                    (api_type, max_tokens, max_context), context="Chat")
 
         # Determine if tool-calling is available (requires chat API)
         use_tools = (api_type == "chat")
@@ -333,27 +334,25 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # 4. Refresh document context in session (start + end excerpts, inline selection/cursor markers)
         self._set_status("Reading document...")
         doc_text = get_document_context_for_chat(model, max_context, include_end=True, include_selection=True)
-        debug_log(self.ctx, "_do_send: document context length=%d" % len(doc_text))
+        debug_log("_do_send: document context length=%d" % len(doc_text), context="Chat")
         agent_log("chat_panel.py:doc_context", "Document context for AI", data={"doc_length": len(doc_text), "doc_prefix_first_200": (doc_text or "")[:200], "max_context": max_context}, hypothesis_id="B")
         self.session.update_document_context(doc_text)
 
         # 5. Add user message to session and display
         self.session.add_user_message(query_text)
         self._append_response("\nYou: %s\n" % query_text)
-        debug_log(self.ctx, "_do_send: user query='%s'" % query_text[:100])
+        debug_log("_do_send: user query='%s'" % query_text[:100], context="Chat")
 
         self._set_status("Connecting to AI (api_type=%s, tools=%s)..." % (api_type, use_tools))
-        debug_log(self.ctx, "_do_send: calling AI, use_tools=%s, messages=%d" %
-                    (use_tools, len(self.session.messages)))
-
+        debug_log("_do_send: calling AI, use_tools=%s, messages=%d" %
+                    (use_tools, len(self.session.messages)), context="Chat")
         if use_tools:
             max_tool_rounds = api_config.get("chat_max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS)
             self._start_tool_calling_async(client, model, max_tokens, WRITER_TOOLS, execute_tool, max_tool_rounds)
         else:
             self._start_simple_stream_async(client, max_tokens, api_type)
 
-        log_to_file("=== _do_send END (async started) ===")
-        debug_log(self.ctx, "=== _do_send END (async started) ===")
+        debug_log("=== _do_send END (async started) ===", context="Chat")
 
     # Future work: Undo grouping for AI edits (user can undo all edits from one turn with Ctrl+Z).
     # Previous attempt used enterUndoContext("AI Edit") / leaveUndoContext() but leaveUndoContext
@@ -361,10 +360,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
     def _start_tool_calling_async(self, client, model, max_tokens, tools, execute_tool_fn, max_tool_rounds=None):
         """Tool-calling loop: worker thread + queue, main thread drains queue with processEventsToIdle (pure Python threading, no UNO Timer)."""
-        from core.logging import log_to_file
         if max_tool_rounds is None:
             max_tool_rounds = DEFAULT_MAX_TOOL_ROUNDS
-        debug_log(self.ctx, "=== Tool-calling loop START (max %d rounds) ===" % max_tool_rounds)
+        debug_log("=== Tool-calling loop START (max %d rounds) ===" % max_tool_rounds, context="Chat")
         self._append_response("\nAI: ")
         q = queue.Queue()
         round_num = [0]
@@ -373,7 +371,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         def start_worker():
             r = round_num[0]
             update_activity_state("tool_loop", round_num=r)
-            debug_log(self.ctx, "Tool loop round %d: sending %d messages to API..." % (r, len(self.session.messages)))
+            debug_log("Tool loop round %d: sending %d messages to API..." % (r, len(self.session.messages)), context="Chat")
             self._set_status("Waiting for model..." if r == 0 else "Connecting (round %d)..." % (r + 1))
 
             def run():
@@ -391,7 +389,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                         update_activity_state("tool_loop", round_num=r)
                         q.put(("stream_done", response))
                 except Exception as e:
-                    debug_log(self.ctx, "Tool loop round %d: API ERROR: %s" % (r, e))
+                    debug_log("Tool loop round %d: API ERROR: %s" % (r, e), context="Chat")
                     q.put(("error", e))
 
             threading.Thread(target=run, daemon=True).start()
@@ -437,7 +435,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             if not tool_calls:
                 agent_log("chat_panel.py:exit_no_tools", "Exiting loop: no tool_calls", data={"round": r}, hypothesis_id="A")
                 if content:
-                    log_to_file("Tool loop: Adding assistant message to session")
+                    debug_log("Tool loop: Adding assistant message to session", context="Chat")
                     self.session.add_assistant_message(content=content)
                     self._append_response("\n")
                 elif finish_reason == "length":
@@ -472,9 +470,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     except Exception:
                         func_args = {}
                 agent_log("chat_panel.py:tool_execute", "Executing tool", data={"tool": func_name, "round": r}, hypothesis_id="C,D,E")
-                debug_log(self.ctx, "Tool call: %s(%s)" % (func_name, func_args_str))
+                debug_log("Tool call: %s(%s)" % (func_name, func_args_str), context="Chat")
                 result = execute_tool_fn(func_name, func_args, model, self.ctx)
-                debug_log(self.ctx, "Tool result: %s" % result)
+                debug_log("Tool result: %s" % result, context="Chat")
                 try:
                     result_data = json.loads(result)
                     note = result_data.get("message", result_data.get("status", "done"))
@@ -532,7 +530,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
     def _start_simple_stream_async(self, client, max_tokens, api_type):
         """Start simple streaming (no tools) via async helper; returns immediately."""
-        debug_log(self.ctx, "=== Simple stream START (api_type=%s) ===" % api_type)
+        debug_log("=== Simple stream START (api_type=%s) ===" % api_type, context="Chat")
         self._set_status("Waiting for model...")
         self._append_response("\nAI: ")
 
@@ -653,13 +651,13 @@ class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         return self.PanelWindow
 
     def getHeightForWidth(self, width):
-        debug_log(self.ctx, "getHeightForWidth(width=%s)" % width)
+        debug_log("getHeightForWidth(width=%s)" % width, context="Chat")
         # Constrain panel to sidebar width (and parent height when available).
         if self.parent_window and self.PanelWindow and width > 0:
             parent_rect = self.parent_window.getPosSize()
             h = parent_rect.Height if parent_rect.Height > 0 else 280
             self.PanelWindow.setPosSize(0, 0, width, h, 15)
-            debug_log(self.ctx, "panel constrained to W=%s H=%s" % (width, h))
+            debug_log("panel constrained to W=%s H=%s" % (width, h), context="Chat")
         # Min 280, preferred -1 (let sidebar decide), max 280 — matches working Git layout.
         return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 280, -1, 280)
 
@@ -682,36 +680,36 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         self.session = None  # Created in _wireControls
 
     def getRealInterface(self):
-        debug_log(self.ctx, "=== getRealInterface called ===")
+        debug_log("=== getRealInterface called ===", context="Chat")
         if not self.toolpanel:
             try:
                 # Ensure extension on path early so _wireControls imports work
                 _ensure_extension_on_path(self.ctx)
                 root_window = self._getOrCreatePanelRootWindow()
-                debug_log(self.ctx, "root_window created: %s" % (root_window is not None))
+                debug_log("root_window created: %s" % (root_window is not None), context="Chat")
                 self.toolpanel = ChatToolPanel(root_window, self.xParentWindow, self.ctx)
                 self._wireControls(root_window)
-                debug_log(self.ctx, "getRealInterface completed successfully")
+                debug_log("getRealInterface completed successfully", context="Chat")
             except Exception as e:
-                debug_log(self.ctx, "getRealInterface ERROR: %s" % e)
+                debug_log("getRealInterface ERROR: %s" % e, context="Chat")
                 import traceback
-                debug_log(self.ctx, traceback.format_exc())
+                debug_log(traceback.format_exc(), context="Chat")
                 raise
         return self.toolpanel
 
     def _getOrCreatePanelRootWindow(self):
-        debug_log(self.ctx, "_getOrCreatePanelRootWindow entered")
+        debug_log("_getOrCreatePanelRootWindow entered", context="Chat")
         pip = self.ctx.getValueByName(
             "/singletons/com.sun.star.deployment.PackageInformationProvider")
         base_url = pip.getPackageLocation(EXTENSION_ID)
         dialog_url = base_url + "/" + XDL_PATH
-        debug_log(self.ctx, "dialog_url: %s" % dialog_url)
+        debug_log("dialog_url: %s" % dialog_url, context="Chat")
         provider = self.ctx.getServiceManager().createInstanceWithContext(
             "com.sun.star.awt.ContainerWindowProvider", self.ctx)
-        debug_log(self.ctx, "calling createContainerWindow...")
+        debug_log("calling createContainerWindow...", context="Chat")
         self.m_panelRootWindow = provider.createContainerWindow(
             dialog_url, "", self.xParentWindow, None)
-        debug_log(self.ctx, "createContainerWindow returned")
+        debug_log("createContainerWindow returned", context="Chat")
         # Sidebar does not show the panel content without this (framework does not make it visible).
         if self.m_panelRootWindow and hasattr(self.m_panelRootWindow, "setVisible"):
             self.m_panelRootWindow.setVisible(True)
@@ -720,15 +718,14 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         if parent_rect.Width > 0 and parent_rect.Height > 0:
             self.m_panelRootWindow.setPosSize(
                 0, 0, parent_rect.Width, parent_rect.Height, 15)
-            debug_log(self.ctx, "panel constrained to W=%s H=%s" % (
-                parent_rect.Width, parent_rect.Height))
-        return self.m_panelRootWindow
+            debug_log("panel constrained to W=%s H=%s" % (
+                parent_rect.Width, parent_rect.Height), context="Chat")
 
     def _wireControls(self, root_window):
         """Attach listeners to Send and Clear buttons."""
-        debug_log(self.ctx, "_wireControls entered")
+        debug_log("_wireControls entered", context="Chat")
         if not hasattr(root_window, "getControl"):
-            debug_log(self.ctx, "_wireControls: root_window has no getControl, aborting")
+            debug_log("_wireControls: root_window has no getControl, aborting", context="Chat")
             return
 
         # Get controls -- these must exist in the XDL
@@ -745,19 +742,19 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             model_selector = root_window.getControl("model_selector")
         except Exception:
             pass
-        debug_log(self.ctx, "_wireControls: got send/query/response/prompt/model controls")
+        debug_log("_wireControls: got send/query/response/prompt/model controls", context="Chat")
 
         # Status label (may not exist in older XDL)
         status_ctrl = None
         try:
             status_ctrl = root_window.getControl("status")
-            debug_log(self.ctx, "_wireControls: got status control")
+            debug_log("_wireControls: got status control", context="Chat")
         except Exception:
-            debug_log(self.ctx, "_wireControls: no status control in XDL (ok)")
+            debug_log("_wireControls: no status control in XDL (ok)", context="Chat")
 
         # Helper to show errors visibly in the response area
         def _show_init_error(msg):
-            debug_log(self.ctx, "_wireControls ERROR: %s" % msg)
+            debug_log("_wireControls ERROR: %s" % msg, context="Chat")
             try:
                 if response_ctrl and response_ctrl.getModel():
                     current = response_ctrl.getModel().Text or ""
@@ -770,7 +767,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
 
         try:
             # Read system prompt from config
-            debug_log(self.ctx, "_wireControls: importing core config...")
+            debug_log("_wireControls: importing core config...", context="Chat")
             from core.config import get_config, populate_combobox_with_lru
             from core.constants import DEFAULT_CHAT_SYSTEM_PROMPT
             extra_instructions = get_config(self.ctx, "additional_instructions", "")
@@ -785,11 +782,11 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             system_prompt = DEFAULT_CHAT_SYSTEM_PROMPT
             if extra_instructions:
                 system_prompt += "\n\n" + str(extra_instructions)
-            debug_log(self.ctx, "_wireControls: config loaded")
+            debug_log("_wireControls: config loaded", context="Chat")
         except Exception as e:
             import traceback
             _show_init_error("Config: %s" % e)
-            debug_log(self.ctx, traceback.format_exc())
+            debug_log(traceback.format_exc(), context="Chat")
             system_prompt = DEFAULT_SYSTEM_PROMPT_FALLBACK
 
         # Create session
@@ -802,12 +799,12 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 self.ctx, self.xFrame, send_btn, stop_btn, query_ctrl, response_ctrl,
                 prompt_selector, model_selector, status_ctrl, self.session)
             send_btn.addActionListener(send_listener)
-            debug_log(self.ctx, "Send button wired")
+            debug_log("Send button wired", context="Chat")
             start_watchdog_thread(self.ctx, status_ctrl)
 
             if stop_btn:
                 stop_btn.addActionListener(StopButtonListener(send_listener))
-                debug_log(self.ctx, "Stop button wired")
+                debug_log("Stop button wired", context="Chat")
             # Initial state: Send enabled, Stop disabled (no AI running yet)
             send_listener._set_button_states(send_enabled=True, stop_enabled=False)
         except Exception as e:
@@ -826,7 +823,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             if clear_btn:
                 clear_btn.addActionListener(ClearButtonListener(
                     self.session, response_ctrl, status_ctrl))
-                debug_log(self.ctx, "Clear button wired")
+                debug_log("Clear button wired", context="Chat")
         except Exception:
             pass
 
@@ -847,14 +844,14 @@ class ChatPanelFactory(unohelper.Base, XUIElementFactory):
         self.ctx = ctx
 
     def createUIElement(self, resource_url, args):
-        debug_log(self.ctx, "createUIElement: %s" % resource_url)
+        debug_log("createUIElement: %s" % resource_url, context="Chat")
         if "ChatPanel" not in resource_url:
             from com.sun.star.container import NoSuchElementException
             raise NoSuchElementException("Unknown resource: " + resource_url)
 
         frame = _get_arg(args, "Frame")
         parent_window = _get_arg(args, "ParentWindow")
-        debug_log(self.ctx, "ParentWindow: %s" % (parent_window is not None))
+        debug_log("ParentWindow: %s" % (parent_window is not None), context="Chat")
         if not parent_window:
             from com.sun.star.lang import IllegalArgumentException
             raise IllegalArgumentException("ParentWindow is required")

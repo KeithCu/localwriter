@@ -21,6 +21,17 @@ def _config_path(ctx):
     return os.path.join(user_config_path, CONFIG_FILENAME)
 
 
+def user_config_dir(ctx):
+    """Return LibreOffice user config directory, or None if unavailable."""
+    if ctx is None:
+        return None
+    try:
+        p = _config_path(ctx)
+        return os.path.dirname(p) if p else None
+    except Exception:
+        return None
+
+
 def get_config(ctx, key, default):
     """Get a config value by key. Returns default if missing or on error."""
     config_file_path = _config_path(ctx)

@@ -121,7 +121,7 @@ def _range_to_markdown_via_temp_doc(model, ctx, selection_start, selection_end, 
         if not temp_doc or not hasattr(temp_doc, "getText"):
             if temp_doc:
                 temp_doc.close(True)
-            debug_log(ctx, "markdown_support: _range_to_markdown_via_temp_doc could not create temp document")
+            debug_log("markdown_support: _range_to_markdown_via_temp_doc could not create temp document", context="Markdown")
             return ""
         temp_text = temp_doc.getText()
         temp_cursor = temp_text.createTextCursor()
@@ -178,7 +178,7 @@ def _range_to_markdown_via_temp_doc(model, ctx, selection_start, selection_end, 
             content = content[:max_chars] + "\n\n[... truncated ...]"
         return content
     except Exception as e:
-        debug_log(ctx, "markdown_support: _range_to_markdown_via_temp_doc failed: %s" % e)
+        debug_log("markdown_support: _range_to_markdown_via_temp_doc failed: %s" % e, context="Markdown")
         return ""
     finally:
         if temp_doc is not None:
@@ -225,7 +225,7 @@ def document_to_markdown(model, ctx, max_chars=None, scope="full", range_start=N
                         content = content[:max_chars] + "\n\n[... truncated ...]"
                     return content
         except Exception as e:
-            debug_log(ctx, "markdown_support: storeToURL failed (%s)" % e)
+            debug_log("markdown_support: storeToURL failed (%s)" % e, context="Markdown")
             return ""
     return _range_to_markdown_via_temp_doc(model, ctx, selection_start, selection_end, max_chars)
 
@@ -291,9 +291,9 @@ def _insert_markdown_at_position(model, ctx, markdown_string, position):
             filter_name, _ = _get_format_props()
             filter_props = (_create_property_value("FilterName", filter_name),)
             cursor.insertDocumentFromURL(file_url, filter_props)
-            debug_log(ctx, "markdown_support: insertDocumentFromURL succeeded at position=%s" % position)
+            debug_log("markdown_support: insertDocumentFromURL succeeded at position=%s" % position, context="Markdown")
         except Exception as e:
-            debug_log(ctx, "markdown_support: insertDocumentFromURL failed: %s" % e)
+            debug_log("markdown_support: insertDocumentFromURL failed: %s" % e, context="Markdown")
             raise
 
 
@@ -310,9 +310,9 @@ def _insert_markdown_full(model, ctx, markdown_string):
             filter_name, _ = _get_format_props()
             filter_props = (_create_property_value("FilterName", filter_name),)
             cursor.insertDocumentFromURL(file_url, filter_props)
-            debug_log(ctx, "markdown_support: insertDocumentFromURL succeeded at position=full")
+            debug_log("markdown_support: insertDocumentFromURL succeeded at position=full", context="Markdown")
         except Exception as e:
-            debug_log(ctx, "markdown_support: _insert_markdown_full failed: %s" % e)
+            debug_log("markdown_support: _insert_markdown_full failed: %s" % e, context="Markdown")
             raise
 
 
@@ -328,9 +328,9 @@ def _apply_markdown_at_range(model, ctx, markdown_string, start_offset, end_offs
             filter_name, _ = _get_format_props()
             filter_props = (_create_property_value("FilterName", filter_name),)
             cursor.insertDocumentFromURL(file_url, filter_props)
-            debug_log(ctx, "markdown_support: apply_markdown_at_range succeeded for (%d, %d)" % (start_offset, end_offset))
+            debug_log("markdown_support: apply_markdown_at_range succeeded for (%d, %d)" % (start_offset, end_offset), context="Markdown")
         except Exception as e:
-            debug_log(ctx, "markdown_support: _apply_markdown_at_range failed: %s" % e)
+            debug_log("markdown_support: _apply_markdown_at_range failed: %s" % e, context="Markdown")
             raise
 
 
@@ -349,13 +349,13 @@ def _markdown_to_plain_via_document(ctx, markdown_string):
                 _create_property_value("FilterName", filter_name),
                 _create_property_value("Hidden", True),
             )
-            debug_log(ctx, "markdown_support: _markdown_to_plain_via_document loading url=%s with FilterName=Markdown Hidden=True" % file_url)
+            debug_log("markdown_support: _markdown_to_plain_via_document loading url=%s with FilterName=Markdown Hidden=True" % file_url, context="Markdown")
             doc = desktop.loadComponentFromURL(file_url, "_default", 0, load_props)
             if not doc:
-                debug_log(ctx, "markdown_support: _markdown_to_plain_via_document load returned None (took %.3fs)" % (time.time() - t0))
+                debug_log("markdown_support: _markdown_to_plain_via_document load returned None (took %.3fs)" % (time.time() - t0), context="Markdown")
                 return None
             if not hasattr(doc, "getText"):
-                debug_log(ctx, "markdown_support: _markdown_to_plain_via_document loaded component has no getText (took %.3fs)" % (time.time() - t0))
+                debug_log("markdown_support: _markdown_to_plain_via_document loaded component has no getText (took %.3fs)" % (time.time() - t0), context="Markdown")
                 doc.close(True)
                 return None
             cursor = doc.getText().createTextCursor()
@@ -368,12 +368,12 @@ def _markdown_to_plain_via_document(ctx, markdown_string):
                 plain = plain.rstrip("\n\r")
             # Log what we got so we can see if filter was applied (e.g. 'Summary') or raw markdown ('## Summary')
             snippet = repr(plain[:200]) if plain is not None and len(plain) > 200 else repr(plain)
-            debug_log(ctx, "markdown_support: _markdown_to_plain_via_document plain len=%s snippet=%s (took %.3fs)" % (len(plain) if plain else 0, snippet, time.time() - t0))
+            debug_log("markdown_support: _markdown_to_plain_via_document plain len=%s snippet=%s (took %.3fs)" % (len(plain) if plain else 0, snippet, time.time() - t0), context="Markdown")
             return plain
     except Exception as e:
         import traceback
-        debug_log(ctx, "markdown_support: _markdown_to_plain_via_document failed: %s (took %.3fs)" % (e, time.time() - t0))
-        debug_log(ctx, "markdown_support: _markdown_to_plain_via_document traceback: %s" % traceback.format_exc())
+        debug_log("markdown_support: _markdown_to_plain_via_document failed: %s (took %.3fs)" % (e, time.time() - t0), context="Markdown")
+        debug_log("markdown_support: _markdown_to_plain_via_document traceback: %s" % traceback.format_exc(), context="Markdown")
         return None
 
 
@@ -423,7 +423,7 @@ def _apply_markdown_at_search(model, ctx, markdown_string, search_string, all_ma
     via _literal_search_candidates, so we handle markdown stripping and multiple line-ending variants."""
     search_candidates = _search_candidates_with_plain(ctx, search_string)
     t0 = time.time()
-    debug_log(ctx, "markdown_support: _apply_markdown_at_search LO plain took %.3fs, %d candidates" % (time.time() - t0, len(search_candidates)))
+    debug_log("markdown_support: _apply_markdown_at_search LO plain took %.3fs, %d candidates" % (time.time() - t0, len(search_candidates)), context="Markdown")
     with _with_temp_buffer(markdown_string) as (path, file_url):
         filter_name, _ = _get_format_props()
         filter_props = (_create_property_value("FilterName", filter_name),)
@@ -433,7 +433,7 @@ def _apply_markdown_at_search(model, ctx, markdown_string, search_string, all_ma
                 r = repr(search_candidate)
                 if len(r) > 400:
                     r = r[:400] + "..."
-                debug_log(ctx, "markdown_support: _apply_markdown_at_search candidate #%d len=%d: %s" % (idx, len(search_candidate), r))
+                debug_log("markdown_support: _apply_markdown_at_search candidate #%d len=%d: %s" % (idx, len(search_candidate), r), context="Markdown")
                 sd = model.createSearchDescriptor()
                 sd.SearchString = search_candidate
                 sd.SearchRegularExpression = False
@@ -449,13 +449,13 @@ def _apply_markdown_at_search(model, ctx, markdown_string, search_string, all_ma
                     if not all_matches:
                         break
                     found = model.findNext(cursor.getEnd(), sd)
-                debug_log(ctx, "markdown_support: _apply_markdown_at_search candidate #%d -> replaced %d" % (idx, count))
+                debug_log("markdown_support: _apply_markdown_at_search candidate #%d -> replaced %d" % (idx, count), context="Markdown")
                 if count > 0:
                     return count
-            debug_log(ctx, "markdown_support: _apply_markdown_at_search all %d candidates gave 0 replacements" % len(search_candidates))
+            debug_log("markdown_support: _apply_markdown_at_search all %d candidates gave 0 replacements" % len(search_candidates), context="Markdown")
             return 0
         except Exception as e:
-            debug_log(ctx, "markdown_support: _apply_markdown_at_search failed: %s" % e)
+            debug_log("markdown_support: _apply_markdown_at_search failed: %s" % e, context="Markdown")
             raise
 
 
@@ -492,19 +492,19 @@ def _find_text_ranges(model, ctx, search_string, start=0, limit=None, case_sensi
                     break
                 found = model.findNext(found, sd)
         except Exception as e:
-            debug_log(ctx, "markdown_support: _find_text_ranges failed: %s" % e)
+            debug_log("markdown_support: _find_text_ranges failed: %s" % e, context="Markdown")
         return matches
 
     r0 = repr(search_string)
     if len(r0) > 400:
         r0 = r0[:400] + "..."
-    debug_log(ctx, "markdown_support: _find_text_ranges initial search len=%d: %s" % (len(search_string), r0))
+    debug_log("markdown_support: _find_text_ranges initial search len=%d: %s" % (len(search_string), r0), context="Markdown")
     matches = _search(search_string)
-    debug_log(ctx, "markdown_support: _find_text_ranges initial -> %d matches" % len(matches))
+    debug_log("markdown_support: _find_text_ranges initial -> %d matches" % len(matches), context="Markdown")
     if matches:
         # Log first match's actual document text so we see what the doc contains
         first_text = matches[0].get("text", "")
-        debug_log(ctx, "markdown_support: _find_text_ranges first match text len=%d repr=%s" % (len(first_text), repr(first_text)[:300]))
+        debug_log("markdown_support: _find_text_ranges first match text len=%d repr=%s" % (len(first_text), repr(first_text)[:300]), context="Markdown")
     if not matches:
         t0_fallback = time.time()
         candidates = _search_candidates_with_plain(ctx, search_string)
@@ -512,14 +512,14 @@ def _find_text_ranges(model, ctx, search_string, start=0, limit=None, case_sensi
             r = repr(needle)
             if len(r) > 400:
                 r = r[:400] + "..."
-            debug_log(ctx, "markdown_support: _find_text_ranges candidate #%d len=%d: %s" % (idx, len(needle), r))
+            debug_log("markdown_support: _find_text_ranges candidate #%d len=%d: %s" % (idx, len(needle), r), context="Markdown")
             matches = _search(needle)
-            debug_log(ctx, "markdown_support: _find_text_ranges candidate #%d -> %d matches" % (idx, len(matches)))
+            debug_log("markdown_support: _find_text_ranges candidate #%d -> %d matches" % (idx, len(matches)), context="Markdown")
             if matches:
                 first_text = matches[0].get("text", "")
-                debug_log(ctx, "markdown_support: _find_text_ranges first match text len=%d repr=%s" % (len(first_text), repr(first_text)[:300]))
+                debug_log("markdown_support: _find_text_ranges first match text len=%d repr=%s" % (len(first_text), repr(first_text)[:300]), context="Markdown")
                 break
-        debug_log(ctx, "markdown_support: _find_text_ranges fallback took %.3fs, %d candidates" % (time.time() - t0_fallback, len(candidates)))
+        debug_log("markdown_support: _find_text_ranges fallback took %.3fs, %d candidates" % (time.time() - t0_fallback, len(candidates)), context="Markdown")
         if not matches:
             # Log document prefix so we can see actual line endings / content
             try:
@@ -529,9 +529,9 @@ def _find_text_ranges(model, ctx, search_string, start=0, limit=None, case_sensi
                 if n > 0:
                     cursor.goRight(n, True)
                     prefix = cursor.getString()
-                    debug_log(ctx, "markdown_support: _find_text_ranges document prefix (first %d chars) repr=%s" % (len(prefix), repr(prefix)))
+                    debug_log("markdown_support: _find_text_ranges document prefix (first %d chars) repr=%s" % (len(prefix), repr(prefix)), context="Markdown")
             except Exception as e:
-                debug_log(ctx, "markdown_support: _find_text_ranges could not get document prefix: %s" % e)
+                debug_log("markdown_support: _find_text_ranges could not get document prefix: %s" % e, context="Markdown")
     return matches
 
 
@@ -697,7 +697,7 @@ def tool_get_document_content(model, ctx, args):
             out["end"] = int(range_end)
         return json.dumps(out)
     except Exception as e:
-        debug_log(ctx, "markdown_support: get_document_content failed: %s" % e)
+        debug_log("markdown_support: get_document_content failed: %s" % e, context="Markdown")
         return _tool_error(str(e))
 
 
@@ -708,11 +708,11 @@ def tool_apply_document_content(model, ctx, args):
     
     # Debug: log the start of content to check for wrapping issues
     if content:
-        debug_log(ctx, "tool_apply_document_content: input type=%s starts with: %s" % (type(content), repr(content)[:50]))
+        debug_log("tool_apply_document_content: input type=%s starts with: %s" % (type(content), repr(content)[:50]), context="Markdown")
         
         # Accommodate list input (LLM sometimes ignores schema and sends array)
         if isinstance(content, list):
-             debug_log(ctx, "tool_apply_document_content: joining list input with newlines")
+             debug_log("tool_apply_document_content: joining list input with newlines", context="Markdown")
              content = "\n".join(str(x) for x in content)
         # Normalize literal \n and \t so multi-line content renders correctly
         if isinstance(content, str):
@@ -740,14 +740,14 @@ def tool_apply_document_content(model, ctx, args):
                 msg += " Tried multiple literal candidates. For section replacement send the full section text as search, or use find_text then apply_document_content with target='range'."
             return json.dumps({"status": "ok", "message": msg})
         except Exception as e:
-            debug_log(ctx, "markdown_support: apply_document_content search failed: %s" % e)
+            debug_log("markdown_support: apply_document_content search failed: %s" % e, context="Markdown")
             return _tool_error(str(e))
     if target == "full":
         try:
             _insert_markdown_full(model, ctx, content)
             return json.dumps({"status": "ok", "message": "Replaced entire document."})
         except Exception as e:
-            debug_log(ctx, "markdown_support: apply_document_content full failed: %s" % e)
+            debug_log("markdown_support: apply_document_content full failed: %s" % e, context="Markdown")
             return _tool_error(str(e))
     if target == "range":
         start_val = args.get("start")
@@ -758,14 +758,14 @@ def tool_apply_document_content(model, ctx, args):
             _apply_markdown_at_range(model, ctx, content, int(start_val), int(end_val))
             return json.dumps({"status": "ok", "message": "Replaced range [%s, %s)." % (start_val, end_val)})
         except Exception as e:
-            debug_log(ctx, "markdown_support: apply_document_content range failed: %s" % e)
+            debug_log("markdown_support: apply_document_content range failed: %s" % e, context="Markdown")
             return _tool_error(str(e))
     if target in ("beginning", "end", "selection"):
         try:
             _insert_markdown_at_position(model, ctx, content, target)
             return json.dumps({"status": "ok", "message": "Inserted content at %s." % target})
         except Exception as e:
-            debug_log(ctx, "markdown_support: apply_document_content insert failed: %s" % e)
+            debug_log("markdown_support: apply_document_content insert failed: %s" % e, context="Markdown")
             return _tool_error(str(e))
     return _tool_error("Unknown target: %s" % target)
 

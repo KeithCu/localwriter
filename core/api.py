@@ -9,7 +9,7 @@ import urllib.request
 # accumulate_delta is required for tool-calling: it merges streaming deltas into message_snapshot so full tool_calls (with function.arguments) are available.
 from .streaming_deltas import accumulate_delta
 
-from core.logging import log_to_file, debug_log, update_activity_state
+from core.logging import debug_log, update_activity_state, init_logging
 
 
 def format_error_message(e):
@@ -145,11 +145,12 @@ class LlmClient:
         temperature = self.config.get("temperature", 0.5)
         seed_val = self.config.get("seed", "")
 
-        log_to_file("=== API Request Debug ===")
-        log_to_file("Endpoint: %s" % endpoint)
-        log_to_file("API Type: %s" % api_type)
-        log_to_file("Model: %s" % model)
-        log_to_file("Max Tokens: %s" % max_tokens)
+        init_logging(self.ctx)
+        debug_log("=== API Request Debug ===", context="API")
+        debug_log("Endpoint: %s" % endpoint, context="API")
+        debug_log("API Type: %s" % api_type, context="API")
+        debug_log("Model: %s" % model, context="API")
+        debug_log("Max Tokens: %s" % max_tokens, context="API")
 
         if api_type == "chat":
             url = endpoint + api_path + "/chat/completions"
@@ -189,7 +190,7 @@ class LlmClient:
             data["model"] = model
 
         json_data = json.dumps(data).encode("utf-8")
-        log_to_file("Request data: %s" % json.dumps(data, indent=2))
+        debug_log("Request data: %s" % json.dumps(data, indent=2), context="API")
         request = urllib.request.Request(
             url, data=json_data, headers=self._headers()
         )
@@ -251,11 +252,13 @@ class LlmClient:
             data["parallel_tool_calls"] = False
 
         json_data = json.dumps(data).encode("utf-8")
-        log_to_file(
-            "=== Chat Request (tools=%s, stream=%s) ===" % (bool(tools), stream)
+        init_logging(self.ctx)
+        debug_log(
+            "=== Chat Request (tools=%s, stream=%s) ===" % (bool(tools), stream),
+            context="API",
         )
-        log_to_file("URL: %s" % url)
-        log_to_file("Messages: %s" % json.dumps(messages, indent=2))
+        debug_log("URL: %s" % url, context="API")
+        debug_log("Messages: %s" % json.dumps(messages, indent=2), context="API")
         request = urllib.request.Request(
             url, data=json_data, headers=self._headers()
         )
@@ -299,15 +302,16 @@ class LlmClient:
         ssl_context = _get_ssl_context()
         timeout = self._timeout()
 
-        log_to_file("=== Starting stream request ===")
-        log_to_file("Request URL: %s" % request.full_url)
+        init_logging(self.ctx)
+        debug_log("=== Starting stream request ===", context="API")
+        debug_log("Request URL: %s" % request.full_url, context="API")
         try:
             with urllib.request.urlopen(
                 request, context=ssl_context, timeout=timeout
             ) as response:
                 for line in response:
                     if stop_checker and stop_checker():
-                        log_to_file("stream_request: Stop requested by user.")
+                        debug_log("stream_request: Stop requested by user.", context="API")
                         break
 
                     try:
@@ -316,7 +320,7 @@ class LlmClient:
                                 line[len(b"data: ") :].decode("utf-8").strip()
                             )
                             if payload == "[DONE]":
-                                log_to_file("stream_request: [DONE] received")
+                                debug_log("stream_request: [DONE] received", context="API")
                                 break
                             try:
                                 chunk = json.loads(payload)
@@ -325,9 +329,6 @@ class LlmClient:
                             # Grok/xAI sends a final chunk with empty choices
                             choices = chunk.get("choices", [])
                             if not choices:
-                                log_to_file(
-                                    "stream_request: empty choices (Grok-style), breaking"
-                                )
                                 break
                             content, finish_reason, thinking, _ = (
                                 self.extract_content_from_response(
@@ -342,11 +343,11 @@ class LlmClient:
                             if finish_reason:
                                 break
                     except Exception as e:
-                        log_to_file("Error processing line: %s" % str(e))
+                        debug_log("Error processing line: %s" % str(e), context="API")
                         raise
         except Exception as e:
             err_msg = format_error_message(e)
-            log_to_file("ERROR in stream_request: %s -> %s" % (e, err_msg))
+            debug_log("ERROR in stream_request: %s -> %s" % (e, err_msg), context="API")
             raise Exception(err_msg)
 
     def stream_chat_response(
@@ -387,10 +388,10 @@ class LlmClient:
                 result = json.loads(body)
         except Exception as e:
             err_msg = format_error_message(e)
-            log_to_file("request_with_tools ERROR: %s -> %s" % (e, err_msg))
+            debug_log("request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")
             raise Exception(err_msg)
 
-        log_to_file("=== Tool response: %s" % json.dumps(result, indent=2))
+        debug_log("=== Tool response: %s" % json.dumps(result, indent=2), context="API")
 
         choice = result.get("choices", [{}])[0] if result.get("choices") else {}
         message = choice.get("message") or result.get("message") or {}
@@ -417,7 +418,8 @@ class LlmClient:
         dispatch_events=True,
     ):
         """Streaming chat request with tools. Returns same shape as request_with_tools."""
-        log_to_file("stream_request_with_tools: building request (%d messages)..." % len(messages))
+        init_logging(self.ctx)
+        debug_log("stream_request_with_tools: building request (%d messages)..." % len(messages), context="API")
         request = self.make_chat_request(
             messages, max_tokens, tools=tools, stream=True
         )
@@ -431,9 +433,8 @@ class LlmClient:
         append_callback = append_callback or (lambda t: None)
         append_thinking_callback = append_thinking_callback or (lambda t: None)
 
-        log_to_file("stream_request_with_tools: Opening URL: %s" % request.full_url)
+        debug_log("stream_request_with_tools: Opening URL: %s" % request.full_url, context="API")
         update_activity_state("stream_request_with_tools")
-        debug_log(self.ctx, "stream_request_with_tools: about to open URL (blocking)")
         try:
             with urllib.request.urlopen(
                 request, context=ssl_context, timeout=timeout
@@ -441,9 +442,7 @@ class LlmClient:
                 first_line_logged = False
                 for line in response:
                     if stop_checker and stop_checker():
-                        log_to_file(
-                            "stream_request_with_tools: Stop requested by user."
-                        )
+                        debug_log("stream_request_with_tools: Stop requested by user.", context="API")
                         last_finish_reason = "stop"
                         break
 
@@ -454,17 +453,11 @@ class LlmClient:
                     idx = line_str.find(b":") + 1
                     payload = line_str[idx:].decode("utf-8").strip()
                     if payload == "[DONE]":
-                        log_to_file(
-                            "stream_request_with_tools: [DONE] received"
-                        )
+                        debug_log("stream_request_with_tools: [DONE] received", context="API")
                         break
                     try:
                         chunk = json.loads(payload)
                     except json.JSONDecodeError:
-                        log_to_file(
-                            "stream_request_with_tools: JSON decode error, payload=%s"
-                            % payload[:200]
-                        )
                         continue
 
                     last_chunk = chunk
@@ -472,7 +465,6 @@ class LlmClient:
                     if not first_line_logged:
                         first_line_logged = True
                         update_activity_state("stream_first_chunk")
-                        debug_log(self.ctx, "stream_request_with_tools: first SSE line received")
 
                     # Grok/xAI sends a final chunk with empty choices + usage
                     # after the finish_reason chunk; treat it as end-of-stream
@@ -481,9 +473,6 @@ class LlmClient:
                         message_snapshot.get("content")
                         or message_snapshot.get("tool_calls")
                     ):
-                        log_to_file(
-                            "stream_request_with_tools: empty choices (Grok-style), breaking"
-                        )
                         last_finish_reason = last_finish_reason or "stop"
                         break
 
@@ -501,42 +490,19 @@ class LlmClient:
 
                     last_finish_reason = finish_reason
                     if last_finish_reason:
-                        log_to_file(
-                            "stream_request_with_tools: Breaking on finish_reason=%s"
-                            % last_finish_reason
-                        )
                         break
 
-                log_to_file(
-                    "stream_request_with_tools: Exited stream loop."
-                )
                 update_activity_state("stream_loop_exited")
-                debug_log(self.ctx, "stream_request_with_tools: exited stream loop")
-                if last_chunk:
-                    choices = last_chunk.get("choices", [])
-                    fr = None
-                    if choices and isinstance(choices[0], dict):
-                        fr = choices[0].get("finish_reason")
-                    log_to_file(
-                        "stream_request_with_tools: last chunk choices_len=%s finish_reason=%s keys=%s"
-                        % (len(choices), fr, list(last_chunk.keys()))
-                    )
+                debug_log("stream_request_with_tools: stream ended", context="API")
                 # Infer finish_reason if the stream ended without an explicit one
-                # (common when providers only send [DONE] without a finish_reason chunk)
                 if not last_finish_reason:
                     if message_snapshot.get("tool_calls"):
                         last_finish_reason = "tool_calls"
                     else:
                         last_finish_reason = "stop"
-                    log_to_file(
-                        "stream_request_with_tools: Inferred finish_reason=%s"
-                        % last_finish_reason
-                    )
         except Exception as e:
             err_msg = format_error_message(e)
-            log_to_file(
-                "stream_request_with_tools ERROR: %s -> %s" % (e, err_msg)
-            )
+            debug_log("stream_request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")
             raise Exception(err_msg)
 
         raw_content = message_snapshot.get("content")
