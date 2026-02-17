@@ -236,10 +236,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         finally:
             self._send_busy = False
             debug_log(self.ctx, "actionPerformed finally: resetting UI")
-            try:
-                self._set_status(self._terminal_status)
-            except Exception as e:
-                debug_log(self.ctx, "actionPerformed finally: _set_status failed: %s" % e)
+            self._set_status(self._terminal_status)
             self._set_button_states(send_enabled=True, stop_enabled=False)
             debug_log(self.ctx, "control returned to LibreOffice")
             update_activity_state("")  # clear phase so watchdog does not report after we return
@@ -651,10 +648,7 @@ class StopButtonListener(unohelper.Base, XActionListener):
         if self.send_listener:
             self.send_listener.stop_requested = True
             # Update status immediately
-            try:
-                self.send_listener._set_status("Stopping...")
-            except Exception:
-                pass
+            self.send_listener._set_status("Stopping...")
 
     def disposing(self, evt):
         pass
@@ -674,13 +668,10 @@ class ClearButtonListener(unohelper.Base, XActionListener):
 
     def actionPerformed(self, evt):
         self.session.clear()
-        try:
-            if self.response_control and self.response_control.getModel():
-                self.response_control.getModel().Text = ""
-            if self.status_control:
-                self.status_control.setText("")
-        except Exception:
-            pass
+        if self.response_control and self.response_control.getModel():
+            self.response_control.getModel().Text = ""
+        if self.status_control:
+            self.status_control.setText("")
 
     def disposing(self, evt):
         pass
@@ -719,13 +710,10 @@ class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         debug_log(self.ctx, "getHeightForWidth(width=%s)" % width)
         # Constrain panel to sidebar width (and parent height when available).
         if self.parent_window and self.PanelWindow and width > 0:
-            try:
-                parent_rect = self.parent_window.getPosSize()
-                h = parent_rect.Height if parent_rect.Height > 0 else 280
-                self.PanelWindow.setPosSize(0, 0, width, h, 15)
-                debug_log(self.ctx, "panel constrained to W=%s H=%s" % (width, h))
-            except Exception as e:
-                debug_log(self.ctx, "panel size not set: %s" % e)
+            parent_rect = self.parent_window.getPosSize()
+            h = parent_rect.Height if parent_rect.Height > 0 else 280
+            self.PanelWindow.setPosSize(0, 0, width, h, 15)
+            debug_log(self.ctx, "panel constrained to W=%s H=%s" % (width, h))
         # Min 280, preferred -1 (let sidebar decide), max 280 — matches working Git layout.
         return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 280, -1, 280)
 
@@ -782,15 +770,12 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         if self.m_panelRootWindow and hasattr(self.m_panelRootWindow, "setVisible"):
             self.m_panelRootWindow.setVisible(True)
         # Constrain panel only when parent already has size (layout may be 0x0 here).
-        try:
-            parent_rect = self.xParentWindow.getPosSize()
-            if parent_rect.Width > 0 and parent_rect.Height > 0:
-                self.m_panelRootWindow.setPosSize(
-                    0, 0, parent_rect.Width, parent_rect.Height, 15)
-                debug_log(self.ctx, "panel constrained to W=%s H=%s" % (
-                    parent_rect.Width, parent_rect.Height))
-        except Exception as e:
-            debug_log(self.ctx, "panel size not set: %s" % e)
+        parent_rect = self.xParentWindow.getPosSize()
+        if parent_rect.Width > 0 and parent_rect.Height > 0:
+            self.m_panelRootWindow.setPosSize(
+                0, 0, parent_rect.Width, parent_rect.Height, 15)
+            debug_log(self.ctx, "panel constrained to W=%s H=%s" % (
+                parent_rect.Width, parent_rect.Height))
         return self.m_panelRootWindow
 
     def _wireControls(self, root_window):
