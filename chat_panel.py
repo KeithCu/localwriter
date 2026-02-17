@@ -253,7 +253,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         try:
             debug_log("_do_send: importing core modules...", context="Chat")
-            from core.config import get_config, get_api_config, update_lru_history
+            from core.config import get_config, get_api_config, update_lru_history, validate_api_config
             from core.api import LlmClient
             from core.document import get_document_context_for_chat
             debug_log("_do_send: core modules imported OK", context="Chat")
@@ -329,14 +329,28 @@ class SendButtonListener(unohelper.Base, XActionListener):
         use_tools = (api_type == "chat")
 
         api_config = get_api_config(self.ctx)
+        ok, err_msg = validate_api_config(api_config)
+        if not ok:
+            self._append_response("\n[%s]\n" % err_msg)
+            self._terminal_status = "Error"
+            self._set_status("Error")
+            return
+
         client = LlmClient(api_config, self.ctx)
 
         # 4. Refresh document context in session (start + end excerpts, inline selection/cursor markers)
         self._set_status("Reading document...")
-        doc_text = get_document_context_for_chat(model, max_context, include_end=True, include_selection=True)
-        debug_log("_do_send: document context length=%d" % len(doc_text), context="Chat")
-        agent_log("chat_panel.py:doc_context", "Document context for AI", data={"doc_length": len(doc_text), "doc_prefix_first_200": (doc_text or "")[:200], "max_context": max_context}, hypothesis_id="B")
-        self.session.update_document_context(doc_text)
+        try:
+            doc_text = get_document_context_for_chat(model, max_context, include_end=True, include_selection=True)
+            debug_log("_do_send: document context length=%d" % len(doc_text), context="Chat")
+            agent_log("chat_panel.py:doc_context", "Document context for AI", data={"doc_length": len(doc_text), "doc_prefix_first_200": (doc_text or "")[:200], "max_context": max_context}, hypothesis_id="B")
+            self.session.update_document_context(doc_text)
+        except Exception as e:
+            debug_log("_do_send: document context FAILED: %s" % e, context="Chat")
+            self._append_response("\n[Document unavailable or closed.]\n")
+            self._terminal_status = "Error"
+            self._set_status("Error")
+            return
 
         # 5. Add user message to session and display
         self.session.add_user_message(query_text)
@@ -720,6 +734,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 0, 0, parent_rect.Width, parent_rect.Height, 15)
             debug_log("panel constrained to W=%s H=%s" % (
                 parent_rect.Width, parent_rect.Height), context="Chat")
+        return self.m_panelRootWindow
 
     def _wireControls(self, root_window):
         """Attach listeners to Send and Clear buttons."""

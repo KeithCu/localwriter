@@ -6,6 +6,8 @@ Shared drain loop used by both simple streaming and tool-calling (chat_panel).
 import queue
 import threading
 
+from core.logging import debug_log
+
 
 def run_stream_drain_loop(
     q,
@@ -79,13 +81,19 @@ def run_stream_drain_loop(
                 elif kind == "stopped":
                     flush_buffers()
                     close_thinking()
-                    on_stopped()
+                    try:
+                        on_stopped()
+                    except Exception as e:
+                        debug_log("run_stream_drain_loop: on_stopped failed: %s" % e, context="API")
                     job_done[0] = True
                     break
                 elif kind == "error":
                     flush_buffers()
                     close_thinking()
-                    on_error(response)
+                    try:
+                        on_error(response)
+                    except Exception as e:
+                        debug_log("run_stream_drain_loop: on_error failed: %s" % e, context="API")
                     job_done[0] = True
                     break
 
@@ -93,7 +101,10 @@ def run_stream_drain_loop(
 
         except Exception as e:
             job_done[0] = True
-            on_error(e)
+            try:
+                on_error(e)
+            except Exception as e2:
+                debug_log("run_stream_drain_loop: on_error failed: %s" % e2, context="API")
 
         toolkit.processEventsToIdle()
 

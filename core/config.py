@@ -123,6 +123,19 @@ def update_lru_history(ctx, val, lru_key, max_items=10):
     set_config(ctx, lru_key, lru[:max_items])
 
 
+def validate_api_config(config):
+    """Validate API config dict (from get_api_config). Returns (ok: bool, error_message: str)."""
+    endpoint = (config.get("endpoint") or "").strip()
+    if not endpoint:
+        return (False, "Please set Endpoint in Settings.")
+    api_type = (config.get("api_type") or "completions").lower()
+    if api_type == "chat":
+        model = (config.get("model") or "").strip()
+        if not model:
+            return (False, "Please set Model in Settings.")
+    return (True, "")
+
+
 def get_api_config(ctx):
     """Build API config dict from ctx for LlmClient. Pass to LlmClient(config, ctx)."""
     endpoint = str(get_config(ctx, "endpoint", "http://127.0.0.1:5000")).rstrip("/")

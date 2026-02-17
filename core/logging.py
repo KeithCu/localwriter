@@ -1,7 +1,9 @@
 """Simple file logging for LocalWriter. Single debug log + optional agent log; paths set via init_logging(ctx)."""
 import os
+import sys
 import json
 import time
+import traceback
 import threading
 
 # Globals set by init_logging(ctx); used by debug_log and agent_log so ctx is not passed at write time.
@@ -9,6 +11,7 @@ _debug_log_path = None
 _agent_log_path = None
 _enable_agent_log = False
 _init_lock = threading.Lock()
+_exception_hooks_installed = False
 
 # Watchdog: shared state (main thread updates, watchdog reads)
 _activity_state = {"phase": "", "round_num": -1, "tool_name": None, "last_activity": 0.0}
@@ -42,9 +45,57 @@ def init_logging(ctx):
         except Exception:
             pass
 
+        _install_global_exception_hooks()
+
 
 def _get_debug_path():
     return _debug_log_path if _debug_log_path else FALLBACK_DEBUG
+
+
+def _install_global_exception_hooks():
+    """Install sys.excepthook and threading.excepthook to log unhandled exceptions. Idempotent."""
+    global _exception_hooks_installed
+    if _exception_hooks_installed:
+        return
+    _exception_hooks_installed = True
+
+    _original_excepthook = sys.excepthook
+
+    def _localwriter_excepthook(exc_type, exc_value, exc_tb):
+        try:
+            tb_lines = traceback.format_exception(exc_type, exc_value, exc_tb)
+            msg = "Unhandled exception:\n" + "".join(tb_lines)
+            debug_log(msg.strip(), context="Excepthook")
+        except Exception:
+            pass
+        try:
+            _original_excepthook(exc_type, exc_value, exc_tb)
+        except Exception:
+            pass
+
+    sys.excepthook = _localwriter_excepthook
+
+    if getattr(threading, "excepthook", None) is not None:
+        _original_threading_excepthook = threading.excepthook
+
+        def _localwriter_threading_excepthook(args):
+            try:
+                msg = "Unhandled exception in thread %s: %s\n%s" % (
+                    getattr(args, "thread", None),
+                    getattr(args, "exc_type", args),
+                    "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
+                    if getattr(args, "exc_type", None) else "",
+                )
+                debug_log(msg.strip(), context="Excepthook")
+            except Exception:
+                pass
+            try:
+                if _original_threading_excepthook:
+                    _original_threading_excepthook(args)
+            except Exception:
+                pass
+
+        threading.excepthook = _localwriter_threading_excepthook
 
 
 def _get_agent_path():

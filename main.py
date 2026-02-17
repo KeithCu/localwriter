@@ -9,7 +9,7 @@ if _ext_dir not in sys.path:
 import unohelper
 import officehelper
 
-from core.config import get_config, set_config, as_bool, get_api_config, populate_combobox_with_lru, update_lru_history
+from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history
 from core.api import LlmClient
 from core.document import get_full_document_text, get_document_context_for_chat
 from core.async_stream import run_stream_completion_async
@@ -363,6 +363,11 @@ class MainJob(unohelper.Base, XJobExecutor):
                         model_val = self.get_config("model", "")
                         self._update_lru_history(model_val, "model_lru")
                         api_type = str(self.get_config("api_type", "completions")).lower()
+                        api_config = get_api_config(self.ctx)
+                        ok, err_msg = validate_api_config(api_config)
+                        if not ok:
+                            self.show_error(err_msg, "LocalWriter: Extend Selection")
+                            return
                         client = self._get_client()
 
                         def apply_chunk(chunk_text, is_thinking=False):
@@ -396,6 +401,11 @@ class MainJob(unohelper.Base, XJobExecutor):
                 system_prompt = extra_instructions or ""
                 max_tokens = len(original_text) + self.get_config("edit_selection_max_new_tokens", 0)
                 api_type = str(self.get_config("api_type", "completions")).lower()
+                api_config = get_api_config(self.ctx)
+                ok, err_msg = validate_api_config(api_config)
+                if not ok:
+                    self.show_error(err_msg, "LocalWriter: Edit Selection")
+                    return
                 text_range.setString("")
                 client = self._get_client()
 
@@ -437,6 +447,11 @@ class MainJob(unohelper.Base, XJobExecutor):
                         system_prompt += "\n\n" + str(extra_instructions)
                     max_tokens = int(self.get_config("chat_max_tokens", 512))
                     api_type = str(self.get_config("api_type", "completions")).lower()
+                    api_config = get_api_config(self.ctx)
+                    ok, err_msg = validate_api_config(api_config)
+                    if not ok:
+                        self.show_error(err_msg, "LocalWriter: Chat with Document")
+                        return
                     text = model.Text
                     cursor = text.createTextCursor()
                     cursor.gotoEnd(False)
@@ -520,6 +535,11 @@ class MainJob(unohelper.Base, XJobExecutor):
                             max_tokens = len(cell_original) + edit_max_new_tokens
                             tasks.append((cell, prompt, edit_system_prompt, max_tokens, cell_original))
 
+                api_config = get_api_config(self.ctx)
+                ok, err_msg = validate_api_config(api_config)
+                if not ok:
+                    self.show_error(err_msg, "LocalWriter: Edit Selection (Calc)" if args == "EditSelection" else "LocalWriter: Extend Selection (Calc)")
+                    return
                 client = self._get_client()
                 task_index = [0]
 
