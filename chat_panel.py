@@ -144,6 +144,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self.model_selector = model_selector
         self.status_control = status_control
         self.session = session
+        self.initial_doc_type = None # Set by _wireControls
         self.stop_requested = False
         self._terminal_status = "Ready"
         self._send_busy = False
@@ -256,7 +257,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             debug_log("_do_send: importing core modules...", context="Chat")
             from core.config import get_config, get_api_config, update_lru_history, validate_api_config
             from core.api import LlmClient
-            from core.document import get_document_context_for_chat
+            from core.document import get_document_context_for_chat, is_calc, is_draw, is_writer
             debug_log("_do_send: core modules imported OK", context="Chat")
         except Exception as e:
             debug_log("_do_send: core import FAILED: %s" % e, context="Chat")
@@ -274,18 +275,40 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._terminal_status = "Error"
             return
         debug_log("_do_send: got document model OK", context="Chat")
+        
+        # Verify document type matches what we expect from sidebar initialization
+        # (A new sidebar is created/wired for a new document, so it shouldn't change).
+        is_calc_doc = is_calc(model)
+        is_draw_doc = is_draw(model)
+        is_writer_doc = is_writer(model)
+        
+        doc_type_str = "Calc" if is_calc_doc else "Draw" if is_draw_doc else "Writer" if is_writer_doc else "Unknown"
+        debug_log("_do_send: detected document type: %s" % doc_type_str, context="Chat")
+        
+        # Verify document type hasn't changed since this sidebar was wired
+        if self.initial_doc_type and doc_type_str != self.initial_doc_type:
+            err_msg = "[Internal Error: Document type changed from %s to %s! Please file an error.]" % (self.initial_doc_type, doc_type_str)
+            debug_log("_do_send ERROR: %s" % err_msg, context="Chat")
+            self._append_response("\n%s\n" % err_msg)
+            self._terminal_status = "Error"
+            return
 
-        is_calc = hasattr(model, "getSheets")
-        is_draw = hasattr(model, "getDrawPages")
+        # If no type detected, show error as per user request to identify "slop"
+        if not (is_calc_doc or is_draw_doc or is_writer_doc):
+            err_msg = "[Internal Error: Could not identify document type for %s. Please report this!]" % (model.getImplementationName() if hasattr(model, "getImplementationName") else "Unknown")
+            debug_log("_do_send ERROR: %s" % err_msg, context="Chat")
+            self._append_response("\n%s\n" % err_msg)
+            self._terminal_status = "Error"
+            return
 
         try:
-            if is_calc:
+            if is_calc_doc:
                 debug_log("_do_send: importing calc_tools...", context="Chat")
                 from core.calc_tools import CALC_TOOLS, execute_calc_tool
                 active_tools = CALC_TOOLS
                 execute_fn = lambda name, args, doc, ctx: execute_calc_tool(name, args, doc)
                 debug_log("_do_send: calc_tools imported OK (%d tools)" % len(CALC_TOOLS), context="Chat")
-            elif is_draw:
+            elif is_draw_doc:
                 debug_log("_do_send: importing draw_tools...", context="Chat")
                 from core.draw_tools import DRAW_TOOLS, execute_draw_tool
                 active_tools = DRAW_TOOLS
@@ -810,6 +833,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             debug_log("_wireControls: importing core config...", context="Chat")
             from core.config import get_config, populate_combobox_with_lru
             from core.constants import get_chat_system_prompt_for_document, DEFAULT_CHAT_SYSTEM_PROMPT
+            from core.document import is_writer, is_calc, is_draw
             extra_instructions = get_config(self.ctx, "additional_instructions", "")
             current_model = get_config(self.ctx, "model", "")
             
@@ -832,7 +856,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                     model = desktop.getCurrentComponent()
                 except Exception:
                     pass
-            if model and (hasattr(model, "getText") or hasattr(model, "getSheets") or hasattr(model, "getDrawPages")):
+            if model and (is_writer(model) or is_calc(model) or is_draw(model)):
                 system_prompt = get_chat_system_prompt_for_document(model, extra_instructions or "")
             else:
                 system_prompt = (DEFAULT_CHAT_SYSTEM_PROMPT + "\n\n" + str(extra_instructions)) if extra_instructions else DEFAULT_CHAT_SYSTEM_PROMPT
@@ -852,6 +876,20 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             send_listener = SendButtonListener(
                 self.ctx, self.xFrame, send_btn, stop_btn, query_ctrl, response_ctrl,
                 prompt_selector, model_selector, status_ctrl, self.session)
+            
+            # Detect and store initial document type for strict verification
+            if model:
+                from core.document import is_calc, is_draw, is_writer
+                if is_calc(model):
+                    send_listener.initial_doc_type = "Calc"
+                elif is_draw(model):
+                    send_listener.initial_doc_type = "Draw"
+                elif is_writer(model):
+                    send_listener.initial_doc_type = "Writer"
+                else:
+                    send_listener.initial_doc_type = "Unknown"
+                debug_log("_wireControls: detected initial_doc_type=%s" % send_listener.initial_doc_type, context="Chat")
+
             send_btn.addActionListener(send_listener)
             debug_log("Send button wired", context="Chat")
             start_watchdog_thread(self.ctx, status_ctrl)

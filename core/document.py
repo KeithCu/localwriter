@@ -3,10 +3,36 @@ from core.calc_bridge import CalcBridge
 from core.calc_sheet_analyzer import SheetAnalyzer
 
 
+def is_writer(model):
+    """Return True if model is a Writer document."""
+    try:
+        return model.supportsService("com.sun.star.text.TextDocument")
+    except Exception:
+        return False
+
+
+def is_calc(model):
+    """Return True if model is a Calc document."""
+    try:
+        return model.supportsService("com.sun.star.sheet.SpreadsheetDocument")
+    except Exception:
+        return False
+
+
+def is_draw(model):
+    """Return True if model is a Draw/Impress document."""
+    try:
+        return (model.supportsService("com.sun.star.drawing.DrawingDocument") or 
+                model.supportsService("com.sun.star.presentation.PresentationDocument"))
+    except Exception:
+        return False
+
+
+
 def get_full_document_text(model, max_chars=8000):
     """Get full document text for Writer or summary for Calc, truncated to max_chars."""
     try:
-        if hasattr(model, "getSheets"):
+        if is_calc(model):
             # Calc document
             import uno
             bridge = CalcBridge(uno.getComponentContext())
@@ -121,10 +147,10 @@ def get_selection_range(model):
 def get_document_context_for_chat(model, max_context=8000, include_end=True, include_selection=True, ctx=None):
     """Build a single context string for chat. Handles Writer and Calc.
     ctx: component context (required for Calc and Draw documents)."""
-    if hasattr(model, "getSheets"):
+    if is_calc(model):
         return get_calc_context_for_chat(model, max_context, ctx)
     
-    if hasattr(model, "getDrawPages"):
+    if is_draw(model):
         return get_draw_context_for_chat(model, max_context, ctx)
     
     # Original Writer logic

@@ -332,17 +332,18 @@ class MainJob(unohelper.Base, XJobExecutor):
         desktop = self.ctx.ServiceManager.createInstanceWithContext(
             "com.sun.star.frame.Desktop", self.ctx)
         model = desktop.getCurrentComponent()
-        agent_log("main.py:trigger", "model state", data={"model_is_none": model is None, "has_text": hasattr(model, "Text") if model else False, "has_sheets": hasattr(model, "Sheets") if model else False}, hypothesis_id="H2")
+        from core.document import is_writer, is_calc, is_draw
+        agent_log("main.py:trigger", "model state", data={"model_is_none": model is None, "is_writer": is_writer(model) if model else False, "is_calc": is_calc(model) if model else False, "is_draw": is_draw(model) if model else False}, hypothesis_id="H2")
         #if not hasattr(model, "Text"):
         #    model = self.desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
 
-        if args == "settings" and (not model or (not hasattr(model, "Text") and not hasattr(model, "Sheets"))):
-            agent_log("main.py:trigger", "settings requested but no Writer/Calc document", data={"args": str(args)}, hypothesis_id="H2")
+        if args == "settings" and (not model or (not is_writer(model) and not is_calc(model) and not is_draw(model))):
+            agent_log("main.py:trigger", "settings requested but no compatible document", data={"args": str(args)}, hypothesis_id="H2")
 
         if args == "RunFormatTests":
             try:
                 from core.format_tests import run_markdown_tests
-                writer_model = model if (model and hasattr(model, "getText")) else None
+                writer_model = model if (model and is_writer(model)) else None
                 p, f, log = run_markdown_tests(self.ctx, writer_model)
                 msg = "Format tests: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
                 self.show_error(msg, "Format tests")
@@ -353,7 +354,7 @@ class MainJob(unohelper.Base, XJobExecutor):
         if args == "RunCalcTests":
             try:
                 from core.calc_tests import run_calc_tests
-                calc_model = model if (model and hasattr(model, "getSheets")) else None
+                calc_model = model if (model and is_calc(model)) else None
                 p, f, log = run_calc_tests(self.ctx, calc_model)
                 msg = "Calc tests: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
                 self.show_error(msg, "Calc tests")
@@ -364,7 +365,7 @@ class MainJob(unohelper.Base, XJobExecutor):
         if args == "RunDrawTests":
             try:
                 from core.draw_tests import run_draw_tests
-                draw_model = model if (model and hasattr(model, "getDrawPages")) else None
+                draw_model = model if (model and is_draw(model)) else None
                 p, f, log = run_draw_tests(self.ctx, draw_model)
                 msg = "Draw tests: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
                 self.show_error(msg, "Draw tests")
@@ -375,7 +376,7 @@ class MainJob(unohelper.Base, XJobExecutor):
         if args == "RunCalcIntegrationTests":
             try:
                 from core.calc_tests import run_calc_integration_tests
-                calc_model = model if (model and hasattr(model, "getSheets")) else None
+                calc_model = model if (model and is_calc(model)) else None
                 p, f, log = run_calc_integration_tests(self.ctx, calc_model)
                 msg = "Calc API integration: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
                 self.show_error(msg, "Calc API integration tests")
@@ -383,7 +384,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                 self.show_error("Integration tests failed: %s" % e, "Calc API integration tests")
             return
 
-        if hasattr(model, "Text"):
+        if is_writer(model):
             text = model.Text
             selection = model.CurrentController.getSelection()
             text_range = selection.getByIndex(0)
@@ -514,7 +515,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                 except Exception as e:
                     agent_log("main.py:trigger", "settings exception (Writer)", data={"error": str(e)}, hypothesis_id="H5")
                     self.show_error(str(e), "LocalWriter: Settings")
-        elif hasattr(model, "Sheets"):
+        elif is_calc(model):
             try:
                 if args == "ChatWithDocument":
                     try:
@@ -657,7 +658,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     run_next_cell()
             except Exception as e:
                 self.show_error(str(e), "LocalWriter: Calc Processing")
-        elif hasattr(model, "getDrawPages"):
+        elif is_draw(model):
             if args == "ChatWithDocument":
                 try:
                     max_context = int(self.get_config("chat_context_length", 8000))

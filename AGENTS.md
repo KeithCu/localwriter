@@ -2,6 +2,9 @@
 
 **Assume the reader knows nothing about this project.** This file summarizes what was learned and what to do next.
 
+> [!IMPORTANT]
+> **AI Assistants: You MUST update this file after making (nontrivial) changes to the project.** This ensures the next assistant has up-to-date context without needing manual user intervention.
+
 ---
 
 ## 1. Project Overview
@@ -104,11 +107,11 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
   - **Undo grouping**: AI edits performed during tool-calling rounds are grouped into a single undo context ("AI Edit"). Users can revert all changes from an AI turn with a single Ctrl+Z.
   - **Send/Stop button state (lifecycle-based)**: "AI is busy" is defined by the single run of `actionPerformed`: Send is disabled (Stop enabled) at the **start** of the run, and re-enabled (Stop disabled) **only** in the `finally` block when `_do_send()` has returned. No dependence on internal job_done or drain-loop state. `_set_button_states(send_enabled, stop_enabled)` uses per-control try/except (prefer `control.setEnable()`, fallback to model `Enabled`) so a UNO failure on one control cannot leave Send stuck disabled. `SendButtonListener._send_busy` is set True at run start and False in finally for external checks. This prevents multiple concurrent requests.
 - **Implementation**: `chat_panel.py` (ChatPanelFactory, ChatPanelElement, ChatToolPanel); `ContainerWindowProvider` + `ChatPanelDialog.xdl`; `setVisible(True)` required after `createContainerWindow()`.
-- **Tool-calling**: `chat_panel.py` (and the menu path in `main.py`) detect document type (spreadsheet vs text vs drawing).
-    - **Writer**: `document_tools.py` exposes **WRITER_TOOLS** = `get_markdown`, `apply_markdown`; implementations in `markdown_support.py`; `execute_tool` dispatcher.
-    - **Calc**: `core/calc_tools.py` exposes **CALC_TOOLS** and `execute_calc_tool` (read ranges, write formulas, format, merge, sheet management, chart, detect_and_explain_errors); core logic in `core/calc_*.py`.
-    - **Draw/Impress**: `core/draw_tools.py` exposes **DRAW_TOOLS** and `execute_draw_tool` (`list_pages`, `get_draw_summary`, `create_shape`, `edit_shape`, `delete_shape`); core logic in `core/draw_bridge.py`.
-- **Menu fallback**: Menu item "Chat with Document" opens input dialog, streams response with no tool-calling. **Writer**: appends to document end. **Calc**: streams to "AI Response" sheet. Both sidebar and menu use the same document context (see below).
+- **Tool-calling**: `chat_panel.py` (and the menu path in `main.py`) detect document type using robust service-based identification (`supportsService`) in `core/document.py`. This ensures Writer, Calc, and Draw/Impress documents are never misidentified (e.g. Writer document with shapes is correctly identified as Writer, not Draw).
+    - **Writer**: `document_tools.py` exposes **WRITER_TOOLS** = `get_markdown`, `apply_markdown`; implementations in `core/format_support.py`.
+    - **Calc**: `core/calc_tools.py` exposes **CALC_TOOLS** and `execute_calc_tool`; core logic in `core/calc_*.py`.
+    - **Draw/Impress**: `core/draw_tools.py` exposes **DRAW_TOOLS** and `execute_draw_tool`; core logic in `core/draw_bridge.py`.
+- **Menu fallback**: Menu item "Chat with Document" opens input dialog, streams response with no tool-calling. **Writer**: appends to document end. **Calc**: streams to "AI Response" sheet. Both sidebar and menu use the same robust document detection.
 - **Config keys** (used by chat): `chat_context_length`, `chat_max_tokens`, `additional_instructions` (in Settings).
 - **Unified Prompt System**: See Section 3c.
 

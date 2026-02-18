@@ -123,9 +123,10 @@ def get_chat_system_prompt_for_document(model, additional_instructions=""):
     """Single source of truth for chat system prompt. Use this so Writer vs Calc prompt cannot be mixed.
     model: document model (Writer, Calc, or Draw). additional_instructions: optional extra text appended.
     Callers must pass the document that is being chatted about."""
-    if hasattr(model, "getSheets"):
+    from core.document import is_calc, is_draw
+    if is_calc(model):
         base = DEFAULT_CALC_CHAT_SYSTEM_PROMPT
-    elif hasattr(model, "getDrawPages"):
+    elif is_draw(model):
         base = DEFAULT_DRAW_CHAT_SYSTEM_PROMPT
     else:
         base = DEFAULT_CHAT_SYSTEM_PROMPT
