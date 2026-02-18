@@ -78,6 +78,13 @@ def _extract_thinking_from_delta(chunk_delta):
         if parts:
             return "".join(parts)
     
+    # Try choices[0].delta if not found at top level
+    choices = chunk_delta.get("choices")
+    if choices and isinstance(choices, list) and len(choices) > 0:
+        delta = choices[0].get("delta", {})
+        if delta:
+            return _extract_thinking_from_delta(delta)
+
     return ""
 
 
@@ -217,9 +224,7 @@ class LlmClient:
         else:
             content = (choice.get("text") or "") if choice else ""
 
-        thinking = _extract_thinking_from_delta(delta) if delta else ""
-        if not thinking:
-            thinking = _extract_thinking_from_delta(chunk)
+        thinking = _extract_thinking_from_delta(chunk)
 
         return content, finish_reason, thinking, delta
 
@@ -289,6 +294,80 @@ class LlmClient:
             dispatch_events=dispatch_events,
         )
 
+    def _run_streaming_loop(
+        self,
+        request,
+        api_type,
+        on_content,
+        on_thinking=None,
+        on_delta=None,
+        stop_checker=None,
+    ):
+        """Common low-level streaming engine."""
+        ssl_context = _get_ssl_context()
+        timeout = self._timeout()
+
+        init_logging(self.ctx)
+        debug_log("=== Starting streaming loop ===", context="API")
+        debug_log("Request URL: %s" % request.full_url, context="API")
+
+        last_finish_reason = None
+        try:
+            with urllib.request.urlopen(
+                request, context=ssl_context, timeout=timeout
+            ) as response:
+                for line in response:
+                    if stop_checker and stop_checker():
+                        debug_log("streaming_loop: Stop requested.", context="API")
+                        last_finish_reason = "stop"
+                        break
+
+                    line_str = line.strip()
+                    if not line_str or not line_str.startswith(b"data:"):
+                        continue
+                    
+                    # Payload is everything after "data:" (with or without space)
+                    idx = line_str.find(b":") + 1
+                    payload = line_str[idx:].decode("utf-8").strip()
+                    
+                    if payload == "[DONE]":
+                        debug_log("streaming_loop: [DONE] received", context="API")
+                        break
+                    
+                    try:
+                        chunk = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+
+                    # Grok/xAI sends a final chunk with empty choices + usage
+                    choices = chunk.get("choices", [])
+                    if not choices:
+                        # If we have usage/stats here, we could handle them
+                        # but usually this marks the end if we already got content
+                        continue
+
+                    content, finish_reason, thinking, delta = (
+                        self.extract_content_from_response(chunk, api_type)
+                    )
+
+                    if thinking and on_thinking:
+                        on_thinking(thinking)
+                    if content and on_content:
+                        on_content(content)
+                    if delta and on_delta:
+                        on_delta(delta)
+
+                    last_finish_reason = finish_reason
+                    if last_finish_reason:
+                        break
+
+        except Exception as e:
+            err_msg = format_error_message(e)
+            debug_log("ERROR in _run_streaming_loop: %s -> %s" % (e, err_msg), context="API")
+            raise Exception(err_msg)
+
+        return last_finish_reason
+
     def stream_request(
         self,
         request,
@@ -299,56 +378,13 @@ class LlmClient:
         dispatch_events=True,
     ):
         """Stream a completion/chat response and append chunks via callbacks."""
-        ssl_context = _get_ssl_context()
-        timeout = self._timeout()
-
-        init_logging(self.ctx)
-        debug_log("=== Starting stream request ===", context="API")
-        debug_log("Request URL: %s" % request.full_url, context="API")
-        try:
-            with urllib.request.urlopen(
-                request, context=ssl_context, timeout=timeout
-            ) as response:
-                for line in response:
-                    if stop_checker and stop_checker():
-                        debug_log("stream_request: Stop requested by user.", context="API")
-                        break
-
-                    try:
-                        if line.strip() and line.startswith(b"data: "):
-                            payload = (
-                                line[len(b"data: ") :].decode("utf-8").strip()
-                            )
-                            if payload == "[DONE]":
-                                debug_log("stream_request: [DONE] received", context="API")
-                                break
-                            try:
-                                chunk = json.loads(payload)
-                            except json.JSONDecodeError:
-                                continue
-                            # Grok/xAI sends a final chunk with empty choices
-                            choices = chunk.get("choices", [])
-                            if not choices:
-                                break
-                            content, finish_reason, thinking, _ = (
-                                self.extract_content_from_response(
-                                    chunk, api_type
-                                )
-                            )
-                            if thinking and append_thinking_callback:
-                                append_thinking_callback(thinking)
-                            if content:
-                                append_callback(content)
-
-                            if finish_reason:
-                                break
-                    except Exception as e:
-                        debug_log("Error processing line: %s" % str(e), context="API")
-                        raise
-        except Exception as e:
-            err_msg = format_error_message(e)
-            debug_log("ERROR in stream_request: %s -> %s" % (e, err_msg), context="API")
-            raise Exception(err_msg)
+        self._run_streaming_loop(
+            request,
+            api_type,
+            on_content=append_callback,
+            on_thinking=append_thinking_callback,
+            stop_checker=stop_checker,
+        )
 
     def stream_chat_response(
         self,
@@ -433,73 +469,15 @@ class LlmClient:
         append_callback = append_callback or (lambda t: None)
         append_thinking_callback = append_thinking_callback or (lambda t: None)
 
-        debug_log("stream_request_with_tools: Opening URL: %s" % request.full_url, context="API")
-        update_activity_state("stream_request_with_tools")
         try:
-            with urllib.request.urlopen(
-                request, context=ssl_context, timeout=timeout
-            ) as response:
-                first_line_logged = False
-                for line in response:
-                    if stop_checker and stop_checker():
-                        debug_log("stream_request_with_tools: Stop requested by user.", context="API")
-                        last_finish_reason = "stop"
-                        break
-
-                    line_str = line.strip()
-                    if not line_str or not line_str.startswith(b"data:"):
-                        continue
-                    # Payload is everything after "data:" (with or without space)
-                    idx = line_str.find(b":") + 1
-                    payload = line_str[idx:].decode("utf-8").strip()
-                    if payload == "[DONE]":
-                        debug_log("stream_request_with_tools: [DONE] received", context="API")
-                        break
-                    try:
-                        chunk = json.loads(payload)
-                    except json.JSONDecodeError:
-                        continue
-
-                    last_chunk = chunk
-
-                    if not first_line_logged:
-                        first_line_logged = True
-                        update_activity_state("stream_first_chunk")
-
-                    # Grok/xAI sends a final chunk with empty choices + usage
-                    # after the finish_reason chunk; treat it as end-of-stream
-                    choices = chunk.get("choices", [])
-                    if not choices and (
-                        message_snapshot.get("content")
-                        or message_snapshot.get("tool_calls")
-                    ):
-                        last_finish_reason = last_finish_reason or "stop"
-                        break
-
-                    content, finish_reason, thinking, delta = (
-                        self.extract_content_from_response(chunk, "chat")
-                    )
-
-                    if thinking:
-                        append_thinking_callback(thinking)
-                    if content:
-                        append_callback(content)
-
-                    if delta:
-                        accumulate_delta(message_snapshot, delta)
-
-                    last_finish_reason = finish_reason
-                    if last_finish_reason:
-                        break
-
-                update_activity_state("stream_loop_exited")
-                debug_log("stream_request_with_tools: stream ended", context="API")
-                # Infer finish_reason if the stream ended without an explicit one
-                if not last_finish_reason:
-                    if message_snapshot.get("tool_calls"):
-                        last_finish_reason = "tool_calls"
-                    else:
-                        last_finish_reason = "stop"
+            last_finish_reason = self._run_streaming_loop(
+                request,
+                "chat",
+                on_content=append_callback,
+                on_thinking=append_thinking_callback,
+                on_delta=lambda d: accumulate_delta(message_snapshot, d),
+                stop_checker=stop_checker,
+            )
         except Exception as e:
             err_msg = format_error_message(e)
             debug_log("stream_request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")

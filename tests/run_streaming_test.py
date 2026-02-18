@@ -106,47 +106,41 @@ def run_streaming_with_tools(prompt: str):
             thinking_started = True
         print(t, end="", flush=True)
 
+    from core.api import LlmClient
+    config = {
+        "endpoint": endpoint.replace("/v1", ""), # LlmClient._api_path() adds /v1 or /api
+        "api_key": api_key,
+        "model": MODEL,
+        "api_type": "chat",
+        "request_timeout": 120
+    }
+    client = LlmClient(config, None) # None for ctx as it's not needed for basic logging
+    
     message_snapshot = {}
-    last_finish_reason = None
+    
+    def on_delta(delta):
+        accumulate_delta(message_snapshot, delta)
 
-    print("Streaming from OpenRouter...\n")
+    print("Streaming from OpenRouter using LlmClient...\n")
     print("--- Content ---")
 
     try:
-        with urllib.request.urlopen(request, context=ssl_ctx, timeout=120) as response:
-            for line in response:
-                if not line.strip() or not line.startswith(b"data: "):
-                    continue
-                payload = line[len(b"data: "):].decode("utf-8").strip()
-                if payload == "[DONE]":
-                    break
-                try:
-                    # Print raw chunk for debugging field names
-                    print(f"DEBUG CHUNK: {payload}")
-                    chunk = json.loads(payload)
-                except json.JSONDecodeError:
-                    continue
-                choices = chunk.get("choices") or []
-                if not choices:
-                    continue
-                choice = choices[0]
-                delta = choice.get("delta") or {}
-
-                content = (delta.get("content") or "") if delta else ""
-                thinking = _extract_thinking(delta) or _extract_thinking(chunk)
-                finish_reason = choice.get("finish_reason") or chunk.get("finish_reason")
-                
-                if thinking:
-                    on_thinking(thinking)
-                if content:
-                    on_content(content)
-
-                if delta:
-                    accumulate_delta(message_snapshot, delta)
-                
-                last_finish_reason = finish_reason
-                if last_finish_reason:
-                    break
+        last_finish_reason = client.stream_request_with_tools(
+            messages,
+            max_tokens=2048,
+            tools=WRITER_TOOLS,
+            append_callback=on_content,
+            append_thinking_callback=on_thinking,
+            # We don't need on_delta here as stream_request_with_tools handles it,
+            # but we can pass it if we want to monitor raw deltas.
+        )
+        # Note: stream_request_with_tools returns the final message dict, 
+        # but we also accumulate into message_snapshot via its internal logic (if we could tap it).
+        # Actually, stream_request_with_tools returns the result. Let's use it.
+        result = last_finish_reason
+        message_snapshot["content"] = result["content"]
+        message_snapshot["tool_calls"] = result["tool_calls"]
+        last_finish_reason = result["finish_reason"]
     except Exception as e:
         print(f"\n\nError: {e}", file=sys.stderr)
         raise

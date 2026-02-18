@@ -140,8 +140,14 @@ def _range_to_markdown_via_temp_doc(model, ctx, selection_start, selection_end, 
                 style = ""
             style = style or ""
             para_text = el.getString()
-            para_start = current_offset
-            para_end = current_offset + len(para_text)
+            # Compute paragraph start offset using a cursor to match find_text coordinate system
+            start_cursor = model.getText().createTextCursor()
+            start_cursor.gotoStart(False)
+            start_cursor.gotoRange(el.getStart(), True)
+            para_start = len(start_cursor.getString())
+            # End offset is start offset plus the length of the paragraph text
+            para_end = para_start + len(para_text)
+            # Update current_offset for consistency (not used for offsets now)
             current_offset = para_end
 
             if para_end <= selection_start or para_start >= selection_end:
@@ -417,29 +423,67 @@ def _search_candidates_with_plain(ctx, search_string):
     return candidates
 
 
+def _get_document_sample_for_search_failure(model, ctx, search_string):
+    """Get a document snippet for diagnostic logging when search fails.
+    Uses first non-empty line to anchor; if found, samples from that offset; else from doc start.
+    Returns (doc_snippet, doc_snippet_repr, break_chars_hex). Any can be empty on error."""
+    from core.document import get_document_length, get_text_cursor_at_range
+    doc_len = get_document_length(model)
+    if doc_len <= 0:
+        return "", "[]", ""
+    lines = [s.strip() for s in (search_string or "").splitlines() if s.strip()]
+    first_line = lines[0] if lines else None
+    sample_start = 0
+    sample_end = min(800, doc_len)
+    if first_line and ctx:
+        ranges = _find_text_ranges(model, ctx, first_line, start=0, limit=1)
+        if ranges:
+            s1 = ranges[0]["start"]
+            sample_start = s1
+            sample_end = min(s1 + len(search_string) + 300, doc_len)
+    cursor = get_text_cursor_at_range(model, sample_start, sample_end)
+    if not cursor:
+        return "", "[]", ""
+    snippet = cursor.getString() or ""
+    snippet_repr = repr(snippet)
+    if len(snippet_repr) > 800:
+        snippet_repr = snippet_repr[:800] + "..."
+    break_ords = [ord(c) for c in snippet if ord(c) in (0x0a, 0x0d, 0x2028, 0x2029) or (ord(c) < 32 and ord(c) != 9)]
+    break_hex = " ".join("0x%x" % o for o in break_ords[:30]) if break_ords else "(none)"
+    return snippet, snippet_repr, break_hex
+
+
 def _apply_markdown_at_search(model, ctx, markdown_string, search_string, all_matches=False, case_sensitive=True):
     """Find search_string (first or all), replace each match with rendered markdown content.
     Builds literal search candidates from the raw string and always from LO plain (when available)
     via _literal_search_candidates, so we handle markdown stripping and multiple line-ending variants."""
+    from core.document import get_document_length
     search_candidates = _search_candidates_with_plain(ctx, search_string)
     t0 = time.time()
     debug_log("markdown_support: _apply_markdown_at_search LO plain took %.3fs, %d candidates" % (time.time() - t0, len(search_candidates)), context="Markdown")
+    # Obtain document sample once for diagnostic logging on failed compares
+    doc_snippet, doc_snippet_repr, doc_break_hex = _get_document_sample_for_search_failure(model, ctx, search_string)
     with _with_temp_buffer(markdown_string) as (path, file_url):
         filter_name, _ = _get_format_props()
         filter_props = (_create_property_value("FilterName", filter_name),)
         try:
             for idx, search_candidate in enumerate(search_candidates):
-                # Log exact candidate so we can see line endings and characters (repr truncate to 400)
-                r = repr(search_candidate)
-                if len(r) > 400:
-                    r = r[:400] + "..."
-                debug_log("markdown_support: _apply_markdown_at_search candidate #%d len=%d: %s" % (idx, len(search_candidate), r), context="Markdown")
                 sd = model.createSearchDescriptor()
                 sd.SearchString = search_candidate
                 sd.SearchRegularExpression = False
                 sd.SearchCaseSensitive = case_sensitive
                 count = 0
                 found = model.findFirst(sd)
+                if not found:
+                    # Log every failed compare with document sample so we can see search vs document
+                    r = repr(search_candidate)
+                    if len(r) > 600:
+                        r = r[:600] + "..."
+                    debug_log("markdown_support: _apply_markdown_at_search candidate #%d FAILED (findFirst no match)" % idx, context="Markdown")
+                    debug_log("markdown_support:   search_candidate len=%d repr=%s" % (len(search_candidate), r), context="Markdown")
+                    debug_log("markdown_support:   document_sample  len=%d repr=%s" % (len(doc_snippet), doc_snippet_repr), context="Markdown")
+                    debug_log("markdown_support:   document_sample break chars: %s" % doc_break_hex, context="Markdown")
+                    continue
                 while found:
                     text = found.getText()
                     cursor = text.createTextCursorByRange(found)

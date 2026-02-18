@@ -828,7 +828,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         # Show ready message
         try:
             if response_ctrl and response_ctrl.getModel():
-                response_ctrl.getModel().Text = "I can edit or translate your document instantly. Try me!\n"
+                response_ctrl.getModel().Text = "AI: I can edit or translate your document instantly. Try me!\n"
         except Exception:
             pass
 
