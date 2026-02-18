@@ -706,7 +706,13 @@ class CellManipulator:
             p2 = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
             p2.Name = "ContainsHeader"
             p2.Value = has_header
-            cell_range.sort((p1, p2))
+
+            # Select the range before sorting
+            doc = self.bridge.get_active_document()
+            controller = doc.getCurrentController()
+            controller.select(cell_range)
+
+            sheet.sort((p1, p2))
 
             direction = "ascending" if ascending else "descending"
             logger.info("Range %s sorted %s by column %d.", range_str.upper(), direction, sort_column)
@@ -788,9 +794,17 @@ class CellManipulator:
                     cell = sheet.getCellByPosition(col, row)
                     value = values[cell_idx]
 
-                    if isinstance(value, str) and value.startswith("="):
-                        # Write as formula
-                        cell.setFormula(value)
+                    if isinstance(value, str):
+                        if value.startswith("="):
+                            # Write as formula
+                            cell.setFormula(value)
+                        else:
+                            # Try to convert to number, otherwise text
+                            try:
+                                num = float(value)
+                                cell.setValue(num)
+                            except ValueError:
+                                cell.setString(value)
                     elif isinstance(value, (int, float)):
                         # Write as number
                         cell.setValue(value)

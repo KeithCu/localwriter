@@ -267,7 +267,7 @@ def run_calc_tests(ctx, model=None):
 
         # Test: create_chart
         try:
-            execute_calc_tool("write_formula_range", {"range_name": "I1:J2", "formula_or_values": [["X", "Y"], ["1", "2"]]}, doc, ctx)
+            execute_calc_tool("write_formula_range", {"range_name": "I1:J2", "formula_or_values": ["X", "Y", "1", "2"]}, doc, ctx)
             result = execute_calc_tool("create_chart", {"data_range": "I1:J2", "chart_type": "bar", "has_header": True}, doc, ctx)
             data = json.loads(result)
             if data.get("status") == "ok":
@@ -373,6 +373,105 @@ def run_calc_tests(ctx, model=None):
         except Exception as e:
             failed += 1
             log.append(f"FAIL: get_document_context_for_chat ctx test: expected ValueError, got {e}")
+
+        # Test: read_cell_range with list of ranges
+        try:
+            execute_calc_tool("write_formula_range", {"range_name": "M1", "formula_or_values": "ListTest1"}, doc, ctx)
+            execute_calc_tool("write_formula_range", {"range_name": "N2", "formula_or_values": "ListTest2"}, doc, ctx)
+            execute_calc_tool("write_formula_range", {"range_name": "O3", "formula_or_values": "ListTest3"}, doc, ctx)
+            result = execute_calc_tool("read_cell_range", {"range_name": ["M1", "N2", "O3"]}, doc, ctx)
+            data = json.loads(result)
+            if data.get("status") == "ok":
+                results = data.get("result")
+                if isinstance(results, list) and len(results) == 3:
+                    vals = []
+                    for res in results:
+                        if isinstance(res, list) and res and isinstance(res[0], list) and res[0]:
+                            vals.append(res[0][0].get("value") if isinstance(res[0][0], dict) else res[0][0])
+                        elif isinstance(res, list) and res and isinstance(res[0], dict):
+                            vals.append(res[0].get("value"))
+                    if vals == ["ListTest1", "ListTest2", "ListTest3"]:
+                        passed += 1
+                        ok("read_cell_range list of ranges success")
+                    else:
+                        failed += 1
+                        fail(f"read_cell_range list values mismatch: {vals}")
+                else:
+                    failed += 1
+                    fail(f"read_cell_range list did not return 3 results: {results}")
+            else:
+                failed += 1
+                fail(f"read_cell_range list failed: {result}")
+        except Exception as e:
+            failed += 1
+            log.append(f"FAIL: read_cell_range list raised: {e}")
+
+        # Test: set_cell_style with list of ranges
+        try:
+            execute_calc_tool("set_cell_style", {"range_name": ["P1", "Q2"], "bold": True, "bg_color": "red"}, doc, ctx)
+            passed += 1
+            ok("set_cell_style list of ranges executed")
+        except Exception as e:
+            failed += 1
+            log.append(f"FAIL: set_cell_style list raised: {e}")
+
+        # Test: clear_range with list of ranges
+        try:
+            execute_calc_tool("write_formula_range", {"range_name": "R1", "formula_or_values": "ToClear1"}, doc, ctx)
+            execute_calc_tool("write_formula_range", {"range_name": "S2", "formula_or_values": "ToClear2"}, doc, ctx)
+            execute_calc_tool("clear_range", {"range_name": ["R1", "S2"]}, doc, ctx)
+            result = execute_calc_tool("read_cell_range", {"range_name": ["R1", "S2"]}, doc, ctx)
+            data = json.loads(result)
+            if data.get("status") == "ok":
+                results = data.get("result")
+                cleared = True
+                for res in results:
+                    val = None
+                    if isinstance(res, list) and res and isinstance(res[0], list) and res[0]:
+                        val = res[0][0].get("value") if isinstance(res[0][0], dict) else res[0][0]
+                    elif isinstance(res, list) and res and isinstance(res[0], dict):
+                        val = res[0].get("value")
+                    if val not in (None, "", 0.0):
+                        cleared = False
+                        break
+                if cleared:
+                    passed += 1
+                    ok("clear_range list of ranges cleared cells")
+                else:
+                    failed += 1
+                    fail("clear_range list did not clear all cells")
+            else:
+                failed += 1
+                fail(f"clear_range list/read failed: {result}")
+        except Exception as e:
+            failed += 1
+            log.append(f"FAIL: clear_range list raised: {e}")
+
+        # Test: write_formula_range with list of ranges
+        try:
+            execute_calc_tool("write_formula_range", {"range_name": ["T1", "U2"], "formula_or_values": "BatchWrite"}, doc, ctx)
+            result = execute_calc_tool("read_cell_range", {"range_name": ["T1", "U2"]}, doc, ctx)
+            data = json.loads(result)
+            if data.get("status") == "ok":
+                results = data.get("result")
+                vals = []
+                for res in results:
+                    if isinstance(res, list) and res and isinstance(res[0], list) and res[0]:
+                        vals.append(res[0][0].get("value") if isinstance(res[0][0], dict) else res[0][0])
+                    elif isinstance(res, list) and res and isinstance(res[0], dict):
+                        vals.append(res[0].get("value"))
+                if vals == ["BatchWrite", "BatchWrite"]:
+                    passed += 1
+                    ok("write_formula_range list of ranges success")
+                else:
+                    failed += 1
+                    fail(f"write_formula_range list values: {vals}")
+            else:
+                failed += 1
+                fail(f"write_formula_range list/read failed: {result}")
+        except Exception as e:
+            failed += 1
+            log.append(f"FAIL: write_formula_range list raised: {e}")
 
     except Exception as e:
         failed += 1

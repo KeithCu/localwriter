@@ -16,13 +16,14 @@ CALC_TOOLS = [
         "type": "function",
         "function": {
             "name": "read_cell_range",
-            "description": "Reads values from the specified cell range. Prefer ranges for efficiency; single cells supported but not recommended.",
+            "description": "Reads values from the specified cell range(s). Supports lists for non-contiguous areas.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "range_name": {
-                        "type": "string",
-                        "description": "Cell range (e.g. A1:D10, Sheet1.A1:C5). Use ranges for multiple cells.",
+                        "type": ["string", "array"],
+                        "items": {"type": "string"},
+                        "description": "Cell range(s) (e.g. A1:D10, Sheet1.A1:C5) or list of ranges/cells for non-contiguous areas.",
                     }
                 },
                 "required": ["range_name"],
@@ -33,13 +34,14 @@ CALC_TOOLS = [
         "type": "function",
         "function": {
             "name": "set_cell_style",
-            "description": "Applies style and formatting to the specified cell or range. Prefer ranges for efficiency; use after bulk writes.",
+            "description": "Applies style and formatting to the specified cell(s) or range(s). Supports lists for non-contiguous areas.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "range_name": {
-                        "type": "string",
-                        "description": "Target cell or range (e.g. A1:D10). Use ranges for multiple cells.",
+                        "type": ["string", "array"],
+                        "items": {"type": "string"},
+                        "description": "Target cell(s) or range(s) (e.g. A1:D10) or list of ranges/cells for non-contiguous areas.",
                     },
                     "bold": {"type": "boolean", "description": "Bold font"},
                     "italic": {"type": "boolean", "description": "Italic font"},
@@ -82,11 +84,15 @@ CALC_TOOLS = [
         "type": "function",
         "function": {
             "name": "detect_and_explain_errors",
-            "description": "Detects formula errors in the specified range and provides an explanation and fix suggestion.",
+            "description": "Detects formula errors in the specified range(s) and provides an explanation and fix suggestion. Supports lists for non-contiguous areas.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "range_name": {"type": "string", "description": "Cell range to check (e.g. A1:Z100). Full sheet if empty."}
+                    "range_name": {
+                        "type": ["string", "array"],
+                        "items": {"type": "string"},
+                        "description": "Cell range(s) to check (e.g. A1:Z100) or list of ranges/cells for non-contiguous areas. Full sheet if empty."
+                    }
                 },
                 "required": [],
             },
@@ -96,11 +102,15 @@ CALC_TOOLS = [
         "type": "function",
         "function": {
             "name": "merge_cells",
-            "description": "Merges the specified cell range. Typically used for main headers. Write text with write_formula_range and style with set_cell_style after merging.",
+            "description": "Merges the specified cell range(s). Typically used for main headers. Write text with write_formula_range and style with set_cell_style after merging. Supports lists for non-contiguous areas.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "range_name": {"type": "string", "description": "Range to merge (e.g. A1:D1)"},
+                    "range_name": {
+                        "type": ["string", "array"],
+                        "items": {"type": "string"},
+                        "description": "Range(s) to merge (e.g. A1:D1) or list of ranges for non-contiguous areas."
+                    },
                     "center": {"type": "boolean", "description": "Center content (default: true)"}
                 },
                 "required": ["range_name"],
@@ -171,11 +181,15 @@ CALC_TOOLS = [
         "type": "function",
         "function": {
             "name": "sort_range",
-            "description": "Sorts the specified range by a column. Use for ordering rows by values in one column.",
+            "description": "Sorts the specified range(s) by a column. Use for ordering rows by values in one column. Supports lists for non-contiguous areas.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "range_name": {"type": "string", "description": "Range to sort (e.g. A1:D10)"},
+                    "range_name": {
+                        "type": ["string", "array"],
+                        "items": {"type": "string"},
+                        "description": "Range(s) to sort (e.g. A1:D10) or list of ranges for non-contiguous areas."
+                    },
                     "sort_column": {"type": "integer", "description": "0-based column index within the range to sort by (default: 0)"},
                     "ascending": {"type": "boolean", "description": "True for ascending, False for descending (default: true)"},
                     "has_header": {"type": "boolean", "description": "Is the first row a header that should not be sorted? (default: true)"}
@@ -188,11 +202,15 @@ CALC_TOOLS = [
         "type": "function",
         "function": {
             "name": "clear_range",
-            "description": "Clears all contents (values, formulas) in the specified range.",
+            "description": "Clears all contents (values, formulas) in the specified range(s). Supports lists for non-contiguous areas.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "range_name": {"type": "string", "description": "Range to clear (e.g. A1:D10)"}
+                    "range_name": {
+                        "type": ["string", "array"],
+                        "items": {"type": "string"},
+                        "description": "Range(s) to clear (e.g. A1:D10) or list of ranges/cells for non-contiguous areas."
+                    }
                 },
                 "required": ["range_name"],
             },
@@ -202,13 +220,14 @@ CALC_TOOLS = [
         "type": "function",
         "function": {
             "name": "write_formula_range",
-            "description": "Writes formulas or values to a cell range efficiently. Use a single value to fill the entire range, or an array of values for each cell.",
+            "description": "Writes formulas or values to a cell range(s) efficiently. Use a single value to fill the entire range, or an array of values for each cell. Supports lists for non-contiguous areas.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "range_name": {
-                        "type": "string",
-                        "description": "Target range (e.g. A1:A10, B2:D2)"
+                        "type": ["string", "array"],
+                        "items": {"type": "string"},
+                        "description": "Target range(s) (e.g. A1:A10, B2:D2) or list of ranges/cells for non-contiguous areas."
                     },
                     "formula_or_values": {
                         "type": ["string", "number", "array"],
@@ -319,37 +338,74 @@ def execute_calc_tool(tool_name, arguments, model, ctx):
     
     try:
         if tool_name == "read_cell_range":
-            result = tools["inspector"].read_range(arguments["range_name"])
-            return json.dumps({"status": "ok", "result": result})
+            rn = arguments["range_name"]
+            if isinstance(rn, list):
+                results = [tools["inspector"].read_range(r) for r in rn]
+                return json.dumps({"status": "ok", "result": results})
+            else:
+                result = tools["inspector"].read_range(rn)
+                return json.dumps({"status": "ok", "result": result})
             
         elif tool_name == "set_cell_style":
             rn = arguments["range_name"]
-            tools["manipulator"].set_cell_style(
-                rn,
-                bold=arguments.get("bold"),
-                italic=arguments.get("italic"),
-                bg_color=_parse_color(arguments.get("bg_color")),
-                font_color=_parse_color(arguments.get("font_color")),
-                font_size=arguments.get("font_size"),
-                h_align=arguments.get("h_align"),
-                v_align=arguments.get("v_align"),
-                wrap_text=arguments.get("wrap_text"),
-                border_color=_parse_color(arguments.get("border_color")),
-                number_format=arguments.get("number_format")
-            )
-            return json.dumps({"status": "ok", "message": f"Style applied to {rn}"})
+            if isinstance(rn, list):
+                for r in rn:
+                    tools["manipulator"].set_cell_style(
+                        r,
+                        bold=arguments.get("bold"),
+                        italic=arguments.get("italic"),
+                        bg_color=_parse_color(arguments.get("bg_color")),
+                        font_color=_parse_color(arguments.get("font_color")),
+                        font_size=arguments.get("font_size"),
+                        h_align=arguments.get("h_align"),
+                        v_align=arguments.get("v_align"),
+                        wrap_text=arguments.get("wrap_text"),
+                        border_color=_parse_color(arguments.get("border_color")),
+                        number_format=arguments.get("number_format")
+                    )
+                return json.dumps({"status": "ok", "message": f"Style applied to {len(rn)} ranges"})
+            else:
+                tools["manipulator"].set_cell_style(
+                    rn,
+                    bold=arguments.get("bold"),
+                    italic=arguments.get("italic"),
+                    bg_color=_parse_color(arguments.get("bg_color")),
+                    font_color=_parse_color(arguments.get("font_color")),
+                    font_size=arguments.get("font_size"),
+                    h_align=arguments.get("h_align"),
+                    v_align=arguments.get("v_align"),
+                    wrap_text=arguments.get("wrap_text"),
+                    border_color=_parse_color(arguments.get("border_color")),
+                    number_format=arguments.get("number_format")
+                )
+                return json.dumps({"status": "ok", "message": f"Style applied to {rn}"})
             
         elif tool_name == "get_sheet_summary":
             result = tools["analyzer"].get_sheet_summary(sheet_name=arguments.get("sheet_name"))
             return json.dumps({"status": "ok", "result": result})
             
         elif tool_name == "detect_and_explain_errors":
-            result = tools["error_detector"].detect_and_explain(range_str=arguments.get("range_name"))
-            return json.dumps({"status": "ok", "result": result})
+            rn = arguments.get("range_name")
+            if rn and isinstance(rn, list):
+                results = [tools["error_detector"].detect_and_explain(range_str=r) for r in rn]
+                combined = {"errors": [], "summary": ""}
+                for res in results:
+                    combined["errors"].extend(res.get("errors", []))
+                    combined["summary"] += res.get("summary", "") + "; "
+                return json.dumps({"status": "ok", "result": combined})
+            else:
+                result = tools["error_detector"].detect_and_explain(range_str=rn)
+                return json.dumps({"status": "ok", "result": result})
             
         elif tool_name == "merge_cells":
-            tools["manipulator"].merge_cells(arguments["range_name"], center=arguments.get("center", True))
-            return json.dumps({"status": "ok", "message": f"Merged cells {arguments['range_name']}"})
+            rn = arguments["range_name"]
+            if isinstance(rn, list):
+                for r in rn:
+                    tools["manipulator"].merge_cells(r, center=arguments.get("center", True))
+                return json.dumps({"status": "ok", "message": f"Merged cells in {len(rn)} ranges"})
+            else:
+                tools["manipulator"].merge_cells(rn, center=arguments.get("center", True))
+                return json.dumps({"status": "ok", "message": f"Merged cells {rn}"})
             
         elif tool_name == "list_sheets":
             result = tools["manipulator"].list_sheets()
@@ -374,24 +430,50 @@ def execute_calc_tool(tool_name, arguments, model, ctx):
             return json.dumps({"status": "ok", "message": result})
             
         elif tool_name == "sort_range":
-            result = tools["manipulator"].sort_range(
-                arguments["range_name"],
-                sort_column=arguments.get("sort_column", 0),
-                ascending=arguments.get("ascending", True),
-                has_header=arguments.get("has_header", True)
-            )
-            return json.dumps({"status": "ok", "message": result})
+            rn = arguments["range_name"]
+            if isinstance(rn, list):
+                for r in rn:
+                    tools["manipulator"].sort_range(
+                        r,
+                        sort_column=arguments.get("sort_column", 0),
+                        ascending=arguments.get("ascending", True),
+                        has_header=arguments.get("has_header", True)
+                    )
+                return json.dumps({"status": "ok", "message": f"Sorted {len(rn)} ranges"})
+            else:
+                result = tools["manipulator"].sort_range(
+                    rn,
+                    sort_column=arguments.get("sort_column", 0),
+                    ascending=arguments.get("ascending", True),
+                    has_header=arguments.get("has_header", True)
+                )
+                return json.dumps({"status": "ok", "message": result})
 
         elif tool_name == "clear_range":
-            tools["manipulator"].clear_range(arguments["range_name"])
-            return json.dumps({"status": "ok", "message": f"Cleared range {arguments['range_name']}"})
+            rn = arguments["range_name"]
+            if isinstance(rn, list):
+                for r in rn:
+                    tools["manipulator"].clear_range(r)
+                return json.dumps({"status": "ok", "message": f"Cleared {len(rn)} ranges"})
+            else:
+                tools["manipulator"].clear_range(rn)
+                return json.dumps({"status": "ok", "message": f"Cleared range {rn}"})
 
         elif tool_name == "write_formula_range":
-            result = tools["manipulator"].write_formula_range(
-                arguments["range_name"],
-                arguments["formula_or_values"]
-            )
-            return json.dumps({"status": "ok", "message": result})
+            rn = arguments["range_name"]
+            if isinstance(rn, list):
+                for r in rn:
+                    tools["manipulator"].write_formula_range(
+                        r,
+                        arguments["formula_or_values"]
+                    )
+                return json.dumps({"status": "ok", "message": f"Wrote to {len(rn)} ranges"})
+            else:
+                result = tools["manipulator"].write_formula_range(
+                    rn,
+                    arguments["formula_or_values"]
+                )
+                return json.dumps({"status": "ok", "message": result})
 
         elif tool_name == "import_csv_from_string":
             result = tools["manipulator"].import_csv_from_string(
