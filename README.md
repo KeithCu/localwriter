@@ -1,255 +1,123 @@
-# localwriter: A LibreOffice Writer extension for local generative AI
+# LocalWriter
 
-Consider donating to support development: https://ko-fi.com/johnbalis
+A LibreOffice extension (Python + UNO) that adds generative AI editing to Writer, Calc, and Draw.
 
-Contributors:
-- https://github.com/MageDoc/
+Consider donating to support development: [ko-fi.com/johnbalis](https://ko-fi.com/johnbalis)
 
-## About
 
-This is a LibreOffice Writer extension that enables inline generative editing with local inference. It's compatible with language models supported by `text-generation-webui` and `ollama`.
-
-## Table of Contents
-
-*   [About](#about)
-*   [Table of Contents](#table-of-contents)
-*   [Features](#features)
-    *   [Extend Selection](#extend-selection)
-    *   [Edit Selection](#edit-selection)
-*   [Setup](#setup)
-    *   [LibreOffice Extension Installation](#libreoffice-extension-installation)
-    *   [Backend Setup](#backend-setup)
-        *   [text-generation-webui](#text-generation-webui)
-        *   [Ollama](#ollama)
-*   [Settings](#settings)
-*   [Contributing](#contributing)
-    *   [Local Development Setup](#local-development-setup)
-    *   [Building the Extension Package](#building-the-extension-package)
-*   [License](#license)
 
 ## Features
 
-This extension provides two powerful commands for LibreOffice Writer:
+LocalWriter provides powerful AI-driven capabilities integrated directly into your LibreOffice suite:
 
-### Extend Selection
+### 1. Local-First & Flexible (The Major Differentiator)
+Unlike proprietary office suites that lock you into a single cloud provider and **send all your data to their servers**, LocalWriter is **local-first**. You can run fast, private models locally (via Ollama, LM Studio, or local servers) ensuring your documents never leave your machine. If you choose to use cloud APIs, you can switch between them in less than 2 seconds, maintaining full control over where your data goes.
 
-**Hotkey:** `CTRL + q`
+### 2. Chat with Document (Writer, Calc, and Draw)
+The main way to interact with your document using natural language.
 
-*   This uses a language model to predict what comes after the selected text. There are a lot of ways to use this.
-*   Some example use cases for this include: writing a story or an email given a particular prompt, adding additional possible items to a grocery list, or summarizing the selected text.
+*   **Sidebar Panel**: A dedicated deck in the right sidebar for multi-turn chat. It supports tool-calling to read and edit the document directly.
+*   **Menu Item**: A fallback option that opens an input dialog and appends responses to the document.
+*   **Performance**: Features built-in connection management with persistent HTTPS connections for fast response times.
+*   **Undo Integration**: AI edits are grouped so you can revert an entire AI turn with a single `Ctrl+Z`.
 
-### Edit Selection
+![Chat Sidebar with Dashboard](Sonnet46Spreadsheet.png)
 
-**Hotkey:** `CTRL + e`
+### 3. Edit & Extend Selection (Writer)
+**Hotkey:** `Ctrl+Q`
+The model continues the selected text. Ideal for drafting emails, stories, or generating lists.
 
-*   A dialog box appears to prompt the user for instructions about how to edit the selected text, then the selected text is replaced by the edited text.
-*   Some examples for use cases for this include changing the tone of an email, translating text to a different language, and semantically editing a scene in a story.
+### 3. Edit Selection
+**Hotkey:** `Ctrl+E`
+Prompt the model to rewrite your selection according to specific instructions (e.g., "make this more formal", "translate to Spanish").
 
-### Calc PROMPT function
+### 4. Calc `=PROMPT()` function
+A cell formula to call the model directly from within your spreadsheet:
+`=PROMPT(message, [system_prompt], [model], [max_tokens])`
 
-**=PROMPT(message, [system_prompt], [model], [max_tokens])**
+## LocalWriter Architecture
+
+LocalWriter isn't just a wrapper; it's built for performance and deep integration with LibreOffice:
+
+*   **Responsive Streaming Architecture**: Unlike simple extensions that freeze when waiting for an AI response, LocalWriter now uses a sophisticated background thread and queue system. This keeps the LibreOffice UI alive and responsive while text streams in or as tools are executed.
+*   **Interleaved Streaming & Multi-Step Tools**: The engine natively supports interleaved reasoning tokens, content streaming, and complex multi-turn tool calling. This allows for sophisticated AI behavior that handles multi-step tasks while keeping the user informed in real-time.
+*   **High-Throughput Performance (200+ tps)**: Optimized for speed, the system can easily handle 200 tokens per second with zero UI stutter.
+*   **Native Formatting Persistence**: By using `insertDocumentFromURL`, LocalWriter can inject AI-generated content using Markdown / HTML, preserving native LibreOffice styles.
+*   **Isolated Task Contexts**: Each open document in LibreOffice gets its own independent AI sidebar. The AI stays aware of the specific document it's attached to, preventing "cross-talk" when working on multiple projects.
+*   **HiDPI Compatible UI**: All dialogs and sidebar panels are defined via XDL and optimized for modern high-resolution displays using device-independent units.
+
+## Credits & Collaboration
+
+LocalWriter stands on the shoulders of giants. We'd like to give massive credit to:
+
+**[LibreCalc AI Assistant](https://extensions.libreoffice.org/en/extensions/show/99509)**
+
+Their pioneering work on AI support for LibreOffice provided the foundation and inspiration for our enhanced Calc integration. We've built upon their excellent tools to create more ambitious and performance-oriented spreadsheet features. We encourage everyone to check out their extension and join the effort to improve free, local AI for everyone!
+
+## Performance & Batch Optimizations
+
+To handle complex spreadsheet tasks, LocalWriter is optimized for high-throughput "batch" operations:
+
+*   **Batch Tool-Calling**: Instead of making one-by-one changes, tools like `write_formula_range` and `set_cell_style` operate on entire ranges in a single call.
+*   **High-Volume Insertion**: The `import_csv_from_string` tool allows the AI to generate and inject large datasets instantly. This is orders of magnitude faster than inserting data cell-by-cell; we found that providing these batch tools encourages the AI to perform far more ambitious spreadsheet automation and data analysis.
+*   **Optimized Ranges**: Formatting and number formats are applied at the range level, minimizing UNO calls and ensuring the UI remains fluid even during heavy document analysis.
+
+## Roadmap
+
+We are moving towards a native "AI co-pilot" experience:
+
+*   **Richer Document Awareness**: Adding deep metadata awareness (paragraph styles, word counts, formula dependencies) so the AI understands document structure as well as text.
+*   **Safer Workflows**: Implementing "Propose-First" paths where the AI generates a visual preview (diff) for user approval before touching the document.
+*   **Predictive "Ghost Text"**: Real-time suggestions as you type, driven by local trigram models trained on your current document context.
+*   **Multimodal Integration**: Support for image generation and editing via **Stable Diffusion** and DALL-E, enabling AI-assisted graphics directly in Writer and Draw.
+*   **Reliability Foundations**: Strengthening timeout management, clear error recovery, and universal rollback-friendly behavior for professional stability.
+*   **Suite-Wide Completeness**: Finalizing deep integration for **LibreOffice Draw and Impress**, ensuring every application in the suite is AI-powered.
+*   **Offline First**: Continued focus on performance with the fastest local models (Ollama, etc.) to ensure privacy and speed without cloud dependencies.
 
 ## Setup
 
-### LibreOffice Extension Installation
+### 1. Installation
+1.  Download the latest `.oxt` file from the [releases page](https://github.com/balisujohn/localwriter/releases).
+2.  In LibreOffice, go to `Tools > Extension Manager`.
+3.  Click `Add` and select the downloaded file.
+4.  Restart LibreOffice.
 
-1.  Download the latest version of Localwriter via the [releases page](https://github.com/balisujohn/localwriter/releases).
-2.  Open LibreOffice.
-3.  Navigate to `Tools > Extensions`.
-4.  Click `Add` and select the downloaded `.oxt` file.
-5.  Follow the on-screen instructions to install the extension.
-
-### Backend Setup
-
-To use Localwriter, you need a backend model runner.  Options include `text-generation-webui` and `Ollama`. Choose the backend that best suits your needs. Ollama is generally easier to set up. In either of these options, you will have to download and set a model. 
-
-#### text-generation-webui
-
-*   Installation instructions can be found [here](https://github.com/oobabooga/text-generation-webui).
-*   Docker image available [here](https://github.com/Atinoda/text-generation-webui-docker).
-
-After installation and model setup:
-
-1.  Enable the local OpenAI API (this ensures the API responds in a format similar to OpenAI).
-2.  Verify that the intended model is working (e.g., openchat3.5, suitable for 8GB VRAM setups).
-3.  Set the endpoint in Localwriter to `localhost:5000` (or the configured port).
-
-#### Ollama
-
-*   Installation instructions are available [here](https://ollama.com/).
-*   Download and use a model (gemma3 isn't bad)
-*   Ensure the API is enabled.
-*   Set the endpoint in Localwriter to `localhost:11434` (or the configured port).
-*   Manually set the model name. ([This is required for Ollama to work](https://ask.libreoffice.org/t/localwriter-0-0-5-installation-and-usage/122241/5?u=jbalis))
+### 2. Backend Setup
+LocalWriter requires an OpenAI-compatible backend. Recommended options:
+*   **Ollama**: [ollama.com](https://ollama.com/) (easiest for local usage)
+*   **text-generation-webui**: [github.com/oobabooga/text-generation-webui](https://github.com/oobabooga/text-generation-webui)
+*   **OpenRouter / OpenAI**: Cloud-based providers.
 
 ## Settings
 
-### Configuration Priority
+Configure your endpoint, model, and behavior in **LocalWriter > Settings**.
 
-LocalWriter loads configuration in the following order (highest priority first):
+*   **Endpoint URL**: e.g., `http://localhost:11434` for Ollama.
+*   **Additional Instructions**: A shared system prompt for all features with history support.
+*   **API Key**: Required for cloud providers.
+*   **Connection Keep-Alive**: Automatically enabled to reduce latency.
 
-1. **Environment Variables** (prefixed with `LOCALWRITER_`) - useful for keeping secrets out of files
-2. **Configuration File** (`localwriter.json`)
-3. **Default Values**
-
-Example using environment variables:
-```bash
-export LOCALWRITER_API_KEY="sk-your-secret-key"
-export LOCALWRITER_ENDPOINT="https://api.openai.com"
-/Applications/LibreOffice.app/Contents/MacOS/soffice --writer
-```
-
-### Configuration Files
-
-See [CONFIG_EXAMPLES.md](CONFIG_EXAMPLES.md) for ready-to-use configuration examples.
-
-Configuration file location:
-- macOS: `~/Library/Application Support/LibreOffice/4/user/localwriter.json`
-- Linux: `~/.config/libreoffice/4/user/localwriter.json`
-- Windows: `%APPDATA%\LibreOffice\4\user\localwriter.json`
-
-### Available Settings
-
-In the settings dialog, you can configure:
-
-*   **Endpoint URL**: The URL of your LLM server (e.g., `http://localhost:3000` for OpenWebUI, `https://api.openai.com` for OpenAI)
-*   **Model**: The model name (e.g., `llama2`, `gpt-3.5-turbo`)
-*   **API Key**: Authentication key for OpenAI-compatible endpoints (optional for local servers)
-*   **API Type**: `chat` or `completions` (see explanation below ⭐)
-*   **Is OpenWebUI endpoint?**: Check this if using OpenWebUI (changes API path from `/v1/` to `/api/`)
-*   **OpenAI Compatible Endpoint?**: Check this for servers that strictly follow OpenAI format
-*   **Extend Selection Max Tokens**: Maximum number of tokens for text extension
-*   **Extend Selection System Prompt**: Instructions prepended to guide the model's style for extension
-*   **Edit Selection Max New Tokens**: Additional tokens allowed above original selection length
-*   **Edit Selection System Prompt**: Instructions for guiding text editing behavior
-
-### ⭐ Understanding API Type (chat vs completions)
-
-The **API Type** setting determines the format of requests sent to your LLM server:
-
-#### `chat` (Recommended - Modern Format)
-Uses structured messages with roles:
-```json
-{
-  "messages": [
-    {"role": "system", "content": "You are a helpful assistant"},
-    {"role": "user", "content": "Hello"}
-  ]
-}
-```
-**Use `chat` for:**
-- OpenAI (GPT-4, GPT-3.5-turbo)
-- OpenWebUI
-- Ollama with `/api/chat` endpoint
-- Most modern LLM APIs
-
-#### `completions` (Legacy Format)
-Uses a simple text prompt:
-```json
-{
-  "prompt": "SYSTEM: You are a helpful assistant\nUSER: Hello"
-}
-```
-**Use `completions` for:**
-- Older OpenAI models (GPT-3 base)
-- Simple local inference servers
-- Some LM Studio configurations
-
-**Simple rule:** If your server has a `/chat/completions` endpoint, use `chat`. Otherwise use `completions`.
+For detailed configuration examples, see [CONFIG_EXAMPLES.md](CONFIG_EXAMPLES.md).
 
 ## Contributing
 
-Help with development is always welcome. localwriter has a number of outstanding feature requests by users. Feel free to work on any of them, and you can help improve freedom-respecting local AI.
+### Local Development
+```bash
+# Clone the repository
+git clone https://github.com/balisujohn/localwriter.git
+cd localwriter
 
-### Local Development Setup
+# Build the extension package
+bash build.sh
 
-For developers who want to modify or contribute to Localwriter, you can run and test the extension directly from your source code without packaging it into an `.oxt` file. This allows for quick iteration and seeing changes reflected in the LibreOffice UI.
-
-1. **Clone the Repository (if not already done):**
-   - Clone the Localwriter repository to your local machine if you haven't already:
-     ```
-     git clone https://github.com/balisujohn/localwriter.git
-     cd localwriter
-     ```
-
-2. **Register the Extension Temporarily:**
-   - Use the `unopkg` tool to register the extension directly from your repository folder. This avoids the need to package the extension as an `.oxt` file during development.
-   - Run the following command, replacing `/path/to/localwriter/` with the path to your cloned repository:
-     ```
-     unopkg add /path/to/localwriter/
-     ```
-   - On Linux, `unopkg` is often located at `/usr/lib/libreoffice/program/unopkg`. Adjust the command if needed:
-     ```
-     /usr/lib/libreoffice/program/unopkg add /path/to/localwriter/
-     ```
-
-3. **Restart LibreOffice:**
-   - Close and reopen LibreOffice Writer or Calc. You should see the "localwriter" menu with options like "Extend Selection", "Edit Selection", and "Settings" in the menu bar.
-
-4. **Make and Test Changes:**
-   - Edit the source files (e.g., `main.py`) directly in your repository folder using your preferred editor.
-   - After making changes, restart LibreOffice to reload the updated code. Test the functionality and UI elements (dialogs, menu actions) directly in LibreOffice.
-   - Note: Restarting is often necessary for Python script changes to take effect, as LibreOffice caches modules.
-
-5. **Commit Changes to Git:**
-   - Since you're working directly in your Git repository, commit your changes as needed:
-     ```
-     git add main.py
-     git commit -m "Updated extension logic for ExtendSelection"
-     ```
-
-6. **Unregister the Extension (Optional):**
-   - If you need to remove the temporary registration, use:
-     ```
-     unopkg remove org.extension.localwriter
-     ```
-   - Replace `org.extension.localwriter` with the identifier from `description.xml` if different.
-
-### Building the Extension Package
-
-To generate the custom function UNO interface rdb from interface definition idl:
-
-```
-"c:\Program Files\LibreOffice\sdk\bin\unoidl-write.exe" "c:\Program Files\LibreOffice\program\types.rdb" "c:\Program Files\LibreOffice\program\types\offapi.rdb" idl\XPromptFunction.idl XPromptFunction.rdb
+# Register the extension
+unopkg add localwriter.oxt
 ```
 
-To create a distributable `.oxt` package:
-
-In a terminal, change directory into the localwriter repository top-level directory, then run the following command:
-
-````
-zip -r localwriter.oxt \
-  Accelerators.xcu \
-  Addons.xcu \
-  CalcAddIn.xcu \
-  XPromptFunction.rdb \
-  assets \
-  description.xml \
-  main.py \
-  prompt_function.py \
-  META-INF \
-  registration \
-  README.md
-````
-
-This will create the file `localwriter.oxt` which you can open with libreoffice to install the localwriter extension. You can also change the file extension to .zip and manually unzip the extension file, if you want to inspect a localwriter `.oxt` file yourself. It is all human-readable, since python is an interpreted language.
-
-
-
-## License 
-
-(See `License.txt` for the full license text)
-
-Except where otherwise noted in source code, this software is provided with a MPL 2.0 license.
-
-The code not released with an MPL2.0 license is released under the following terms.
-License: Creative Commons Attribution-ShareAlike 3.0 Unported License,
-License: The Document Foundation  https://creativecommons.org/licenses/by-sa/3.0/
-
-A large amount of code is derived from the following MPL2.0 licensed code from the Document Foundation
-https://gerrit.libreoffice.org/c/core/+/159938 
-
-
-MPL2.0
-
+## License
+LocalWriter is primarily released under the **MPL 2.0** license. See `License.txt` for details.
 Copyright (c) 2024 John Balis
+
+*Architecture diagram created by Sonnet 4.6.*
+
+![Architecture](Sonnet46ArchDiagram.jpg)

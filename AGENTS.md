@@ -122,7 +122,7 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
 ### Markdown tool-calling (current)
 
 - **get_markdown**: Returns the document (or selection/range) as Markdown. Parameters: optional `max_chars`, optional `scope` (`"full"` | `"selection"` | `"range"`); when `scope="range"`, required `start` and `end` (character offsets). Result JSON includes **`document_length`** so the AI can replace the whole doc with `apply_markdown(target="range", start=0, end=document_length)` or use `target="full"`. When `scope="range"`, result also includes `start` and `end` echoed back. Implementation: for full scope tries `XStorable.storeToURL` with FilterName `"Markdown"` to a temp file; on failure or for selection/range uses structural fallback (paragraph enumeration + `ParaStyleName` → headings, lists, blockquote). See `markdown_support.py`.
-- **apply_markdown**: Inserts or replaces content using Markdown **with native formatting**. Parameters: `markdown` (string), `target` (`"beginning"` | `"end"` | `"selection"` | `"search"` | **`"full"`** | **`"range"`**); when `target="search"`, also `search`, optional `all_matches`, `case_sensitive`; when **`target="range"`**, required **`start`** and **`end`** (character offsets). **`target="full"`** replaces the entire document (clear all, insert at start). **`target="range"`** replaces the character span `[start, end)` with the markdown (no need to send the original text back). Preferred flow for "make my resume look nice" or reformat: call `get_markdown(scope="full")` once, then `apply_markdown(markdown=<new content>, target="full")` or `target="range", start=0, end=document_length` — **only the new markdown is sent**, never the original document text. Implementation: writes markdown to a temp `.md` file, then **`cursor.insertDocumentFromURL(file_url, {FilterName: "Markdown"})`** at the chosen position; for `"full"` uses `_insert_markdown_full`; for `"range"` uses `get_text_cursor_at_range()` then `setString("")` and `insertDocumentFromURL`. See `markdown_support.py`.
+- **apply_markdown**: Inserts or replaces content using Markdown **with native formatting**. Parameters: `markdown` (string), `target` (`"beginning"` | `"end"` | `"selection"` | `"search"` | **`"full"`** | **`"range"`**); when `target="search"`, also `search`, optional `all_matches`, `case_sensitive`; when **`target="range"`**, required **`start`** and **`end`** (character offsets). **`target="full"`** replaces the entire document (clear all, insert at start). **`target="range"`** replaces the character span `[start, end)` with the markdown (no need to send the original text back). Preferred flow for "make my resume look nice" or reformat: call `get_markdown(scope="full")` once, then `apply_markdown(markdown=<new content>, target="full")` or `target="range", start=0, end=document_length` — **only the new markdown is sent**, never the original document text. Implementation: writes markdown to a temp `.md` file, then **`cursor.insertDocumentFromURL(file_url, {FilterName: "Markdown"})`** at the chosen position; for `"full"` uses `_insert_markdown_full`; for `"range"` uses `get_text_cursor_at_range()` then `setString("")` and `insertDocumentFromURL`. See `markdown_support.py`. **Note**: Both Markdown and HTML injection are implemented; further testing will determine the default path for rich formatting and layout control.
 
 ### System prompt and reasoning (latest)
 
@@ -272,6 +272,18 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - **Range-based markdown replace (DONE)**: `get_markdown` returns `document_length` and supports scope `"range"` with `start`/`end`; `apply_markdown` supports target `"full"` (replace entire document) and target `"range"` with `start`/`end` (replace by character span). Enables "read once, replace with new markdown only" so the AI does not send document text twice (e.g. "make my plain text resume look nice"). Helpers in `core/document.py`: `get_document_length()`, `get_text_cursor_at_range()`. System prompt updated to direct the model to use this flow.
 - **Calc chat/tools (DONE)**: Sidebar and menu Chat for Calc with CALC_TOOLS, get_calc_context_for_chat, and get_chat_system_prompt_for_document. See [Calc support from LibreCalc.md](Calc%20support%20from%20LibreCalc.md).
 - **Draw chat/tools (DONE)**: Sidebar and menu Chat for Draw with DRAW_TOOLS and execute_draw_tool.
+
+---
+
+## 7b. Future Roadmap
+
+- **Richer Context**: Metadata awareness (word counts, styles, formula dependencies).
+- **Safer Workflows**: Propose-first execution with user confirmation (diff preview).
+- **Predictive Typing**: Trigram-based "ghost text" for real-time drafting assist.
+- **Multimodal Integration**: Image generation/editing via **Stable Diffusion** and DALL-E.
+- **Reliability Foundations**: Robust timeouts, clear error prompts, and rollback safety.
+- **Suite Completeness**: Finalizing Draw and Impress slide/shape toolsets.
+- **Offline First**: Optimized local performance for privacy and speed.
 
 ---
 
