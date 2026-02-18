@@ -93,14 +93,6 @@ DRAW_TOOLS = [
     },
 ]
 
-_bridge = None
-
-def _get_bridge(ctx):
-    global _bridge
-    if _bridge is None:
-        _bridge = DrawBridge(ctx)
-    return _bridge
-
 def _parse_color(color_str):
     if not color_str:
         return None
@@ -120,7 +112,7 @@ def _parse_color(color_str):
     return None
 
 def execute_draw_tool(tool_name, arguments, model, ctx):
-    bridge = _get_bridge(ctx)
+    bridge = DrawBridge(model)
     agent_log("draw_tools.py:execute_draw_tool", "Tool call", data={"tool": tool_name, "arguments": arguments})
     
     try:
@@ -179,6 +171,7 @@ def execute_draw_tool(tool_name, arguments, model, ctx):
                     try:
                         shape.setPropertyValue(prop_name, color)
                     except Exception:
+                        from core.logging import debug_log
                         debug_log("Could not set %s on %s" % (prop_name, shape.getShapeType()), context="Draw")
             return json.dumps({"status": "ok", "message": f"Created {arguments['shape_type']}"})
 

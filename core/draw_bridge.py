@@ -6,35 +6,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DrawBridge:
-    def __init__(self, ctx):
-        self.ctx = ctx
-        self.smgr = ctx.getServiceManager()
-        self.desktop = self.smgr.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
+    def __init__(self, doc):
+        self.doc = doc
+        if not hasattr(doc, "getDrawPages"):
+             raise RuntimeError("Provided document is not a Draw/Impress document.")
 
-    def get_active_document(self):
-        doc = self.desktop.getCurrentComponent()
-        if doc is None:
-            raise RuntimeError("No active LibreOffice document found.")
-        return doc
+    def get_pages(self):
+        return self.doc.getDrawPages()
 
-    def is_draw_doc(self, doc):
-        return hasattr(doc, "getDrawPages")
-
-    def get_pages(self, doc=None):
-        if doc is None:
-            doc = self.get_active_document()
-        if not self.is_draw_doc(doc):
-            raise RuntimeError("Active document is not a Draw/Impress document.")
-        return doc.getDrawPages()
-
-    def get_active_page(self, doc=None):
-        if doc is None:
-            doc = self.get_active_document()
-        controller = doc.getCurrentController()
+    def get_active_page(self):
+        controller = self.doc.getCurrentController()
         if hasattr(controller, "getCurrentPage"):
             return controller.getCurrentPage()
         # Fallback to first page
-        pages = self.get_pages(doc)
+        pages = self.get_pages()
         if pages.getCount() > 0:
             return pages.getByIndex(0)
         return None
@@ -44,11 +29,10 @@ class DrawBridge:
         Creates a shape of specified type and adds it to the page.
         shape_type: e.g. "com.sun.star.drawing.RectangleShape"
         """
-        doc = self.get_active_document()
         if page is None:
-            page = self.get_active_page(doc)
+            page = self.get_active_page()
         
-        shape = doc.createInstance(shape_type)
+        shape = self.doc.createInstance(shape_type)
         page.add(shape)
         
         # Set size and position

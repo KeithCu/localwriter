@@ -6,11 +6,11 @@
 
 ## 1. Project Overview
 
-**LocalWriter** is a LibreOffice extension (Python + UNO) that adds generative AI editing to Writer and Calc:
+**LocalWriter** is a LibreOffice extension (Python + UNO) that adds generative AI editing to Writer, Calc, and Draw:
 
 - **Extend Selection** (Ctrl+Q): Model continues the selected text
 - **Edit Selection** (Ctrl+E): User enters instructions; model rewrites the selection
-- **Chat with Document** (Writer and Calc): (a) **Sidebar panel**: LocalWriter deck in the right sidebar, multi-turn chat with tool-calling that edits the document; (b) **Menu item** (fallback): Opens input dialog, appends response to end of document (Writer) or to "AI Response" sheet (Calc)
+- **Chat with Document** (Writer, Calc, and Draw): (a) **Sidebar panel**: LocalWriter deck in the right sidebar, multi-turn chat with tool-calling that edits the document; (b) **Menu item** (fallback): Opens input dialog, appends response to end of document (Writer) or to "AI Response" sheet (Calc/Draw)
 - **Settings**: Configure endpoint, model, API key, temperature, request timeout, etc.
 - **Calc** `=PROMPT()`: Cell formula that calls the model
 
@@ -38,7 +38,9 @@ localwriter/
 │   ├── calc_sheet_analyzer.py
 │   ├── calc_error_detector.py
 │   ├── calc_manipulator.py
-│   └── calc_tools.py    # CALC_TOOLS (schemas), execute_calc_tool
+│   ├── calc_tools.py    # CALC_TOOLS (schemas), execute_calc_tool
+│   ├── draw_bridge.py   # Draw/Impress page and shape manipulation
+│   └── draw_tools.py    # DRAW_TOOLS (schemas), execute_draw_tool (pages, shapes)
 ├── prompt_function.py   # Calc =PROMPT() formula
 ├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
 ├── document_tools.py    # WRITER_TOOLS (get_markdown, apply_markdown only), execute_tool; legacy tools present but not exposed
@@ -102,7 +104,10 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
   - **Undo grouping**: AI edits performed during tool-calling rounds are grouped into a single undo context ("AI Edit"). Users can revert all changes from an AI turn with a single Ctrl+Z.
   - **Send/Stop button state (lifecycle-based)**: "AI is busy" is defined by the single run of `actionPerformed`: Send is disabled (Stop enabled) at the **start** of the run, and re-enabled (Stop disabled) **only** in the `finally` block when `_do_send()` has returned. No dependence on internal job_done or drain-loop state. `_set_button_states(send_enabled, stop_enabled)` uses per-control try/except (prefer `control.setEnable()`, fallback to model `Enabled`) so a UNO failure on one control cannot leave Send stuck disabled. `SendButtonListener._send_busy` is set True at run start and False in finally for external checks. This prevents multiple concurrent requests.
 - **Implementation**: `chat_panel.py` (ChatPanelFactory, ChatPanelElement, ChatToolPanel); `ContainerWindowProvider` + `ChatPanelDialog.xdl`; `setVisible(True)` required after `createContainerWindow()`.
-- **Tool-calling**: `chat_panel.py` (and the menu path in `main.py`) detect document type (spreadsheet vs text). **Writer**: `document_tools.py` exposes **WRITER_TOOLS** = `get_markdown`, `apply_markdown`; implementations in `markdown_support.py`; `execute_tool` dispatcher. Legacy tools remain in `document_tools.py` but are not in WRITER_TOOLS (commented out). **Calc**: `core/calc_tools.py` exposes **CALC_TOOLS** and `execute_calc_tool` (read ranges, write formulas, format, merge, sheet management, chart, detect_and_explain_errors); core logic in `core/calc_*.py`.
+- **Tool-calling**: `chat_panel.py` (and the menu path in `main.py`) detect document type (spreadsheet vs text vs drawing).
+    - **Writer**: `document_tools.py` exposes **WRITER_TOOLS** = `get_markdown`, `apply_markdown`; implementations in `markdown_support.py`; `execute_tool` dispatcher.
+    - **Calc**: `core/calc_tools.py` exposes **CALC_TOOLS** and `execute_calc_tool` (read ranges, write formulas, format, merge, sheet management, chart, detect_and_explain_errors); core logic in `core/calc_*.py`.
+    - **Draw/Impress**: `core/draw_tools.py` exposes **DRAW_TOOLS** and `execute_draw_tool` (`list_pages`, `get_draw_summary`, `create_shape`, `edit_shape`, `delete_shape`); core logic in `core/draw_bridge.py`.
 - **Menu fallback**: Menu item "Chat with Document" opens input dialog, streams response with no tool-calling. **Writer**: appends to document end. **Calc**: streams to "AI Response" sheet. Both sidebar and menu use the same document context (see below).
 - **Config keys** (used by chat): `chat_context_length`, `chat_max_tokens`, `additional_instructions` (in Settings).
 - **Unified Prompt System**: See Section 3c.
@@ -110,7 +115,7 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
 ### Document context for chat (current implementation)
 
 - **Refreshed every Send**: On each user message we re-read the document and rebuild the context; the single `[DOCUMENT CONTENT]` system message is **replaced** (not appended), so the conversation history grows but the context block does not duplicate.
-- **Writer**: `core/document.py` provides `get_document_context_for_chat(model, max_context, include_end=True, include_selection=True, ctx=None)` which builds one string with: document length (metadata); **start and end excerpts** (for long docs, first/last half of `chat_context_length` with `[DOCUMENT START]` / `[DOCUMENT END]` / `[END DOCUMENT]` labels); **selection/cursor**: `(start_offset, end_offset)` from `get_selection_range(model)` with **`[SELECTION_START]`** / **`[SELECTION_END]`** injected at those positions (capped for very long selections). Helpers: `get_document_end`, `get_selection_range`, `get_document_length`, `get_text_cursor_at_range`, `_inject_markers_into_excerpt()`.
+- **Writer**: `core/document.py` provides `get_document_context_for_chat(model, max_context, include_end=True, include_selection=True, ctx=None)` which builds one string with: document length (metadata); **start and end excerpts** (for long docs, first/last half of `chat_context_length` with `[DOCUMENT START]` / `[DOCUMENT END]` / `[END DOCUMENT]` labels); **selection/cursor**: `(start_offset, end_offset)` from `get_selection_range(model)` with **`[SELECTION_START]`** / **`[SELECTION_END]`** injected at those positions (capped for very long selections). Helpers: `get_document_end`, `get_selection_range`, `get_document_length`, `get_text_cursor_at_range`, `_inject_markers_into_excerpt()`).
 - **Calc**: For Calc documents, `get_document_context_for_chat(..., ctx=...)` delegates to `get_calc_context_for_chat(model, max_context, ctx)` in `core/document.py`. **`ctx` is required for Calc** (component context from panel or MainJob); do not use `uno.getComponentContext()` in this path. Calc context includes: document URL, active sheet name, used range, column headers, current selection range, and (for small selections) selection content. See [Calc support from LibreCalc.md](Calc%20support%20from%20LibreCalc.md).
 - **Scope**: Chat with Document only. Extend Selection and Edit Selection are legacy and unchanged.
 
@@ -142,8 +147,8 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
 **Root Cause**: Sidebar panels were not properly scoped to their respective documents. The `CalcBridge` and document context functions relied on the global active document, which changes with user focus.
 
 **Fix**:
-- Modified `CalcBridge.__init__()` to take a specific document (`doc`) instead of global context (`ctx`).
-- Updated `execute_calc_tool()` and `execute_tool()` to take `doc` directly.
+- Modified `CalcBridge.__init__()` and `DrawBridge.__init__()` to take a specific document (`doc`) instead of global context (`ctx`).
+- Updated `execute_calc_tool()`, `execute_draw_tool()`, and `execute_tool()` to take `doc` directly.
 - Changed `get_document_context_for_chat()` and `get_calc_context_for_chat()` to take `doc` instead of `ctx`.
 - In `chat_panel.py`, each panel uses `self.doc = self.xFrame.getController().getModel()` and passes it to all operations.
 - Menu chat continues to use the active document as expected.
@@ -266,6 +271,7 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - **Document context (DONE)**: Start + end excerpts and inline selection/cursor markers via `get_document_context_for_chat()`; see "Document context for chat" above and [Chat Sidebar Improvement Plan.md](Chat%20Sidebar%20Improvement%20Plan.md) for design decisions and current implementation.
 - **Range-based markdown replace (DONE)**: `get_markdown` returns `document_length` and supports scope `"range"` with `start`/`end`; `apply_markdown` supports target `"full"` (replace entire document) and target `"range"` with `start`/`end` (replace by character span). Enables "read once, replace with new markdown only" so the AI does not send document text twice (e.g. "make my plain text resume look nice"). Helpers in `core/document.py`: `get_document_length()`, `get_text_cursor_at_range()`. System prompt updated to direct the model to use this flow.
 - **Calc chat/tools (DONE)**: Sidebar and menu Chat for Calc with CALC_TOOLS, get_calc_context_for_chat, and get_chat_system_prompt_for_document. See [Calc support from LibreCalc.md](Calc%20support%20from%20LibreCalc.md).
+- **Draw chat/tools (DONE)**: Sidebar and menu Chat for Draw with DRAW_TOOLS and execute_draw_tool.
 
 ---
 
