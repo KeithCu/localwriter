@@ -361,6 +361,17 @@ class MainJob(unohelper.Base, XJobExecutor):
                 self.show_error("Tests failed to run: %s" % e, "Calc tests")
             return
 
+        if args == "RunDrawTests":
+            try:
+                from core.draw_tests import run_draw_tests
+                draw_model = model if (model and hasattr(model, "getDrawPages")) else None
+                p, f, log = run_draw_tests(self.ctx, draw_model)
+                msg = "Draw tests: %d passed, %d failed.\n\n%s" % (p, f, "\n".join(log))
+                self.show_error(msg, "Draw tests")
+            except Exception as e:
+                self.show_error("Tests failed to run: %s" % e, "Draw tests")
+            return
+
         if args == "RunCalcIntegrationTests":
             try:
                 from core.calc_tests import run_calc_integration_tests
@@ -646,6 +657,64 @@ class MainJob(unohelper.Base, XJobExecutor):
                     run_next_cell()
             except Exception as e:
                 self.show_error(str(e), "LocalWriter: Calc Processing")
+        elif hasattr(model, "getDrawPages"):
+            if args == "ChatWithDocument":
+                try:
+                    max_context = int(self.get_config("chat_context_length", 8000))
+                    doc_text = get_document_context_for_chat(model, max_context, ctx=self.ctx)
+                    
+                    user_query, extra_instructions = self.input_box("Ask a question about your drawing/presentation:", "Chat with Document", "")
+                    if not user_query:
+                        return
+                    
+                    if extra_instructions:
+                        self.set_config("additional_instructions", extra_instructions)
+                        self._update_lru_history(extra_instructions, "prompt_lru")
+
+                    prompt = f"Document content summary:\n\n{doc_text}\n\nUser question: {user_query}"
+                    system_prompt = get_chat_system_prompt_for_document(model, extra_instructions or "")
+                    max_tokens = int(self.get_config("chat_max_tokens", 512))
+                    api_type = str(self.get_config("api_type", "completions")).lower()
+                    api_config = get_api_config(self.ctx)
+                    ok, err_msg = validate_api_config(api_config)
+                    if not ok:
+                        self.show_error(err_msg, "LocalWriter: Chat with Document")
+                        return
+                    
+                    # For Draw, stream to a new text shape on the active page
+                    from core.draw_bridge import DrawBridge
+                    bridge = DrawBridge(self.ctx)
+                    page = bridge.get_active_page(model)
+                    
+                    # Create a text shape for the response
+                    shape = bridge.create_shape("com.sun.star.drawing.TextShape", 1000, 1000, 10000, 5000, page)
+                    shape.setString(f"Query: {user_query}\n\nResponse:\n")
+                    
+                    client = self._get_client()
+                    response_content = [""]
+
+                    def apply_chunk(chunk_text, is_thinking=False):
+                        if chunk_text and not is_thinking:
+                            response_content[0] += chunk_text
+                            shape.setString(f"Query: {user_query}\n\nResponse:\n" + response_content[0])
+
+                    run_stream_completion_async(
+                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+                        apply_chunk, lambda: None,
+                        lambda e: self.show_error(str(e), "LocalWriter: Chat with Document"),
+                    )
+                    return
+                except Exception as e:
+                    self.show_error(str(e), "LocalWriter: Chat with Document")
+                    return
+            
+            if args == "settings":
+                try:
+                    result = self.settings_box("Settings")
+                    self._apply_settings_result(result)
+                except Exception as e:
+                    self.show_error(str(e), "LocalWriter: Settings")
+                return
 # Starting from Python IDE
 def main():
     try:

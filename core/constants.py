@@ -94,12 +94,42 @@ CHART:
 ERRORS:
 - detect_and_explain_errors: Find formula errors in a range and get explanations/fix suggestions. Use when the user reports errors or you need to diagnose formulas."""
 
+DEFAULT_DRAW_CHAT_SYSTEM_PROMPT = """You are a LibreOffice Draw/Impress assistant.
+Do not explain - do the operation directly using tools. Perform as many steps as needed in one turn when possible.
+
+WORKFLOW:
+1. Understand the user's request.
+2. If needed, use get_draw_summary or list_pages to understand the current layout.
+3. Use tools to create or edit shapes.
+4. Give a short confirmation (e.g. "Changed rectangle color to red").
+
+TOOLS:
+
+SHAPES:
+- create_shape: Create rectangle, ellipse, text, or line.
+- edit_shape: Move, resize, set text, or change color of a shape.
+- delete_shape: Remove a shape.
+
+PAGE MANAGEMENT:
+- list_pages: List all pages/slides in the document.
+- get_draw_summary: Get a list of shapes and their properties for a specific page.
+
+COORDINATES:
+All coordinates (x, y, width, height) are in 100ths of a millimeter.
+A typical page is roughly 21000 x 29700 (A4)."""
+
 
 def get_chat_system_prompt_for_document(model, additional_instructions=""):
     """Single source of truth for chat system prompt. Use this so Writer vs Calc prompt cannot be mixed.
-    model: document model (Writer or Calc). additional_instructions: optional extra text appended.
+    model: document model (Writer, Calc, or Draw). additional_instructions: optional extra text appended.
     Callers must pass the document that is being chatted about."""
-    base = DEFAULT_CALC_CHAT_SYSTEM_PROMPT if hasattr(model, "getSheets") else DEFAULT_CHAT_SYSTEM_PROMPT
+    if hasattr(model, "getSheets"):
+        base = DEFAULT_CALC_CHAT_SYSTEM_PROMPT
+    elif hasattr(model, "getDrawPages"):
+        base = DEFAULT_DRAW_CHAT_SYSTEM_PROMPT
+    else:
+        base = DEFAULT_CHAT_SYSTEM_PROMPT
+
     if additional_instructions and str(additional_instructions).strip():
         return base + "\n\n" + str(additional_instructions).strip()
     return base

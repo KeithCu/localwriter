@@ -19,7 +19,7 @@
                     <value>vnd.sun.star.extension://org.extension.localwriter/assets/icon_16.png</value>
                 </prop>
                 <prop oor:name="ContextList">
-                    <value oor:separator=";">com.sun.star.text.TextDocument, any, visible; com.sun.star.sheet.SpreadsheetDocument, any, visible;</value>
+                    <value oor:separator=";">com.sun.star.text.TextDocument, any, visible; com.sun.star.sheet.SpreadsheetDocument, any, visible; com.sun.star.drawing.DrawingDocument, any, visible; com.sun.star.presentation.PresentationDocument, any, visible;</value>
                 </prop>
             </node>
         </node>
@@ -35,7 +35,7 @@
                     <value>LocalWriterDeck</value>
                 </prop>
                 <prop oor:name="ContextList">
-                    <value oor:separator=";">com.sun.star.text.TextDocument, any, visible; com.sun.star.sheet.SpreadsheetDocument, any, visible;</value>
+                    <value oor:separator=";">com.sun.star.text.TextDocument, any, visible; com.sun.star.sheet.SpreadsheetDocument, any, visible; com.sun.star.drawing.DrawingDocument, any, visible; com.sun.star.presentation.PresentationDocument, any, visible;</value>
                 </prop>
                 <prop oor:name="ImplementationURL" oor:type="xs:string">
                     <value>private:resource/toolpanel/ChatPanelFactory/ChatPanel</value>

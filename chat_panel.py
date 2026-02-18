@@ -197,7 +197,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             desktop = self.ctx.getServiceManager().createInstanceWithContext(
                 "com.sun.star.frame.Desktop", self.ctx)
             model = desktop.getCurrentComponent()
-        if model and (hasattr(model, "getText") or hasattr(model, "getSheets")):
+        if model and (hasattr(model, "getText") or hasattr(model, "getSheets") or hasattr(model, "getDrawPages")):
             return model
         return None
 
@@ -270,12 +270,13 @@ class SendButtonListener(unohelper.Base, XActionListener):
         model = self._get_document_model()
         if not model:
             debug_log("_do_send: no document found", context="Chat")
-            self._append_response("\n[No document open.]\n")
+            self._append_response("\n[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n")
             self._terminal_status = "Error"
             return
         debug_log("_do_send: got document model OK", context="Chat")
 
         is_calc = hasattr(model, "getSheets")
+        is_draw = hasattr(model, "getDrawPages")
 
         try:
             if is_calc:
@@ -284,6 +285,12 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 active_tools = CALC_TOOLS
                 execute_fn = lambda name, args, doc, ctx: execute_calc_tool(name, args, doc)
                 debug_log("_do_send: calc_tools imported OK (%d tools)" % len(CALC_TOOLS), context="Chat")
+            elif is_draw:
+                debug_log("_do_send: importing draw_tools...", context="Chat")
+                from core.draw_tools import DRAW_TOOLS, execute_draw_tool
+                active_tools = DRAW_TOOLS
+                execute_fn = execute_draw_tool
+                debug_log("_do_send: draw_tools imported OK (%d tools)" % len(DRAW_TOOLS), context="Chat")
             else:
                 debug_log("_do_send: importing document_tools...", context="Chat")
                 from core.document_tools import WRITER_TOOLS, execute_tool
@@ -825,7 +832,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                     model = desktop.getCurrentComponent()
                 except Exception:
                     pass
-            if model and (hasattr(model, "getText") or hasattr(model, "getSheets")):
+            if model and (hasattr(model, "getText") or hasattr(model, "getSheets") or hasattr(model, "getDrawPages")):
                 system_prompt = get_chat_system_prompt_for_document(model, extra_instructions or "")
             else:
                 system_prompt = (DEFAULT_CHAT_SYSTEM_PROMPT + "\n\n" + str(extra_instructions)) if extra_instructions else DEFAULT_CHAT_SYSTEM_PROMPT

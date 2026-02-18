@@ -7,7 +7,7 @@
           <value xml:lang="en-US">localwriter</value>
         </prop>
         <prop oor:name="Context" oor:type="xs:string">
-          <value>com.sun.star.sheet.SpreadsheetDocument,com.sun.star.text.GlobalDocument,com.sun.star.text.TextDocument,com.sun.star.text.WebDocument</value>
+          <value>com.sun.star.sheet.SpreadsheetDocument,com.sun.star.text.GlobalDocument,com.sun.star.text.TextDocument,com.sun.star.text.WebDocument,com.sun.star.drawing.DrawingDocument,com.sun.star.presentation.PresentationDocument</value>
         </prop>
         <node oor:name="Submenu">
           <node oor:name="M1" oor:op="replace">
@@ -82,6 +82,17 @@
             </prop>
             <prop oor:name="URL">
               <value>service:org.extension.localwriter.Main?RunCalcIntegrationTests</value>
+            </prop>
+            <prop oor:name="Target" oor:type="xs:string">
+              <value>_self</value>
+            </prop>
+          </node>
+          <node oor:name="M7" oor:op="replace">
+            <prop oor:name="Title">
+              <value xml:lang="en-US">Run draw tests</value>
+            </prop>
+            <prop oor:name="URL">
+              <value>service:org.extension.localwriter.Main?RunDrawTests</value>
             </prop>
             <prop oor:name="Target" oor:type="xs:string">
               <value>_self</value>
