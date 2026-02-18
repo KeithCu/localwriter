@@ -118,14 +118,13 @@ def get_selection_range(model):
         return (0, 0)
 
 
-def get_document_context_for_chat(model, max_context=8000, include_end=True, include_selection=True):
-    """Build a single context string for chat. Handles Writer and Calc."""
+def get_document_context_for_chat(model, max_context=8000, include_end=True, include_selection=True, ctx=None):
+    """Build a single context string for chat. Handles Writer and Calc.
+    ctx: component context (required for Calc and Draw documents)."""
     if hasattr(model, "getSheets"):
-        return get_calc_context_for_chat(model, max_context)
+        return get_calc_context_for_chat(model, max_context, ctx)
     
     if hasattr(model, "getDrawPages"):
-        if ctx is None:
-            raise ValueError("ctx is required for Draw documents when calling get_document_context_for_chat")
         return get_draw_context_for_chat(model, max_context, ctx)
     
     # Original Writer logic
