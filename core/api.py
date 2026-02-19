@@ -364,6 +364,7 @@ class LlmClient:
         on_thinking=None,
         on_delta=None,
         stop_checker=None,
+        _retry=True,
     ):
         """Common low-level streaming engine."""
         init_logging(self.ctx)
@@ -463,10 +464,20 @@ class LlmClient:
                 if conn_hdr == "close":
                     self._close_connection()
 
-        except (http.client.HTTPException, socket.error) as e:
+        except (http.client.HTTPException, socket.error, OSError) as e:
             debug_log("Connection error, closing: %s" % e, context="API")
             self._close_connection()
             err_msg = format_error_message(e)
+            if _retry:
+                debug_log("Retrying streaming request once on fresh connection", context="API")
+                return self._run_streaming_loop(
+                    method, path, body, headers, api_type,
+                    on_content=on_content,
+                    on_thinking=on_thinking,
+                    on_delta=on_delta,
+                    stop_checker=stop_checker,
+                    _retry=False,
+                )
             raise Exception(err_msg)
         except Exception as e:
             self._close_connection() # Reset on any other error too
@@ -527,25 +538,30 @@ class LlmClient:
         method, path, body, headers = self.make_chat_request(
             messages, max_tokens, tools=tools, stream=False
         )
-        conn = self._get_connection()
-
-        try:
-            conn.request(method, path, body=body, headers=headers)
-            response = conn.getresponse()
-            if response.status != 200:
-                err_body = response.read().decode("utf-8", errors="replace")
-                debug_log("API Error %d: %s" % (response.status, err_body), context="API")
-                raise Exception("HTTP Error %d: %s" % (response.status, response.reason))
-            
-            result = json.loads(response.read().decode("utf-8"))
-        except (http.client.HTTPException, socket.error) as e:
-            debug_log("Connection error, closing: %s" % e, context="API")
-            self._close_connection()
-            raise Exception(format_error_message(e))
-        except Exception as e:
-            err_msg = format_error_message(e)
-            debug_log("request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")
-            raise Exception(err_msg)
+        result = None
+        for attempt in (0, 1):
+            try:
+                conn = self._get_connection()
+                conn.request(method, path, body=body, headers=headers)
+                response = conn.getresponse()
+                if response.status != 200:
+                    err_body = response.read().decode("utf-8", errors="replace")
+                    debug_log("API Error %d: %s" % (response.status, err_body), context="API")
+                    self._close_connection()
+                    raise Exception("HTTP Error %d: %s" % (response.status, response.reason))
+                result = json.loads(response.read().decode("utf-8"))
+                break
+            except (http.client.HTTPException, socket.error, OSError) as e:
+                debug_log("Connection error, closing: %s" % e, context="API")
+                self._close_connection()
+                if attempt == 0:
+                    debug_log("Retrying request_with_tools once on fresh connection", context="API")
+                    continue
+                raise Exception(format_error_message(e))
+            except Exception as e:
+                err_msg = format_error_message(e)
+                debug_log("request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")
+                raise Exception(err_msg)
 
         debug_log("=== Tool response: %s" % json.dumps(result, indent=2), context="API")
 
@@ -587,22 +603,6 @@ class LlmClient:
         append_thinking_callback = append_thinking_callback or (lambda t: None)
 
         try:
-            last_finish_reason = self._run_streaming_loop(
-                method,
-                path,
-                body,
-                headers,
-                "chat",
-                on_content=append_callback,
-                on_thinking=append_thinking_callback,
-                on_delta=lambda d: accumulate_delta(message_snapshot, d),
-                stop_checker=stop_checker,
-            )
-        except (http.client.HTTPException, socket.error) as e:
-            # Connection reuse failed; retry once on a fresh connection.
-            debug_log("stream_request_with_tools: connection error, retrying once: %s" % e, context="API")
-            self._close_connection()
-            message_snapshot.clear()
             last_finish_reason = self._run_streaming_loop(
                 method,
                 path,
