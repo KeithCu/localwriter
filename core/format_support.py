@@ -485,25 +485,28 @@ def _content_has_markup(content):
     return any(pat.lower() in content_lower for pat in _MARKUP_PATTERNS)
 
 
-def _replace_text_preserving_format(model, target_range, new_text):
+def _replace_text_preserving_format(model, target_range, new_text, ctx=None):
     """Replace the text in target_range with new_text, preserving per-character
     formatting by replacing one character at a time.
 
     Each single-character setString() inherits ALL character properties from the
     character it replaces (CharBackColor, CharColor, CharHeight, CharWeight,
-    CharPosture, CharUnderline, etc.) — including properties the AI has no
+    CharPosture, CharUnderline, etc.) including properties the AI has no
     knowledge of.  The caller does not need to enumerate or copy properties.
+
+    Cursor approach: absolute document offsets (gotoStart + goRight(n)) are used
+    for each character rather than chaining cursor positions across setString()
+    calls, because setString() cursor state after replacement is
+    implementation-dependent in some LO versions.
 
     Length handling:
       - Overlapping portion: each new char gets the old char's formatting.
       - Extra new chars (new_text longer): inherit formatting from the LAST
-        original character.  This is correct for the common case of small edits
-        (typos, rewording) where the trailing format is the right default.
+        original character (inserted at the position after the overlap).
       - Leftover old chars (new_text shorter): deleted.
 
-    Future enhancements to consider:
-      - Proportional format mapping for large length differences (stretch/
-        compress the formatting pattern across the new text).
+    Future enhancements:
+      - Proportional format mapping for large length differences.
       - Paragraph-style preservation when replacement spans paragraph breaks.
       - Expose as an explicit option for Edit Selection streaming.
     """
@@ -521,25 +524,78 @@ def _replace_text_preserving_format(model, target_range, new_text):
         text.insertString(cursor, new_text, False)
         return
 
-    pos = text.createTextCursorByRange(target_range.getStart())
     overlap = min(old_len, new_len)
 
-    # Replace character-by-character over the overlapping portion
+    # Compute the absolute character offset of the range start by selecting
+    # from the document start to our range start and measuring the string length.
+    tmp = text.createTextCursorByRange(target_range.getStart())
+    tmp.gotoStart(True)  # extend selection back to doc start
+    start_offset = len(tmp.getString())
+    
+    debug_log("_replace_text_preserving_format: range '%s' (len=%d) -> '%s' (len=%d) at offset %d" % (
+        old_text[:20], old_len, new_text[:20], new_len, start_offset), context="Markdown")
+
+    # Reuse toolkit if available to keep UI responsive
+    toolkit = None
+    if ctx:
+        try:
+            toolkit = ctx.getServiceManager().createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
+        except Exception:
+            pass
+
+    # Replace character-by-character over the overlapping portion.
+    # Create a persistent cursor for traversal (O(N) instead of O(N^2))
+    main_cursor = text.createTextCursor()
+    main_cursor.gotoStart(False)
+    main_cursor.goRight(start_offset, False)
+
     for i in range(overlap):
-        char_cursor = text.createTextCursorByRange(pos)
-        char_cursor.goRight(1, True)  # select exactly 1 old character
-        char_cursor.setString(new_text[i])  # replace — keeps all char props
-        pos = text.createTextCursorByRange(char_cursor.getEnd())
+        # Brief pause every 500 chars to avoid freezing the UI completely
+        if i > 0 and i % 500 == 0:
+            if toolkit:
+                try:
+                    toolkit.processEvents()
+                except Exception:
+                    toolkit = None
+
+        if new_text[i] == old_text[i]:
+            main_cursor.goRight(1, False)
+            continue
+
+        # Insert new char AFTER the old char to inherit its formatting
+        # Use a localized clone so we don't lose our place
+        ins = text.createTextCursorByRange(main_cursor)
+        ins.goRight(1, False)
+        text.insertString(ins, new_text[i], False)
+        
+        # Delete the old char (at main_cursor)
+        deleter = text.createTextCursorByRange(main_cursor)
+        deleter.goRight(1, True)
+        deleter.setString("")
+        
+        # Advance main_cursor past the new char (which is now at the current pos)
+        main_cursor.goRight(1, False)
+
+
+
+
 
     if new_len > old_len:
-        # Extra new characters: inherit formatting of the last original char
-        remaining = new_text[old_len:]
-        text.insertString(pos, remaining, False)
+        # Extra new characters: insert after the replaced overlap.
+        # The cursor lands at start_offset + overlap (one past the last replaced char).
+        extra_cursor = text.createTextCursor()
+        extra_cursor.gotoStart(False)
+        extra_cursor.goRight(start_offset + overlap, False)
+        text.insertString(extra_cursor, new_text[old_len:], False)
     elif old_len > new_len:
-        # Leftover old characters: delete them
-        leftover = text.createTextCursorByRange(pos)
+        # Leftover old characters: delete them.
+        leftover = text.createTextCursor()
+        leftover.gotoStart(False)
+        leftover.goRight(start_offset + new_len, False)
         leftover.goRight(old_len - new_len, True)
         leftover.setString("")
+
+
 
 
 def _apply_preserving_format_at_search(model, ctx, new_text, search_string,
@@ -558,7 +614,7 @@ def _apply_preserving_format_at_search(model, ctx, new_text, search_string,
         if not found:
             continue
         while found:
-            _replace_text_preserving_format(model, found, new_text)
+            _replace_text_preserving_format(model, found, new_text, ctx)
             count += 1
             if not all_matches:
                 break
@@ -869,11 +925,11 @@ def tool_apply_document_content(model, ctx, args):
     """Tool: insert or replace content (combined edit)."""
     content = args.get("content")
     target = args.get("target")
-    
+
     # Debug: log the start of content to check for wrapping issues
     if content:
         debug_log("tool_apply_document_content: input type=%s starts with: %s" % (type(content), repr(content)[:50]), context="Markdown")
-        
+
         # Accommodate list input (LLM sometimes ignores schema and sends array)
         if isinstance(content, list):
              debug_log("tool_apply_document_content: joining list input with newlines", context="Markdown")
@@ -881,12 +937,21 @@ def tool_apply_document_content(model, ctx, args):
         # Normalize literal \n and \t so multi-line content renders correctly
         if isinstance(content, str):
             content = content.replace("\\n", "\n").replace("\\t", "\t")
-            if DOCUMENT_FORMAT == "html":
-                # Unescape HTML entities first (e.g., &lt; → <, &gt; → >)
-                import html
-                content = html.unescape(content)
-                content = _ensure_html_linebreaks(content)
-    
+
+    # Detect markup on the ORIGINAL content BEFORE HTML wrapping.
+    # _ensure_html_linebreaks adds <p>/<html> tags to plain text, which would
+    # cause _content_has_markup to falsely return True for plain strings.
+    # Store raw_content for format-preserving path to avoid inserting HTML tags.
+    raw_content = content
+    use_preserve = isinstance(content, str) and not _content_has_markup(content)
+
+    if content and isinstance(content, str):
+        if DOCUMENT_FORMAT == "html":
+            # Unescape HTML entities first (e.g., &lt; → <, &gt; → >)
+            import html
+            content = html.unescape(content)
+            content = _ensure_html_linebreaks(content)
+
     if not content and content != "":
         return _tool_error("content is required")
     if not target:
@@ -897,14 +962,14 @@ def tool_apply_document_content(model, ctx, args):
             return _tool_error("search is required when target is 'search'")
         all_matches = args.get("all_matches", False)
         case_sensitive = args.get("case_sensitive", True)
-        # Auto-detect: if content is plain text (no markup), use format-preserving
-        # character-by-character replacement so existing formatting is kept.
-        # If content has markdown/HTML markup, use the normal import path.
-        use_preserve = not _content_has_markup(content)
+        # use_preserve already computed above on original content
+
         try:
             if use_preserve:
                 debug_log("tool_apply_document_content: auto-detected plain text, using format-preserving replacement", context="Markdown")
-                count = _apply_preserving_format_at_search(model, ctx, content, search, all_matches=all_matches, case_sensitive=case_sensitive)
+                # Use raw_content to avoid inserting HTML tags into the document text
+                count = _apply_preserving_format_at_search(model, ctx, raw_content, search, all_matches=all_matches, case_sensitive=case_sensitive)
+
             else:
                 count = _apply_markdown_at_search(model, ctx, content, search, all_matches=all_matches, case_sensitive=case_sensitive)
             msg = "Replaced %d occurrence(s) with new content." % count
@@ -918,8 +983,18 @@ def tool_apply_document_content(model, ctx, args):
             return _tool_error(str(e))
     if target == "full":
         try:
-            _insert_markdown_full(model, ctx, content)
-            return json.dumps({"status": "ok", "message": "Replaced entire document."})
+            # use_preserve already computed above
+            if use_preserve:
+                debug_log("tool_apply_document_content: full with plain text, using format-preserving replacement", context="Markdown")
+                from core.document import get_document_length, get_text_cursor_at_range
+                doc_len = get_document_length(model)
+                rng = get_text_cursor_at_range(model, 0, doc_len)
+                _replace_text_preserving_format(model, rng, raw_content)
+                return json.dumps({"status": "ok", "message": "Replaced entire document. (formatting preserved)"})
+            else:
+                _insert_markdown_full(model, ctx, content)
+                return json.dumps({"status": "ok", "message": "Replaced entire document."})
+
         except Exception as e:
             debug_log("markdown_support: apply_document_content full failed: %s" % e, context="Markdown")
             return _tool_error(str(e))
@@ -929,8 +1004,18 @@ def tool_apply_document_content(model, ctx, args):
         if start_val is None or end_val is None:
             return _tool_error("target 'range' requires start and end parameters")
         try:
-            _apply_markdown_at_range(model, ctx, content, int(start_val), int(end_val))
-            return json.dumps({"status": "ok", "message": "Replaced range [%s, %s)." % (start_val, end_val)})
+            # use_preserve already computed above
+            if use_preserve:
+                debug_log("tool_apply_document_content: range with plain text, using format-preserving replacement", context="Markdown")
+                from core.document import get_text_cursor_at_range
+                rng = get_text_cursor_at_range(model, int(start_val), int(end_val))
+                _replace_text_preserving_format(model, rng, raw_content)
+                return json.dumps({"status": "ok", "message": "Replaced range [%s, %s). (formatting preserved)" % (start_val, end_val)})
+
+
+            else:
+                _apply_markdown_at_range(model, ctx, content, int(start_val), int(end_val))
+                return json.dumps({"status": "ok", "message": "Replaced range [%s, %s)." % (start_val, end_val)})
         except Exception as e:
             debug_log("markdown_support: apply_document_content range failed: %s" % e, context="Markdown")
             return _tool_error(str(e))

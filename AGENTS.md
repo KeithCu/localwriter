@@ -226,6 +226,46 @@ The "Additional Instructions" (previously system prompts) are now unified across
 
 ---
 
+## 4b. Critical Learnings: Format Preservation
+
+### The Challenge
+When replacing text (e.g., correcting a name), we must preserve character-level formatting (fonts, colors, bold/italic) even if the replacement text length differs. By default, LibreOffice replacements inherit the formatting of the *insertion point* (usually the character *before*), which wipes out specific formatting on the replaced text itself.
+
+### The Solution: `_replace_text_preserving_format`
+We implemented a custom engine in `core/format_support.py` that iterates character-by-character.
+- **Same length**: 1:1 replacement, keeping each character's properties.
+- **Longer**: 1:1 for the overlap, then insert extra chars inheriting from the last original char.
+- **Shorter**: 1:1 for the overlap, then delete the leftover original chars.
+
+### Critical Implementation Details (Gotchas)
+1.  **"Insert After + Delete" Strategy (Robustness)**:
+    - **Problem**: `setString()` on a selection is flaky at paragraph boundaries (often inherits formatting from the *next* char instead of the replaced one), and "insert and replace" can wipe attributes.
+    - **Solution**: Do not replace in-place. Instead, **insert** the new character immediately *after* the old one (inheriting its exact attributes), then **delete** the old character.
+    - **Optimization**: If `new_char == old_char`, skip the operation entirely.
+
+2.  **Performance (O(N) Traversal)**:
+    - **Don't** create a new cursor from the document start for every character (`O(N^2)`). This hangs for >500 chars (30s+).
+    - **Do** use a single **persistent cursor** for traversal. Move it relative to its current position (`goRight(1)`).
+    - **Note**: When using "Insert After + Delete", careful cursor management is needed to advance past the newly inserted character without losing sync. Use local `text.createTextCursorByRange(main_cursor)` clones for the insert/delete ops so the main traversal cursor stays stable.
+
+3.  **ProcessEvents Reliability**:
+    - **Warning**: `toolkit.processEvents()` can sometimes raise exceptions (especially in test environments or headless contexts). Always wrap it in a `try/except` block and disable if it fails.
+
+2.  **Raw Content vs. HTML Wrapping**:
+
+    - **The Bug**: AI often sends plain text. If `DOCUMENT_FORMAT="html"`, `_ensure_html_linebreaks` wraps this in `<html><body><p>...</p></body></html>`.
+    - **The Injection**: If you pass this wrapped string to the format-preserving function, it will replace your document text with literal HTML source code (e.g., replacing "K" with "<", "e" with "h", "i" with "t", etc.), effectively destroying the document.
+    - **The Fix**: Always modify `tool_apply_document_content` to capture `raw_content` *before* any HTML processing. Use `raw_content` for the format-preserving path. Use `content` (wrapped) only for the standard `insertDocumentFromURL` path.
+
+3.  **Markup Detection Order**:
+    - **Don't** run `_content_has_markup(content)` *after* HTML wrapping. It will always return True (because of the added tags), forcing the non-preserving path.
+    - **Do** run it on the **raw input string** immediately.
+
+4.  **Auto-Detection is Key**:
+    - The AI doesn't know about `target="search"` vs `target="range"` for formatting. It just calls tools.
+    - We must auto-detect plain text in **all** paths (`search`, `range`, `full`). If `content` is plain text, divert to `_replace_text_preserving_format`. This allows "Make this whole paragraph blue" (Markdown path) and "Correct spelling of 'Burtis'" (Preserving path) to work seamlessly with the same tool.
+
+
 ## 5. Config File
 
 - **Path**: LibreOffice UserConfig directory + `localwriter.json`
@@ -241,7 +281,8 @@ The "Additional Instructions" (previously system prompts) are now unified across
 
 ## 5b. Log Files
 
-- **Unified debug log**: `localwriter_debug.log` in LibreOffice user config dir (or `~/localwriter_debug.log`). Written by `debug_log(msg, context=...)` with prefixes `[API]`, `[Chat]`, `[Markdown]`. Paths are set once via `init_logging(ctx)`; no ctx needed at call sites.
+- **Unified debug log**: `~/.config/libreoffice/4/user/config/localwriter_debug.log` (exact path; fallback `~/localwriter_debug.log` if user config dir not found). Written by `debug_log(msg, context=...)` with prefixes `[API]`, `[Chat]`, `[Markdown]`. Paths set once via `init_logging(ctx)`; no ctx needed at call sites.
+
 - **Agent log** (NDJSON, optional): `localwriter_agent.log` in user config (or `~/`). Written by `agent_log(...)` only when config key `enable_agent_log` is true (default false). Used for hypothesis/debug tracking.
 - **Watchdog**: If no activity for the threshold (e.g. 30s), a line is written to the debug log and the status control shows "Hung: ...".
 

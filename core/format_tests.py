@@ -351,6 +351,11 @@ def run_markdown_tests(ctx, model=None):
     passed += fp_passed
     failed += fp_failed
 
+    # --- Tool integration tests (target=search/range/full + HTML wrapping check) ---
+    passed, failed = _run_tool_integration_tests(ctx, doc, passed, failed, log)
+
+
+
     return passed, failed, log
 
 
@@ -437,7 +442,7 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
             failed += 1
             fail("same-length replacement: SETUP FAILED colors before replace: expected %s got %s" % (expected_colors, actual_before))
         else:
-            _replace_text_preserving_format(doc, rng, "PQRST")
+            _replace_text_preserving_format(doc, rng, "PQRST", ctx)
             sd = doc.createSearchDescriptor()
             sd.SearchString = "PQRST"
             found = doc.findFirst(sd)
@@ -470,7 +475,7 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
                 COLORS[0], COLORS[1], COLORS[2],  # overlap: inherit from A, B, C
                 COLORS[2], COLORS[2],              # extra chars: inherit from last (C = Blue)
             ]
-            _replace_text_preserving_format(doc, rng, "MNOPQ")
+            _replace_text_preserving_format(doc, rng, "MNOPQ", ctx)
             sd = doc.createSearchDescriptor()
             sd.SearchString = "MNOPQ"
             found = doc.findFirst(sd)
@@ -500,7 +505,7 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
             fail("shorter replacement: SETUP FAILED colors before replace: expected %s got %s" % (expected_setup, actual_before))
         else:
             expected_colors = [COLORS[0], COLORS[1]]  # only first 2 colors survive
-            _replace_text_preserving_format(doc, rng, "UV")
+            _replace_text_preserving_format(doc, rng, "UV", ctx)
             sd = doc.createSearchDescriptor()
             sd.SearchString = "UV"
             found = doc.findFirst(sd)
@@ -519,5 +524,227 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
     except Exception as e:
         failed += 1
         log.append("FAIL: shorter format-preserving test raised: %s" % e)
+
+    
+    # --- Test T: Long replacement triggers processEvents (no crash) ---
+    try:
+        # Create a string > 500 chars to trigger the processEvents path
+        long_len = 505
+        old_chars = "X" * long_len
+        rng = _create_colored_text(old_chars)
+        
+        # Replace with same length string
+        # context_msg = "Profiling 500 char replacement..."
+        # import cProfile, pstats, io
+        # pr = cProfile.Profile()
+        # pr.enable()
+        
+        _replace_text_preserving_format(doc, rng, new_chars, ctx)
+        
+        # pr.disable()
+        # s = io.StringIO()
+        # ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+        # ps.print_stats(20)
+        # log.append("PROFILE STATS:\n%s" % s.getvalue())
+        
+        sd = doc.createSearchDescriptor()
+        sd.SearchString = new_chars
+        found = doc.findFirst(sd)
+        if found and found.getString() == new_chars:
+            passed += 1
+            ok("processEvents test: replaced %d chars successfully" % long_len)
+        else:
+            failed += 1
+            fail("processEvents test: failed to replace %d chars" % long_len)
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: processEvents test raised: %s" % e)
+
+    return passed, failed
+
+
+def _run_tool_integration_tests(ctx, doc, passed, failed, log):
+    """Integration tests: call tool_apply_document_content end-to-end with plain text
+    and verify that CharBackColor is preserved. These cover the full stack including
+    the _ensure_html_linebreaks ordering fix and all three target paths.
+
+    Each test uses a fresh colored word so there are no search collisions.
+    """
+    ok = lambda msg: log.append("OK: %s" % msg)
+    fail = lambda msg: log.append("FAIL: %s" % msg)
+
+    text = doc.getText()
+    COLORS = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF]
+
+    def _insert_colored_word(word):
+        """Insert word at end of doc with per-char background colors. Returns (start_offset, end_offset)."""
+        from core.document import get_document_length
+        sep = text.createTextCursor()
+        sep.gotoEnd(False)
+        text.insertString(sep, "\n", False)
+        start_off = get_document_length(doc)
+        for i, ch in enumerate(word):
+            ins = text.createTextCursor()
+            ins.gotoEnd(False)
+            text.insertString(ins, ch, False)
+            cc = text.createTextCursor()
+            cc.gotoEnd(False)
+            cc.goLeft(1, True)
+            cc.setPropertyValue("CharBackColor", COLORS[i % len(COLORS)])
+        end_off = get_document_length(doc)
+        return start_off, end_off
+
+    def _get_colors_at_range(start_off, length):
+        """Read CharBackColor for `length` chars starting at absolute offset start_off."""
+        from core.document import get_text_cursor_at_range
+        colors = []
+        pos_cursor = text.createTextCursor()
+        pos_cursor.gotoStart(False)
+        pos_cursor.goRight(start_off, False)
+        for _ in range(length):
+            cc = text.createTextCursorByRange(pos_cursor)
+            cc.goRight(1, True)
+            try:
+                colors.append(cc.getPropertyValue("CharBackColor"))
+            except Exception:
+                colors.append(-1)
+            pos_cursor = text.createTextCursorByRange(cc.getEnd())
+        return colors
+
+    def _check_colors_at_search(search_str, expected_colors):
+        """Find search_str in doc and check its per-char colors."""
+        sd = doc.createSearchDescriptor()
+        sd.SearchString = search_str
+        found = doc.findFirst(sd)
+        if not found:
+            return False, "not found in document"
+        # Build start offset by measuring from doc start
+        tmp = text.createTextCursorByRange(found.getStart())
+        tmp.gotoStart(True)
+        start_off = len(tmp.getString())
+        actual = _get_colors_at_range(start_off, len(search_str))
+        if actual == expected_colors:
+            return True, ""
+        return False, "expected %s got %s" % (expected_colors, actual)
+
+    # --- Test Q: tool_apply_document_content(target='search') preserves colors ---
+    # Simulates: AI is asked "change Bert Pickle to Bert Tickle"
+    try:
+        word = "zBertPicklez"   # unique sentinel around the name
+        start_off, end_off = _insert_colored_word(word)
+        expected_colors = [COLORS[i % len(COLORS)] for i in range(len(word))]
+
+        result = json.loads(tool_apply_document_content(doc, ctx, {
+            "content": "zBertTicklez",
+            "target": "search",
+            "search": "zBertPicklez",
+        }))
+        if result.get("status") != "ok":
+            failed += 1; fail("tool target=search: tool returned error: %s" % result)
+        else:
+            ok_flag, detail = _check_colors_at_search("zBertTicklez", expected_colors)
+            if ok_flag:
+                passed += 1
+                ok("tool target=search plain text: 'zBertPicklez'→'zBertTicklez', all colors preserved")
+            else:
+                failed += 1
+                fail("tool target=search plain text: colors not preserved: %s" % detail)
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: tool target=search integration test raised: %s" % e)
+
+    # --- Test R: tool_apply_document_content(target='range') preserves colors ---
+    # Simulates: AI uses find_text then apply with target=range
+    try:
+        word = "zNormaFlintez"
+        start_off, end_off = _insert_colored_word(word)
+        expected_colors = [COLORS[i % len(COLORS)] for i in range(len(word))]
+
+        result = json.loads(tool_apply_document_content(doc, ctx, {
+            "content": "zNormaGlintez",
+            "target": "range",
+            "start": start_off,
+            "end": end_off,
+        }))
+        if result.get("status") != "ok":
+            failed += 1; fail("tool target=range: tool returned error: %s" % result)
+        else:
+            ok_flag, detail = _check_colors_at_search("zNormaGlintez", expected_colors)
+            if ok_flag:
+                passed += 1
+                ok("tool target=range plain text: 'zNormaFlintez'→'zNormaGlintez', all colors preserved")
+            else:
+                failed += 1
+                fail("tool target=range plain text: colors not preserved: %s" % detail)
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: tool target=range integration test raised: %s" % e)
+
+    # --- Test S: tool_apply_document_content(target='full') preserves colors ---
+    # Simulates: AI replaces the entire (small) document with a plain text edit
+    # Use a fresh single-paragraph doc so doc_len == word length
+    try:
+        desktop = ctx.getServiceManager().createInstanceWithContext(
+            "com.sun.star.frame.Desktop", ctx)
+        small_doc = desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
+        if not small_doc or not hasattr(small_doc, "getText"):
+            raise RuntimeError("Could not create small doc for target=full test")
+        small_text = small_doc.getText()
+        word = "zGordonCrumpz"
+        new_word = "zGordonStumpz"
+        # Insert the colored word into the fresh small doc
+        for i, ch in enumerate(word):
+            ins = small_text.createTextCursor()
+            ins.gotoEnd(False)
+            small_text.insertString(ins, ch, False)
+            cc = small_text.createTextCursor()
+            cc.gotoEnd(False)
+            cc.goLeft(1, True)
+            cc.setPropertyValue("CharBackColor", COLORS[i % len(COLORS)])
+        expected_colors = [COLORS[i % len(COLORS)] for i in range(len(word))]
+
+        result = json.loads(tool_apply_document_content(small_doc, ctx, {
+            "content": new_word,
+            "target": "full",
+        }))
+        if result.get("status") != "ok":
+            failed += 1; fail("tool target=full: tool returned error: %s" % result)
+        else:
+            sd = small_doc.createSearchDescriptor()
+            sd.SearchString = new_word
+            found = small_doc.findFirst(sd)
+            if not found:
+                failed += 1
+                fail("tool target=full plain text: '%s' not found after replace" % new_word)
+            else:
+                small_txt = small_doc.getText()
+                tmp = small_txt.createTextCursorByRange(found.getStart())
+                tmp.gotoStart(True)
+                start_off2 = len(tmp.getString())
+                actual_colors = []
+                pos_c = small_txt.createTextCursor()
+                pos_c.gotoStart(False)
+                pos_c.goRight(start_off2, False)
+                for _ in range(len(new_word)):
+                    cc2 = small_txt.createTextCursorByRange(pos_c)
+                    cc2.goRight(1, True)
+                    try:
+                        actual_colors.append(cc2.getPropertyValue("CharBackColor"))
+                    except Exception:
+                        actual_colors.append(-1)
+                    pos_c = small_txt.createTextCursorByRange(cc2.getEnd())
+                if actual_colors == expected_colors:
+                    passed += 1
+                    ok("tool target=full plain text: '%s'→'%s', all colors preserved" % (word, new_word))
+                else:
+                    failed += 1
+                    fail("tool target=full plain text: colors expected %s got %s" % (expected_colors, actual_colors))
+        try:
+            small_doc.close(True)
+        except Exception:
+            pass
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: tool target=full integration test raised: %s" % e)
 
     return passed, failed
