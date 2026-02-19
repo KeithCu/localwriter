@@ -49,6 +49,26 @@ def format_error_message(e):
     return msg
 
 
+def _format_http_error_response(status, reason, err_body):
+    """Build error message including response body for display in chat/UI."""
+    base = "HTTP Error %d: %s" % (status, reason)
+    if not err_body or not err_body.strip():
+        return base
+    try:
+        data = json.loads(err_body)
+        err = data.get("error")
+        if isinstance(err, dict):
+            detail = err.get("message") or err.get("msg") or err.get("error") or ""
+        else:
+            detail = str(err) if err else ""
+        if detail:
+            return base + ". " + detail
+    except (json.JSONDecodeError, TypeError):
+        pass
+    snippet = err_body.strip().replace("\n", " ")[:400]
+    return base + ". " + snippet
+
+
 def format_error_for_display(e):
     """Return user-friendly error string for display in cells or dialogs."""
     return "Error: %s" % format_error_message(e)
@@ -383,7 +403,7 @@ class LlmClient:
                 debug_log("API Error %d: %s" % (response.status, err_body), context="API")
                 # Close on error to be safe
                 self._close_connection()
-                raise Exception("HTTP Error %d: %s" % (response.status, response.reason))
+                raise Exception(_format_http_error_response(response.status, response.reason, err_body))
 
             try:
                 # Use a flag to stop logical processing but keep reading to exhaust the stream
@@ -478,6 +498,7 @@ class LlmClient:
                     stop_checker=stop_checker,
                     _retry=False,
                 )
+            debug_log("Connection retry failed: %s" % err_msg, context="API")
             raise Exception(err_msg)
         except Exception as e:
             self._close_connection() # Reset on any other error too
@@ -548,7 +569,7 @@ class LlmClient:
                     err_body = response.read().decode("utf-8", errors="replace")
                     debug_log("API Error %d: %s" % (response.status, err_body), context="API")
                     self._close_connection()
-                    raise Exception("HTTP Error %d: %s" % (response.status, response.reason))
+                    raise Exception(_format_http_error_response(response.status, response.reason, err_body))
                 result = json.loads(response.read().decode("utf-8"))
                 break
             except (http.client.HTTPException, socket.error, OSError) as e:
@@ -557,6 +578,7 @@ class LlmClient:
                 if attempt == 0:
                     debug_log("Retrying request_with_tools once on fresh connection", context="API")
                     continue
+                debug_log("Connection retry failed: %s" % format_error_message(e), context="API")
                 raise Exception(format_error_message(e))
             except Exception as e:
                 err_msg = format_error_message(e)
