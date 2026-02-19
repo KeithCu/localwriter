@@ -10,7 +10,7 @@ import unohelper
 import officehelper
 
 from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history
-from core.api import LlmClient
+from core.api import LlmClient, format_error_message
 from core.document import get_full_document_text, get_document_context_for_chat
 from core.async_stream import run_stream_completion_async
 from core.logging import agent_log, init_logging
@@ -416,10 +416,10 @@ class MainJob(unohelper.Base, XJobExecutor):
                         run_stream_completion_async(
                             self.ctx, client, prompt, system_prompt, max_tokens, api_type,
                             apply_chunk, lambda: None,
-                            lambda e: self.show_error(str(e), "LocalWriter: Extend Selection"),
+                            lambda e: self.show_error(format_error_message(e), "LocalWriter: Extend Selection"),
                         )
                     except Exception as e:
-                        self.show_error(str(e), "LocalWriter: Extend Selection")
+                        self.show_error(format_error_message(e), "LocalWriter: Extend Selection")
 
             elif args == "EditSelection":
                 # Access the current selection
@@ -434,7 +434,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                         self._update_lru_history(extra_instructions, "prompt_lru")
 
                 except Exception as e:
-                    self.show_error(str(e), "LocalWriter: Edit Selection")
+                    self.show_error(format_error_message(e), "LocalWriter: Edit Selection")
                     return
                 prompt = "ORIGINAL VERSION:\n" + original_text + "\n Below is an edited version according to the following instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
                 system_prompt = extra_instructions or ""
@@ -454,7 +454,7 @@ class MainJob(unohelper.Base, XJobExecutor):
 
                 def on_error(e):
                     text_range.setString(original_text)
-                    self.show_error(str(e), "LocalWriter: Edit Selection")
+                    self.show_error(format_error_message(e), "LocalWriter: Edit Selection")
 
                 try:
                     run_stream_completion_async(
@@ -463,7 +463,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     )
                 except Exception as e:
                     text_range.setString(original_text)
-                    self.show_error(str(e), "LocalWriter: Edit Selection")
+                    self.show_error(format_error_message(e), "LocalWriter: Edit Selection")
 
             elif args == "ChatWithDocument":
                 try:
@@ -502,10 +502,10 @@ class MainJob(unohelper.Base, XJobExecutor):
                     run_stream_completion_async(
                         self.ctx, client, prompt, system_prompt, max_tokens, api_type,
                         apply_chunk, lambda: None,
-                        lambda e: self.show_error(str(e), "LocalWriter: Chat with Document"),
+                        lambda e: self.show_error(format_error_message(e), "LocalWriter: Chat with Document"),
                     )
                 except Exception as e:
-                    self.show_error(str(e), "LocalWriter: Chat with Document")
+                    self.show_error(format_error_message(e), "LocalWriter: Chat with Document")
             
             elif args == "settings":
                 try:
@@ -514,7 +514,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     self._apply_settings_result(result)
                 except Exception as e:
                     agent_log("main.py:trigger", "settings exception (Writer)", data={"error": str(e)}, hypothesis_id="H5")
-                    self.show_error(str(e), "LocalWriter: Settings")
+                    self.show_error(format_error_message(e), "LocalWriter: Settings")
         elif is_calc(model):
             try:
                 if args == "ChatWithDocument":
@@ -578,7 +578,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                         self._apply_settings_result(result)
                     except Exception as e:
                         agent_log("main.py:trigger", "settings exception (Calc)", data={"error": str(e)}, hypothesis_id="H5")
-                        self.show_error(str(e), "LocalWriter: Settings")
+                        self.show_error(format_error_message(e), "LocalWriter: Settings")
                     return
 
                 user_input = ""
@@ -646,7 +646,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     def on_error(e):
                         if original is not None:
                             cell.setString(original)
-                        self.show_error(str(e), "LocalWriter: Edit Selection (Calc)" if args == "EditSelection" else "LocalWriter: Extend Selection (Calc)")
+                        self.show_error(format_error_message(e), "LocalWriter: Edit Selection (Calc)" if args == "EditSelection" else "LocalWriter: Extend Selection (Calc)")
                         # Stop on first error: do not call run_next_cell()
 
                     run_stream_completion_async(
@@ -657,7 +657,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                 if tasks:
                     run_next_cell()
             except Exception as e:
-                self.show_error(str(e), "LocalWriter: Calc Processing")
+                self.show_error(format_error_message(e), "LocalWriter: Calc Processing")
         elif is_draw(model):
             if args == "ChatWithDocument":
                 try:
@@ -702,11 +702,11 @@ class MainJob(unohelper.Base, XJobExecutor):
                     run_stream_completion_async(
                         self.ctx, client, prompt, system_prompt, max_tokens, api_type,
                         apply_chunk, lambda: None,
-                        lambda e: self.show_error(str(e), "LocalWriter: Chat with Document"),
+                        lambda e: self.show_error(format_error_message(e), "LocalWriter: Chat with Document"),
                     )
                     return
                 except Exception as e:
-                    self.show_error(str(e), "LocalWriter: Chat with Document")
+                    self.show_error(format_error_message(e), "LocalWriter: Chat with Document")
                     return
             
             if args == "settings":
@@ -714,7 +714,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     result = self.settings_box("Settings")
                     self._apply_settings_result(result)
                 except Exception as e:
-                    self.show_error(str(e), "LocalWriter: Settings")
+                    self.show_error(format_error_message(e), "LocalWriter: Settings")
                 return
 # Starting from Python IDE
 def main():

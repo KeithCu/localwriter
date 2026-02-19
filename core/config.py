@@ -144,12 +144,18 @@ def get_api_config(ctx):
         or "open-webui" in endpoint.lower()
         or "openwebui" in endpoint.lower()
     )
+    api_key = str(get_config(ctx, "api_key", ""))
+
+    is_openrouter = "openrouter.ai" in endpoint.lower()
     return {
         "endpoint": endpoint,
-        "api_key": str(get_config(ctx, "api_key", "")),
+        "api_key": api_key,
         "model": str(get_config(ctx, "model", "")),
+
+
         "api_type": str(get_config(ctx, "api_type", "completions")).lower(),
         "is_openwebui": is_openwebui,
+        "is_openrouter": is_openrouter,
         "openai_compatibility": as_bool(get_config(ctx, "openai_compatibility", False)),
         "temperature": _safe_float(get_config(ctx, "temperature", 0.5), 0.5),
         "seed": get_config(ctx, "seed", ""),

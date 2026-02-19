@@ -11,6 +11,7 @@ import socket
 
 # accumulate_delta is required for tool-calling: it merges streaming deltas into message_snapshot so full tool_calls (with function.arguments) are available.
 from .streaming_deltas import accumulate_delta
+from .constants import OPENROUTER_REFERER, OPENROUTER_TITLE
 
 from core.logging import debug_log, update_activity_state, init_logging
 
@@ -181,6 +182,11 @@ class LlmClient:
         api_key = self.config.get("api_key", "")
         if api_key:
             h["Authorization"] = "Bearer %s" % api_key
+        
+        if self.config.get("is_openrouter"):
+            h["HTTP-Referer"] = OPENROUTER_REFERER
+            h["X-Title"] = OPENROUTER_TITLE
+
         return h
 
     def _timeout(self):

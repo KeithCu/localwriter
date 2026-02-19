@@ -581,7 +581,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._append_response("\n[Stopped by user]\n")
 
         def on_error(e):
-            self._append_response("\n[API error: %s]\n" % str(e))
+            from core.api import format_error_message
+            err_msg = format_error_message(e)
+            self._append_response("\n[API error: %s]\n" % err_msg)
             self._terminal_status = "Error"
             self._set_status("Error")
 
@@ -629,7 +631,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 self._append_response("\n[Stopped by user]\n")
 
         def on_error(e):
-            self._append_response("[Error: %s]\n" % str(e))
+            from core.api import format_error_message
+            err_msg = format_error_message(e)
+            self._append_response("[Error: %s]\n" % err_msg)
             self._terminal_status = "Error"
             self._set_status("Error")
 
