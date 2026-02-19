@@ -453,6 +453,126 @@ def _get_document_sample_for_search_failure(model, ctx, search_string):
     return snippet, snippet_repr, break_hex
 
 
+# ---------------------------------------------------------------------------
+# Format-preserving text replacement (auto-detected for plain-text edits)
+# ---------------------------------------------------------------------------
+
+# Markup indicators used by _content_has_markup to decide whether content
+# is plain text (preserve existing formatting) or formatted (use import).
+_MARKUP_PATTERNS = [
+    # Markdown
+    "**", "__", "``", "# ", "## ", "### ", "| ", "|---", "- [ ]",
+    # HTML
+    "<b>", "<i>", "<p>", "<h1", "<h2", "<h3", "<table", "<tr", "<td",
+    "<ul>", "<ol>", "<li>", "<div", "<span", "<br", "<img",
+    "<strong", "<em>", "</",
+    # Full HTML document
+    "<html", "<body", "<!DOCTYPE",
+]
+
+
+def _content_has_markup(content):
+    """Return True if content appears to contain Markdown or HTML formatting.
+    Used to auto-detect whether to use format-preserving (plain text) or
+    insertDocumentFromURL (formatted) replacement.
+
+    Heuristic: if any common markup pattern is present, treat as formatted.
+    This deliberately errs on the side of detecting markup — a false positive
+    just means we use the import path (existing behavior), which is safe."""
+    if not content or not isinstance(content, str):
+        return False
+    content_lower = content.lower()
+    return any(pat.lower() in content_lower for pat in _MARKUP_PATTERNS)
+
+
+def _replace_text_preserving_format(model, target_range, new_text):
+    """Replace the text in target_range with new_text, preserving per-character
+    formatting by replacing one character at a time.
+
+    Each single-character setString() inherits ALL character properties from the
+    character it replaces (CharBackColor, CharColor, CharHeight, CharWeight,
+    CharPosture, CharUnderline, etc.) — including properties the AI has no
+    knowledge of.  The caller does not need to enumerate or copy properties.
+
+    Length handling:
+      - Overlapping portion: each new char gets the old char's formatting.
+      - Extra new chars (new_text longer): inherit formatting from the LAST
+        original character.  This is correct for the common case of small edits
+        (typos, rewording) where the trailing format is the right default.
+      - Leftover old chars (new_text shorter): deleted.
+
+    Future enhancements to consider:
+      - Proportional format mapping for large length differences (stretch/
+        compress the formatting pattern across the new text).
+      - Paragraph-style preservation when replacement spans paragraph breaks.
+      - Expose as an explicit option for Edit Selection streaming.
+    """
+    text = model.getText()
+    old_text = target_range.getString()
+    old_len = len(old_text)
+    new_len = len(new_text)
+
+    if old_len == 0 and new_len == 0:
+        return
+
+    # If the old range is empty, just insert (nothing to preserve)
+    if old_len == 0:
+        cursor = text.createTextCursorByRange(target_range.getStart())
+        text.insertString(cursor, new_text, False)
+        return
+
+    pos = text.createTextCursorByRange(target_range.getStart())
+    overlap = min(old_len, new_len)
+
+    # Replace character-by-character over the overlapping portion
+    for i in range(overlap):
+        char_cursor = text.createTextCursorByRange(pos)
+        char_cursor.goRight(1, True)  # select exactly 1 old character
+        char_cursor.setString(new_text[i])  # replace — keeps all char props
+        pos = text.createTextCursorByRange(char_cursor.getEnd())
+
+    if new_len > old_len:
+        # Extra new characters: inherit formatting of the last original char
+        remaining = new_text[old_len:]
+        text.insertString(pos, remaining, False)
+    elif old_len > new_len:
+        # Leftover old characters: delete them
+        leftover = text.createTextCursorByRange(pos)
+        leftover.goRight(old_len - new_len, True)
+        leftover.setString("")
+
+
+def _apply_preserving_format_at_search(model, ctx, new_text, search_string,
+                                        all_matches=False, case_sensitive=True):
+    """Find search_string in the document and replace with new_text using
+    format-preserving character-by-character replacement.
+    Returns the number of replacements made."""
+    search_candidates = _search_candidates_with_plain(ctx, search_string)
+    for idx, candidate in enumerate(search_candidates):
+        sd = model.createSearchDescriptor()
+        sd.SearchString = candidate
+        sd.SearchRegularExpression = False
+        sd.SearchCaseSensitive = case_sensitive
+        count = 0
+        found = model.findFirst(sd)
+        if not found:
+            continue
+        while found:
+            _replace_text_preserving_format(model, found, new_text)
+            count += 1
+            if not all_matches:
+                break
+            # After replacement the range has changed; re-search from start
+            found = model.findFirst(sd)
+            if found and count > 100:  # safety valve
+                break
+        if count > 0:
+            debug_log("format_support: _apply_preserving_format_at_search candidate #%d -> replaced %d (preserving formatting)" % (idx, count), context="Markdown")
+            return count
+    debug_log("format_support: _apply_preserving_format_at_search all %d candidates gave 0 replacements" % len(search_candidates), context="Markdown")
+    return 0
+
+
 def _apply_markdown_at_search(model, ctx, markdown_string, search_string, all_matches=False, case_sensitive=True):
     """Find search_string (first or all), replace each match with rendered markdown content.
     Builds literal search candidates from the raw string and always from LO plain (when available)
@@ -777,9 +897,19 @@ def tool_apply_document_content(model, ctx, args):
             return _tool_error("search is required when target is 'search'")
         all_matches = args.get("all_matches", False)
         case_sensitive = args.get("case_sensitive", True)
+        # Auto-detect: if content is plain text (no markup), use format-preserving
+        # character-by-character replacement so existing formatting is kept.
+        # If content has markdown/HTML markup, use the normal import path.
+        use_preserve = not _content_has_markup(content)
         try:
-            count = _apply_markdown_at_search(model, ctx, content, search, all_matches=all_matches, case_sensitive=case_sensitive)
+            if use_preserve:
+                debug_log("tool_apply_document_content: auto-detected plain text, using format-preserving replacement", context="Markdown")
+                count = _apply_preserving_format_at_search(model, ctx, content, search, all_matches=all_matches, case_sensitive=case_sensitive)
+            else:
+                count = _apply_markdown_at_search(model, ctx, content, search, all_matches=all_matches, case_sensitive=case_sensitive)
             msg = "Replaced %d occurrence(s) with new content." % count
+            if use_preserve and count > 0:
+                msg += " (formatting preserved)"
             if count == 0:
                 msg += " Tried multiple literal candidates. For section replacement send the full section text as search, or use find_text then apply_document_content with target='range'."
             return json.dumps({"status": "ok", "message": msg})

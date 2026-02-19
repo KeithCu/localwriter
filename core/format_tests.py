@@ -5,7 +5,9 @@ from core.format_support import (
     tool_apply_document_content,
     tool_find_text,
     _insert_markdown_at_position,
-    _doc_text_length
+    _doc_text_length,
+    _replace_text_preserving_format,
+    _content_has_markup,
 )
 from core.logging import debug_log
 
@@ -344,4 +346,178 @@ def run_markdown_tests(ctx, model=None):
         failed += 1
         log.append("FAIL: HTML linebreak preservation test raised: %s" % e)
 
+    # --- Format-preserving tests ---
+    fp_passed, fp_failed = _run_format_preserving_tests(doc, ctx, ok, fail, log)
+    passed += fp_passed
+    failed += fp_failed
+
     return passed, failed, log
+
+
+def _run_format_preserving_tests(doc, ctx, ok, fail, log):
+    """Tests for _replace_text_preserving_format and _content_has_markup.
+    Returns (passed_count, failed_count)."""
+    passed = 0
+    failed = 0
+    text = doc.getText()
+
+    # --- Test M: _content_has_markup auto-detection ---
+    try:
+        assert _content_has_markup("**bold**") == True
+        assert _content_has_markup("<b>bold</b>") == True
+        assert _content_has_markup("# Heading") == True
+        assert _content_has_markup("| col1 | col2 |") == True
+        assert _content_has_markup("Jane Doe") == False
+        assert _content_has_markup("Hello world, this is plain text.") == False
+        assert _content_has_markup("") == False
+        assert _content_has_markup(None) == False
+        passed += 1
+        ok("_content_has_markup: all detection cases correct")
+    except (AssertionError, Exception) as e:
+        failed += 1
+        fail("_content_has_markup: %s" % e)
+
+    # Helper: create text with per-character background colors and return the range
+    COLORS = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF]  # Red Green Blue Yellow Magenta
+
+    def _create_colored_text(chars):
+        """Insert chars at end of doc, color each char, return an XTextCursor spanning them."""
+        from core.format_support import _doc_text_length
+        # Insert a newline separator, then record the start position
+        sep_cursor = text.createTextCursor()
+        sep_cursor.gotoEnd(False)
+        text.insertString(sep_cursor, "\n", False)
+
+        # Remember the document length right before the chars so we know start offset
+        start_len = _doc_text_length(doc)[0]
+
+        for i, ch in enumerate(chars):
+            # Insert the character
+            ins = text.createTextCursor()
+            ins.gotoEnd(False)
+            text.insertString(ins, ch, False)
+            # Select exactly the character we just inserted (1 char back from end)
+            cc = text.createTextCursor()
+            cc.gotoEnd(False)
+            cc.goLeft(1, True)
+            cc.setPropertyValue("CharBackColor", COLORS[i % len(COLORS)])
+
+        # Build a cursor from start_len to current end, spanning exactly the inserted chars
+        # Use a fresh cursor: go to start of doc, advance start_len chars, then select to end
+        range_cursor = text.createTextCursor()
+        range_cursor.gotoStart(False)
+        range_cursor.goRight(start_len, False)   # move to start of our chars (no selection)
+        range_cursor.gotoEnd(True)               # extend selection to end of doc
+        return range_cursor
+
+
+    def _get_char_colors(range_cursor):
+        """Read CharBackColor for each character in the range. Returns list of ints."""
+        colors = []
+        pos = text.createTextCursorByRange(range_cursor.getStart())
+        range_text = range_cursor.getString()
+        for i in range(len(range_text)):
+            cc = text.createTextCursorByRange(pos)
+            cc.goRight(1, True)
+            try:
+                colors.append(cc.getPropertyValue("CharBackColor"))
+            except Exception:
+                colors.append(-1)
+            pos = text.createTextCursorByRange(cc.getEnd())
+        return colors
+
+    # --- Test N: Same-length replacement preserves per-char colors ---
+    try:
+        old_chars = "ABCDE"
+        rng = _create_colored_text(old_chars)
+        expected_colors = [COLORS[i % len(COLORS)] for i in range(len(old_chars))]
+        # Verify setup: coloring must be correct before we replace
+        actual_before = _get_char_colors(rng)
+        if actual_before != expected_colors:
+            failed += 1
+            fail("same-length replacement: SETUP FAILED colors before replace: expected %s got %s" % (expected_colors, actual_before))
+        else:
+            _replace_text_preserving_format(doc, rng, "PQRST")
+            sd = doc.createSearchDescriptor()
+            sd.SearchString = "PQRST"
+            found = doc.findFirst(sd)
+            if found:
+                actual_colors = _get_char_colors(found)
+                if actual_colors == expected_colors and found.getString() == "PQRST":
+                    passed += 1
+                    ok("same-length replacement: text='PQRST', all 5 colors preserved")
+                else:
+                    failed += 1
+                    fail("same-length replacement: colors expected %s got %s, text='%s'" % (expected_colors, actual_colors, found.getString()))
+            else:
+                failed += 1
+                fail("same-length replacement: 'PQRST' not found after replace")
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: same-length format-preserving test raised: %s" % e)
+
+    # --- Test O: Longer replacement, extra chars inherit last color ---
+    try:
+        old_chars = "ABC"
+        rng = _create_colored_text(old_chars)
+        expected_setup = [COLORS[0], COLORS[1], COLORS[2]]
+        actual_before = _get_char_colors(rng)
+        if actual_before != expected_setup:
+            failed += 1
+            fail("longer replacement: SETUP FAILED colors before replace: expected %s got %s" % (expected_setup, actual_before))
+        else:
+            expected_colors = [
+                COLORS[0], COLORS[1], COLORS[2],  # overlap: inherit from A, B, C
+                COLORS[2], COLORS[2],              # extra chars: inherit from last (C = Blue)
+            ]
+            _replace_text_preserving_format(doc, rng, "MNOPQ")
+            sd = doc.createSearchDescriptor()
+            sd.SearchString = "MNOPQ"
+            found = doc.findFirst(sd)
+            if found:
+                actual_colors = _get_char_colors(found)
+                if actual_colors == expected_colors and found.getString() == "MNOPQ":
+                    passed += 1
+                    ok("longer replacement: text='MNOPQ', 3 original + 2 inherited colors correct")
+                else:
+                    failed += 1
+                    fail("longer replacement: colors expected %s got %s, text='%s'" % (expected_colors, actual_colors, found.getString()))
+            else:
+                failed += 1
+                fail("longer replacement: 'MNOPQ' not found after replace")
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: longer format-preserving test raised: %s" % e)
+
+    # --- Test P: Shorter replacement, leftover chars deleted ---
+    try:
+        old_chars = "ABCDE"
+        rng = _create_colored_text(old_chars)
+        expected_setup = [COLORS[i % len(COLORS)] for i in range(5)]
+        actual_before = _get_char_colors(rng)
+        if actual_before != expected_setup:
+            failed += 1
+            fail("shorter replacement: SETUP FAILED colors before replace: expected %s got %s" % (expected_setup, actual_before))
+        else:
+            expected_colors = [COLORS[0], COLORS[1]]  # only first 2 colors survive
+            _replace_text_preserving_format(doc, rng, "UV")
+            sd = doc.createSearchDescriptor()
+            sd.SearchString = "UV"
+            found = doc.findFirst(sd)
+            if found:
+                actual_colors = _get_char_colors(found)
+                result_text = found.getString()
+                if actual_colors == expected_colors and result_text == "UV":
+                    passed += 1
+                    ok("shorter replacement: text='UV', 2 colors preserved, 3 chars deleted")
+                else:
+                    failed += 1
+                    fail("shorter replacement: text=%s colors expected %s got %s" % (repr(result_text), expected_colors, actual_colors))
+            else:
+                failed += 1
+                fail("shorter replacement: 'UV' not found after replace")
+    except Exception as e:
+        failed += 1
+        log.append("FAIL: shorter format-preserving test raised: %s" % e)
+
+    return passed, failed
