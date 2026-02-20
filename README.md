@@ -21,6 +21,9 @@ The main way to interact with your document using natural language.
 *   **Performance**: Features built-in connection management with persistent HTTPS connections for fast response times.
 *   **Undo Integration**: AI edits are grouped so you can revert an entire AI turn with a single `Ctrl+Z`.
 
+Opus 4.6 one-shotted this Arch Linux resume:
+![Opus 4.6 Resume](Opus46Resume.png)
+
 ![Chat Sidebar with Dashboard](Sonnet46Spreadsheet.png)
 
 ### 3. Edit & Extend Selection (Writer)
