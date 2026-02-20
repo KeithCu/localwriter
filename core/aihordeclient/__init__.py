@@ -20,7 +20,6 @@ from urllib.request import Request
 from core.translation_tool import opustm_hf_translate, OPUSTM_SOURCE_LANGUAGES  # noqa F401
 
 from core.api import sync_request, format_error_message
-from core.async_stream import run_blocking_in_thread
 from core.logging import debug_log, log_exception
 
 import base64
@@ -235,13 +234,14 @@ class AiHordeClient:
         self.client_help_url: str = client_help_url
         self.client_download_url: str = client_download_url
 
-        self.api_key: str = self.settings["api_key"]
+        self.api_key: str = self.settings.get("aihorde_api_key") or self.settings.get("api_key", ANONYMOUS_KEY)
         self.client_name: str = client_name
         self.headers: json = {
             "Content-Type": "application/json",
             "Accept": "application/json",
             "apikey": self.api_key,
             "Client-Agent": self.client_name,
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 LocalWriter/1.0",
         }
         self.informer = informer
         self.progress: float = 0.0
@@ -272,47 +272,42 @@ class AiHordeClient:
         only_read=False,
     ) -> None:
         """
-        Open a URL (GET or POST). Runs the request in a worker thread and pumps
-        the UI via run_blocking_in_thread so the UI stays responsive.
-        Stores the result in self.response_data; on error sets self.timeout and raises.
+        Open a URL (GET or POST).
+        Stores the result in self.response_data; on error raises.
         """
         if self._should_stop:
             self.process_interrupted = True
             raise IdentifiedError(MESSAGE_PROCESS_INTERRUPTED)
 
-        self.timeout = None
         self.response_data = None
-        client_self = self
 
-        def worker(q):
-            try:
-                if only_read:
-                    client_self.response_data = sync_request(
-                        url, timeout=timeout, parse_json=False
-                    )
-                else:
-                    client_self.response_data = sync_request(
-                        url, timeout=timeout, parse_json=True
-                    )
-                q.put(("done", None))
-            except Exception as ex:
-                log_exception(ex, context="AIHorde")
-                client_self.timeout = ex
-                q.put(("error", ex))
+        # Only send AI Horde headers to AI Horde API endpoints
+        actual_headers = None
+        if isinstance(url, str) and url.startswith(API_ROOT):
+            actual_headers = self.headers
+        elif not isinstance(url, str):
+            # If it's a Request object, headers are already inside
+            pass
 
-        toolkit = getattr(self.informer, "get_toolkit", lambda: None)()
+        debug_log(f"Requesting URL: {getattr(url, 'full_url', url)}", context="AIHorde")
         try:
-            run_blocking_in_thread(worker, toolkit)
-        except Exception:
-            if self.timeout is not None:
-                raise self.timeout
-            raise
+            if only_read:
+                self.response_data = sync_request(
+                    url, timeout=timeout, parse_json=False, 
+                    headers=actual_headers
+                )
+            else:
+                self.response_data = sync_request(
+                    url, timeout=timeout, parse_json=True,
+                    headers=actual_headers
+                )
+        except Exception as ex:
+            log_exception(ex, context="AIHorde")
+            raise ex
 
         if self._should_stop:
             self.process_interrupted = True
             raise IdentifiedError(MESSAGE_PROCESS_INTERRUPTED)
-        if self.timeout is not None:
-            raise self.timeout
 
     def __update_models_requirements__(self) -> None:
         """
@@ -342,6 +337,18 @@ class AiHordeClient:
         #
 
         if "local_settings" not in self.settings:
+            return
+
+        # Cache requirements for 7 days
+        previous_update = self.settings["local_settings"].get("date_requirements_updated", "2025-07-01")
+        today = datetime.now().date()
+        try:
+            days_updated = (today - date(*[int(i) for i in previous_update.split("-")])).days
+        except Exception:
+            days_updated = 999 
+
+        if days_updated < 7 and "requirements" in self.settings["local_settings"]:
+            debug_log(f"No need to update requirements {previous_update}", context="AIHorde")
             return
 
         debug_log("Getting requirements for models", context="AIHorde")
@@ -388,6 +395,8 @@ class AiHordeClient:
         else:
             debug_log("Updating requirements in local_settings", context="AIHorde")
             self.settings["local_settings"]["requirements"].update(req_info)
+        
+        self.settings["local_settings"]["date_requirements_updated"] = today.strftime("%Y-%m-%d")
 
     def __get_model_requirements__(self, model: str) -> json:
         """
@@ -775,6 +784,7 @@ class AiHordeClient:
                 self.stage = "Contacting..."
                 self.__inform_progress__()
                 self.__url_open__(request, 15)
+                debug_log("Initial request completed, processing response...", context="AIHorde")
                 data = self.response_data
                 debug_log(str(data), context="AIHorde")
                 if "warnings" in data:
@@ -788,7 +798,12 @@ class AiHordeClient:
                 self.id = data["id"]
                 self.status_url = f"{API_ROOT}generate/status/{self.id}"
                 self.informer.set_generated_image_url_status(self.status_url, 600)
-                debug_log(self.informer.get_generated_image_url_status()[2], context="AIHorde")
+                try:
+                    status_info = self.informer.get_generated_image_url_status()
+                    if status_info and len(status_info) > 2:
+                        debug_log(status_info[2], context="AIHorde")
+                except Exception:
+                    pass
                 self.wait_time = data.get("wait_time", self.wait_time)
             except (socket.timeout, TimeoutError) as ex:
                 message = _(
@@ -875,9 +890,10 @@ class AiHordeClient:
             context="AIHorde",
         )
 
-        if self.informer and progress != self.progress:
+        if self.informer and (progress != self.progress or self.progress_text != getattr(self, '_last_progress_text', None)):
             self.informer.update_status(self.progress_text, progress)
             self.progress = progress
+            self._last_progress_text = self.progress_text
 
     def __check_if_ready__(self) -> bool:
         """
@@ -897,6 +913,7 @@ class AiHordeClient:
 
         Raises and propagates exceptions
         """
+        debug_log(f"Checking status for job ID: {self.id}", context="AIHorde")
         url = f"{API_ROOT}generate/check/{self.id}"
 
         self.__url_open__(url)
@@ -916,10 +933,10 @@ class AiHordeClient:
                 text = _("You are first in the queue")
             else:
                 text = _("Queue position: ") + str(data["queue_position"])
-            debug_log(f"Wait time {data['wait_time']}", context="AIHorde")
+            debug_log(f"{text} (wait_time: {data.get('wait_time')})", context="AIHorde")
         elif data["processing"] > 0:
             text = _("Generating...")
-            debug_log(text + f" {self.check_counter} {self.progress}", context="AIHorde")
+            debug_log(f"{text} (counter: {self.check_counter}, progress: {self.progress})", context="AIHorde")
         self.progress_text = text
 
         if self.check_counter < self.check_max:

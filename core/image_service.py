@@ -80,9 +80,10 @@ class EndpointImageProvider(ImageProvider):
         return []
 
 class AIHordeImageProvider(ImageProvider):
-    def __init__(self, api_key, ctx):
+    def __init__(self, config, ctx):
         self.ctx = ctx
-        self.api_key = api_key
+        self.config = config
+        self.api_key = config.get("aihorde_api_key", "0000000000")
         # We need a minimal "informer" to bridge AIHordeClient's callbacks
         class SimpleInformer:
             def __init__(self, callback_context, ctx):
@@ -97,9 +98,6 @@ class AIHordeImageProvider(ImageProvider):
                         self.outer_ctx["status_callback"](msg)
                     except Exception:
                         pass
-                # Maintain UI responsiveness during polling
-                if hasattr(self.toolkit, "processEvents"):
-                    self.toolkit.processEvents()
 
             def show_error(self, msg, **kwargs): 
                 logger.error(f"Horde Error: {msg}")
@@ -110,7 +108,7 @@ class AIHordeImageProvider(ImageProvider):
                         pass
 
             def set_finished(self): pass
-            def get_generated_image_url_status(self): return None
+            def get_generated_image_url_status(self): return ["", 0, ""]
             def set_generated_image_url_status(self, *args): pass
 
             def get_toolkit(self):
@@ -126,7 +124,7 @@ class AIHordeImageProvider(ImageProvider):
             url_version_update="",
             client_help_url="",
             client_download_url="",
-            settings={"api_key": api_key, "max_wait_minutes": 5},
+            settings=config,
             client_name="LocalWriter_Horde_Client",
             informer=SimpleInformer(self.callback_context, self.ctx)
         )
@@ -173,8 +171,7 @@ class ImageService:
         if name == "openrouter":
             name = "endpoint"
         if name == "aihorde":
-            key = self.config.get("aihorde_api_key", "0000000000")
-            return AIHordeImageProvider(key, self.ctx)
+            return AIHordeImageProvider(self.config, self.ctx)
         if name == "endpoint":
             from core.config import get_api_config, get_text_model
             api_config = get_api_config(self.ctx).copy()

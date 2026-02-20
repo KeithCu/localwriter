@@ -9,37 +9,6 @@ import threading
 from core.logging import debug_log
 
 
-def run_blocking_in_thread(worker_fn, toolkit):
-    """
-    Run worker_fn(queue) in a daemon thread; main thread drains the queue with
-    processEventsToIdle until worker puts ("done", result) or ("error", exc).
-    Returns result or re-raises the exception. Shared by aihordeclient and any
-    other code that must run a blocking op without freezing the UI.
-    """
-    q = queue.Queue()
-
-    def worker():
-        try:
-            worker_fn(q)
-        except Exception as e:
-            q.put(("error", e))
-
-    t = threading.Thread(target=worker, daemon=True)
-    t.start()
-
-    while True:
-        try:
-            item = q.get(timeout=0.1)
-        except queue.Empty:
-            if toolkit:
-                toolkit.processEventsToIdle()
-            continue
-        kind = item[0] if isinstance(item, tuple) else item
-        if kind == "done":
-            return item[1] if len(item) > 1 else None
-        if kind == "error":
-            raise item[1]
-        toolkit.processEventsToIdle()
 
 
 def run_stream_drain_loop(
@@ -50,6 +19,7 @@ def run_stream_drain_loop(
     on_stream_done,
     on_stopped,
     on_error,
+    on_status_fn=None,
 ):
     """
     Main-thread drain loop: batch items from queue, maintain thinking/chunk buffers,
@@ -129,6 +99,12 @@ def run_stream_drain_loop(
                         debug_log("run_stream_drain_loop: on_error failed: %s" % e, context="API")
                     job_done[0] = True
                     break
+                elif kind == "status":
+                    if on_status_fn:
+                        try:
+                            on_status_fn(item[1])
+                        except Exception as e:
+                            debug_log("run_stream_drain_loop: on_status_fn failed: %s" % e, context="API")
 
             flush_buffers()
 
@@ -152,6 +128,7 @@ def run_stream_completion_async(
     apply_chunk_fn,
     on_done_fn,
     on_error_fn,
+    on_status_fn=None,
     stop_checker=None,
 ):
     """
@@ -172,6 +149,7 @@ def run_stream_completion_async(
                 api_type,
                 append_callback=lambda t: q.put(("chunk", t)),
                 append_thinking_callback=lambda t: q.put(("thinking", t)),
+                status_callback=lambda t: q.put(("status", t)),
                 stop_checker=stop_checker,
                 dispatch_events=False,
             )
@@ -201,5 +179,6 @@ def run_stream_completion_async(
         on_stream_done=on_stream_done,
         on_stopped=on_done_fn,
         on_error=on_error_fn,
+        on_status_fn=on_status_fn,
     )
 

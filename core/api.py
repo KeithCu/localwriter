@@ -92,16 +92,51 @@ def sync_request(url, data=None, headers=None, timeout=10, parse_json=True):
     import urllib.error
     if headers is None:
         headers = {}
+    
+    # Add a default browser-like User-Agent to avoid being blocked by CDNs/GitHub
+    has_ua = any(k.lower() == "user-agent" for k in headers.keys())
+    if not has_ua:
+        headers["User-Agent"] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 LocalWriter/1.0"
+
     if isinstance(url, str):
         req = urllib.request.Request(url, data=data, headers=headers)
     else:
         req = url
+    
+    # Debug: log which headers we are actually sending (keys only)
+    try:
+        header_keys = list(req.headers.keys()) if hasattr(req, "headers") else []
+        if not header_keys and hasattr(req, "get_full_url"):
+            # If it's a urllib Request object, headers might be in .headers
+            pass 
+        debug_log(f"Request to {getattr(req, 'full_url', url)} with header keys: {header_keys}", context="API")
+    except Exception:
+        pass
+
     ctx = get_unverified_ssl_context()
-    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-        raw = resp.read()
-    if parse_json:
-        return json.loads(raw.decode("utf-8"))
-    return raw
+    try:
+        debug_log(f"About to open URL: {getattr(req, 'full_url', url)}", context="API")
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            debug_log(f"URL opened, status={resp.getcode()}. Heading to read...", context="API")
+            raw = resp.read()
+            debug_log(f"Read {len(raw)} bytes", context="API")
+            if parse_json:
+                return json.loads(raw.decode("utf-8"))
+            return raw
+    except urllib.error.HTTPError as e:
+        status = e.code
+        reason = e.reason
+        try:
+            err_body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            err_body = ""
+        
+        msg = _format_http_error_response(status, reason, err_body)
+        debug_log(f"HTTP Error: {msg}", context="API")
+        raise Exception(msg) from e
+    except Exception as e:
+        debug_log(f"Request failed: {format_error_message(e)}", context="API")
+        raise
 
 
 def _extract_thinking_from_delta(chunk_delta):

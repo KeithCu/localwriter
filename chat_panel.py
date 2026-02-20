@@ -336,7 +336,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                             {"prompt": query_text},
                             model,
                             self.ctx,
-                            status_callback=self._set_status,
+                            status_callback=lambda t: q.put(("status", t)),
                         )
                         try:
                             data = json.loads(result)
@@ -380,6 +380,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     on_stream_done=on_stream_done,
                     on_stopped=on_stopped,
                     on_error=on_error,
+                    on_status_fn=self._set_status,
                 )
                 if self._terminal_status != "Error":
                     self._terminal_status = "Ready"
@@ -739,7 +740,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         run_stream_completion_async(
             self.ctx, client, prompt, system_prompt, max_tokens, api_type,
-            apply_chunk, on_done, on_error, stop_checker=lambda: self.stop_requested,
+            apply_chunk, on_done, on_error, on_status_fn=self._set_status,
+            stop_checker=lambda: self.stop_requested,
         )
 
     def disposing(self, evt):
