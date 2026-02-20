@@ -7,6 +7,7 @@ import sys
 import json
 import queue
 import threading
+import weakref
 import uno
 import unohelper
 
@@ -777,6 +778,26 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 parent_rect.Width, parent_rect.Height), context="Chat")
         return self.m_panelRootWindow
 
+    def _refresh_controls_from_config(self):
+        """Reload model and prompt selectors from config (e.g. after user changes Settings)."""
+        root = self.m_panelRootWindow
+        if not root or not hasattr(root, "getControl"):
+            return
+        def get_optional(name):
+            try:
+                return root.getControl(name)
+            except Exception:
+                return None
+        from core.config import get_config, populate_combobox_with_lru
+        model_selector = get_optional("model_selector")
+        prompt_selector = get_optional("prompt_selector")
+        current_model = get_config(self.ctx, "model", "")
+        extra_instructions = get_config(self.ctx, "additional_instructions", "")
+        if model_selector:
+            populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru")
+        if prompt_selector:
+            populate_combobox_with_lru(self.ctx, prompt_selector, extra_instructions, "prompt_lru")
+
     def _wireControls(self, root_window):
         """Attach listeners to Send and Clear buttons."""
         debug_log("_wireControls entered", context="Chat")
@@ -831,6 +852,16 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             
             if model_selector:
                 populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru")
+
+            # Register for config changes (e.g. Settings dialog). Weakref so this panel can be
+            # GC'd without unregistering; callback no-ops if panel is gone.
+            from core.config import add_config_listener
+            _self_ref = weakref.ref(self)
+            def on_config_changed(ctx):
+                panel = _self_ref()
+                if panel is not None:
+                    panel._refresh_controls_from_config()
+            add_config_listener(on_config_changed)
 
             model = None
             if self.xFrame:

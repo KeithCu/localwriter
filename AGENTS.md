@@ -29,7 +29,7 @@ Config is stored in `localwriter.json` in LibreOffice's user config directory. S
 localwriter/
 ├── main.py              # MainJob: trigger(), dialogs, delegates to core
 ├── core/                # Shared core logic
-│   ├── config.py        # get_config, set_config, get_api_config (localwriter.json)
+│   ├── config.py        # get_config, set_config, get_api_config, add_config_listener, notify_config_changed (localwriter.json)
 │   ├── api.py           # LlmClient: streaming, chat, tool-calling, connection management
 │   ├── document.py      # get_full_document_text, get_document_end, get_selection_range, get_document_length, get_text_cursor_at_range, get_document_context_for_chat (Writer/Calc), get_calc_context_for_chat (Calc)
 │   ├── logging.py       # init_logging, debug_log(msg, context), agent_log; single debug file + optional agent log
@@ -101,7 +101,7 @@ localwriter/
 
 The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextList includes `com.sun.star.sheet.SpreadsheetDocument`).
 
-- **Sidebar panel**: LocalWriter deck in Writer's or Calc's right sidebar; panel has Response area, Ask field, Send button, Stop button, and Clear button.
+- **Sidebar panel**: LocalWriter deck in Writer's or Calc's right sidebar; panel has Response area, Ask field, Send button, Stop button, and Clear button. When the user changes Settings (e.g. model or additional instructions), the sidebar is notified via **config-change listeners** in `core/config.py` (`add_config_listener`, `notify_config_changed`); the panel refreshes its model and prompt selectors from config so they stay in sync. Listeners use weakref so panels can be GC'd without unregistering.
   - **Auto-scroll**: The response area automatically scrolls to the bottom as text is streamed or tools are called, ensuring the latest AI output is always visible.
   - **Stop button**: A dedicated "Stop" button allows users to halt AI generation mid-stream. It is enabled only while the AI is active and disabled when idle.
   - **Undo grouping**: AI edits performed during tool-calling rounds are grouped into a single undo context ("AI Edit"). Users can revert all changes from an AI turn with a single Ctrl+Z.

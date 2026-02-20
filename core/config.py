@@ -64,6 +64,25 @@ def set_config(ctx, key, value):
         print("Error writing to %s: %s" % (config_file_path, e))
 
 
+# Listeners are called when config is changed (e.g. after Settings dialog).
+# Sidebar uses weakref in its callback so panels can be GC'd without unregistering.
+_config_listeners = []
+
+
+def add_config_listener(callback):
+    """Register a callable(ctx) to be invoked when config changes (e.g. after Settings OK)."""
+    _config_listeners.append(callback)
+
+
+def notify_config_changed(ctx):
+    """Call all registered listeners so UI (e.g. sidebar) can refresh from config."""
+    for cb in list(_config_listeners):
+        try:
+            cb(ctx)
+        except Exception:
+            pass
+
+
 def as_bool(value):
     """Parse a value as boolean (handles str, int, float)."""
     if isinstance(value, bool):

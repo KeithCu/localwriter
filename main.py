@@ -9,7 +9,7 @@ if _ext_dir not in sys.path:
 import unohelper
 import officehelper
 
-from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history
+from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history, notify_config_changed
 from core.api import LlmClient, format_error_message
 from core.document import get_full_document_text, get_document_context_for_chat
 from core.async_stream import run_stream_completion_async
@@ -107,6 +107,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                 api_type_value = "completions"
             self.set_config("api_type", api_type_value)
 
+        notify_config_changed(self.ctx)
 
     def _get_client(self):
         """Get or create LlmClient with current config."""
