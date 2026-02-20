@@ -2,7 +2,7 @@
 
 import json
 import logging
-from core.logging import agent_log
+from core.logging import agent_log, debug_log
 from core.draw_bridge import DrawBridge
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,13 @@ DRAW_TOOLS = [
     },
 ]
 
+from core.document_tools import IMAGE_TOOLS
+DRAW_TOOLS.extend(IMAGE_TOOLS)
+
+
+
+
+
 def _parse_color(color_str):
     if not color_str:
         return None
@@ -111,7 +118,7 @@ def _parse_color(color_str):
             return None
     return None
 
-def execute_draw_tool(tool_name, arguments, model, ctx):
+def execute_draw_tool(tool_name, arguments, model, ctx, status_callback=None):
     bridge = DrawBridge(model)
     agent_log("draw_tools.py:execute_draw_tool", "Tool call", data={"tool": tool_name, "arguments": arguments})
     
@@ -162,7 +169,7 @@ def execute_draw_tool(tool_name, arguments, model, ctx):
             )
             if arguments.get("text") and hasattr(shape, "setString"):
                 shape.setString(arguments["text"])
-            
+
             if "bg_color" in arguments:
                 color = _parse_color(arguments["bg_color"])
                 if color is not None:
@@ -171,9 +178,12 @@ def execute_draw_tool(tool_name, arguments, model, ctx):
                     try:
                         shape.setPropertyValue(prop_name, color)
                     except Exception:
-                        from core.logging import debug_log
                         debug_log("Could not set %s on %s" % (prop_name, shape.getShapeType()), context="Draw")
-            return json.dumps({"status": "ok", "message": f"Created {arguments['shape_type']}"})
+
+            # Return the index of the newly created shape so the AI can reference it immediately
+            page = bridge.get_active_page()
+            shape_index = page.getCount() - 1
+            return json.dumps({"status": "ok", "message": "Created %s" % arguments["shape_type"], "shape_index": shape_index})
 
         elif tool_name == "edit_shape":
             idx = arguments.get("page_index")
@@ -220,6 +230,16 @@ def execute_draw_tool(tool_name, arguments, model, ctx):
             shape = page.getByIndex(arguments["shape_index"])
             page.remove(shape)
             return json.dumps({"status": "ok", "message": "Shape deleted"})
+
+        elif tool_name == "generate_image":
+            # Delegate to existing implementation in document_tools which uses polymorphic image_tools
+            from core.document_tools import tool_generate_image
+            return tool_generate_image(model, ctx, arguments, status_callback=status_callback)
+
+        elif tool_name == "edit_image":
+            # Delegate to existing implementation
+            from core.document_tools import tool_edit_image
+            return tool_edit_image(model, ctx, arguments, status_callback=status_callback)
 
         else:
             return json.dumps({"status": "error", "message": f"Unknown tool: {tool_name}"})

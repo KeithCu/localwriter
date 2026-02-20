@@ -58,7 +58,7 @@ class TestChatModelLogic(unittest.TestCase):
         self.stop_control = MagicMock()
         self.query_control = MagicMock()
         self.response_control = MagicMock()
-        self.prompt_selector = MagicMock()
+        self.image_model_selector = MagicMock()
         self.model_selector = MagicMock()
         self.status_control = MagicMock()
         self.session = MagicMock()
@@ -66,7 +66,7 @@ class TestChatModelLogic(unittest.TestCase):
 
         self.listener = SendButtonListener(
             self.ctx, self.frame, self.send_control, self.stop_control,
-            self.query_control, self.response_control, self.prompt_selector,
+            self.query_control, self.response_control, self.image_model_selector,
             self.model_selector, self.status_control, self.session
         )
 
@@ -74,17 +74,17 @@ class TestChatModelLogic(unittest.TestCase):
     @patch('core.config.get_config')
     @patch('core.config.set_config')
     @patch('core.config.update_lru_history')
-    @patch('chat_panel.LlmClient')
+    @patch('core.api.LlmClient')
     def test_do_send_updates_model(self, mock_llm_client, mock_update_lru, mock_set_config, mock_get_config, mock_ensure_path):
         # Setup mocks
         self.query_control.getModel().Text = "Hello AI"
         self.model_selector.getText.return_value = "new-model-xyz"
         mock_get_config.side_effect = lambda ctx, key, default: default
         
-        # We need to mock the imports inside _do_send since it's a local import
-        with patch('chat_panel.get_config', mock_get_config), \
-             patch('chat_panel.set_config', mock_set_config), \
-             patch('chat_panel.update_lru_history', mock_update_lru):
+        # Mock _get_document_model (Writer doc: has getText, no getSheets) so we reach the model update
+        doc_mock = MagicMock(spec=["getText"])
+        with patch.object(self.listener, '_get_document_model', return_value=doc_mock), \
+             patch('core.config.get_api_config', MagicMock(return_value={"model": "test", "endpoint": "http://x"})):
             
             # This will still fail because of other internal imports in _do_send
             # but we can try to trigger the model update part at least.
@@ -95,9 +95,8 @@ class TestChatModelLogic(unittest.TestCase):
                 # Expected to fail later in _do_send due to missing document model etc.
                 pass
 
-            # Check if set_config was called with the new model
-            # It should be called for "model"
-            mock_set_config.assert_any_call(self.ctx, "model", "new-model-xyz")
+            # Check if set_config was called with the new text model
+            mock_set_config.assert_any_call(self.ctx, "text_model", "new-model-xyz")
             mock_update_lru.assert_any_call(self.ctx, "new-model-xyz", "model_lru")
 
 if __name__ == '__main__':

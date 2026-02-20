@@ -14,7 +14,8 @@
 - **Extend Selection** (Ctrl+Q): Model continues the selected text
 - **Edit Selection** (Ctrl+E): User enters instructions; model rewrites the selection
 - **Chat with Document** (Writer, Calc, and Draw): (a) **Sidebar panel**: LocalWriter deck in the right sidebar, multi-turn chat with tool-calling that edits the document; (b) **Menu item** (fallback): Opens input dialog, appends response to end of document (Writer) or to "AI Response" sheet (Calc/Draw)
-- **Settings**: Configure endpoint, model, API key, temperature, request timeout, etc.
+- **Settings**: Configure endpoint, model, API key, temperature, request timeout, image generation settings (provider, API keys, dimensions), etc.
+- **Image Generation & Editing**: Multimodal capabilities via `generate_image` (create and insert) and `edit_image` (Img2Img on selected object) tools.
 - **Calc** `=PROMPT()`: Cell formula that calls the model
 
 **Connection Management**: LocalWriter includes built-in connection management in `core/api.py` that maintains persistent HTTP/HTTPS connections, significantly reducing overhead for sequential requests to the same endpoint.
@@ -42,6 +43,9 @@ localwriter/
 │   ├── calc_error_detector.py
 │   ├── calc_manipulator.py
 │   ├── calc_tools.py    # CALC_TOOLS (schemas), execute_calc_tool
+│   ├── aihordeclient/   # AI Horde async API client (queue, poll, download; Img2Img/inpainting)
+│   ├── image_service.py # ImageService: aihorde or endpoint (Settings URL), get_provider, generate_image
+│   ├── image_tools.py   # insert_image, replace_image_in_place, add_image_to_gallery, get_selected_image_base64
 │   ├── draw_bridge.py   # Draw/Impress page and shape manipulation
 │   └── draw_tools.py    # DRAW_TOOLS (schemas), execute_draw_tool (pages, shapes)
 ├── prompt_function.py   # Calc =PROMPT() formula
@@ -79,7 +83,7 @@ localwriter/
 
 ### After
 - Both dialogs use **XDL files** (XML) loaded via `DialogProvider`
-- `LocalWriterDialogs.SettingsDialog` — 12 config fields in a **compact side-by-side layout** (labels left, textfields right) to reduce vertical footprint.
+- `LocalWriterDialogs.SettingsDialog` — two-page dialog (Chat/Text and Image Generation) using the `dlg:page` multi-page approach with tab-switching buttons.
 - `LocalWriterDialogs.EditInputDialog` — label + text field + OK
 
 ### Key implementation details
@@ -137,7 +141,7 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
 ### System prompt and reasoning (latest)
 
 - **Chat** uses `get_chat_system_prompt_for_document(model, additional_instructions)` in `core/constants.py` so the correct prompt is chosen by document type: **Writer** → `DEFAULT_CHAT_SYSTEM_PROMPT` + additional_instructions (get_markdown/apply_markdown, presume document editing, translate/proofread, no preamble); **Calc** → `DEFAULT_CALC_CHAT_SYSTEM_PROMPT` + additional_instructions (semicolon formula syntax, 4-step workflow: understand → get state → use tools → short confirmation; tools grouped READ / WRITE & FORMAT / SHEET MANAGEMENT / CHART / ERRORS). Used by both sidebar and menu Chat.
-- **Reasoning tokens**: `main.py` sends `reasoning: { effort: 'minimal' }` on all chat requests (OpenRouter and other providers).
+- **Reasoning tokens**: `main.py` sends `reasoning: { effort: 'minimal' }` on all chat requests.
 - **Thinking display**: Reasoning tokens are shown in the response area as `[Thinking] ... /thinking`. When thinking ends we append a newline after ` /thinking` so the following response text starts on a new line.
 
 See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for implementation details.
@@ -176,11 +180,42 @@ The "Additional Instructions" (previously system prompts) are now unified across
     - **Unified Key**: All features use the `additional_instructions` config key. LEGACY: The key was renamed from `chat_system_prompt` to avoid legacy data from "full system prompt" iterations.
     - **History Persistence**: Up to 10 entries are stored in `prompt_lru` (JSON list).
 - **Behavior**:
-    - **Dropdown (ComboBox)**: All dialogs (Settings, Edit Selection input, Chat sidebar) show a dropdown of recent instructions.
+    - **Dropdown (ComboBox)**: Settings and Edit Selection input show a dropdown of recent instructions. The Chat sidebar does **not** show additional instructions (configured in Settings only; see Section 3d for sidebar controls).
     - **Multiline Support**: LibreOffice ComboBoxes are single-line. We display a preview in the list and restore full multiline content upon selection.
     - **Prompt Construction**:
         - **Chat**: `get_chat_system_prompt_for_document(model, additional_instructions)` so Writer and Calc get the correct base prompt; in both cases `additional_instructions` is appended.
         - **Edit/Extend**: `additional_instructions` is used as the primary guiding prompt (representing the special system role for that edit).
+
+---
+
+## 3d. Multimodal AI (Image Generation & Editing)
+
+LocalWriter can generate and edit images inside Writer and Calc via tools exposed to the chat LLM. Two backends are supported; they differ in API shape and where the “model” is configured.
+
+### Providers
+
+- **AI Horde** (`core/aihordeclient/`): Dedicated **async image API** (not an LLM). Submit job → poll `generate/check` and `generate/status` until done → download images. Uses its own API key and model list (e.g. Stable Diffusion, SDXL). Built-in queueing, progress (informer), Img2Img and inpainting. Non-blocking UI via `run_blocking_in_thread` + `toolkit.processEvents()` in the informer. Config: `image_provider=aihorde`, `aihorde_api_key`, plus image dimensions/steps/NSFW etc.
+- **Endpoint** (config value `endpoint`): Uses the **endpoint URL/port and API key from Settings** — the same values the user configured for chat. Only the **model** differs: chat uses the text model, image generation uses **`image_model`**. Single request/response (no queue). Config: `image_provider=endpoint`, and **`image_model`** for the image model id (fallback: text model). **`image_model_lru`** holds recently used image models for combobox dropdowns. Legacy: a previous config value for this provider is also accepted and treated as `endpoint`.
+
+### Text model vs image model
+
+- **`text_model`** (backward compat: read `model` if unset): The chat/LLM model. Used by Chat, Extend/Edit Selection, and `get_api_config()` (exposed to LlmClient as `"model"`). See `core/config.py` `get_text_model(ctx)`.
+- **`image_model`**: Used when `image_provider=endpoint`. Same endpoint and API key as chat; this key selects which model handles image requests. Comboboxes (Settings + Chat sidebar) are filled from **`image_model_lru`**; after a successful image generation via the endpoint, the model used is pushed into that LRU.
+
+### ImageService and tools
+
+- **ImageService** (`core/image_service.py`): `get_provider(name)` returns `AIHordeImageProvider` or `EndpointImageProvider`. For `name=="endpoint"` it builds API config from `get_api_config(ctx)` (endpoint URL + API key from Settings) and sets `api_config["model"]` to `image_model` or `get_text_model(ctx)`. `generate_image(prompt, provider_name=..., **kwargs)` merges config defaults (width, height, steps, etc.), optional prompt translation, then calls `provider.generate(prompt, **kwargs)`; returns list of local temp file paths.
+- **Image tools** (`core/image_tools.py`): **`get_selected_image_base64(model, ctx=None)`** exports the selected graphic (Writer `GraphicObject` or Calc `GraphicObjectShape`) to PNG and returns base64 for Img2Img; pass `ctx` from panel/MainJob for Calc. **`insert_image`** / **`replace_image_in_place`** insert or replace the image in the document; **`add_image_to_gallery`** adds to the LibreOffice Media Gallery.
+- **Tools exposed to LLM** (`core/document_tools.py`): **`generate_image`** (prompt, optional width, height, provider) — generates and inserts; **`edit_image`** (prompt, optional strength, provider) — Img2Img on selected image, replace or insert. Both use ImageService; when provider is the chat endpoint, after success they update `image_model_lru`.
+
+### UI and config
+
+- **Settings** (`LocalWriterDialogs/SettingsDialog.xdl`): Tabbed. **Chat/Text** tab: Text/Chat Model and **Image model (same endpoint as chat)** comboboxes (LRU). **Image** tab: **Provider (aihorde / same as chat)**, `aihorde_api_key`, width/height, steps, max wait, NSFW, auto gallery, insert frame, translate prompt. All image-related keys applied via `_apply_settings_result` in `main.py`.
+- **Chat sidebar** (`LocalWriterDialogs/ChatPanelDialog.xdl`, `chat_panel.py`): **AI Model** combobox (text model → `text_model`, `model_lru`) and **Image model (same endpoint as chat)** combobox (→ `image_model`, `image_model_lru`). No additional-instructions control in the sidebar; extra instructions come from config only when building the system prompt.
+
+### Config keys (summary)
+
+- Image: `image_provider`, `image_model`, `image_model_lru`, `aihorde_api_key`, `image_width`, `image_height`, `image_cfg_scale`, `image_steps`, `image_nsfw`, `image_censor_nsfw`, `image_max_wait`, `image_auto_gallery`, `image_insert_frame`, `image_translate_prompt`, `image_translate_from`. See [IMAGE_GENERATION.md](IMAGE_GENERATION.md) for full mapping and handover notes.
 
 ---
 
@@ -197,7 +232,7 @@ The "Additional Instructions" (previously system prompts) are now unified across
 
 ---
 
-## 4. Critical Learnings: LibreOffice Dialogs
+## 5. Critical Learnings: LibreOffice Dialogs
 
 ### Units
 - **Map AppFont** units: device- and HiDPI-independent. 1 unit ≈ 1/4 char width, 1/8 char height.
@@ -217,8 +252,28 @@ The "Additional Instructions" (previously system prompts) are now unified across
 ### XDL format (condensed)
 - Root: `<dlg:window>` with `dlg:id`, `dlg:width`, `dlg:height`, `dlg:title`, `dlg:resizeable`
 - Content: `<dlg:bulletinboard>` containing controls
-- Controls: `dlg:text` (label), `dlg:textfield`, `dlg:button` with `dlg:id`, `dlg:left`, `dlg:top`, `dlg:width`, `dlg:height`, `dlg:value`
+- Controls: `dlg:text` (label), `dlg:textfield`, `dlg:button`, `dlg:combobox`, `dlg:fixedline` with `dlg:id`, `dlg:left`, `dlg:top`, `dlg:width`, `dlg:height`, `dlg:value`
 - DTD: `xmlscript/dtd/dialog.dtd` in LibreOffice source
+
+### Multi-page dialogs (tabs)
+- **Do NOT use `dlg:tabpagecontainer` / `dlg:tabpage`** — these elements are **not in the XDL DTD** and cause `createDialog()` to fail silently with an empty error message.
+- Use `dlg:page` attributes on individual controls instead: add `dlg:page="1"` or `dlg:page="2"` to each control. Controls with no `dlg:page` are always visible.
+- Set `dlg:page="1"` on the root `<dlg:window>` to set the initial page.
+- Switch pages at runtime: `dlg.getModel().Step = 2` (Step property = page number).
+- Wire tab buttons with a UNO listener that inherits from **both** `unohelper.Base` and `XActionListener`:
+  ```python
+  from com.sun.star.awt import XActionListener
+  class TabListener(unohelper.Base, XActionListener):
+      def __init__(self, dialog, page):
+          self._dlg = dialog
+          self._page = page
+      def actionPerformed(self, ev):
+          self._dlg.getModel().Step = self._page
+      def disposing(self, ev): pass
+  dlg.getControl("btn_tab_chat").addActionListener(TabListener(dlg, 1))
+  dlg.getControl("btn_tab_image").addActionListener(TabListener(dlg, 2))
+  ```
+- **Important**: the listener class must inherit `XActionListener` — passing a plain class raises `value does not implement com.sun.star.awt.XActionListener`.
 
 ### Compact layout
 - Label height ~10, textfield height ~14, gap label→edit ~1, gap between rows ~2
@@ -275,19 +330,32 @@ We implemented a custom engine in `core/format_support.py` that iterates charact
   - Linux: `~/.config/libreoffice/4/user/localwriter.json` (or `24/user` for LO 24)
   - macOS: `~/Library/Application Support/LibreOffice/4/user/localwriter.json`
   - Windows: `%APPDATA%\LibreOffice\4\user\localwriter.json`
-- **Single file**: No presets or multiple configs. To use a different setup (e.g. `localwriter.openrouter.json`), copy it to the path above as `localwriter.json`.
+- **Single file**: No presets or multiple configs. To use a different setup, copy your config to the path above as `localwriter.json`.
 - **Settings dialog** reads/writes this file via `get_config()` / `set_config()` in `core/config.py`.
-- **Chat-related keys** (used by `chat_panel.py` and menu Chat): `chat_context_length` (default 8000), `chat_max_tokens` (default 512 menu / 16384 sidebar), `additional_instructions`. Also `api_key`, `api_type` (in Settings) for OpenRouter/OpenAI-compatible endpoints.
-- **Note**: `chat_context_length`, `chat_max_tokens`, `additional_instructions` are now in the Settings dialog.
+- **Chat-related keys**: `chat_context_length` (default 8000), `chat_max_tokens` (default 512 menu / 16384 sidebar), `additional_instructions`. Also `api_key`, `api_type` for the configured endpoint.
+- **Model keys**: `text_model` (chat/LLM model; backward compat: `model`), `model_lru` (recent text models); `image_model` (image model when using chat endpoint for images), `image_model_lru` (recent image models). See Section 3d.
 
 ---
 
 ## 5b. Log Files
 
-- **Unified debug log**: `~/.config/libreoffice/4/user/config/localwriter_debug.log` (exact path; fallback `~/localwriter_debug.log` if user config dir not found). Written by `debug_log(msg, context=...)` with prefixes `[API]`, `[Chat]`, `[Markdown]`. Paths set once via `init_logging(ctx)`; no ctx needed at call sites.
-
+- **Unified debug log**: `~/.config/libreoffice/4/user/config/localwriter_debug.log` (exact path; fallback `~/localwriter_debug.log` if user config dir not found). Written by `debug_log(msg, context=...)` with prefixes `[API]`, `[Chat]`, `[Markdown]`, `[AIHorde]`. Paths set once via `init_logging(ctx)`; no ctx needed at call sites.
 - **Agent log** (NDJSON, optional): `localwriter_agent.log` in user config (or `~/`). Written by `agent_log(...)` only when config key `enable_agent_log` is true (default false). Used for hypothesis/debug tracking.
 - **Watchdog**: If no activity for the threshold (e.g. 30s), a line is written to the debug log and the status control shows "Hung: ...".
+
+### Finding log files (and image generation debugging)
+
+Log paths are set in `core/logging.py` by `init_logging(ctx)` and live in the **same directory as `localwriter.json`** (from `PathSettings.UserConfig` in `core/config.py`). Locations to check, in order:
+
+- `~/.config/libreoffice/4/user/localwriter_debug.log` and `localwriter_agent.log`
+- `~/.config/libreoffice/24/user/` (same filenames; version-dependent)
+- `~/.config/libreoffice/4/user/config/` and `24/user/config/` (some installs)
+- **Fallback** (if user config dir unavailable at init): `~/localwriter_debug.log` and `~/localwriter_agent.log`
+
+**Which logs show image generation failures:**
+
+- **AI Horde** (`image_provider=aihorde`): `localwriter_debug.log` — search for `[AIHorde]` for request flow, errors, and stack traces. `core/aihordeclient/` uses `debug_log` and `log_exception` with context `"AIHorde"`.
+- **Endpoint** (`image_provider=endpoint`): Debug log only shows `[Chat] Tool call: generate_image(...)` (no error text). For the actual error: enable **Settings → Enable agent log**, reproduce, then open `localwriter_agent.log` and look for `"Tool result"` with `tool` `"generate_image"` or `"edit_image"` — the error is in `data.result_snippet`. `core/image_service.py` does not write to the debug log.
 
 ---
 
@@ -310,7 +378,7 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - ~~Refactor duplicate logic~~ (see Section 3c Shared Helpers)
 
 ### Dialog-related
-- **Config presets**: Add "Load from file" or preset dropdown in Settings so users can switch between `localwriter.json`, `localwriter.openrouter.json`, etc.
+- **Config presets**: Add "Load from file" or preset dropdown in Settings so users can switch config files.
 - **EditInputDialog**: Consider multiline for long instructions; current layout is single-line.
 
 ### Format-preserving replacement
@@ -319,7 +387,7 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - **Edit Selection streaming**: Apply format-preserving logic to the Edit Selection streaming path for character-level formatting retention during live edits.
 
 ### General
-- OpenRouter/Together.ai: API key and auth are already implemented; optional: endpoint presets (Local / OpenRouter / Together / Custom).
+- API key and auth for the configured endpoint are already implemented; optional: endpoint preset dropdown in Settings.
 - Impress support; Calc range-aware behavior.
 
 ### Chat settings in UI — DONE

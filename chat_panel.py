@@ -134,14 +134,14 @@ class ChatSession:
 class SendButtonListener(unohelper.Base, XActionListener):
     """Listener for the Send button - runs chat with document, supports tool-calling."""
 
-    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, prompt_selector, model_selector, status_control, session):
+    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session):
         self.ctx = ctx
         self.frame = frame
         self.send_control = send_control
         self.stop_control = stop_control
         self.query_control = query_control
         self.response_control = response_control
-        self.prompt_selector = prompt_selector
+        self.image_model_selector = image_model_selector
         self.model_selector = model_selector
         self.status_control = status_control
         self.session = session
@@ -296,7 +296,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 debug_log("_do_send: importing calc_tools...", context="Chat")
                 from core.calc_tools import CALC_TOOLS, execute_calc_tool
                 active_tools = CALC_TOOLS
-                execute_fn = execute_calc_tool
+                # Calc tools don't support status_callback yet, but we should handle the kwarg safely
+                execute_fn = lambda name, args, doc, ctx, status_callback=None: execute_calc_tool(name, args, doc)
                 debug_log("_do_send: calc_tools imported OK (%d tools)" % len(CALC_TOOLS), context="Chat")
             elif is_draw_doc:
                 debug_log("_do_send: importing draw_tools...", context="Chat")
@@ -308,7 +309,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 debug_log("_do_send: importing document_tools...", context="Chat")
                 from core.document_tools import WRITER_TOOLS, execute_tool
                 active_tools = WRITER_TOOLS
-                execute_fn = lambda name, args, doc, ctx: execute_tool(name, args, doc, ctx)
+                execute_fn = execute_tool
+
                 debug_log("_do_send: document_tools imported OK (%d tools)" % len(WRITER_TOOLS), context="Chat")
         except Exception as e:
             debug_log("_do_send: tool import FAILED: %s" % e, context="Chat")
@@ -328,23 +330,31 @@ class SendButtonListener(unohelper.Base, XActionListener):
         if self.query_control and self.query_control.getModel():
             self.query_control.getModel().Text = ""
 
-        # System prompt: single helper so Writer/Calc prompt cannot be mixed
-        extra_instructions = (self.prompt_selector.getText() if self.prompt_selector else "") or ""
-        if self.prompt_selector:
-            from core.config import set_config, update_lru_history
-            set_config(self.ctx, "additional_instructions", extra_instructions)
-            update_lru_history(self.ctx, extra_instructions, "prompt_lru")
+        # System prompt: extra_instructions from config only (not in sidebar)
+        from core.config import set_config, update_lru_history
+        extra_instructions = get_config(self.ctx, "additional_instructions", "") or ""
         from core.constants import get_chat_system_prompt_for_document
         self.session.messages[0]["content"] = get_chat_system_prompt_for_document(model, extra_instructions)
 
-        # Update model from selector
+        # Update text model and image model from selectors
         if self.model_selector:
             selected_model = self.model_selector.getText()
             if selected_model:
-                from core.config import set_config, update_lru_history
-                set_config(self.ctx, "model", selected_model)
+                set_config(self.ctx, "text_model", selected_model)
                 update_lru_history(self.ctx, selected_model, "model_lru")
-                debug_log("_do_send: model updated to %s" % selected_model, context="Chat")
+                debug_log("_do_send: text model updated to %s" % selected_model, context="Chat")
+        if self.image_model_selector:
+            # Adaptive save based on provider
+            image_provider = get_config(self.ctx, "image_provider", "aihorde")
+            selected_image_model = self.image_model_selector.getText()
+            if selected_image_model:
+                if image_provider == "aihorde":
+                    set_config(self.ctx, "aihorde_model", selected_image_model)
+                    debug_log("_do_send: aihorde model updated to %s" % selected_image_model, context="Chat")
+                else:
+                    set_config(self.ctx, "image_model", selected_image_model)
+                    update_lru_history(self.ctx, selected_image_model, "image_model_lru")
+                    debug_log("_do_send: endpoint image model updated to %s" % selected_image_model, context="Chat")
 
         # 3. Set up config and LlmClient
         max_context = int(get_config(self.ctx, "chat_context_length", 8000))
@@ -517,7 +527,22 @@ class SendButtonListener(unohelper.Base, XActionListener):
                         func_args = {}
                 agent_log("chat_panel.py:tool_execute", "Executing tool", data={"tool": func_name, "round": r}, hypothesis_id="C,D,E")
                 debug_log("Tool call: %s(%s)" % (func_name, func_args_str), context="Chat")
-                result = execute_tool_fn(func_name, func_args, model, self.ctx)
+                
+                # Pass a status callback so long-running tools (like image gen) can update the UI
+                def tool_status_callback(msg):
+                    # We can use _set_status directly because it's thread-safe (uses setText on peer)
+                    # or at least it doesn't crash.
+                    debug_log("tool_status_callback: %s" % msg, context="Chat")
+                    self._set_status(msg)
+                    
+                # Check signature of execute_tool_fn to see if it accepts status_callback
+                import inspect
+                sig = inspect.signature(execute_tool_fn)
+                if "status_callback" in sig.parameters or "kwargs" in sig.parameters:
+                    result = execute_tool_fn(func_name, func_args, model, self.ctx, status_callback=tool_status_callback)
+                else:
+                    result = execute_tool_fn(func_name, func_args, model, self.ctx)
+                    
                 debug_log("Tool result: %s" % result, context="Chat")
                 try:
                     result_data = json.loads(result)
@@ -788,15 +813,22 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 return root.getControl(name)
             except Exception:
                 return None
-        from core.config import get_config, populate_combobox_with_lru
+        from core.config import get_config, populate_combobox_with_lru, get_text_model, populate_image_model_selector
+        
         model_selector = get_optional("model_selector")
         prompt_selector = get_optional("prompt_selector")
-        current_model = get_config(self.ctx, "model", "")
+        image_model_selector = get_optional("image_model_selector")
+        
+        current_model = get_text_model(self.ctx)
         extra_instructions = get_config(self.ctx, "additional_instructions", "")
+        
         if model_selector:
             populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru")
         if prompt_selector:
             populate_combobox_with_lru(self.ctx, prompt_selector, extra_instructions, "prompt_lru")
+            
+        # Refresh visual (image) model via shared helper
+        populate_image_model_selector(self.ctx, image_model_selector)
 
     def _wireControls(self, root_window):
         """Attach listeners to Send and Clear buttons."""
@@ -816,6 +848,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             except Exception:
                 return None
 
+        image_model_selector = get_optional("image_model_selector")
         prompt_selector = get_optional("prompt_selector")
         model_selector = get_optional("model_selector")
         status_ctrl = get_optional("status")
@@ -841,15 +874,16 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         try:
             # Read system prompt from config; use helper so Writer/Calc prompt matches document
             debug_log("_wireControls: importing core config...", context="Chat")
-            from core.config import get_config, populate_combobox_with_lru
+            from core.config import get_config, populate_combobox_with_lru, populate_image_model_selector
             from core.constants import get_chat_system_prompt_for_document, DEFAULT_CHAT_SYSTEM_PROMPT
             from core.document import is_writer, is_calc, is_draw
+            
             extra_instructions = get_config(self.ctx, "additional_instructions", "")
-            current_model = get_config(self.ctx, "model", "")
+            current_model = get_config(self.ctx, "text_model", "") or get_config(self.ctx, "model", "")
             
-            if prompt_selector:
-                populate_combobox_with_lru(self.ctx, prompt_selector, extra_instructions, "prompt_lru")
-            
+            # Adaptive image model population via shared helper
+            populate_image_model_selector(self.ctx, image_model_selector)
+
             if model_selector:
                 populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru")
 
@@ -894,9 +928,10 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         try:
             stop_btn = root_window.getControl("stop")
             send_listener = SendButtonListener(
-                self.ctx, self.xFrame, send_btn, stop_btn, query_ctrl, response_ctrl,
-                prompt_selector, model_selector, status_ctrl, self.session)
-            
+                self.ctx, self.xFrame,
+                send_btn, stop_btn, query_ctrl, response_ctrl,
+                image_model_selector, model_selector, status_ctrl, self.session)
+
             # Detect and store initial document type for strict verification
             if model:
                 from core.document import is_calc, is_draw, is_writer

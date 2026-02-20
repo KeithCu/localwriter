@@ -9,6 +9,39 @@ import threading
 from core.logging import debug_log
 
 
+def run_blocking_in_thread(worker_fn, toolkit):
+    """
+    Run worker_fn(queue) in a daemon thread; main thread drains the queue with
+    processEventsToIdle until worker puts ("done", result) or ("error", exc).
+    Returns result or re-raises the exception. Shared by aihordeclient and any
+    other code that must run a blocking op without freezing the UI.
+    """
+    q = queue.Queue()
+
+    def worker():
+        try:
+            worker_fn(q)
+        except Exception as e:
+            q.put(("error", e))
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+    while True:
+        try:
+            item = q.get(timeout=0.1)
+        except queue.Empty:
+            if toolkit:
+                toolkit.processEventsToIdle()
+            continue
+        kind = item[0] if isinstance(item, tuple) else item
+        if kind == "done":
+            return item[1] if len(item) > 1 else None
+        if kind == "error":
+            raise item[1]
+        toolkit.processEventsToIdle()
+
+
 def run_stream_drain_loop(
     q,
     toolkit,

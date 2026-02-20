@@ -1,39 +1,79 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE dlg:window PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "dialog.dtd">
 <dlg:window xmlns:dlg="http://openoffice.org/2000/dialog" xmlns:script="http://openoffice.org/2000/script"
-  dlg:id="SettingsDialog" dlg:left="100" dlg:top="50" dlg:width="440" dlg:height="282"
-  dlg:closeable="true" dlg:moveable="true" dlg:resizeable="true" dlg:title="Settings">
+  dlg:id="SettingsDialog" dlg:left="100" dlg:top="50" dlg:width="440" dlg:height="240"
+  dlg:closeable="true" dlg:moveable="true" dlg:resizeable="false" dlg:title="Settings"
+  dlg:page="1">
  <dlg:bulletinboard>
-  <dlg:text dlg:id="label_endpoint" dlg:left="8" dlg:top="12" dlg:width="180" dlg:height="10" dlg:value="Endpoint URL/Port:" dlg:align="left"/>
-  <dlg:textfield dlg:id="endpoint" dlg:left="195" dlg:top="10" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="http://127.0.0.1:5000"/>
-  <dlg:text dlg:id="label_model" dlg:left="8" dlg:top="26" dlg:width="180" dlg:height="10" dlg:value="Model (Required by Ollama/OpenAI):" dlg:align="left"/>
-  <dlg:combobox dlg:id="model" dlg:left="195" dlg:top="24" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
-  <dlg:text dlg:id="label_api_key" dlg:left="8" dlg:top="40" dlg:width="180" dlg:height="10" dlg:value="API Key (for OpenAI-compatible endpoints):" dlg:align="left"/>
-  <dlg:textfield dlg:id="api_key" dlg:left="195" dlg:top="38" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:text dlg:id="label_api_type" dlg:left="8" dlg:top="54" dlg:width="180" dlg:height="10" dlg:value="API Type (completions/chat):" dlg:align="left"/>
-  <dlg:textfield dlg:id="api_type" dlg:left="195" dlg:top="52" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="completions"/>
-  <dlg:text dlg:id="label_is_openwebui" dlg:left="8" dlg:top="68" dlg:width="180" dlg:height="10" dlg:value="Is OpenWebUI endpoint? (true/false):" dlg:align="left"/>
-  <dlg:textfield dlg:id="is_openwebui" dlg:left="195" dlg:top="66" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="false"/>
-  <dlg:text dlg:id="label_openai_compatibility" dlg:left="8" dlg:top="82" dlg:width="180" dlg:height="10" dlg:value="OpenAI Compatible Endpoint? (true/false):" dlg:align="left"/>
-  <dlg:textfield dlg:id="openai_compatibility" dlg:left="195" dlg:top="80" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="true"/>
-  <dlg:text dlg:id="label_temperature" dlg:left="8" dlg:top="96" dlg:width="180" dlg:height="10" dlg:value="Temperature:" dlg:align="left"/>
-  <dlg:textfield dlg:id="temperature" dlg:left="195" dlg:top="94" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="0.5"/>
-  <dlg:text dlg:id="label_seed" dlg:left="8" dlg:top="110" dlg:width="180" dlg:height="10" dlg:value="Random Seed:" dlg:align="left"/>
-  <dlg:textfield dlg:id="seed" dlg:left="195" dlg:top="108" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
-  <dlg:text dlg:id="label_extend_selection_max_tokens" dlg:left="8" dlg:top="124" dlg:width="180" dlg:height="10" dlg:value="Extend Selection Max Tokens:" dlg:align="left"/>
-  <dlg:textfield dlg:id="extend_selection_max_tokens" dlg:left="195" dlg:top="122" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="70"/>
-  <dlg:text dlg:id="label_edit_selection_max_new_tokens" dlg:left="8" dlg:top="138" dlg:width="180" dlg:height="10" dlg:value="Edit Selection Max New Tokens:" dlg:align="left"/>
-  <dlg:textfield dlg:id="edit_selection_max_new_tokens" dlg:left="195" dlg:top="136" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="0"/>
-  <dlg:text dlg:id="label_chat_max_tokens" dlg:left="8" dlg:top="152" dlg:width="180" dlg:height="10" dlg:value="Chat Max Tokens:" dlg:align="left"/>
-  <dlg:textfield dlg:id="chat_max_tokens" dlg:left="195" dlg:top="150" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="16384"/>
-  <dlg:text dlg:id="label_chat_context_length" dlg:left="8" dlg:top="166" dlg:width="180" dlg:height="10" dlg:value="Chat Context Length (chars):" dlg:align="left"/>
-  <dlg:textfield dlg:id="chat_context_length" dlg:left="195" dlg:top="164" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="8000"/>
-  <dlg:text dlg:id="label_additional_instructions" dlg:left="8" dlg:top="180" dlg:width="180" dlg:height="10" dlg:value="Additional Instructions (Unified):" dlg:align="left"/>
-  <dlg:combobox dlg:id="additional_instructions" dlg:left="195" dlg:top="178" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
-  <dlg:text dlg:id="label_request_timeout" dlg:left="8" dlg:top="194" dlg:width="180" dlg:height="10" dlg:value="Request Timeout (seconds):" dlg:align="left"/>
-  <dlg:textfield dlg:id="request_timeout" dlg:left="195" dlg:top="192" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="120"/>
-  <dlg:text dlg:id="label_chat_max_tool_rounds" dlg:left="8" dlg:top="208" dlg:width="180" dlg:height="10" dlg:value="Chat Max Tool Rounds:" dlg:align="left"/>
-  <dlg:textfield dlg:id="chat_max_tool_rounds" dlg:left="195" dlg:top="206" dlg:width="215" dlg:height="14" dlg:tabstop="true" dlg:value="5"/>
-  <dlg:button dlg:id="btn_ok" dlg:left="170" dlg:top="238" dlg:width="100" dlg:height="18" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
+
+  <!-- Tab buttons (always visible, no page attribute) -->
+  <dlg:button dlg:id="btn_tab_chat" dlg:left="5" dlg:top="5" dlg:width="100" dlg:height="14" dlg:value="Chat / Text"/>
+  <dlg:button dlg:id="btn_tab_image" dlg:left="110" dlg:top="5" dlg:width="100" dlg:height="14" dlg:value="AI Horde Settings"/>
+
+  <!-- === Page 1: Chat / Text Settings === -->
+  <dlg:text dlg:id="label_endpoint" dlg:page="1" dlg:left="8" dlg:top="26" dlg:width="150" dlg:height="10" dlg:value="Endpoint URL/Port:" dlg:align="left"/>
+  <dlg:textfield dlg:id="endpoint" dlg:page="1" dlg:left="165" dlg:top="24" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value="http://127.0.0.1:5000"/>
+
+  <dlg:text dlg:id="label_text_model" dlg:page="1" dlg:left="8" dlg:top="42" dlg:width="150" dlg:height="10" dlg:value="Text/Chat Model:" dlg:align="left"/>
+  <dlg:combobox dlg:id="text_model" dlg:page="1" dlg:left="165" dlg:top="40" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+
+  <dlg:text dlg:id="label_image_model" dlg:page="1" dlg:left="8" dlg:top="58" dlg:width="150" dlg:height="10" dlg:value="Image Model (same endpoint):" dlg:align="left"/>
+  <dlg:combobox dlg:id="image_model" dlg:page="1" dlg:left="165" dlg:top="56" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+
+  <dlg:text dlg:id="label_api_key" dlg:page="1" dlg:left="8" dlg:top="74" dlg:width="150" dlg:height="10" dlg:value="API Key:" dlg:align="left"/>
+  <dlg:textfield dlg:id="api_key" dlg:page="1" dlg:left="165" dlg:top="72" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+
+  <dlg:text dlg:id="label_api_type" dlg:page="1" dlg:left="8" dlg:top="90" dlg:width="150" dlg:height="10" dlg:value="API Type (chat/completions):" dlg:align="left"/>
+  <dlg:textfield dlg:id="api_type" dlg:page="1" dlg:left="165" dlg:top="88" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value="completions"/>
+
+  <dlg:text dlg:id="label_openai_compatibility" dlg:page="1" dlg:left="8" dlg:top="106" dlg:width="150" dlg:height="10" dlg:value="OpenAI Compatible? (true/false):" dlg:align="left"/>
+  <dlg:textfield dlg:id="openai_compatibility" dlg:page="1" dlg:left="165" dlg:top="104" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value="true"/>
+
+  <dlg:text dlg:id="label_temperature" dlg:page="1" dlg:left="8" dlg:top="122" dlg:width="150" dlg:height="10" dlg:value="Temperature:" dlg:align="left"/>
+  <dlg:textfield dlg:id="temperature" dlg:page="1" dlg:left="165" dlg:top="120" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value="0.5"/>
+
+  <dlg:text dlg:id="label_chat_max_tokens" dlg:page="1" dlg:left="8" dlg:top="138" dlg:width="150" dlg:height="10" dlg:value="Chat Max Tokens:" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_max_tokens" dlg:page="1" dlg:left="165" dlg:top="136" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value="16384"/>
+
+  <dlg:text dlg:id="label_chat_context_length" dlg:page="1" dlg:left="8" dlg:top="154" dlg:width="150" dlg:height="10" dlg:value="Context Length (chars):" dlg:align="left"/>
+  <dlg:textfield dlg:id="chat_context_length" dlg:page="1" dlg:left="165" dlg:top="152" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value="8000"/>
+
+  <dlg:text dlg:id="label_additional_instructions" dlg:page="1" dlg:left="8" dlg:top="170" dlg:width="150" dlg:height="10" dlg:value="Additional Instructions:" dlg:align="left"/>
+  <dlg:combobox dlg:id="additional_instructions" dlg:page="1" dlg:left="165" dlg:top="168" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+
+  <dlg:checkbox dlg:id="use_aihorde" dlg:page="1" dlg:left="8" dlg:top="190" dlg:width="250" dlg:height="10" dlg:value="Use AI Horde for Image Generation" dlg:checked="false"/>
+
+  <!-- === Page 2: Image Generation Settings === -->
+  <!-- === Page 2: Image Generation Settings === -->
+  <!-- Provider is controlled by 'Use AI Horde' checkbox on Page 1 -->
+
+  <dlg:text dlg:id="label_aihorde_api_key" dlg:page="2" dlg:left="8" dlg:top="26" dlg:width="150" dlg:height="10" dlg:value="AI Horde API Key:" dlg:align="left"/>
+  <dlg:textfield dlg:id="aihorde_api_key" dlg:page="2" dlg:left="165" dlg:top="24" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+
+  <dlg:text dlg:id="label_image_width" dlg:page="2" dlg:left="8" dlg:top="42" dlg:width="50" dlg:height="10" dlg:value="Width:" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_width" dlg:page="2" dlg:left="60" dlg:top="40" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="512"/>
+  <dlg:text dlg:id="label_image_height" dlg:page="2" dlg:left="120" dlg:top="42" dlg:width="50" dlg:height="10" dlg:value="Height:" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_height" dlg:page="2" dlg:left="172" dlg:top="40" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="512"/>
+  <dlg:text dlg:id="label_image_cfg_scale" dlg:page="2" dlg:left="232" dlg:top="42" dlg:width="60" dlg:height="10" dlg:value="CFG Scale:" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_cfg_scale" dlg:page="2" dlg:left="294" dlg:top="40" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="7.5"/>
+
+  <dlg:text dlg:id="label_image_steps" dlg:page="2" dlg:left="8" dlg:top="58" dlg:width="50" dlg:height="10" dlg:value="Steps:" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_steps" dlg:page="2" dlg:left="60" dlg:top="56" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="30"/>
+  <dlg:text dlg:id="label_image_max_wait" dlg:page="2" dlg:left="120" dlg:top="58" dlg:width="60" dlg:height="10" dlg:value="Max Wait (s):" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_max_wait" dlg:page="2" dlg:left="182" dlg:top="56" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:value="5"/>
+
+  <dlg:checkbox dlg:id="image_nsfw" dlg:page="2" dlg:left="8" dlg:top="74" dlg:width="100" dlg:height="10" dlg:value="Allow NSFW" dlg:checked="false"/>
+  <dlg:checkbox dlg:id="image_censor_nsfw" dlg:page="2" dlg:left="120" dlg:top="74" dlg:width="100" dlg:height="10" dlg:value="Censor NSFW" dlg:checked="true"/>
+
+  <dlg:checkbox dlg:id="image_auto_gallery" dlg:page="2" dlg:left="8" dlg:top="90" dlg:width="100" dlg:height="10" dlg:value="Auto Gallery" dlg:checked="true"/>
+  <dlg:checkbox dlg:id="image_insert_frame" dlg:page="2" dlg:left="120" dlg:top="90" dlg:width="100" dlg:height="10" dlg:value="Insert Frame" dlg:checked="false"/>
+
+  <dlg:checkbox dlg:id="image_translate_prompt" dlg:page="2" dlg:left="8" dlg:top="106" dlg:width="130" dlg:height="10" dlg:value="Translate Prompt" dlg:checked="true"/>
+
+  <dlg:text dlg:id="label_image_translate_from" dlg:page="2" dlg:left="8" dlg:top="122" dlg:width="150" dlg:height="10" dlg:value="Translate from (e.g. es):" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_translate_from" dlg:page="2" dlg:left="165" dlg:top="120" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+
+  <!-- OK Button (always visible) -->
+  <dlg:button dlg:id="btn_ok" dlg:left="170" dlg:top="218" dlg:width="100" dlg:height="18" dlg:value="OK" dlg:button-type="ok" dlg:default="true"/>
  </dlg:bulletinboard>
 </dlg:window>

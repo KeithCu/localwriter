@@ -74,12 +74,34 @@ def format_error_for_display(e):
     return "Error: %s" % format_error_message(e)
 
 
-def _get_ssl_context():
-    """Create an SSL context that doesn't verify certificates."""
+def get_unverified_ssl_context():
+    """Create an SSL context that doesn't verify certificates. Shared by API and aihordeclient."""
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
     return ssl_context
+
+
+def sync_request(url, data=None, headers=None, timeout=10, parse_json=True):
+    """
+    Blocking HTTP GET or POST. Shared by aihordeclient and other code.
+    url: str or urllib.request.Request. If Request, headers/data come from it.
+    data: optional bytes for POST. headers: optional dict (used only if url is str).
+    Returns response data: decoded JSON if parse_json else raw bytes. Raises on error.
+    """
+    import urllib.error
+    if headers is None:
+        headers = {}
+    if isinstance(url, str):
+        req = urllib.request.Request(url, data=data, headers=headers)
+    else:
+        req = url
+    ctx = get_unverified_ssl_context()
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+        raw = resp.read()
+    if parse_json:
+        return json.loads(raw.decode("utf-8"))
+    return raw
 
 
 def _extract_thinking_from_delta(chunk_delta):
@@ -175,7 +197,7 @@ class LlmClient:
         timeout = self._timeout()
         
         if scheme == "https":
-            ssl_context = _get_ssl_context()
+            ssl_context = get_unverified_ssl_context()
             self._persistent_conn = http.client.HTTPSConnection(host, port, context=ssl_context, timeout=timeout)
         else:
             self._persistent_conn = http.client.HTTPConnection(host, port, timeout=timeout)
@@ -554,11 +576,14 @@ class LlmClient:
             dispatch_events=dispatch_events,
         )
 
-    def request_with_tools(self, messages, max_tokens=512, tools=None):
-        """Non-streaming chat request. Returns parsed response dict."""
+    def request_with_tools(self, messages, max_tokens=512, tools=None, body_override=None):
+        """Non-streaming chat request. Returns parsed response dict. body_override: optional str/bytes to use as request body (e.g. for modalities)."""
         method, path, body, headers = self.make_chat_request(
             messages, max_tokens, tools=tools, stream=False
         )
+        if body_override is not None:
+            body = body_override.encode("utf-8") if isinstance(body_override, str) else body_override
+
         result = None
         for attempt in (0, 1):
             try:

@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-Run streaming + tool-calling against real OpenRouter. No LibreOffice required.
+Run streaming + tool-calling against your configured endpoint. No LibreOffice required.
 Shows content, thinking, and tool_calls as they accumulate on screen.
 
 Usage:
-  export OPENROUTER_API_KEY=your_key
   python tests/run_streaming_test.py
 
-Optional env:
-  OPENROUTER_ENDPOINT - default https://openrouter.ai/api/v1
+Requires CHAT_ENDPOINT and OPENROUTER_API_KEY in the environment.
 """
 
 import json
@@ -67,7 +65,10 @@ def run_streaming_with_tools(prompt: str):
         print("Error: OPENROUTER_API_KEY environment variable is required.", file=sys.stderr)
         sys.exit(1)
 
-    endpoint = os.environ.get("OPENROUTER_ENDPOINT", "https://openrouter.ai/api/v1").rstrip("/")
+    endpoint = (os.environ.get("CHAT_ENDPOINT") or "").strip().rstrip("/")
+    if not endpoint:
+        print("Error: CHAT_ENDPOINT environment variable is required (your API URL).", file=sys.stderr)
+        sys.exit(1)
     url = endpoint + "/chat/completions"
 
     messages = [{"role": "user", "content": prompt}]
@@ -121,7 +122,7 @@ def run_streaming_with_tools(prompt: str):
     def on_delta(delta):
         accumulate_delta(message_snapshot, delta)
 
-    print("Streaming from OpenRouter using LlmClient...\n")
+    print("Streaming from endpoint using LlmClient...\n")
     print("--- Content ---")
 
     try:

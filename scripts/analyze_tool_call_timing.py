@@ -4,7 +4,7 @@ Parse localwriter_debug.log and compute T1/T2 timing for tool-calling rounds.
 
 T1 = time from "Tool loop round N: sending" to stream end
      (one round's API time: connection + model streaming).
-     Stream end = "streaming_loop: [DONE] received", "stream_request_with_tools: stream ended", or first "[Chat] Tool call:" after that send (OpenRouter often ends with finish_reason, so [DONE] may not be logged).
+     Stream end = "streaming_loop: [DONE] received", "stream_request_with_tools: stream ended", or first "[Chat] Tool call:" after that send (some endpoints end with finish_reason, so [DONE] may not be logged).
 T2 = time from stream end to "Tool loop round N+1: sending"
      (our work: drain, execute tools, start next worker).
 

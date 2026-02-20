@@ -18,7 +18,7 @@
   <dlg:text dlg:id="model_label" dlg:left="4" dlg:top="242" dlg:width="158" dlg:height="10" dlg:value="AI Model:" dlg:align="left"/>
   <dlg:combobox dlg:id="model_selector" dlg:left="4" dlg:top="254" dlg:width="158" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
 
-  <dlg:text dlg:id="prompt_label" dlg:left="4" dlg:top="272" dlg:width="158" dlg:height="10" dlg:value="Additional Instructions (History):" dlg:align="left"/>
-  <dlg:combobox dlg:id="prompt_selector" dlg:left="4" dlg:top="284" dlg:width="158" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+  <dlg:text dlg:id="image_model_label" dlg:left="4" dlg:top="272" dlg:width="158" dlg:height="10" dlg:value="Image model (same endpoint as chat):" dlg:align="left"/>
+  <dlg:combobox dlg:id="image_model_selector" dlg:left="4" dlg:top="284" dlg:width="158" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
  </dlg:bulletinboard>
 </dlg:window>

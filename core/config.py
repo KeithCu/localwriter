@@ -45,6 +45,18 @@ def get_config(ctx, key, default):
     return config_data.get(key, default)
 
 
+def get_config_dict(ctx):
+    """Return the full config as a dict. Returns {} if missing or on error."""
+    config_file_path = _config_path(ctx)
+    if not os.path.exists(config_file_path):
+        return {}
+    try:
+        with open(config_file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (IOError, json.JSONDecodeError):
+        return {}
+
+
 def set_config(ctx, key, value):
     """Set a config key to value. Creates file if needed."""
     config_file_path = _config_path(ctx)
@@ -142,6 +154,11 @@ def update_lru_history(ctx, val, lru_key, max_items=10):
     set_config(ctx, lru_key, lru[:max_items])
 
 
+def get_text_model(ctx):
+    """Return the text/chat model (stored as text_model, fallback to model)."""
+    return str(get_config(ctx, "text_model", "") or get_config(ctx, "model", "")).strip()
+
+
 def validate_api_config(config):
     """Validate API config dict (from get_api_config). Returns (ok: bool, error_message: str)."""
     endpoint = (config.get("endpoint") or "").strip()
@@ -169,9 +186,7 @@ def get_api_config(ctx):
     return {
         "endpoint": endpoint,
         "api_key": api_key,
-        "model": str(get_config(ctx, "model", "")),
-
-
+        "model": get_text_model(ctx),
         "api_type": str(get_config(ctx, "api_type", "completions")).lower(),
         "is_openwebui": is_openwebui,
         "is_openrouter": is_openrouter,
@@ -181,3 +196,20 @@ def get_api_config(ctx):
         "request_timeout": _safe_int(get_config(ctx, "request_timeout", 120), 120),
         "chat_max_tool_rounds": _safe_int(get_config(ctx, "chat_max_tool_rounds", 5), 5),
     }
+
+
+def populate_image_model_selector(ctx, ctrl):
+    """Adaptive population of image model selector (ComboBox) based on provider."""
+    if not ctrl:
+        return
+        
+    image_provider = get_config(ctx, "image_provider", "aihorde")
+    if image_provider == "aihorde":
+        current_image_model = get_config(ctx, "aihorde_model", "stable_diffusion")
+        from core.aihordeclient import MODELS
+        ctrl.removeItems(0, ctrl.getItemCount())
+        ctrl.addItems(tuple(MODELS), 0)
+        ctrl.setText(current_image_model)
+    else:
+        current_image_model = get_config(ctx, "image_model", "")
+        populate_combobox_with_lru(ctx, ctrl, current_image_model, "image_model_lru")

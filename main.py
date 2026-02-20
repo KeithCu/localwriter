@@ -9,7 +9,7 @@ if _ext_dir not in sys.path:
 import unohelper
 import officehelper
 
-from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history, notify_config_changed
+from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history, notify_config_changed, populate_image_model_selector
 from core.api import LlmClient, format_error_message
 from core.document import get_full_document_text, get_document_context_for_chat
 from core.async_stream import run_stream_completion_async
@@ -74,27 +74,54 @@ class MainJob(unohelper.Base, XJobExecutor):
             "api_key",
             "is_openwebui",
             "openai_compatibility",
-            "model",
+            "text_model",
+            "image_model",
             "temperature",
             "seed",
             "chat_max_tokens",
             "chat_context_length",
             "additional_instructions",
             "request_timeout",
-            "chat_max_tool_rounds"
+            "chat_max_tool_rounds",
+            "image_provider",
+            "aihorde_api_key",
+            "image_width",
+            "image_height",
+            "image_cfg_scale",
+            "image_steps",
+            "image_nsfw",
+            "image_censor_nsfw",
+            "image_max_wait",
+            "image_auto_gallery",
+            "image_insert_frame",
+            "image_translate_prompt",
+            "image_translate_from",
+            "aihorde_model"
         ]
         
         # Set direct keys
         for key in direct_keys:
             if key in result:
                 val = result[key]
+                
+                # Special handling for image_provider derived from use_aihorde
+                if key == "image_provider":
+                    continue # handled by use_aihorde check below
+                
                 self.set_config(key, val)
                 
                 # Update LRU history
-                if key == "model" and val:
+                if key == "text_model" and val:
                     self._update_lru_history(val, "model_lru")
+                elif key == "image_model" and val:
+                    self._update_lru_history(val, "image_model_lru")
                 elif key == "additional_instructions" and val:
                     self._update_lru_history(val, "prompt_lru")
+
+        # Handle provider toggle from checkbox
+        if "use_aihorde" in result:
+            provider = "aihorde" if result["use_aihorde"] else "endpoint"
+            self.set_config("image_provider", provider)
 
         
         # Handle special cases
@@ -248,7 +275,8 @@ class MainJob(unohelper.Base, XJobExecutor):
         is_openwebui_value = "true" if as_bool(self.get_config("is_openwebui", False)) else "false"
         field_specs = [
             {"name": "endpoint", "value": str(self.get_config("endpoint", "http://127.0.0.1:5000"))},
-            {"name": "model", "value": str(self.get_config("model", ""))},
+            {"name": "text_model", "value": str(self.get_config("text_model", "") or self.get_config("model", ""))},
+            {"name": "image_model", "value": str(self.get_config("image_model", ""))},
             {"name": "api_key", "value": str(self.get_config("api_key", ""))},
             {"name": "api_type", "value": str(self.get_config("api_type", "completions"))},
             {"name": "is_openwebui", "value": is_openwebui_value, "type": "bool"},
@@ -262,6 +290,19 @@ class MainJob(unohelper.Base, XJobExecutor):
             {"name": "additional_instructions", "value": str(self.get_config("additional_instructions", ""))},
             {"name": "request_timeout", "value": str(self.get_config("request_timeout", "120")), "type": "int"},
             {"name": "chat_max_tool_rounds", "value": str(self.get_config("chat_max_tool_rounds", "5")), "type": "int"},
+            {"name": "use_aihorde", "value": "true" if self.get_config("image_provider", "aihorde") == "aihorde" else "false", "type": "bool"},
+            {"name": "aihorde_api_key", "value": str(self.get_config("aihorde_api_key", ""))},
+            {"name": "image_width", "value": str(self.get_config("image_width", "512")), "type": "int"},
+            {"name": "image_height", "value": str(self.get_config("image_height", "512")), "type": "int"},
+            {"name": "image_cfg_scale", "value": str(self.get_config("image_cfg_scale", "7.5")), "type": "float"},
+            {"name": "image_steps", "value": str(self.get_config("image_steps", "30")), "type": "int"},
+            {"name": "image_nsfw", "value": "true" if as_bool(self.get_config("image_nsfw", False)) else "false", "type": "bool"},
+            {"name": "image_censor_nsfw", "value": "true" if as_bool(self.get_config("image_censor_nsfw", True)) else "false", "type": "bool"},
+            {"name": "image_max_wait", "value": str(self.get_config("image_max_wait", "5")), "type": "int"},
+            {"name": "image_auto_gallery", "value": "true" if as_bool(self.get_config("image_auto_gallery", True)) else "false", "type": "bool"},
+            {"name": "image_insert_frame", "value": "true" if as_bool(self.get_config("image_insert_frame", False)) else "false", "type": "bool"},
+            {"name": "image_translate_prompt", "value": "true" if as_bool(self.get_config("image_translate_prompt", True)) else "false", "type": "bool"},
+            {"name": "image_translate_from", "value": str(self.get_config("image_translate_from", ""))},
         ]
 
         pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
@@ -270,22 +311,62 @@ class MainJob(unohelper.Base, XJobExecutor):
         dialog_url = base_url + "/LocalWriterDialogs/SettingsDialog.xdl"
         try:
             dlg = dp.createDialog(dialog_url)
-        except BaseException:
-            raise
+        except Exception as e:
+            error_msg = getattr(e, "Message", str(e))
+            from core.logging import debug_log
+            debug_log(f"createDialog failed for {dialog_url}: {error_msg}", context="Settings")
+            agent_log("main.py:settings_box", "createDialog failed", data={"url": dialog_url, "error": error_msg}, hypothesis_id="H5")
+            raise Exception(f"Could not create dialog from {dialog_url}: {error_msg}")
 
+
+        # Wire tab-switching buttons
+        from com.sun.star.awt import XActionListener
+
+        class TabListener(unohelper.Base, XActionListener):
+            def __init__(self, dialog, page):
+                self._dlg = dialog
+                self._page = page
+            def actionPerformed(self, ev):
+                self._dlg.getModel().Step = self._page
+            def disposing(self, ev):
+                pass
+
+        dlg.getControl("btn_tab_chat").addActionListener(TabListener(dlg, 1))
+        dlg.getControl("btn_tab_image").addActionListener(TabListener(dlg, 2))
 
         try:
             for field in field_specs:
                 ctrl = dlg.getControl(field["name"])
                 if ctrl:
-
-
-                    if field["name"] == "model":
+                    if field["name"] == "text_model":
                         self._populate_combobox_with_lru(ctrl, field["value"], "model_lru")
+                    elif field["name"] == "image_model":
+                        populate_image_model_selector(self.ctx, ctrl)
                     elif field["name"] == "additional_instructions":
                         self._populate_combobox_with_lru(ctrl, field["value"], "prompt_lru")
                     else:
-                        ctrl.getModel().Text = field["value"]
+                                is_checkbox = False
+                                try:
+                                    if ctrl.supportsService("com.sun.star.awt.UnoControlCheckBox"):
+                                        is_checkbox = True
+                                    elif hasattr(ctrl, "setState"):
+                                        is_checkbox = True
+                                    elif hasattr(ctrl.getModel(), "State"):
+                                        is_checkbox = True
+                                except Exception:
+                                    pass
+
+                                if field.get("type") == "bool" and is_checkbox:
+                                    val = 1 if as_bool(field["value"]) else 0
+                                    try:
+                                        if hasattr(ctrl, "setState"):
+                                            ctrl.setState(val)
+                                        elif hasattr(ctrl.getModel(), "State"):
+                                            ctrl.getModel().State = val
+                                    except Exception as e:
+                                        agent_log("main.py:settings_box", "checkbox init error", data={"field": field["name"], "error": str(e)}, hypothesis_id="H5")
+                                else:
+                                    ctrl.getModel().Text = field["value"]
             dlg.getControl("endpoint").setFocus()
 
             try:
@@ -297,17 +378,50 @@ class MainJob(unohelper.Base, XJobExecutor):
                         try:
                             ctrl = dlg.getControl(field["name"])
                             if ctrl:
-                                if field["name"] in ("model", "additional_instructions"):
+                                if field["name"] in ("text_model", "image_model", "additional_instructions"):
                                     # For ComboBox, use getText() to get the actual edit text (user input)
                                     control_text = ctrl.getText()
                                 else:
-                                    control_text = ctrl.getModel().Text if ctrl else ""
+                                    try:
+                                        control_text = ctrl.getModel().Text if ctrl else ""
+                                    except Exception:
+                                        control_text = ""
                                 
                                 field_type = field.get("type", "text")
                                 if field_type == "int":
                                     result[field["name"]] = int(control_text) if control_text.isdigit() else control_text
                                 elif field_type == "bool":
-                                    result[field["name"]] = as_bool(control_text)
+                                    # Default to text value (e.g. "true"/"false")
+                                    val = as_bool(control_text)
+                                    
+                                    # Check if it's a checkbox
+                                    is_checkbox = False
+                                    try:
+                                        if ctrl.supportsService("com.sun.star.awt.UnoControlCheckBox"):
+                                            is_checkbox = True
+                                        elif hasattr(ctrl, "getState"):
+                                            is_checkbox = True
+                                        elif hasattr(ctrl.getModel(), "State"):
+                                            is_checkbox = True
+                                    except Exception:
+                                        pass
+
+                                    if is_checkbox:
+                                        try:
+                                            # Try to get state from view then model
+                                            state = 0
+                                            if hasattr(ctrl, "getState"):
+                                                state = ctrl.getState()
+                                            elif hasattr(ctrl.getModel(), "State"):
+                                                state = ctrl.getModel().State
+                                            val = (state == 1)
+                                        except Exception as e:
+                                            from core.logging import debug_log
+                                            debug_log(f"checkbox state error for {field['name']}: {e}", context="Settings")
+                                    
+                                    result[field["name"]] = val
+                                    from core.logging import debug_log
+                                    debug_log(f"Field {field['name']}: is_checkbox={is_checkbox}, val={val}, ctrl_services={ctrl.getSupportedServiceNames() if hasattr(ctrl, 'getSupportedServiceNames') else 'N/A'}", context="Settings")
                                 elif field_type == "float":
                                     try:
                                         result[field["name"]] = float(control_text)
@@ -400,7 +514,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                         self._update_lru_history(system_prompt, "prompt_lru")
                         prompt = text_range.getString()
                         max_tokens = self.get_config("extend_selection_max_tokens", 70)
-                        model_val = self.get_config("model", "")
+                        model_val = self.get_config("text_model", "") or self.get_config("model", "")
                         self._update_lru_history(model_val, "model_lru")
                         api_type = str(self.get_config("api_type", "completions")).lower()
                         api_config = get_api_config(self.ctx)

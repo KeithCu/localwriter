@@ -250,48 +250,44 @@ def get_calc_context_for_chat(model, max_context=8000, ctx=None):
 
 
 def get_draw_context_for_chat(model, max_context=8000, ctx=None):
-    """Get context summary for a Draw/Impress document. ctx: component context."""
-    if ctx is None:
-        raise ValueError("ctx is required for get_draw_context_for_chat")
+    """Get context summary for a Draw/Impress document. ctx: component context (unused, kept for signature compat)."""
     try:
         from core.draw_bridge import DrawBridge
-        bridge = DrawBridge(ctx)
-        doc = model
-        pages = bridge.get_pages(doc)
-        active_page = bridge.get_active_page(doc)
-        
-        ctx_str = f"Draw/Impress Document: {doc.getURL() or 'Untitled'}\n"
-        ctx_str += f"Total Pages: {pages.getCount()}\n"
-        
+        bridge = DrawBridge(model)
+        pages = bridge.get_pages()
+        active_page = bridge.get_active_page()
+
+        ctx_str = "Draw/Impress Document: %s\n" % (model.getURL() or "Untitled")
+        ctx_str += "Total Pages: %d\n" % pages.getCount()
+
         # Get index of active page
         active_page_idx = -1
         for i in range(pages.getCount()):
-            # Using queryInterface style check if possible or just comparison
             if pages.getByIndex(i) == active_page:
                 active_page_idx = i
                 break
-        
-        ctx_str += f"Active Page Index: {active_page_idx}\n"
-        
+
+        ctx_str += "Active Page Index: %d\n" % active_page_idx
+
         # Summarize shapes on active page
         if active_page:
             shapes = bridge.get_shapes(active_page)
-            ctx_str += f"\nShapes on Page {active_page_idx}:\n"
+            ctx_str += "\nShapes on Page %d:\n" % active_page_idx
             for i, s in enumerate(shapes):
-                type_name = s.getShapeType().split('.')[-1]
+                type_name = s.getShapeType().split(".")[-1]
                 pos = s.getPosition()
                 size = s.getSize()
-                ctx_str += f"- [{i}] {type_name}: pos({pos.X}, {pos.Y}) size({size.Width}x{size.Height})"
+                ctx_str += "- [%d] %s: pos(%d, %d) size(%dx%d)" % (
+                    i, type_name, pos.X, pos.Y, size.Width, size.Height)
                 if hasattr(s, "getString"):
                     text = s.getString()
                     if text:
-                        # Limit text length to avoid context overflow
-                        ctx_str += f" text: \"{text[:200]}\""
+                        ctx_str += " text: \"%s\"" % text[:200]
                 ctx_str += "\n"
-        
+
         return ctx_str
     except Exception as e:
-        return f"Error getting Draw context: {e}"
+        return "Error getting Draw context: %s" % e
 
 
 def _inject_markers_into_excerpt(excerpt_text, excerpt_start, excerpt_end, sel_start, sel_end, prefix, suffix):

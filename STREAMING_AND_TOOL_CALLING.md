@@ -2,7 +2,7 @@
 
 This document explains how OpenAI-compatible chat APIs handle **streaming**, **tool calling**, and **request batching**, and how **reasoning/thinking** appears in streams. It is aimed at developers who need to implement or debug clients (e.g. LocalWriter’s chat sidebar).
 
-References: OpenAI [Streaming](https://platform.openai.com/docs/api-reference/streaming), [Tool calling](https://platform.openai.com/docs/guides/function-calling); OpenRouter [Streaming](https://openrouter.ai/docs/api-reference/streaming), [Reasoning tokens](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens).
+References: OpenAI [Streaming](https://platform.openai.com/docs/api-reference/streaming), [Tool calling](https://platform.openai.com/docs/guides/function-calling). Your endpoint may have its own docs for streaming and reasoning tokens.
 
 ---
 
@@ -54,7 +54,7 @@ Final chunk:
 
 **Client behavior:**
 
-- Read line by line; skip empty lines and comments (e.g. OpenRouter sends `: OPENROUTER PROCESSING`).
+- Read line by line; skip empty lines and comments (some providers send processing hints).
 - If line is `data: [DONE]`, stop.
 - Otherwise parse `data: <json>`. From `choices[0].delta` take:
   - `content` — append to the displayed reply.
@@ -126,11 +126,11 @@ Order of appearance in the stream is typically: optional reasoning deltas, optio
 
 ## 3. Reasoning / thinking in the stream
 
-Some models (e.g. OpenRouter with Claude, Gemini, or reasoning models) send **reasoning** or **thinking** tokens in addition to the main reply. These appear in the **same** SSE stream, in the **delta**.
+Some models send **reasoning** or **thinking** tokens in addition to the main reply. These appear in the **same** SSE stream, in the **delta**.
 
-### 3.1 OpenRouter-style: `reasoning_details`
+### 3.1 Provider-style: `reasoning_details`
 
-OpenRouter normalizes reasoning into **reasoning_details**. In **streaming** responses, each chunk may contain:
+Some providers use **reasoning_details**. In **streaming** responses, each chunk may contain:
 
 - `choices[0].delta.reasoning_details`: **array** of objects. Each object can be:
   - `type: "reasoning.text"` and `text`: string to show as thinking.
@@ -166,18 +166,18 @@ Some APIs use a single string field in the delta, e.g. `delta.reasoning_content`
 
 ---
 
-## 5. Testing with OpenRouter
+## 5. Testing with your endpoint
 
-If you have an OpenRouter API key, you can verify how streaming, tool calls, and reasoning actually behave.
+If you have an API key for your endpoint, you can verify how streaming, tool calls, and reasoning actually behave.
 
 ### 5.1 What to test
 
 1. **Streaming without tools**
-   - `POST https://openrouter.ai/api/v1/chat/completions`, `stream: true`, no `tools`.
+   - `POST <your-endpoint>/chat/completions`, `stream: true`, no `tools`.
    - Inspect each SSE chunk: `choices[0].delta.content`, `finish_reason`. Confirm content is incremental and `[DONE]` or final chunk ends the stream.
 
 2. **Streaming with a reasoning model**
-   - Same URL, `stream: true`, use a model that returns reasoning (e.g. one of the OpenRouter models listed in their [reasoning docs](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)). Optionally set `reasoning: { effort: "low" }` in the body (OpenRouter-specific).
+   - Same URL, `stream: true`, use a model that returns reasoning if your provider supports it. Some providers accept `reasoning: { effort: "low" }` in the body.
    - Inspect chunks for `choices[0].delta.reasoning_details`: you should see arrays of `{ type: "reasoning.text", text: "..." }` (or similar) before or interleaved with `delta.content`.
 
 3. **Streaming with tools**
@@ -190,16 +190,16 @@ If you have an OpenRouter API key, you can verify how streaming, tool calls, and
 ### 5.2 What you’ll learn
 
 - **Exact chunk order** for your chosen model (reasoning → content → tool_calls, or interleaved).
-- **Exact field names** OpenRouter uses (`reasoning_details` vs any variant).
+- **Exact field names** your provider uses (`reasoning_details` vs any variant).
 - **Whether** `function.arguments` is split across many small chunks or fewer larger ones (affects accumulation logic).
 - **Whether** `finish_reason` is `"tool_calls"` when the model stops to call tools, and what the final chunk looks like.
 
 ### 5.3 How to run tests
 
 - **Manual:** Use `curl` or a small script: set `Authorization: Bearer <OPENROUTER_API_KEY>`, `Content-Type: application/json`, body with `model`, `messages`, `stream: true`, and optionally `tools` and `reasoning`. Parse SSE line by line and log each chunk (or key fields).
-- **In LocalWriter:** After implementing the streaming + thinking callback, point the extension at OpenRouter (endpoint `https://openrouter.ai/api/v1`, API key set) and use a reasoning model; observe the sidebar to see when thinking vs content appears.
+- **In LocalWriter:** Set your endpoint URL and API key in Settings; use a reasoning model if your endpoint supports it. Observe the sidebar to see when thinking vs content appears.
 
-Once you’ve run these tests, you can document the **actual** chunk shapes and order in this file or in a short “OpenRouter streaming notes” section so the implementation can be aligned with real responses.
+Once you’ve run these tests, you can document the **actual** chunk shapes and order in this file or in a short “streaming notes” section so the implementation can be aligned with real responses.
 
 ---
 

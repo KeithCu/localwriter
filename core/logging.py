@@ -102,6 +102,20 @@ def _get_agent_path():
     return _agent_log_path if _agent_log_path else FALLBACK_AGENT
 
 
+def log_exception(ex, context="AIHorde"):
+    """Log an exception with traceback to the unified debug log. Used by aihordeclient and others."""
+    try:
+        tb = getattr(ex, "__traceback__", None)
+        if tb is not None:
+            tb_lines = traceback.format_exception(type(ex), ex, tb)
+            msg = "".join(tb_lines).strip()
+        else:
+            msg = str(ex)
+        debug_log(msg, context=context)
+    except Exception:
+        debug_log(str(ex), context=context)
+
+
 def debug_log(msg, context=None):
     """Write one line to the unified debug log. Uses global path (set by init_logging). No ctx needed."""
     try:
