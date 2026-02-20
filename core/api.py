@@ -618,12 +618,14 @@ class LlmClient:
 
         raw_content = message.get("content")
         content = _normalize_message_content(raw_content)
+        images = message.get("images") or []
 
         return {
             "role": "assistant",
             "content": content,
             "tool_calls": message.get("tool_calls"),
             "finish_reason": finish_reason,
+            "images": images,
         }
 
     def stream_request_with_tools(

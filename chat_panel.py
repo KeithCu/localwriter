@@ -21,7 +21,7 @@ from core.async_stream import run_stream_completion_async, run_stream_drain_loop
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
 from com.sun.star.ui.UIElementType import TOOLPANEL
-from com.sun.star.awt import XActionListener
+from com.sun.star.awt import XActionListener, XItemListener
 
 # Extension ID from description.xml; XDL path inside the .oxt
 EXTENSION_ID = "org.extension.localwriter"
@@ -134,7 +134,7 @@ class ChatSession:
 class SendButtonListener(unohelper.Base, XActionListener):
     """Listener for the Send button - runs chat with document, supports tool-calling."""
 
-    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session):
+    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None):
         self.ctx = ctx
         self.frame = frame
         self.send_control = send_control
@@ -145,6 +145,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self.model_selector = model_selector
         self.status_control = status_control
         self.session = session
+        self.direct_image_checkbox = direct_image_checkbox
         self.initial_doc_type = None # Set by _wireControls
         self.stop_requested = False
         self._terminal_status = "Ready"
@@ -291,6 +292,102 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._terminal_status = "Error"
             return
 
+        # Get user query and clear field (before loading tools, so direct-image path can return early)
+        query_text = ""
+        if self.query_control and self.query_control.getModel():
+            query_text = (self.query_control.getModel().Text or "").strip()
+        if not query_text:
+            self._terminal_status = ""
+            return
+        if self.query_control and self.query_control.getModel():
+            self.query_control.getModel().Text = ""
+
+        # Direct image path: orthogonal to LLM tool list; uses document_tools.execute_tool for all doc types
+        # Read checkbox same way as Settings dialog (main.py): getState() on control first, else getModel().State
+        direct_image_checked = False
+        read_state = None
+        if self.direct_image_checkbox:
+            try:
+                state = 0
+                if hasattr(self.direct_image_checkbox, "getState"):
+                    state = self.direct_image_checkbox.getState()
+                elif self.direct_image_checkbox.getModel() and hasattr(self.direct_image_checkbox.getModel(), "State"):
+                    state = self.direct_image_checkbox.getModel().State
+                read_state = state
+                direct_image_checked = (state == 1)
+            except Exception as e:
+                debug_log("_do_send: Use Image model checkbox read error: %s" % e, context="Chat")
+        debug_log("_do_send: Use Image model checkbox state=%s -> %s" % (read_state, "image model (direct)" if direct_image_checked else "chat model"), context="Chat")
+        if direct_image_checked:
+            debug_log("_do_send: using image model (direct) — skip chat model", context="Chat")
+            try:
+                self._append_response("\nYou: %s\n" % query_text)
+                self._append_response("\n[Using image model (direct).]\n")
+                self._append_response("AI: Creating image...\n")
+                self._set_status("Creating image...")
+                q = queue.Queue()
+                job_done = [False]
+
+                def run_direct_image():
+                    try:
+                        from core.document_tools import execute_tool
+                        result = execute_tool(
+                            "generate_image",
+                            {"prompt": query_text},
+                            model,
+                            self.ctx,
+                            status_callback=self._set_status,
+                        )
+                        try:
+                            data = json.loads(result)
+                            note = data.get("message", data.get("status", "done"))
+                        except Exception:
+                            note = "done"
+                        q.put(("chunk", "[generate_image: %s]\n" % note))
+                        q.put(("stream_done", {}))
+                    except Exception as e:
+                        debug_log("Direct image path ERROR: %s" % e, context="Chat")
+                        q.put(("error", e))
+
+                threading.Thread(target=run_direct_image, daemon=True).start()
+                try:
+                    toolkit = self.ctx.getServiceManager().createInstanceWithContext(
+                        "com.sun.star.awt.Toolkit", self.ctx)
+                except Exception as e:
+                    self._append_response("\n[Error: %s]\n" % str(e))
+                    self._terminal_status = "Error"
+                    return
+
+                def apply_chunk(chunk_text, is_thinking=False):
+                    self._append_response(chunk_text)
+
+                def on_stream_done(response):
+                    job_done[0] = True
+                    return True
+
+                def on_stopped():
+                    self._terminal_status = "Stopped"
+                    self._set_status("Stopped")
+
+                def on_error(e):
+                    from core.api import format_error_message
+                    self._append_response("\n[%s]\n" % format_error_message(e))
+                    self._terminal_status = "Error"
+                    self._set_status("Error")
+
+                run_stream_drain_loop(
+                    q, toolkit, job_done, apply_chunk,
+                    on_stream_done=on_stream_done,
+                    on_stopped=on_stopped,
+                    on_error=on_error,
+                )
+                if self._terminal_status != "Error":
+                    self._terminal_status = "Ready"
+            finally:
+                self._set_status(self._terminal_status)
+                self._set_button_states(send_enabled=True, stop_enabled=False)
+            return
+
         try:
             if is_calc_doc:
                 debug_log("_do_send: importing calc_tools...", context="Chat")
@@ -317,18 +414,6 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._append_response("\n[Import error - tools: %s]\n" % e)
             self._terminal_status = "Error"
             return
-
-        # 2. Get user query
-        query_text = ""
-        if self.query_control and self.query_control.getModel():
-            query_text = (self.query_control.getModel().Text or "").strip()
-        if not query_text:
-            self._terminal_status = ""
-            return
-
-        # Clear the query field
-        if self.query_control and self.query_control.getModel():
-            self.query_control.getModel().Text = ""
 
         # System prompt: extra_instructions from config only (not in sidebar)
         from core.config import set_config, update_lru_history
@@ -397,6 +482,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # 5. Add user message to session and display
         self.session.add_user_message(query_text)
         self._append_response("\nYou: %s\n" % query_text)
+        self._append_response("\n[Using chat model.]\n")
+        debug_log("_do_send: using chat model", context="Chat")
         debug_log("_do_send: user query='%s'" % query_text[:100], context="Chat")
 
         self._set_status("Connecting to AI (api_type=%s, tools=%s)..." % (api_type, use_tools))
@@ -829,6 +916,18 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             
         # Refresh visual (image) model via shared helper
         populate_image_model_selector(self.ctx, image_model_selector)
+        # Sync "Use Image model" checkbox from config (same write as Settings: setState first, else model.State)
+        direct_image_check = get_optional("direct_image_check")
+        if direct_image_check:
+            try:
+                direct_checked = get_config(self.ctx, "chat_direct_image", False)
+                val = 1 if direct_checked else 0
+                if hasattr(direct_image_check, "setState"):
+                    direct_image_check.setState(val)
+                elif direct_image_check.getModel() and hasattr(direct_image_check.getModel(), "State"):
+                    direct_image_check.getModel().State = val
+            except Exception:
+                pass
 
     def _wireControls(self, root_window):
         """Attach listeners to Send and Clear buttons."""
@@ -852,6 +951,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         prompt_selector = get_optional("prompt_selector")
         model_selector = get_optional("model_selector")
         status_ctrl = get_optional("status")
+        direct_image_check = get_optional("direct_image_check")
         
         if status_ctrl:
              debug_log("_wireControls: got status control", context="Chat")
@@ -886,6 +986,32 @@ class ChatPanelElement(unohelper.Base, XUIElement):
 
             if model_selector:
                 populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru")
+
+            # "Use Image model" checkbox: same read/write as Settings (main.py) - setState on control first, else model.State
+            if direct_image_check:
+                try:
+                    from core.config import set_config
+                    direct_checked = get_config(self.ctx, "chat_direct_image", False)
+                    val = 1 if direct_checked else 0
+                    if hasattr(direct_image_check, "setState"):
+                        direct_image_check.setState(val)
+                    elif direct_image_check.getModel() and hasattr(direct_image_check.getModel(), "State"):
+                        direct_image_check.getModel().State = val
+                    if hasattr(direct_image_check, "addItemListener"):
+                        class DirectImageCheckListener(unohelper.Base, XItemListener):
+                            def __init__(self, ctx):
+                                self.ctx = ctx
+                            def itemStateChanged(self, ev):
+                                try:
+                                    state = getattr(ev, "State", 0)
+                                    set_config(self.ctx, "chat_direct_image", (state == 1))
+                                except Exception:
+                                    pass
+                            def disposing(self, ev):
+                                pass
+                        direct_image_check.addItemListener(DirectImageCheckListener(self.ctx))
+                except Exception as e:
+                    debug_log("direct_image_check wire error: %s" % e, context="Chat")
 
             # Register for config changes (e.g. Settings dialog). Weakref so this panel can be
             # GC'd without unregistering; callback no-ops if panel is gone.
@@ -930,7 +1056,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             send_listener = SendButtonListener(
                 self.ctx, self.xFrame,
                 send_btn, stop_btn, query_ctrl, response_ctrl,
-                image_model_selector, model_selector, status_ctrl, self.session)
+                image_model_selector, model_selector, status_ctrl, self.session,
+                direct_image_checkbox=direct_image_check)
 
             # Detect and store initial document type for strict verification
             if model:

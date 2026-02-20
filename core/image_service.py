@@ -37,25 +37,46 @@ class EndpointImageProvider(ImageProvider):
 
         response = self.client.request_with_tools(messages, body_override=json.dumps(body_dict))
 
-        # Parse response for image URL or base64
-        content = response.get("content", "")
-        if "data:image" in content:
-            # Extract URL/Base64
+        # Parse response: OpenRouter etc. may put image in message.images[].image_url.url
+        images = response.get("images") or []
+        if images:
             import re
+            import base64
+            img = images[0]
+            url = None
+            if isinstance(img, dict):
+                if "image_url" in img and isinstance(img["image_url"], dict):
+                    url = img["image_url"].get("url")
+                elif "image_url" in img and isinstance(img["image_url"], str):
+                    url = img["image_url"]
+            if url and "data:image" in url:
+                match = re.search(r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)', url)
+                if match:
+                    data = match.group(1)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                        tmp.write(base64.b64decode(data))
+                        return [tmp.name]
+            if url and url.startswith("http"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as tmp:
+                    urllib.request.urlretrieve(url, tmp.name)
+                    return [tmp.name]
+
+        # Fallback: image in content string (some endpoints)
+        content = response.get("content") or ""
+        if "data:image" in content:
+            import re
+            import base64
             match = re.search(r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)', content)
             if match:
                 data = match.group(1)
-                import base64
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as tmp:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                     tmp.write(base64.b64decode(data))
                     return [tmp.name]
-        
-        # Fallback: check if it's just a URL string
-        if content.startswith("http"):
+        if content and content.strip().startswith("http"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as tmp:
-                urllib.request.urlretrieve(content, tmp.name)
+                urllib.request.urlretrieve(content.strip(), tmp.name)
                 return [tmp.name]
-                
+
         return []
 
 class AIHordeImageProvider(ImageProvider):

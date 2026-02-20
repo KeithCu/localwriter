@@ -211,11 +211,11 @@ LocalWriter can generate and edit images inside Writer and Calc via tools expose
 ### UI and config
 
 - **Settings** (`LocalWriterDialogs/SettingsDialog.xdl`): Tabbed. **Chat/Text** tab: Text/Chat Model and **Image model (same endpoint as chat)** comboboxes (LRU). **Image** tab: **Provider (aihorde / same as chat)**, `aihorde_api_key`, width/height, steps, max wait, NSFW, auto gallery, insert frame, translate prompt. All image-related keys applied via `_apply_settings_result` in `main.py`.
-- **Chat sidebar** (`LocalWriterDialogs/ChatPanelDialog.xdl`, `chat_panel.py`): **AI Model** combobox (text model → `text_model`, `model_lru`) and **Image model (same endpoint as chat)** combobox (→ `image_model`, `image_model_lru`). No additional-instructions control in the sidebar; extra instructions come from config only when building the system prompt.
+- **Chat sidebar** (`LocalWriterDialogs/ChatPanelDialog.xdl`, `chat_panel.py`): **AI Model** combobox (text model → `text_model`, `model_lru`) and **Image model (same endpoint as chat)** combobox (→ `image_model`, `image_model_lru`). **"Use Image model"** checkbox (config `chat_direct_image`): when checked, the current message is sent directly to the image pipeline (AI Horde or image model per Settings) for Writer, Calc, and Draw — no chat model round-trip. Orthogonal to which tools are given to the LLM; uses `document_tools.execute_tool("generate_image", ...)` for all doc types. No additional-instructions control in the sidebar; extra instructions come from config only when building the system prompt.
 
 ### Config keys (summary)
 
-- Image: `image_provider`, `image_model`, `image_model_lru`, `aihorde_api_key`, `image_width`, `image_height`, `image_cfg_scale`, `image_steps`, `image_nsfw`, `image_censor_nsfw`, `image_max_wait`, `image_auto_gallery`, `image_insert_frame`, `image_translate_prompt`, `image_translate_from`. See [IMAGE_GENERATION.md](IMAGE_GENERATION.md) for full mapping and handover notes.
+- Image: `image_provider`, `image_model`, `image_model_lru`, `aihorde_api_key`, `image_width`, `image_height`, `image_cfg_scale`, `image_steps`, `image_nsfw`, `image_censor_nsfw`, `image_max_wait`, `image_auto_gallery`, `image_insert_frame`, `image_translate_prompt`, `image_translate_from`. Chat sidebar: `chat_direct_image` (bool) — "Use Image model" checkbox; when true, message goes directly to image tool. See [IMAGE_GENERATION.md](IMAGE_GENERATION.md) for full mapping and handover notes.
 
 ---
 
@@ -380,6 +380,9 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 ### Dialog-related
 - **Config presets**: Add "Load from file" or preset dropdown in Settings so users can switch config files.
 - **EditInputDialog**: Consider multiline for long instructions; current layout is single-line.
+
+### Image generation / Settings dialog
+- **Reorganize Settings Image tab**: The tab is currently labeled in a way that suggests "AI Horde settings" only, but it actually contains **shared image settings** (provider, width, height, steps, etc., used by both endpoint and Horde) **plus** AI Horde–specific options (API key, NSFW, etc.). Reorganize or relabel so it is clear: e.g. "Image" (shared) and "AI Horde" (provider-specific) sections, so the dialog is accurate and easy to follow.
 
 ### Format-preserving replacement
 - **Proportional format mapping**: For large length differences, distribute the original formatting pattern proportionally across the new text instead of simple 1:1 character mapping.
