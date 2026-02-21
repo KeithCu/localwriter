@@ -153,6 +153,13 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self._terminal_status = "Ready"
         self._send_busy = False
         self.client = None
+        
+        # Subscribe to MCP events
+        try:
+            from core.mcp_events import mcp_bus
+            mcp_bus.subscribe(self._on_mcp_event)
+        except Exception as e:
+            debug_log("MCP subscribe error: %s" % e, context="Chat")
 
     def _set_status(self, text):
         """Update the status field in the sidebar (read-only TextField).
@@ -189,6 +196,45 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 self._scroll_response_to_bottom()
         except Exception:
             pass
+
+    def _on_mcp_event(self, event_type, data):
+        """Handle MCP events from the bus (background thread)."""
+        from core.mcp_thread import post_to_main_thread
+        from core.config import get_config
+        
+        # Default to show if key is missing
+        if not get_config(self.ctx, "show_mcp_activity", True):
+            return
+
+        def _update_ui():
+            try:
+                if event_type == "request":
+                    tool = data.get("tool", "")
+                    args = data.get("args", {})
+                    
+                    arg_vals = []
+                    if isinstance(args, dict):
+                        for v in args.values():
+                            s = str(v)
+                            if len(s) > 10:
+                                s = s[:10]
+                            arg_vals.append(s)
+                    
+                    args_str = " (%s)" % ", ".join(arg_vals) if arg_vals else ""
+                    msg = "\n[MCP Request] Tool: %s%s\n" % (tool, args_str) if tool else "\n[MCP Request] %s\n" % data.get("method", "GET")
+                    self._append_response(msg)
+                elif event_type == "result":
+                    tool = data.get("tool", "")
+                    res = data.get("result", "")
+                    msg = "[MCP Result] %s: %s\n" % (tool, res[:100])
+                    self._append_response(msg)
+            except Exception as e:
+                debug_log("_on_mcp_event UI update error: %s" % e, context="Chat")
+        
+        try:
+            post_to_main_thread(_update_ui)
+        except Exception as e:
+            debug_log("_on_mcp_event post error: %s" % e, context="Chat")
 
     def _get_document_model(self):
         """Get the Writer document model."""
@@ -797,7 +843,11 @@ class SendButtonListener(unohelper.Base, XActionListener):
         )
 
     def disposing(self, evt):
-        pass
+        try:
+            from core.mcp_events import mcp_bus
+            mcp_bus.unsubscribe(self._on_mcp_event)
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------

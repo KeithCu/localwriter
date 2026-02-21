@@ -41,6 +41,11 @@ def execute_on_main_thread(func, *args, timeout=30.0):
     return future.result(timeout=timeout)
 
 
+def post_to_main_thread(func, *args):
+    """Put a task on the main thread queue and return immediately."""
+    _mcp_queue.put((func, args, None))
+
+
 def drain_mcp_queue(max_per_tick=5):
     """Drain pending MCP requests. Called on the main thread."""
     for _ in range(max_per_tick):
@@ -49,6 +54,9 @@ def drain_mcp_queue(max_per_tick=5):
         except queue.Empty:
             break
         try:
-            future.set_result(func(*args))
+            res = func(*args)
+            if future:
+                future.set_result(res)
         except Exception as e:
-            future.set_exception(e)
+            if future:
+                future.set_exception(e)

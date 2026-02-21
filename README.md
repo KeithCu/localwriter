@@ -40,7 +40,10 @@ Replacing text in Writer normally inherits formatting from the insertion point, 
 Image generation and editing are integrated and complete. You can generate images from the chat (via tools or “Use Image model”) and edit selected images (Img2Img). Two backends are supported: **AI Horde** (Stable Diffusion, SDXL, etc., with its own API key and queue) and **same endpoint as chat** (uses your configured endpoint and a separate image model). Settings are in **LocalWriter > Settings** under the **Image Settings** tab, with shared options (size, insert behavior, prompt translation) and a clearly separated **AI Horde only** section.
 
 ### 7. MCP Server (optional, external AI clients)
-When enabled in **LocalWriter > Settings** (Chat/Text page), an HTTP server runs on localhost and exposes the same Writer/Calc/Draw tools to external AI clients (Cursor, Claude Desktop via a proxy, or any script). Clients target a document by sending the **`X-Document-URL`** header (or use the active document). Use **LocalWriter > Toggle MCP Server** and **MCP Server Status** to control and check the server. See [MCP_PROTOCOL.md](MCP_PROTOCOL.md) for endpoints, usage, and future work.
+When enabled in **LocalWriter > Settings** (Chat/Text page), an HTTP server runs on localhost and exposes the same Writer/Calc/Draw tools to external AI clients (Cursor, Claude Desktop via a proxy, or any script).
+*   **Real-time Sidebar Monitoring**: All MCP activity (requests and tool results) is logged in real-time in the LocalWriter chat sidebar, providing full visibility into how external agents are interacting with your document.
+*   **Targeting**: Clients target a document by sending the **`X-Document-URL`** header (or use the active document).
+*   **Control**: Use **LocalWriter > Toggle MCP Server** and **MCP Server Status** to control and check the server. See [MCP_PROTOCOL.md](MCP_PROTOCOL.md) for endpoints, usage, and future work.
 
 ### 8. Calc `=PROMPT()` function
 A cell formula to call the model directly from within your spreadsheet:
