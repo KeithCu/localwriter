@@ -47,10 +47,11 @@ localwriter/
 │   ├── image_service.py # ImageService: aihorde or endpoint (Settings URL), get_provider, generate_image
 │   ├── image_tools.py   # insert_image, replace_image_in_place, add_image_to_gallery, get_selected_image_base64
 │   ├── draw_bridge.py   # Draw/Impress page and shape manipulation
-│   └── draw_tools.py    # DRAW_TOOLS (schemas), execute_draw_tool (pages, shapes)
+│   ├── draw_tools.py    # DRAW_TOOLS (schemas), execute_draw_tool (pages, shapes)
+│   └── writer_ops.py    # WRITER_OPS_TOOLS (schemas) + implementations: styles, comments, track-changes, tables
 ├── prompt_function.py   # Calc =PROMPT() formula
 ├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
-├── document_tools.py    # WRITER_TOOLS (get_markdown, apply_markdown only), execute_tool; legacy tools present but not exposed
+├── core/document_tools.py  # WRITER_TOOLS, execute_tool; imports from format_support + writer_ops
 ├── markdown_support.py  # Markdown read/write: document_to_markdown, apply_markdown (hidden doc + transferable)
 ├── XPromptFunction.rdb  # Type library for PromptFunction
 ├── LocalWriterDialogs/  # XDL dialogs (XML, Map AppFont units)
@@ -112,7 +113,7 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
   - **Send/Stop button state (lifecycle-based)**: "AI is busy" is defined by the single run of `actionPerformed`: Send is disabled (Stop enabled) at the **start** of the run, and re-enabled (Stop disabled) **only** in the `finally` block when `_do_send()` has returned. No dependence on internal job_done or drain-loop state. `_set_button_states(send_enabled, stop_enabled)` uses per-control try/except with a simple `control.getModel().Enabled = val` check so a UNO failure on one control cannot leave Send stuck disabled. `SendButtonListener._send_busy` is set True at run start and False in finally for external checks. This prevents multiple concurrent requests.
 - **Implementation**: `chat_panel.py` (ChatPanelFactory, ChatPanelElement, ChatToolPanel); `ContainerWindowProvider` + `ChatPanelDialog.xdl`; `setVisible(True)` required after `createContainerWindow()`.
 - **Tool-calling**: `chat_panel.py` (and the menu path in `main.py`) detect document type using robust service-based identification (`supportsService`) in `core/document.py`. This ensures Writer, Calc, and Draw/Impress documents are never misidentified. **Gotcha**: `hasattr(model, "getDrawPages")` is `True` for Writer (drawing layer for shapes), so strict service checks are required.
-    - **Writer**: `com.sun.star.text.TextDocument`. `document_tools.py` exposes **WRITER_TOOLS** = `get_markdown`, `apply_markdown`; implementations in `core/format_support.py`.
+    - **Writer**: `com.sun.star.text.TextDocument`. `core/document_tools.py` exposes **WRITER_TOOLS** = `get_document_content`, `apply_document_content`, `find_text` (in `core/format_support.py`) + `list_styles`, `get_style_info`, `list_comments`, `add_comment`, `delete_comment`, `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes`, `list_tables`, `read_table`, `write_table_cell` (in `core/writer_ops.py`) + `generate_image`, `edit_image`.
     - **Calc**: `com.sun.star.sheet.SpreadsheetDocument`. `core/calc_tools.py` exposes **CALC_TOOLS** and `execute_calc_tool`; core logic in `core/calc_*.py`.
     - **Draw/Impress**: `com.sun.star.drawing.DrawingDocument` or `com.sun.star.presentation.PresentationDocument`. `core/draw_tools.py` exposes **DRAW_TOOLS** and `execute_draw_tool`.
 - **Menu fallback**: Menu item "Chat with Document" opens input dialog, streams response with no tool-calling. **Writer**: appends to document end. **Calc**: streams to "AI Response" sheet. Both sidebar and menu use the same robust document detection.
@@ -396,6 +397,20 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 
 ### Chat settings in UI — DONE
 - ~~Expose `chat_context_length`, `chat_max_tokens`, `additional_instructions` in the Settings dialog~~ (implemented in SettingsDialog.xdl).
+
+### Writer Tools Expansion — DONE
+- ~~**Writer tool set expansion**~~: Added 12 new Writer tools in `core/writer_ops.py` and wired into `core/document_tools.py`. Removed 7 legacy unused functions. New tools: `list_styles`, `get_style_info`, `list_comments`, `add_comment`, `delete_comment`, `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes`, `list_tables`, `read_table`, `write_table_cell`. System prompt updated to mention them.
+
+### MCP Server (external AI client access) — Future
+- Add `core/mcp_thread.py` (~40 lines): `_Future` + `execute_on_main_thread` + `drain_mcp_queue` — thin wrapper on the existing `queue.Queue` pattern already proven in `core/async_stream.py`.
+- Add `core/mcp_server.py` (~120 lines): HTTP server that routes to LocalWriter's existing `execute_tool` / `execute_calc_tool` / `execute_draw_tool`.
+- **Idle-time draining** (pick one): (A) UNO Timer in `main.py` (`com.sun.star.util.XTimer`, 100ms) for standalone MCP use; or (B) two lines added to `run_stream_drain_loop` in `async_stream.py` to service MCP requests during active chat turns (zero new infrastructure).
+- Add config keys `mcp_enabled` (default false) and `mcp_port` (default 8765).
+- Add "MCP Server" tab to `SettingsDialog.xdl`.
+- See **`MCP_PROTOCOL.md`** for full implementation plan, code sketches, and architecture diagram.
+
+### Document Tree Tool — Future (Session 2)
+- Port `get_document_tree()` from `libreoffice-mcp-extension/pythonpath/uno_bridge.py` (~300 lines including helpers: `_build_heading_tree`, `_ensure_heading_bookmarks`, `_apply_content_strategy`, `_get_body_preview`, `_annotate_pages`). Improves context quality for long documents.
 
 ### Chat Sidebar Enhancement Roadmap
 

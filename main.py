@@ -9,7 +9,7 @@ if _ext_dir not in sys.path:
 import unohelper
 import officehelper
 
-from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history, notify_config_changed, populate_image_model_selector, populate_endpoint_selector, endpoint_from_selector_text
+from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history, notify_config_changed, populate_image_model_selector, populate_endpoint_selector, endpoint_from_selector_text, get_image_model, set_image_model
 from core.api import LlmClient, format_error_message
 from core.document import get_full_document_text, get_document_context_for_chat
 from core.async_stream import run_stream_completion_async
@@ -110,7 +110,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                 if key == "text_model" and val:
                     self._update_lru_history(val, "model_lru")
                 elif key == "image_model" and val:
-                    self._update_lru_history(val, "image_model_lru")
+                    set_image_model(self.ctx, val)
                 elif key == "additional_instructions" and val:
                     self._update_lru_history(val, "prompt_lru")
                 elif key == "image_base_size" and val:
@@ -277,7 +277,7 @@ class MainJob(unohelper.Base, XJobExecutor):
         field_specs = [
             {"name": "endpoint", "value": str(self.get_config("endpoint", "http://127.0.0.1:5000"))},
             {"name": "text_model", "value": str(self.get_config("text_model", "") or self.get_config("model", ""))},
-            {"name": "image_model", "value": str(self.get_config("image_model", ""))},
+            {"name": "image_model", "value": str(get_image_model(self.ctx))},
             {"name": "api_key", "value": str(self.get_config("api_key", ""))},
             {"name": "api_type", "value": str(self.get_config("api_type", "completions"))},
             {"name": "is_openwebui", "value": is_openwebui_value, "type": "bool"},

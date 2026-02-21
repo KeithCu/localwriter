@@ -461,7 +461,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             return
 
         # System prompt: extra_instructions from config only (not in sidebar)
-        from core.config import set_config, update_lru_history
+        from core.config import set_config, update_lru_history, set_image_model
         extra_instructions = get_config(self.ctx, "additional_instructions", "") or ""
         from core.constants import get_chat_system_prompt_for_document
         self.session.messages[0]["content"] = get_chat_system_prompt_for_document(model, extra_instructions)
@@ -474,17 +474,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 update_lru_history(self.ctx, selected_model, "model_lru")
                 debug_log("_do_send: text model updated to %s" % selected_model, context="Chat")
         if self.image_model_selector:
-            # Adaptive save based on provider
-            image_provider = get_config(self.ctx, "image_provider", "aihorde")
             selected_image_model = self.image_model_selector.getText()
             if selected_image_model:
-                if image_provider == "aihorde":
-                    set_config(self.ctx, "aihorde_model", selected_image_model)
-                    debug_log("_do_send: aihorde model updated to %s" % selected_image_model, context="Chat")
-                else:
-                    set_config(self.ctx, "image_model", selected_image_model)
-                    update_lru_history(self.ctx, selected_image_model, "image_model_lru")
-                    debug_log("_do_send: endpoint image model updated to %s" % selected_image_model, context="Chat")
+                set_image_model(self.ctx, selected_image_model)
+                debug_log("_do_send: image model updated to %s" % selected_image_model, context="Chat")
 
         # 3. Set up config and LlmClient
         max_context = int(get_config(self.ctx, "chat_context_length", 8000))
@@ -1037,7 +1030,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         try:
             # Read system prompt from config; use helper so Writer/Calc prompt matches document
             debug_log("_wireControls: importing core config...", context="Chat")
-            from core.config import get_config, populate_combobox_with_lru, populate_image_model_selector
+            from core.config import get_config, populate_combobox_with_lru, populate_image_model_selector, set_image_model, set_config
             from core.constants import get_chat_system_prompt_for_document, DEFAULT_CHAT_SYSTEM_PROMPT
             from core.document import is_writer, is_calc, is_draw
             
@@ -1047,8 +1040,31 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             # Adaptive image model population via shared helper
             populate_image_model_selector(self.ctx, image_model_selector)
 
-            if model_selector:
-                populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru")
+            # Add real-time sync listeners to selectors
+            if model_selector and hasattr(model_selector, "addItemListener"):
+                class ModelSyncListener(unohelper.Base, XItemListener):
+                    def __init__(self, ctx): self.ctx = ctx
+                    def itemStateChanged(self, ev):
+                        try:
+                            txt = model_selector.getText()
+                            if txt:
+                                set_config(self.ctx, "text_model", txt)
+                                # No LRU update here to avoid cluttering history from accidental clicks
+                        except Exception: pass
+                    def disposing(self, ev): pass
+                model_selector.addItemListener(ModelSyncListener(self.ctx))
+
+            if image_model_selector and hasattr(image_model_selector, "addItemListener"):
+                class ImageModelSyncListener(unohelper.Base, XItemListener):
+                    def __init__(self, ctx): self.ctx = ctx
+                    def itemStateChanged(self, ev):
+                        try:
+                            txt = image_model_selector.getText()
+                            if txt:
+                                set_image_model(self.ctx, txt, update_lru=False)
+                        except Exception: pass
+                    def disposing(self, ev): pass
+                image_model_selector.addItemListener(ImageModelSyncListener(self.ctx))
 
             # Initialize aspect ratio and base size
             if aspect_ratio_selector:

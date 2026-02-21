@@ -260,6 +260,33 @@ def validate_api_config(config):
     return (True, "")
 
 
+def get_image_model(ctx):
+    """Return current image model based on provider."""
+    image_provider = get_config(ctx, "image_provider", "aihorde")
+    if image_provider == "aihorde":
+        return str(get_config(ctx, "aihorde_model", "stable_diffusion")).strip()
+    return str(get_config(ctx, "image_model", "")).strip()
+
+
+def set_image_model(ctx, val, update_lru=True):
+    """Set image model based on provider and notify listeners."""
+    if val is None:
+        return
+    val_str = str(val).strip()
+    if not val_str:
+        return
+
+    image_provider = get_config(ctx, "image_provider", "aihorde")
+    if image_provider == "aihorde":
+        set_config(ctx, "aihorde_model", val_str)
+    else:
+        set_config(ctx, "image_model", val_str)
+        if update_lru:
+            update_lru_history(ctx, val_str, "image_model_lru")
+    
+    notify_config_changed(ctx)
+
+
 def get_api_config(ctx):
     """Build API config dict from ctx for LlmClient. Pass to LlmClient(config, ctx)."""
     endpoint = str(get_config(ctx, "endpoint", "http://127.0.0.1:5000")).rstrip("/")
@@ -293,11 +320,11 @@ def populate_image_model_selector(ctx, ctrl):
         
     image_provider = get_config(ctx, "image_provider", "aihorde")
     if image_provider == "aihorde":
-        current_image_model = get_config(ctx, "aihorde_model", "stable_diffusion")
+        current_image_model = get_image_model(ctx)
         from core.aihordeclient import MODELS
         ctrl.removeItems(0, ctrl.getItemCount())
         ctrl.addItems(tuple(MODELS), 0)
         ctrl.setText(current_image_model)
     else:
-        current_image_model = get_config(ctx, "image_model", "")
+        current_image_model = get_image_model(ctx)
         populate_combobox_with_lru(ctx, ctrl, current_image_model, "image_model_lru")

@@ -1,17 +1,24 @@
-# document_tools.py — Writer document manipulation tools for AI chat sidebar.
-# Provides JSON tool schemas (WRITER_TOOLS) and executor functions for the
+# core/document_tools.py — Writer document manipulation tools for AI chat sidebar.
+# Provides JSON tool schemas (WRITER_TOOLS) and executor for the
 # OpenAI-compatible tool-calling protocol.
-# Exposed tool list is markdown-centric: get_markdown, apply_markdown only.
 
 import json
+import inspect
 
 from core.logging import agent_log
-
 from .format_support import FORMAT_TOOLS, tool_get_document_content, tool_apply_document_content, tool_find_text
+from .writer_ops import (
+    WRITER_OPS_TOOLS,
+    tool_list_styles, tool_get_style_info,
+    tool_list_comments, tool_add_comment, tool_delete_comment,
+    tool_set_track_changes, tool_get_tracked_changes,
+    tool_accept_all_changes, tool_reject_all_changes,
+    tool_list_tables, tool_read_table, tool_write_table_cell,
+)
 
 
 # ---------------------------------------------------------------------------
-# Tool list exposed to the AI (markdown-centric + media)
+# Image tools
 # ---------------------------------------------------------------------------
 
 IMAGE_TOOLS = [
@@ -52,158 +59,12 @@ IMAGE_TOOLS = [
     }
 ]
 
-WRITER_TOOLS = list(FORMAT_TOOLS) + IMAGE_TOOLS
+WRITER_TOOLS = list(FORMAT_TOOLS) + WRITER_OPS_TOOLS + IMAGE_TOOLS
 
 
 # ---------------------------------------------------------------------------
-# NOT CURRENTLY USED — Legacy tool schemas and executors. Not in WRITER_TOOLS;
-# TOOL_DISPATCH entries for these are commented out below. Kept for possible future use.
+# Tool implementations
 # ---------------------------------------------------------------------------
-
-def _tool_error(message):
-    """Helper to create error response."""
-    return json.dumps({"status": "error", "message": message})
-
-
-def tool_replace_text(model, ctx, args):
-    """Replace one or all occurrences. NOT CURRENTLY USED (not in WRITER_TOOLS)."""
-    all_matches = args.get("all_matches", False)
-    case_sensitive = args.get("case_sensitive", True)
-    if all_matches:
-        rd = model.createReplaceDescriptor()
-        rd.SearchString = args["search"]
-        rd.ReplaceString = args["replacement"]
-        rd.SearchCaseSensitive = case_sensitive
-        rd.SearchRegularExpression = False
-        count = model.replaceAll(rd)
-        return json.dumps({"status": "ok", "message": "Replaced %d occurrence(s)." % count})
-    else:
-        sd = model.createSearchDescriptor()
-        sd.SearchString = args["search"]
-        sd.SearchRegularExpression = False
-        sd.SearchCaseSensitive = case_sensitive
-        found = model.findFirst(sd)
-        if found:
-            found.setString(args["replacement"])
-            return json.dumps({"status": "ok", "message": "Replaced 1 occurrence."})
-        return json.dumps({"status": "not_found", "message": "Text not found in document."})
-
-
-def tool_insert_text(model, ctx, args):
-    """Insert text at beginning or end. NOT CURRENTLY USED (not in WRITER_TOOLS)."""
-    text_obj = model.getText()
-    position = args["position"]
-    insert_str = args["text"]
-    cursor = text_obj.createTextCursor()
-    if position == "beginning":
-        cursor.gotoStart(False)
-    elif position == "end":
-        cursor.gotoEnd(False)
-    else:
-        return _tool_error("Unknown position: %s" % position)
-    text_obj.insertString(cursor, insert_str, False)
-    return json.dumps({"status": "ok", "message": "Inserted text at %s." % position})
-
-
-def tool_get_selection(model, ctx, args):
-    """Return currently selected text. NOT CURRENTLY USED (not in WRITER_TOOLS)."""
-    try:
-        sel = model.getCurrentController().getSelection()
-        if sel and sel.getCount() > 0:
-            selected = sel.getByIndex(0).getString()
-            return json.dumps({"status": "ok", "text": selected})
-    except Exception as e:
-        return _tool_error(str(e))
-    return json.dumps({"status": "ok", "text": ""})
-
-
-def tool_replace_selection(model, ctx, args):
-    """Replace selected text. NOT CURRENTLY USED (not in WRITER_TOOLS)."""
-    try:
-        sel = model.getCurrentController().getSelection()
-        if sel and sel.getCount() > 0:
-            rng = sel.getByIndex(0)
-            old_len = len(rng.getString())
-            rng.setString(args["new_text"])
-            return json.dumps({"status": "ok", "message": "Replaced selection (%d chars)." % old_len})
-    except Exception as e:
-        return _tool_error(str(e))
-    return json.dumps({"status": "no_selection", "message": "No text is selected."})
-
-
-def tool_format_text(model, ctx, args):
-    """Find text and apply character formatting. NOT CURRENTLY USED (not in WRITER_TOOLS)."""
-    sd = model.createSearchDescriptor()
-    sd.SearchString = args["search"]
-    sd.SearchRegularExpression = False
-    sd.SearchCaseSensitive = True
-    found = model.findFirst(sd)
-    if not found:
-        return json.dumps({"status": "not_found", "message": "Text not found in document."})
-    applied = []
-    if "bold" in args:
-        found.setPropertyValue("CharWeight", 150.0 if args["bold"] else 100.0)
-        applied.append("bold" if args["bold"] else "unbold")
-    if "italic" in args:
-        from com.sun.star.awt.FontSlant import ITALIC, NONE as SLANT_NONE
-        found.setPropertyValue("CharPosture", ITALIC if args["italic"] else SLANT_NONE)
-        applied.append("italic" if args["italic"] else "unitalic")
-    if "underline" in args:
-        found.setPropertyValue("CharUnderline", 1 if args["underline"] else 0)
-        applied.append("underline" if args["underline"] else "no underline")
-    if "strikethrough" in args:
-        found.setPropertyValue("CharStrikeout", 1 if args["strikethrough"] else 0)
-        applied.append("strikethrough" if args["strikethrough"] else "no strikethrough")
-    if "font_size" in args:
-        found.setPropertyValue("CharHeight", float(args["font_size"]))
-        applied.append("size %spt" % args["font_size"])
-    if "font_color" in args:
-        hex_color = str(args["font_color"]).lstrip("#")
-        color_int = int(hex_color, 16)
-        found.setPropertyValue("CharColor", color_int)
-        applied.append("color #%s" % hex_color)
-    if not applied:
-        return json.dumps({"status": "ok", "message": "Text found but no formatting properties specified."})
-    return json.dumps({"status": "ok", "message": "Applied %s to '%s'." % (", ".join(applied), args["search"])})
-
-
-def tool_set_paragraph_style(model, ctx, args):
-    """Set paragraph style. NOT CURRENTLY USED (not in WRITER_TOOLS)."""
-    style_name = args["style_name"]
-    all_matches = args.get("all_matches", False)
-    search_text = args["search"]
-    text_obj = model.getText()
-    enum = text_obj.createEnumeration()
-    count = 0
-    while enum.hasMoreElements():
-        para = enum.nextElement()
-        if not hasattr(para, "getString"):
-            continue
-        if search_text in para.getString():
-            try:
-                para.setPropertyValue("ParaStyleName", style_name)
-                count += 1
-            except Exception as e:
-                return _tool_error("Style '%s' not found or error: %s" % (style_name, e))
-            if not all_matches:
-                break
-    if count == 0:
-        return json.dumps({"status": "not_found", "message": "No paragraph containing '%s' found." % search_text})
-    return json.dumps({"status": "ok", "message": "Applied '%s' to %d paragraph(s)." % (style_name, count)})
-
-
-def tool_get_document_text(model, ctx, args):
-    """Get full document text. NOT CURRENTLY USED (not in WRITER_TOOLS)."""
-    text_obj = model.getText()
-    cursor = text_obj.createTextCursor()
-    cursor.gotoStart(False)
-    cursor.gotoEnd(True)
-    full_text = cursor.getString()
-    max_chars = args.get("max_chars")
-    if max_chars and len(full_text) > max_chars:
-        full_text = full_text[:max_chars] + "\n\n[... truncated ...]"
-    return json.dumps({"status": "ok", "text": full_text, "length": len(full_text)})
-
 
 def tool_generate_image(model, ctx, args, status_callback=None):
     """Generate an image and insert it."""
@@ -216,14 +77,13 @@ def tool_generate_image(model, ctx, args, status_callback=None):
 
     prompt = args.get("prompt")
     provider = args.get("provider", config.get("image_provider", "aihorde"))
-    
-    # Handle direct path explicit sizing or config defaults
+
     base_size = args.get("base_size", config.get("image_base_size", 512))
     try:
         base_size = int(base_size)
     except (ValueError, TypeError):
         base_size = 512
-        
+
     aspect = args.get("aspect_ratio", config.get("image_default_aspect", "square"))
     if aspect == "landscape_16_9":
         w, h = int(base_size * 16 / 9), base_size
@@ -233,45 +93,42 @@ def tool_generate_image(model, ctx, args, status_callback=None):
         w, h = int(base_size * 1.5), base_size
     elif aspect == "portrait_2_3":
         w, h = base_size, int(base_size * 1.5)
-    else:  # square or unknown
+    else:
         w, h = base_size, base_size
 
-    # Snap to nearest 64
     w = (w // 64) * 64
     h = (h // 64) * 64
 
-    # Allow LLM explicit overrides if provided (legacy support)
     width = args.get("width", w)
     height = args.get("height", h)
     add_to_gallery = as_bool(config.get("image_auto_gallery", True))
     add_frame = as_bool(config.get("image_insert_frame", False))
 
-    # Remove prompt from args to avoid "multiple values" error (it's passed positionally)
-    args_copy = args.copy()
-    if "prompt" in args_copy:
-        del args_copy["prompt"]
-
+    args_copy = {k: v for k, v in args.items() if k != "prompt"}
     image_model_override = args.get("image_model")
 
     try:
-        result = service.generate_image(prompt, provider_name=provider, width=width, height=height, status_callback=status_callback, model=image_model_override, **args_copy)
+        result = service.generate_image(prompt, provider_name=provider, width=width,
+                                        height=height, status_callback=status_callback,
+                                        model=image_model_override, **args_copy)
         if isinstance(result, tuple) and len(result) == 2:
             paths, error_msg = result
             if not paths:
-                return _tool_error(error_msg or "Generation failed: No image returned.")
+                return json.dumps({"status": "error", "message": error_msg or "Generation failed: No image returned."})
         else:
             paths = result
             if not paths:
-                return _tool_error("Generation failed: No image returned.")
+                return json.dumps({"status": "error", "message": "Generation failed: No image returned."})
         if provider in ("endpoint", "openrouter"):
             image_model_used = (image_model_override or config.get("image_model") or "").strip() or get_text_model(ctx)
             if image_model_used:
                 update_lru_history(ctx, image_model_used, "image_model_lru")
-        insert_image(ctx, model, paths[0], width, height, title=prompt, description=f"Generated by {provider}",
+        insert_image(ctx, model, paths[0], width, height, title=prompt,
+                     description="Generated by %s" % provider,
                      add_to_gallery=add_to_gallery, add_frame=add_frame)
-        return json.dumps({"status": "ok", "message": f"Image generated and inserted from {provider}."})
+        return json.dumps({"status": "ok", "message": "Image generated and inserted from %s." % provider})
     except Exception as e:
-        return _tool_error(str(e))
+        return json.dumps({"status": "error", "message": str(e)})
 
 
 def tool_edit_image(model, ctx, args, status_callback=None):
@@ -282,7 +139,7 @@ def tool_edit_image(model, ctx, args, status_callback=None):
 
     source_b64 = get_selected_image_base64(model, ctx=ctx)
     if not source_b64:
-        return _tool_error("No image selected. Please select an image in the document first.")
+        return json.dumps({"status": "error", "message": "No image selected. Please select an image in the document first."})
 
     config = get_config_dict(ctx)
     service = ImageService(ctx, config)
@@ -291,55 +148,64 @@ def tool_edit_image(model, ctx, args, status_callback=None):
     provider = args.get("provider", config.get("image_provider", "aihorde"))
     add_to_gallery = as_bool(config.get("image_auto_gallery", True))
     add_frame = as_bool(config.get("image_insert_frame", False))
-    
-    # Remove prompt from args to avoid "multiple values" error
-    args_copy = args.copy()
-    if "prompt" in args_copy:
-        del args_copy["prompt"]
+
+    args_copy = {k: v for k, v in args.items() if k != "prompt"}
 
     try:
-        result = service.generate_image(prompt, provider_name=provider, source_image=source_b64, status_callback=status_callback, **args_copy)
+        result = service.generate_image(prompt, provider_name=provider,
+                                        source_image=source_b64,
+                                        status_callback=status_callback, **args_copy)
         if isinstance(result, tuple) and len(result) == 2:
             paths, error_msg = result
             if not paths:
-                return _tool_error(error_msg or "Editing failed: No image returned.")
+                return json.dumps({"status": "error", "message": error_msg or "Editing failed: No image returned."})
         else:
             paths = result
             if not paths:
-                return _tool_error("Editing failed: No image returned.")
+                return json.dumps({"status": "error", "message": "Editing failed: No image returned."})
         if provider in ("endpoint", "openrouter"):
             image_model_used = (config.get("image_model") or "").strip() or get_text_model(ctx)
             if image_model_used:
                 update_lru_history(ctx, image_model_used, "image_model_lru")
         replaced = replace_image_in_place(ctx, model, paths[0], 512, 512, title=prompt,
-                                          description=f"Edited by {provider}",
+                                          description="Edited by %s" % provider,
                                           add_to_gallery=add_to_gallery, add_frame=add_frame)
         if not replaced:
-            insert_image(ctx, model, paths[0], 512, 512, title=prompt, description=f"Edited by {provider}",
+            insert_image(ctx, model, paths[0], 512, 512, title=prompt,
+                         description="Edited by %s" % provider,
                          add_to_gallery=add_to_gallery, add_frame=add_frame)
-        return json.dumps({"status": "ok", "message": f"Image edited and inserted from {provider}."})
+        return json.dumps({"status": "ok", "message": "Image edited and inserted from %s." % provider})
     except Exception as e:
-        return _tool_error(str(e))
+        return json.dumps({"status": "error", "message": str(e)})
 
 
 # ---------------------------------------------------------------------------
-# Tool dispatch table (only tools currently exposed to the AI)
+# Tool dispatch table
 # ---------------------------------------------------------------------------
 
 TOOL_DISPATCH = {
     "get_document_content": tool_get_document_content,
     "apply_document_content": tool_apply_document_content,
     "find_text": tool_find_text,
+    # Styles
+    "list_styles": tool_list_styles,
+    "get_style_info": tool_get_style_info,
+    # Comments
+    "list_comments": tool_list_comments,
+    "add_comment": tool_add_comment,
+    "delete_comment": tool_delete_comment,
+    # Track changes
+    "set_track_changes": tool_set_track_changes,
+    "get_tracked_changes": tool_get_tracked_changes,
+    "accept_all_changes": tool_accept_all_changes,
+    "reject_all_changes": tool_reject_all_changes,
+    # Tables
+    "list_tables": tool_list_tables,
+    "read_table": tool_read_table,
+    "write_table_cell": tool_write_table_cell,
+    # Images
     "generate_image": tool_generate_image,
     "edit_image": tool_edit_image,
-    # Unused (not in WRITER_TOOLS); uncomment to re-enable:
-    # "get_selection": tool_get_selection,
-    # "replace_text": tool_replace_text,
-    # "insert_text": tool_insert_text,
-    # "replace_selection": tool_replace_selection,
-    # "format_text": tool_format_text,
-    # "set_paragraph_style": tool_set_paragraph_style,
-    # "get_document_text": tool_get_document_text,
 }
 
 
@@ -360,24 +226,17 @@ def execute_tool(tool_name, arguments, doc, ctx, status_callback=None):
     if not func:
         return json.dumps({"status": "error", "message": "Unknown tool: %s" % tool_name})
     try:
-        agent_log("document_tools.py:execute_tool", "Tool call", data={"tool": tool_name, "arguments": _truncate_for_log(arguments or {})}, hypothesis_id="C,E")
-        # Inspect function signature to see if it accepts status_callback, 
-        # or just pass it in kwargs if the functions accept **kwargs.
-        # But our functions have specific signatures (model, ctx, args).
-        # We'll update the relevant ones to accept **kwargs or specific status_callback.
-        # For now, let's try passing it as a keyword argument if the function handles it,
-        # otherwise we might need to wrap or update all signatures.
-        # Given the plan, we updated tool_generate_image.
-        # Let's update the call to support passing status_callback.
-        
-        import inspect
+        agent_log("document_tools.py:execute_tool", "Tool call",
+                  data={"tool": tool_name, "arguments": _truncate_for_log(arguments or {})},
+                  hypothesis_id="C,E")
         sig = inspect.signature(func)
         if "status_callback" in sig.parameters or "kwargs" in sig.parameters:
-             result = func(doc, ctx, arguments, status_callback=status_callback)
+            result = func(doc, ctx, arguments, status_callback=status_callback)
         else:
-             result = func(doc, ctx, arguments)
-             
-        agent_log("document_tools.py:execute_tool", "Tool result", data={"tool": tool_name, "result_snippet": (result or "")[:120]}, hypothesis_id="C,E")
+            result = func(doc, ctx, arguments)
+        agent_log("document_tools.py:execute_tool", "Tool result",
+                  data={"tool": tool_name, "result_snippet": (result or "")[:120]},
+                  hypothesis_id="C,E")
         return result
     except Exception as e:
         return json.dumps({"status": "error", "message": str(e)})
