@@ -21,6 +21,14 @@ The main way to interact with your document using natural language.
 *   **Performance**: Features built-in connection management with persistent HTTPS connections for fast response times.
 *   **Undo Integration**: AI edits are grouped so you can revert an entire AI turn with a single `Ctrl+Z`.
 
+### 3. Expanded Writer Tool Set
+The AI chat sidebar now exposes a rich set of Writer operations beyond basic content editing:
+
+*   **Styles**: `list_styles` and `get_style_info` — the AI can discover the exact paragraph and character style names in your document (including localized names) before applying them, ensuring it uses styles that actually exist.
+*   **Comments**: `list_comments`, `add_comment`, `delete_comment` — the AI can read, add, and remove inline comments, enabling full review workflows where the AI annotates a document for human review.
+*   **Track Changes**: `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes` — the AI can make edits in tracked-changes mode so every modification is visible and reversible before you accept. Ask it to "rewrite this section with track changes on" and review the diff yourself.
+*   **Tables**: `list_tables`, `read_table`, `write_table_cell` — the AI can enumerate named tables, read their full contents as a 2D grid, and write individual cells using standard Excel-style references (A1, B2, etc.), enabling targeted table edits without rewriting the whole document.
+
 Opus 4.6 one-shotted this Arch Linux resume:
 ![Opus 4.6 Resume](Opus46Resume.png)
 
@@ -67,6 +75,10 @@ LocalWriter stands on the shoulders of giants. We'd like to give massive credit 
 
 Their pioneering work on AI support for LibreOffice provided the foundation and inspiration for our enhanced Calc integration. We've built upon their excellent tools to create more ambitious and performance-oriented spreadsheet features. We encourage everyone to check out their extension and join the effort to improve free, local AI for everyone!
 
+**[LibreOffice MCP Extension](https://github.com/quazardous/mcp-libre)**
+
+Their work on an embedded MCP (Model Context Protocol) server for LibreOffice was an invaluable reference for expanding LocalWriter's Writer tool set. From their project we adapted production-quality UNO implementations for style inspection, comment management, track-changes control, and table editing — resulting in 12 new Writer tools now available to LocalWriter's embedded AI. Their extension also introduced us to useful patterns for server lifecycle management, dynamic menu state, and health-check probing that inform our roadmap for exposing LocalWriter's tools to external AI clients. We're grateful for the high-quality open work and encourage everyone to check it out.
+
 ## Performance & Batch Optimizations
 
 To handle complex spreadsheet tasks, LocalWriter is optimized for high-throughput "batch" operations:
@@ -85,6 +97,7 @@ We are moving towards a native "AI co-pilot" experience:
 *   **Reliability Foundations**: Strengthening timeout management, clear error recovery, and universal rollback-friendly behavior for professional stability.
 *   **Suite-Wide Completeness**: Finalizing deep integration for **LibreOffice Draw and Impress**, ensuring every application in the suite is AI-powered.
 *   **Offline First**: Continued focus on performance with the fastest local models (Ollama, etc.) to ensure privacy and speed without cloud dependencies.
+*   **MCP Server (External AI Access)**: A planned optional HTTP server that exposes LocalWriter's full tool set to external AI clients such as Claude Desktop and Cursor. When enabled, any MCP-compatible client would be able to read and edit your open LibreOffice documents using the same tools the built-in sidebar AI uses — with no second extension to install. In fact we plan to talk to the extension owner if he'd like to join our team. See [MCP_PROTOCOL.md](MCP_PROTOCOL.md) for the full design and implementation plan.
 
 ## Setup
 
