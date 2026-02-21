@@ -32,17 +32,6 @@
               <value>_self</value>
             </prop>
           </node>
-           <node oor:name="M2b" oor:op="replace">
-            <prop oor:name="Title">
-              <value xml:lang="en-US">Chat with Document</value>
-            </prop>
-            <prop oor:name="URL">
-              <value>service:org.extension.localwriter.Main?ChatWithDocument</value>
-            </prop>
-            <prop oor:name="Target" oor:type="xs:string">
-              <value>_self</value>
-            </prop>
-          </node>
             <node oor:name="M3" oor:op="replace">
             <prop oor:name="Title">
               <value xml:lang="en-US">Settings</value>
@@ -76,49 +65,62 @@
               <value>_self</value>
             </prop>
           </node>
-          <node oor:name="M4" oor:op="replace">
+          <node oor:name="M_Debug" oor:op="replace">
             <prop oor:name="Title">
-              <value xml:lang="en-US">Run format tests</value>
+              <value xml:lang="en-US">Debug</value>
             </prop>
             <prop oor:name="URL">
-              <value>service:org.extension.localwriter.Main?RunFormatTests</value>
+              <value>service:org.extension.localwriter.Main?NoOp</value>
             </prop>
             <prop oor:name="Target" oor:type="xs:string">
               <value>_self</value>
             </prop>
-          </node>
-          <node oor:name="M5" oor:op="replace">
-            <prop oor:name="Title">
-              <value xml:lang="en-US">Run calc tests</value>
-            </prop>
-            <prop oor:name="URL">
-              <value>service:org.extension.localwriter.Main?RunCalcTests</value>
-            </prop>
-            <prop oor:name="Target" oor:type="xs:string">
-              <value>_self</value>
-            </prop>
-          </node>
-          <node oor:name="M6" oor:op="replace">
-            <prop oor:name="Title">
-              <value xml:lang="en-US">Run Calc API integration tests</value>
-            </prop>
-            <prop oor:name="URL">
-              <value>service:org.extension.localwriter.Main?RunCalcIntegrationTests</value>
-            </prop>
-            <prop oor:name="Target" oor:type="xs:string">
-              <value>_self</value>
-            </prop>
-          </node>
-          <node oor:name="M7" oor:op="replace">
-            <prop oor:name="Title">
-              <value xml:lang="en-US">Run draw tests</value>
-            </prop>
-            <prop oor:name="URL">
-              <value>service:org.extension.localwriter.Main?RunDrawTests</value>
-            </prop>
-            <prop oor:name="Target" oor:type="xs:string">
-              <value>_self</value>
-            </prop>
+            <node oor:name="Submenu">
+              <node oor:name="M4" oor:op="replace">
+                <prop oor:name="Title">
+                  <value xml:lang="en-US">Run format tests</value>
+                </prop>
+                <prop oor:name="URL">
+                  <value>service:org.extension.localwriter.Main?RunFormatTests</value>
+                </prop>
+                <prop oor:name="Target" oor:type="xs:string">
+                  <value>_self</value>
+                </prop>
+              </node>
+              <node oor:name="M5" oor:op="replace">
+                <prop oor:name="Title">
+                  <value xml:lang="en-US">Run calc tests</value>
+                </prop>
+                <prop oor:name="URL">
+                  <value>service:org.extension.localwriter.Main?RunCalcTests</value>
+                </prop>
+                <prop oor:name="Target" oor:type="xs:string">
+                  <value>_self</value>
+                </prop>
+              </node>
+              <node oor:name="M6" oor:op="replace">
+                <prop oor:name="Title">
+                  <value xml:lang="en-US">Run Calc API integration tests</value>
+                </prop>
+                <prop oor:name="URL">
+                  <value>service:org.extension.localwriter.Main?RunCalcIntegrationTests</value>
+                </prop>
+                <prop oor:name="Target" oor:type="xs:string">
+                  <value>_self</value>
+                </prop>
+              </node>
+              <node oor:name="M7" oor:op="replace">
+                <prop oor:name="Title">
+                  <value xml:lang="en-US">Run draw tests</value>
+                </prop>
+                <prop oor:name="URL">
+                  <value>service:org.extension.localwriter.Main?RunDrawTests</value>
+                </prop>
+                <prop oor:name="Target" oor:type="xs:string">
+                  <value>_self</value>
+                </prop>
+              </node>
+            </node>
           </node>
         </node>
       </node>

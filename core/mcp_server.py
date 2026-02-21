@@ -1,4 +1,4 @@
-# Port utilities and HTTP server structure adapted from the LibreOffice MCP
+# Uilities and HTTP server structure adapted from the LibreOffice MCP
 # Extension (in-repo: libreoffice-mcp-extension/). See registration.py (port
 # helpers) and pythonpath/ai_interface.py (server/handler). We're grateful for
 # their work; when maintaining this module, check that directory for updates.

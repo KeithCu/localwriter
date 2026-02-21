@@ -622,6 +622,8 @@ class MainJob(unohelper.Base, XJobExecutor):
         if args == "MCPStatus":
             _do_mcp_status(self.ctx)
             return
+        if args == "NoOp":
+            return
 
         if args == "RunFormatTests":
             try:
@@ -750,48 +752,6 @@ class MainJob(unohelper.Base, XJobExecutor):
                     text_range.setString(original_text)
                     self.show_error(format_error_message(e), "LocalWriter: Edit Selection")
 
-            elif args == "ChatWithDocument":
-                try:
-                    max_context = int(self.get_config("chat_context_length", 8000))
-                    doc_text = get_document_context_for_chat(model, max_context, include_end=True, include_selection=True)
-                    if not doc_text.strip():
-                        self.show_error("Document is empty.", "Chat with Document")
-                        return
-                    user_query, extra_instructions = self.input_box("Ask a question about your document:", "Chat with Document", "")
-                    if not user_query:
-                        return
-                    
-                    if extra_instructions:
-                        self.set_config("additional_instructions", extra_instructions)
-                        self._update_lru_history(extra_instructions, "prompt_lru")
-
-                    prompt = f"Document content:\n\n{doc_text}\n\nUser question: {user_query}"
-                    system_prompt = get_chat_system_prompt_for_document(model, extra_instructions or "")
-                    max_tokens = int(self.get_config("chat_max_tokens", 512))
-                    api_type = str(self.get_config("api_type", "completions")).lower()
-                    api_config = get_api_config(self.ctx)
-                    ok, err_msg = validate_api_config(api_config)
-                    if not ok:
-                        self.show_error(err_msg, "LocalWriter: Chat with Document")
-                        return
-                    text = model.Text
-                    cursor = text.createTextCursor()
-                    cursor.gotoEnd(False)
-                    cursor.insertString("\n\n--- Chat response ---\n\n", False)
-                    client = self._get_client()
-
-                    def apply_chunk(chunk_text, is_thinking=False):
-                        if chunk_text:
-                            cursor.insertString(chunk_text, False)
-
-                    run_stream_completion_async(
-                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
-                        apply_chunk, lambda: None,
-                        lambda e: self.show_error(format_error_message(e), "LocalWriter: Chat with Document"),
-                    )
-                except Exception as e:
-                    self.show_error(format_error_message(e), "LocalWriter: Chat with Document")
-            
             elif args == "settings":
                 try:
                     agent_log("main.py:trigger", "about to call settings_box (Writer)", hypothesis_id="H1,H2")
@@ -803,58 +763,6 @@ class MainJob(unohelper.Base, XJobExecutor):
                     self.show_error(format_error_message(e), "LocalWriter: Settings")
         elif is_calc(model):
             try:
-                if args == "ChatWithDocument":
-                    try:
-                        max_context = int(self.get_config("chat_context_length", 8000))
-                        doc_text = get_document_context_for_chat(model, max_context)
-                        
-                        user_query, extra_instructions = self.input_box("Ask a question about your spreadsheet:", "Chat with Document", "")
-                        if not user_query:
-                            return
-                        
-                        if extra_instructions:
-                            self.set_config("additional_instructions", extra_instructions)
-                            current_endpoint = str(get_config(self.ctx, "endpoint", "")).strip()
-                            self._update_lru_history(extra_instructions, "prompt_lru", current_endpoint)
-
-                        prompt = f"Spreadsheet content summary:\n\n{doc_text}\n\nUser question: {user_query}"
-                        system_prompt = get_chat_system_prompt_for_document(model, extra_instructions or "")
-                        max_tokens = int(self.get_config("chat_max_tokens", 512))
-                        api_type = str(self.get_config("api_type", "completions")).lower()
-                        api_config = get_api_config(self.ctx)
-                        ok, err_msg = validate_api_config(api_config)
-                        if not ok:
-                            self.show_error(err_msg, "LocalWriter: Chat with Document")
-                            return
-                        
-                        # For Calc, create a new sheet for the response or insert into a cell
-                        sheets = model.getSheets()
-                        sheet_name = "AI Response"
-                        if not sheets.hasByName(sheet_name):
-                            sheets.insertNewByName(sheet_name, sheets.getCount())
-                        resp_sheet = sheets.getByName(sheet_name)
-                        model.getCurrentController().setActiveSheet(resp_sheet)
-                        
-                        cell = resp_sheet.getCellByPosition(0, 0)
-                        cell.setString(f"Query: {user_query}\n\nResponse:\n")
-                        
-                        client = self._get_client()
-                        response_content = [""]
-
-                        def apply_chunk(chunk_text, is_thinking=False):
-                            if chunk_text and not is_thinking:
-                                response_content[0] += chunk_text
-                                cell.setString(f"Query: {user_query}\n\nResponse:\n" + response_content[0])
-
-                        run_stream_completion_async(
-                            self.ctx, client, prompt, system_prompt, max_tokens, api_type,
-                            apply_chunk, lambda: None,
-                            lambda e: self.show_error(str(e), "LocalWriter: Chat with Document"),
-                        )
-                        return
-                    except Exception as e:
-                        self.show_error(str(e), "LocalWriter: Chat with Document")
-                        return
                 sheet = model.CurrentController.ActiveSheet
                 selection = model.CurrentController.Selection
 
@@ -947,56 +855,6 @@ class MainJob(unohelper.Base, XJobExecutor):
             except Exception as e:
                 self.show_error(format_error_message(e), "LocalWriter: Calc Processing")
         elif is_draw(model):
-            if args == "ChatWithDocument":
-                try:
-                    max_context = int(self.get_config("chat_context_length", 8000))
-                    doc_text = get_document_context_for_chat(model, max_context, ctx=self.ctx)
-                    
-                    user_query, extra_instructions = self.input_box("Ask a question about your drawing/presentation:", "Chat with Document", "")
-                    if not user_query:
-                        return
-                    
-                    if extra_instructions:
-                        self.set_config("additional_instructions", extra_instructions)
-                        self._update_lru_history(extra_instructions, "prompt_lru")
-
-                    prompt = f"Document content summary:\n\n{doc_text}\n\nUser question: {user_query}"
-                    system_prompt = get_chat_system_prompt_for_document(model, extra_instructions or "")
-                    max_tokens = int(self.get_config("chat_max_tokens", 512))
-                    api_type = str(self.get_config("api_type", "completions")).lower()
-                    api_config = get_api_config(self.ctx)
-                    ok, err_msg = validate_api_config(api_config)
-                    if not ok:
-                        self.show_error(err_msg, "LocalWriter: Chat with Document")
-                        return
-                    
-                    # For Draw, stream to a new text shape on the active page
-                    from core.draw_bridge import DrawBridge
-                    bridge = DrawBridge(self.ctx)
-                    page = bridge.get_active_page(model)
-                    
-                    # Create a text shape for the response
-                    shape = bridge.create_shape("com.sun.star.drawing.TextShape", 1000, 1000, 10000, 5000, page)
-                    shape.setString(f"Query: {user_query}\n\nResponse:\n")
-                    
-                    client = self._get_client()
-                    response_content = [""]
-
-                    def apply_chunk(chunk_text, is_thinking=False):
-                        if chunk_text and not is_thinking:
-                            response_content[0] += chunk_text
-                            shape.setString(f"Query: {user_query}\n\nResponse:\n" + response_content[0])
-
-                    run_stream_completion_async(
-                        self.ctx, client, prompt, system_prompt, max_tokens, api_type,
-                        apply_chunk, lambda: None,
-                        lambda e: self.show_error(format_error_message(e), "LocalWriter: Chat with Document"),
-                    )
-                    return
-                except Exception as e:
-                    self.show_error(format_error_message(e), "LocalWriter: Chat with Document")
-                    return
-            
             if args == "settings":
                 try:
                     result = self.settings_box("Settings")
