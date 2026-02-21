@@ -585,6 +585,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 elif finish_reason == "length":
                     self._append_response(
                         "\n[Response truncated -- the model ran out of tokens...]\n")
+                elif finish_reason == "content_filter":
+                    # (per LiteLLM)
+                    self._append_response("\n[Content filter: response was truncated.]\n")
                 else:
                     self._append_response("\n[No text from model; any tool changes were still applied.]\n")
                 job_done[0] = True

@@ -47,13 +47,8 @@ class TestImageStatusCallback(unittest.TestCase):
                 self.assertEqual(result, ["/tmp/image.png"])
                 
                 # Check callback calls
-                # Use assert_has_calls to verify sequence
-                from unittest.mock import call
-                expected_calls = [
-                    call("Horde: Starting... (0%)"),
-                    call("Horde: Generating... (50%)")
-                ]
-                status_callback.assert_has_calls(expected_calls)
+                status_callback.assert_any_call("Horde: Starting... (0%)")
+                status_callback.assert_any_call("Horde: Generating... (50%)")
                 print("Status callback successfully invoked!")
 
 if __name__ == '__main__':

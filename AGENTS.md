@@ -151,6 +151,7 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
   - **Worker thread**: Runs blocking API/streaming (e.g. `stream_completion`, `stream_request_with_tools`), puts items on a **`queue.Queue`** (`("chunk", text)`, `("thinking", text)`, `("stream_done", ...)`, `("error", e)`, `("stopped",)`).
   - **Main thread**: After starting the worker, runs a **drain loop**: `q.get(timeout=0.1)` → process item (append text, update status, call on_done/on_error) → **`toolkit.processEventsToIdle()`**. Repeats until job_done.
   - **Connection Keep-Alive**: `LlmClient` uses `http.client.HTTPConnection` (or `HTTPSConnection`) for persistent connections. The client instance is cached in `chat_panel.py` (sidebar), `main.py` (MainJob), and `prompt_function.py` (Calc =PROMPT()) to reuse connections across multiple requests, significantly improving performance for multi-turn chat and cell recalculations.
+  - **Streaming edge cases (LiteLLM-inspired):** `finish_reason=error` → raise; repeated identical content chunks → raise (infinite-loop guard); `finish_reason=stop` with tool_calls → remap to `tool_calls`; delta normalization for Mistral/Azure (`role`/`tool.type`/`function.arguments`). See [LITELLM_INTEGRATION.md](LITELLM_INTEGRATION.md).
 
 ---
 

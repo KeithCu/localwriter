@@ -2,12 +2,17 @@
 LLM API client for LocalWriter.
 Takes a config dict (from core.config.get_api_config) and UNO ctx.
 """
+import collections
 import json
 import ssl
 import urllib.request
 import urllib.parse
 import http.client
 import socket
+
+# LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
+REPEATED_STREAMING_CHUNK_LIMIT = 20
+from collections import deque
 
 # accumulate_delta is required for tool-calling: it merges streaming deltas into message_snapshot so full tool_calls (with function.arguments) are available.
 from .streaming_deltas import accumulate_delta
@@ -45,6 +50,9 @@ def format_error_message(e):
 
     if isinstance(e, socket.timeout) or "timed out" in msg.lower():
         return "Request Timed Out. Try increasing 'Request Timeout' in Settings."
+
+    if "finish_reason=error" in msg:
+        return "The AI provider reported an error. Try again."
 
     return msg
 
@@ -194,6 +202,31 @@ def _is_openai_compatible(config):
     return config.get("openai_compatibility", False) or (
         "api.openai.com" in endpoint.lower()
     )
+
+
+# LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
+REPEATED_STREAMING_CHUNK_LIMIT = 20
+
+
+def _normalize_delta(delta):
+    """Normalize delta for Mistral/Azure compat before accumulate_delta.
+    LiteLLM: streaming_handler.py ~L847 (role), ~L853 (type), ~L820 (arguments).
+    """
+    if not isinstance(delta, dict):
+        return
+    # LiteLLM: streaming_handler.py ~L847 "mistral's api returns role as None"
+    if "role" in delta and delta["role"] is None:
+        delta["role"] = "assistant"
+    for tc in delta.get("tool_calls") or []:
+        if not isinstance(tc, dict):
+            continue
+        # LiteLLM: streaming_handler.py ~L853 "mistral's api returns type: None"
+        if tc.get("type") is None:
+            tc["type"] = "function"
+        fn = tc.get("function")
+        # LiteLLM: streaming_handler.py ~L820 "## AZURE - check if arguments is not None"
+        if isinstance(fn, dict) and fn.get("arguments") is None:
+            fn["arguments"] = ""
 
 
 class LlmClient:
@@ -465,6 +498,8 @@ class LlmClient:
             try:
                 # Use a flag to stop logical processing but keep reading to exhaust the stream
                 content_finished = False
+                # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
+                last_contents = collections.deque(maxlen=REPEATED_STREAMING_CHUNK_LIMIT)
                 for line in response:
                     line_str = line.strip()
                     if not line_str:
@@ -490,6 +525,8 @@ class LlmClient:
                         chunk = json.loads(payload)
                     except json.JSONDecodeError:
                         debug_log("streaming_loop: JSON decode error in payload: %s" % payload, context="API")
+                        continue
+                    if chunk is None:
                         continue
 
                     # Log all chunks for debugging, even after content_finished
@@ -518,11 +555,25 @@ class LlmClient:
                         self.extract_content_from_response(chunk, api_type)
                     )
 
+                    # LiteLLM: streaming_handler.py ~L736 "finish_reason: error, no content string given"
+                    if finish_reason == "error":
+                        raise Exception("Stream ended with finish_reason=error")
+
                     if thinking and on_thinking:
                         on_thinking(thinking)
                     if content and on_content:
                         on_content(content)
+                        # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
+                        last_contents.append(content)
+                        if (len(last_contents) == REPEATED_STREAMING_CHUNK_LIMIT
+                                and len(content) > 2
+                                and all(c == last_contents[0] for c in last_contents)):
+                            raise Exception(
+                                "The model is repeating the same chunk (infinite loop). "
+                                "Try again or use a different model."
+                            )
                     if delta and on_delta:
+                        _normalize_delta(delta)
                         on_delta(delta)
 
                     if finish_reason:
@@ -649,6 +700,8 @@ class LlmClient:
 
         choice = result.get("choices", [{}])[0] if result.get("choices") else {}
         message = choice.get("message") or result.get("message") or {}
+        # LiteLLM: same Mistral/Azure compat as _normalize_delta (streaming_handler.py ~L820, ~L847, ~L853)
+        _normalize_delta(message)
         finish_reason = choice.get("finish_reason") or result.get("done_reason")
 
         raw_content = message.get("content")
@@ -702,6 +755,10 @@ class LlmClient:
             err_msg = format_error_message(e)
             debug_log("stream_request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")
             raise Exception(err_msg)
+
+        # LiteLLM: streaming_handler.py ~L970 finish_reason_handler() "## if tool use"
+        if last_finish_reason == "stop" and message_snapshot.get("tool_calls"):
+            last_finish_reason = "tool_calls"
 
         raw_content = message_snapshot.get("content")
         content = _normalize_message_content(raw_content)
