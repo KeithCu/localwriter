@@ -21,43 +21,37 @@ The main way to interact with your document using natural language.
 *   **Performance**: Features built-in connection management with persistent HTTPS connections for fast response times.
 *   **Undo Integration**: AI edits are grouped so you can revert an entire AI turn with a single `Ctrl+Z`.
 
-### 3. Expanded Writer Tool Set
-The AI chat sidebar now exposes a rich set of Writer operations beyond basic content editing:
-
-*   **Styles**: `list_styles` and `get_style_info` — the AI can discover the exact paragraph and character style names in your document (including localized names) before applying them, ensuring it uses styles that actually exist.
-*   **Comments**: `list_comments`, `add_comment`, `delete_comment` — the AI can read, add, and remove inline comments, enabling full review workflows where the AI annotates a document for human review.
-*   **Track Changes**: `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes` — the AI can make edits in tracked-changes mode so every modification is visible and reversible before you accept. Ask it to "rewrite this section with track changes on" and review the diff yourself.
-*   **Tables**: `list_tables`, `read_table`, `write_table_cell` — the AI can enumerate named tables, read their full contents as a 2D grid, and write individual cells using standard Excel-style references (A1, B2, etc.), enabling targeted table edits without rewriting the whole document.
-
-Opus 4.6 one-shotted this Arch Linux resume:
-![Opus 4.6 Resume](Opus46Resume.png)
-
-![Chat Sidebar with Dashboard](Sonnet46Spreadsheet.png)
-
-### 4. Edit & Extend Selection (Writer)
+### 3. Edit & Extend Selection (Writer)
 **Hotkey:** `Ctrl+Q`
 The model continues the selected text. Ideal for drafting emails, stories, or generating lists.
 
-### 5. Edit Selection
+### 4. Edit Selection
 **Hotkey:** `Ctrl+E`
 Prompt the model to rewrite your selection according to specific instructions (e.g., "make this more formal", "translate to Spanish").
 
-### 6. Format preservation (Writer)
+### 5. Format preservation (Writer)
 When you ask the AI to fix a typo or change a name, the result can keep the formatting you already had: highlights, bold, colors, font size, and so on. The AI does not need to—and typically cannot—describe LibreOffice’s full formatting model. In practice, the AI often sends back markup (e.g. bold like **Michael**) even for simple corrections. We auto-detect: when it sends **plain text**, we preserve your existing formatting; when it sends Markdown or HTML, we use the import path. So when the model does send plain text, you get full preservation without the AI needing to know LibreOffice’s capabilities.
 
 *Example:* The document has “Micheal” (one-letter typo) with yellow highlight and bold. You ask the AI to correct the spelling. If the AI returns plain “Michael,” we preserve the yellow highlight and bold. If it returns “**Michael**,” we treat that as formatted content (import path) and the highlight can be lost—a model quirk. The feature is especially valuable when the AI sends plain text.
 
 Replacing text in Writer normally inherits formatting from the insertion point, so per-character formatting on the original text would be lost. We use two strategies: for **plain-text replacements** (name corrections, typo fixes) we replace in a way that preserves existing per-character formatting; for **structured content** (Markdown/HTML) we use the import path to inject formatted content with native styles. The choice is automatic—we detect whether the new content is plain text or contains markup—so the AI does not have to choose. This applies to Chat with Document tool edits in Writer.
 
-### 7. Image generation and AI Horde integration
+### 6. Image generation and AI Horde integration
 Image generation and editing are integrated and complete. You can generate images from the chat (via tools or “Use Image model”) and edit selected images (Img2Img). Two backends are supported: **AI Horde** (Stable Diffusion, SDXL, etc., with its own API key and queue) and **same endpoint as chat** (uses your configured endpoint and a separate image model). Settings are in **LocalWriter > Settings** under the **Image Settings** tab, with shared options (size, insert behavior, prompt translation) and a clearly separated **AI Horde only** section.
 
-### 8. MCP Server (optional, external AI clients)
+### 7. MCP Server (optional, external AI clients)
 When enabled in **LocalWriter > Settings** (Chat/Text page), an HTTP server runs on localhost and exposes the same Writer/Calc/Draw tools to external AI clients (Cursor, Claude Desktop via a proxy, or any script). Clients target a document by sending the **`X-Document-URL`** header (or use the active document). Use **LocalWriter > Toggle MCP Server** and **MCP Server Status** to control and check the server. See [MCP_PROTOCOL.md](MCP_PROTOCOL.md) for endpoints, usage, and future work.
 
-### 9. Calc `=PROMPT()` function
+### 8. Calc `=PROMPT()` function
 A cell formula to call the model directly from within your spreadsheet:
 `=PROMPT(message, [system_prompt], [model], [max_tokens])`
+
+Opus 4.6 one-shotted this Arch Linux resume:
+![Opus 4.6 Resume](Opus46Resume.png)
+
+![Chat Sidebar with Dashboard](Sonnet46Spreadsheet.png)
+
+
 
 ## LocalWriter Architecture
 
@@ -68,6 +62,11 @@ LocalWriter isn't just a wrapper; it's built for performance and deep integratio
 *   **High-Throughput Performance (200+ tps)**: Optimized for speed, the system can easily handle 200 tokens per second with zero UI stutter.
 *   **Native Formatting Persistence**: For structured content (Markdown/HTML), LocalWriter injects AI-generated text using the import path, preserving native LibreOffice styles. For plain-text replacements (e.g. typo fixes), we preserve your existing per-character formatting so highlights, bold, and colors stay intact.
 *   **Isolated Task Contexts**: Each open document in LibreOffice gets its own independent AI sidebar. The AI stays aware of the specific document it's attached to, preventing "cross-talk" when working on multiple projects.
+*   **Expanded Writer Tool Set**: The sidebar exposes a rich set of Writer operations:
+    *   **Styles**: The AI can discover paragraph and character style names (including localized names) before applying them, ensuring it uses styles that actually exist.
+    *   **Comments**: The AI can read, add, and remove inline comments, enabling full review workflows.
+    *   **Track Changes**: The AI can make edits in tracked-changes mode so every modification is visible and reversible.
+    *   **Tables**: The AI can enumerate named tables, read their full contents as a 2D grid, and write individual cells using standard cell references.
 *   **HiDPI Compatible UI**: All dialogs and sidebar panels are defined via XDL and optimized for modern high-resolution displays using device-independent units.
 
 ## Credits & Collaboration
