@@ -1,0 +1,61 @@
+# LocalWriter: Evaluation System Development Plan (Internal Edition)
+
+This plan moves from an external runner to an **internal, integrated approach**—much like the existing [core/calc_tests.py](file:///home/keithcu/Desktop/Python/localwriter/core/calc_tests.py). This ensures perfect UNO compatibility and ease of use.
+
+## 1. Goal: Integrated Eval Dashboard [COMPLETED] 🚀
+Built an internal dashboard that allows the user to select models/endpoints and run the benchmark suite directly inside a Writer or Calc session.
+
+---
+
+## 2. Technical Components [IMPLEMENTED]
+
+### A. Eval Dialog (`LocalWriterDialogs/EvalDialog.xdl`)
+- **Endpoint URL**: TextField (populated from `localwriter.json`).
+- **Model List**: ComboBox populated from endpoint-specific LRU history.
+- **Run Button**: Triggers the evaluation loop.
+- **Log Area**: Large TextField showing real-time "OK/FAIL" results and latencies.
+
+### B. Eval Runner (`core/eval_runner.py`)
+- **Logic**:
+  - swaps model in memory per run.
+  - **Programmatic Verification**: Simple doc checks.
+  - **LLM-as-a-Judge**: Semantic checks for complex tasks using a judge turn.
+  - **IpD Tracking**: Intelligence-per-Dollar estimation based on token usage.
+
+---
+
+## 3. Status & Accomplishments (Feb 2026)
+
+- [x] **Core Infrastructure**: `EvalRunner` class with tool execution and verification logic.
+- [x] **UI/UX**: `EvalDialog.xdl` designed and wired into the application menu (`localwriter > Evaluation Dashboard`).
+- [x] **Initial Suite**: Base tests for Writer (replace, style, summarize), Calc (entry, formula, sort), and Draw (shape creation).
+- [x] **Smart Judging**: Integrated "LLM-as-a-Judge" for semantic pass/fail verification.
+- [x] **Detailed Plan**: Created `EVALUATION_PLAN_DETAILED.md` with 50+ scenario archetypes.
+
+---
+
+## 4. Phase 2: Roadmap & Next Steps
+
+### A. Expand Test Suite (High Priority)
+- Port the full 50+ test cases from `EVALUATION_PLAN_DETAILED.md` into `run_benchmark_suite`.
+- Categorize by level (Essentials, Advanced, Expert).
+
+### B. Multimodal Evaluation
+- Implement vision-based tests (e.g., "Describe this image in the document").
+- Measure "Visual Reasoning Access" latencies.
+
+### C. Test Fixtures (Incomplete)
+- Create a `tests/fixtures/` library with standardized documents:
+  - `long_summarization.odt`: For testing extraction and semantic compression.
+  - `complex_calc.ods`: For testing multi-sheet logic and charting.
+  - `multimodal_vision.odt`: For testing image-to-text and spatial reasoning.
+
+### D. Advanced Reporting
+- Auto-generate a formatted "Benchmark Report" sheet in Calc after a run.
+- Include charts for IpD comparisons (Intelligence vs. Cost).
+
+### D. Multi-Model Sweep
+- Add a "Sweep All History" mode to automatically benchmark every model in the LRU.
+
+---
+*Dev Plan v1.5 — Evaluation Framework Live*

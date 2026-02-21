@@ -473,6 +473,100 @@ class MainJob(unohelper.Base, XJobExecutor):
             dlg.dispose()
         return result
 
+    def _show_eval_dashboard(self):
+        """Show the Evaluation Dashboard (EvalDialog.xdl)."""
+        import uno
+        from com.sun.star.awt import XActionListener
+        from core.eval_runner import run_benchmark_suite
+
+        ctx = self.ctx
+        smgr = ctx.getServiceManager()
+        pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
+        base_url = pip.getPackageLocation("org.extension.localwriter")
+        dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
+        dlg = dp.createDialog(base_url + "/LocalWriterDialogs/EvalDialog.xdl")
+
+        try:
+            # 1. Populate fields
+            endpoint_ctrl = dlg.getControl("endpoint")
+            endpoint_ctrl.getModel().Text = str(get_config(self.ctx, "endpoint", ""))
+            
+            model_ctrl = dlg.getControl("models")
+            current_model = str(get_config(self.ctx, "text_model", "") or get_config(self.ctx, "model", ""))
+            current_endpoint = str(get_config(self.ctx, "endpoint", "")).strip()
+            populate_combobox_with_lru(self.ctx, model_ctrl, current_model, "model_lru", current_endpoint)
+            
+            log_area = dlg.getControl("log_area")
+            status_text = dlg.getControl("status")
+
+            # 2. Wire Run button
+            class EvalRunListener(unohelper.Base, XActionListener):
+                def __init__(self, main_job, dialog, toolkit):
+                    self.main_job = main_job
+                    self.dialog = dialog
+                    self.toolkit = toolkit
+                    self.is_running = False
+
+                def actionPerformed(self, ev):
+                    if self.is_running: return
+                    self.is_running = True
+                    try:
+                        self.run_suite()
+                    finally:
+                        self.is_running = False
+
+                def run_suite(self):
+                    # Get UI values
+                    model_name = self.dialog.getControl("models").getText()
+                    categories = []
+                    if self.dialog.getControl("cat_writer").getState(): categories.append("Writer")
+                    if self.dialog.getControl("cat_calc").getState(): categories.append("Calc")
+                    if self.dialog.getControl("cat_draw").getState(): categories.append("Draw")
+                    if self.dialog.getControl("cat_multimodal").getState(): categories.append("Multimodal")
+                    
+                    self.dialog.getControl("log_area").setText(f"Starting benchmark for model: {model_name}...\n")
+                    self.dialog.getControl("status").setText("Running...")
+                    self.toolkit.processEventsToIdle()
+                    
+                    desktop = self.main_job.ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", self.main_job.ctx)
+                    doc = desktop.getCurrentComponent()
+                    
+                    # In a real impl, we might want to start separate worker threads
+                    # but for benchmarks, sequential block-and-drain is fine if we call processEvents
+                    from core.eval_runner import EvalRunner
+                    runner = EvalRunner(self.main_job.ctx, doc, model_name)
+                    
+                    # We'll define the tests here or in eval_runner
+                    # For dry run, use the basic ones in run_benchmark_suite
+                    summary = run_benchmark_suite(self.main_job.ctx, doc, model_name, categories)
+                    
+                    # Update Log Area
+                    log_text = f"Benchmarks Complete for {model_name}!\n"
+                    log_text += f"Passed: {summary['passed']}, Failed: {summary['failed']}\n"
+                    log_text += f"Total Est. Cost: ${summary['total_cost']:.4f}\n\n Details:\n"
+                    for res in summary['results']:
+                        log_text += f"[{res['status']}] {res['name']} ({res.get('latency', 0):.1f}s)\n"
+                    
+                    self.dialog.getControl("log_area").setText(log_text)
+                    self.dialog.getControl("status").setText("Finished")
+
+                def disposing(self, ev): pass
+
+            toolkit = smgr.createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
+            dlg.getControl("btn_run").addActionListener(EvalRunListener(self, dlg, toolkit))
+            dlg.getControl("btn_close").addActionListener(TabListener(dlg, 0)) # Close button (0 is dummy)
+            
+            # Close button needs its own listener or using dlg.endDialog()
+            class CloseListener(unohelper.Base, XActionListener):
+                def __init__(self, dialog): self.dialog = dialog
+                def actionPerformed(self, ev): self.dialog.endDialog(0)
+                def disposing(self, ev): pass
+            dlg.getControl("btn_close").addActionListener(CloseListener(dlg))
+
+            dlg.execute()
+        finally:
+            dlg.dispose()
+
     def trigger(self, args):
         init_logging(self.ctx)
         agent_log("main.py:trigger", "trigger called", data={"args": str(args)}, hypothesis_id="H1,H2")
@@ -529,6 +623,13 @@ class MainJob(unohelper.Base, XJobExecutor):
                 self.show_error(msg, "Calc API integration tests")
             except Exception as e:
                 self.show_error("Integration tests failed: %s" % e, "Calc API integration tests")
+            return
+
+        if args == "EvaluationDashboard":
+            try:
+                self._show_eval_dashboard()
+            except Exception as e:
+                self.show_error("Could not show evaluation dashboard: %s" % e, "Evaluation Dashboard")
             return
 
         if is_writer(model):
