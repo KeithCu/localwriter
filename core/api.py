@@ -16,7 +16,7 @@ from collections import deque
 
 # accumulate_delta is required for tool-calling: it merges streaming deltas into message_snapshot so full tool_calls (with function.arguments) are available.
 from .streaming_deltas import accumulate_delta
-from .constants import OPENROUTER_REFERER, OPENROUTER_TITLE
+from .constants import APP_REFERER, APP_TITLE, USER_AGENT
 
 from core.logging import debug_log, update_activity_state, init_logging
 
@@ -101,10 +101,15 @@ def sync_request(url, data=None, headers=None, timeout=10, parse_json=True):
     if headers is None:
         headers = {}
     
-    # Add a default browser-like User-Agent to avoid being blocked by CDNs/GitHub
+    # Add default headers to avoid being blocked and provide application identity
     has_ua = any(k.lower() == "user-agent" for k in headers.keys())
     if not has_ua:
-        headers["User-Agent"] = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 LocalWriter/1.0"
+        headers["User-Agent"] = USER_AGENT
+    
+    if "HTTP-Referer" not in headers:
+        headers["HTTP-Referer"] = APP_REFERER
+    if "X-Title" not in headers:
+        headers["X-Title"] = APP_TITLE
 
     if isinstance(url, str):
         req = urllib.request.Request(url, data=data, headers=headers)
@@ -293,9 +298,8 @@ class LlmClient:
         if api_key:
             h["Authorization"] = "Bearer %s" % api_key
         
-        if self.config.get("is_openrouter"):
-            h["HTTP-Referer"] = OPENROUTER_REFERER
-            h["X-Title"] = OPENROUTER_TITLE
+        h["HTTP-Referer"] = APP_REFERER
+        h["X-Title"] = APP_TITLE
 
         return h
 
@@ -431,6 +435,35 @@ class LlmClient:
         )
         debug_log("URL: %s" % url, context="API")
         debug_log("Messages: %s" % json.dumps(messages, indent=2), context="API")
+        
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path
+        if parsed.query:
+            path += "?" + parsed.query
+            
+        return "POST", path, json_data, self._headers()
+            
+    def make_image_request(self, prompt, model=None, width=1024, height=1024):
+        """Build an image generation request (OpenAI-compatible /images/generations)."""
+        endpoint = self._endpoint()
+        api_path = self._api_path()
+        url = endpoint + api_path + "/images/generations"
+        model_name = model or self.config.get("model", "")
+        
+        data = {
+            "prompt": prompt,
+            "n": 1,
+            "size": f"{width}x{height}",
+            "response_format": "url",
+        }
+        if model_name:
+            data["model"] = model_name
+
+        json_data = json.dumps(data).encode("utf-8")
+        init_logging(self.ctx)
+        debug_log("=== Image Request ===", context="API")
+        debug_log("URL: %s" % url, context="API")
+        debug_log("Data: %s" % json.dumps(data, indent=2), context="API")
         
         parsed = urllib.parse.urlparse(url)
         path = parsed.path

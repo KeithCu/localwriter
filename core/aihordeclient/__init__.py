@@ -21,6 +21,7 @@ from core.translation_tool import opustm_hf_translate, OPUSTM_SOURCE_LANGUAGES  
 
 from core.api import sync_request, format_error_message
 from core.logging import debug_log, log_exception
+from core.constants import USER_AGENT
 
 import base64
 import gettext
@@ -241,7 +242,7 @@ class AiHordeClient:
             "Accept": "application/json",
             "apikey": self.api_key,
             "Client-Agent": self.client_name,
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 LocalWriter/1.0",
+            "User-Agent": USER_AGENT,
         }
         self.informer = informer
         self.progress: float = 0.0

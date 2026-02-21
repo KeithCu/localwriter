@@ -1,7 +1,8 @@
 """Constants for LocalWriter."""
 
-OPENROUTER_REFERER = "https://github.com/keithcu/localwriter"
-OPENROUTER_TITLE = "LocalWriter"
+APP_REFERER = "https://github.com/keithcu/localwriter"
+APP_TITLE = "LocalWriter"
+USER_AGENT = "LocalWriter (https://github.com/keithcu/localwriter)"
 
 # Document format toggle: 'markdown' or 'html'
 # Markdown requires LibreOffice 24.8+; HTML works on older versions.

@@ -9,7 +9,8 @@
 # https://github.com/ikks/aihorde-client/blob/main/LICENSE
 
 import json
-from urllib.request import urlopen, Request
+from urllib.request import Request
+from .api import sync_request
 
 API_TRANSLATE_GRADIO = "https://igortamara-opus-translate.hf.space/call/translate"
 
@@ -379,7 +380,18 @@ def _sse_iter(url, data=None, headers=None, timeout=30):
     """Iterate over SSE data payloads from a URL using only stdlib urllib.request.
     Mirrors the SSE parsing logic in core/api.py's _run_streaming_loop."""
     import urllib.request
-    req = urllib.request.Request(url, data=data, headers=headers or {})
+    from .constants import USER_AGENT, APP_REFERER, APP_TITLE
+    
+    if headers is None:
+        headers = {}
+    if "User-Agent" not in headers:
+        headers["User-Agent"] = USER_AGENT
+    if "HTTP-Referer" not in headers:
+        headers["HTTP-Referer"] = APP_REFERER
+    if "X-Title" not in headers:
+        headers["X-Title"] = APP_TITLE
+
+    req = urllib.request.Request(url, data=data, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as stream:
         for line in stream:
             line = line.strip()
@@ -396,13 +408,11 @@ def opustm_hf_translate(
     text: str, src_language: str, target_language: str = "English"
 ) -> str:
     """Translate text using the OpusTM model hosted on Hugging Face Spaces.
-    Uses only stdlib urllib.request — no sseclient or urllib3 required."""
+    Uses core.api.sync_request for consistent headers."""
     # Step 1: POST to get an event_id for the streaming result
     post_data = json.dumps({"data": [text, src_language, target_language]}).encode("utf-8")
-    post_headers = {"Content-Type": "application/json"}
-    req = Request(API_TRANSLATE_GRADIO, data=post_data, headers=post_headers)
-    with urlopen(req, timeout=20) as resp:
-        event_id = json.loads(resp.read().decode("utf-8"))["event_id"]
+    resp_data = sync_request(API_TRANSLATE_GRADIO, data=post_data)
+    event_id = resp_data["event_id"]
 
     # Step 2: GET the SSE stream for that event_id and collect all data payloads
     stream_url = API_TRANSLATE_GRADIO + "/" + event_id

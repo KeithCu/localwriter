@@ -6,7 +6,8 @@ import tempfile
 import urllib.request
 import urllib.parse
 from pathlib import Path
-from core.api import LlmClient
+from core.api import sync_request, LlmClient
+from core.logging import debug_log
 from core.aihordeclient import AiHordeClient
 
 logger = logging.getLogger(__name__)
@@ -29,37 +30,93 @@ class EndpointImageProvider(ImageProvider):
 
         logger.info("Requesting image via endpoint: %s", model)
 
-        method, path, body, headers = self.client.make_chat_request(messages, max_tokens=1000)
-        body_dict = json.loads(body)
-        body_dict["modalities"] = ["image"]
-        if "max_tokens" in kwargs:
-            body_dict["max_tokens"] = kwargs["max_tokens"]
+        # FIXME: find out if it works with openrouter also but given it works we won't touch it now ;-)
+        if self.client.config.get("is_openrouter"):
+            method, path, body, headers = self.client.make_chat_request(messages, max_tokens=1000)
+            body_dict = json.loads(body)
+            body_dict["modalities"] = ["image"]
+            if "max_tokens" in kwargs:
+                body_dict["max_tokens"] = kwargs["max_tokens"]
 
-        response = self.client.request_with_tools(messages, body_override=json.dumps(body_dict))
+            response = self.client.request_with_tools(messages, body_override=json.dumps(body_dict))
 
-        # Parse response: OpenRouter etc. may put image in message.images[].image_url.url
-        images = response.get("images") or []
-        if images:
-            import re
-            import base64
-            img = images[0]
-            url = None
-            if isinstance(img, dict):
-                if "image_url" in img and isinstance(img["image_url"], dict):
-                    url = img["image_url"].get("url")
-                elif "image_url" in img and isinstance(img["image_url"], str):
-                    url = img["image_url"]
-            if url and "data:image" in url:
-                match = re.search(r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)', url)
-                if match:
-                    data = match.group(1)
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                        tmp.write(base64.b64decode(data))
+            # Parse response: OpenRouter etc. may put image in message.images[].image_url.url
+            images = response.get("images") or []
+            if images:
+                import re
+                import base64
+                img = images[0]
+                url = None
+                if isinstance(img, dict):
+                    if "image_url" in img and isinstance(img["image_url"], dict):
+                        url = img["image_url"].get("url")
+                    elif "image_url" in img and isinstance(img["image_url"], str):
+                        url = img["image_url"]
+                if url and "data:image" in url:
+                    match = re.search(r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)', url)
+                    if match:
+                        data = match.group(1)
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                            tmp.write(base64.b64decode(data))
+                            return [tmp.name]
+                if url and url.startswith("http"):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as tmp:
+                        data = sync_request(url, parse_json=False)
+                        tmp.write(data)
                         return [tmp.name]
-            if url and url.startswith("http"):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as tmp:
-                    urllib.request.urlretrieve(url, tmp.name)
-                    return [tmp.name]
+        else:
+            # Use standard /images/generations endpoint (Together, OpenAI, etc.)
+            method, path, body, headers = self.client.make_image_request(prompt, model=model, width=width, height=height)
+            
+            # Non-streaming request with tools reset/close connection logic but for raw response
+            # We don't use request_with_tools because that expects a chat response structure
+            try:
+                conn = self.client._get_connection()
+                conn.request(method, path, body=body, headers=headers)
+                response = conn.getresponse()
+                if response.status != 200:
+                    err_body = response.read().decode("utf-8", errors="replace")
+                    logger.error("Image API Error %d: %s", response.status, err_body)
+                    from core.api import _format_http_error_response
+                    raise Exception(_format_http_error_response(response.status, response.reason, err_body))
+                
+                result = json.loads(response.read().decode("utf-8"))
+                debug_log("=== Image Response: %s" % json.dumps(result, indent=2), context="API")
+                
+                # Standard OpenAI format: {"data": [{"url": "...", "b64_json": "..."}]}
+                data = result.get("data") or []
+                if data:
+                    img = data[0]
+                    url = img.get("url")
+                    b64 = img.get("b64_json")
+                    
+                    if b64:
+                        import base64
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                            tmp.write(base64.b64decode(b64))
+                            return [tmp.name]
+                    elif url:
+                        if "data:image" in url:
+                            import re
+                            import base64
+                            match = re.search(r'data:image/[^;]+;base64,([A-Za-z0-9+/=]+)', url)
+                            if match:
+                                data_part = match.group(1)
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                                    tmp.write(base64.b64decode(data_part))
+                                    return [tmp.name]
+                        
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as tmp:
+                            data_img = sync_request(url, parse_json=False)
+                            tmp.write(data_img)
+                            return [tmp.name]
+            except Exception as e:
+                logger.exception("Image generation failed")
+                raise
+            finally:
+                # We close connection if it was a one-off or keep if persistent is intended. 
+                # LlmClient mostly handles it but we can call it if we want.
+                pass
 
         # Fallback: image in content string (some endpoints)
         content = response.get("content") or ""
@@ -74,7 +131,8 @@ class EndpointImageProvider(ImageProvider):
                     return [tmp.name]
         if content and content.strip().startswith("http"):
             with tempfile.NamedTemporaryFile(delete=False, suffix=".webp") as tmp:
-                urllib.request.urlretrieve(content.strip(), tmp.name)
+                img_data = sync_request(content.strip(), parse_json=False)
+                tmp.write(img_data)
                 return [tmp.name]
 
         return []

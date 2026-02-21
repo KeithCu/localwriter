@@ -18,7 +18,7 @@
 - **Image Generation & Editing**: Multimodal capabilities via `generate_image` (create and insert) and `edit_image` (Img2Img on selected object) tools.
 - **Calc** `=PROMPT()`: Cell formula that calls the model
 
-**Connection Management**: LocalWriter includes built-in connection management in `core/api.py` that maintains persistent HTTP/HTTPS connections, significantly reducing overhead for sequential requests to the same endpoint.
+**Connection Management & Identification**: LocalWriter includes built-in connection management in `core/api.py` that maintains persistent HTTP/HTTPS connections. All requests use unified `USER_AGENT`, `APP_REFERER`, and `APP_TITLE` headers from `core.constants` for consistent identification across providers (OpenRouter, Together AI, etc.).
 
 Config is stored in `localwriter.json` in LibreOffice's user config directory. See `CONFIG_EXAMPLES.md` for examples (Ollama, OpenWebUI, OpenRouter, etc.).
 

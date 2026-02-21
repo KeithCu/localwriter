@@ -134,7 +134,7 @@ class ChatSession:
 class SendButtonListener(unohelper.Base, XActionListener):
     """Listener for the Send button - runs chat with document, supports tool-calling."""
 
-    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None):
+    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None):
         self.ctx = ctx
         self.frame = frame
         self.send_control = send_control
@@ -146,6 +146,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self.status_control = status_control
         self.session = session
         self.direct_image_checkbox = direct_image_checkbox
+        self.aspect_ratio_selector = aspect_ratio_selector
+        self.base_size_input = base_size_input
         self.initial_doc_type = None # Set by _wireControls
         self.stop_requested = False
         self._terminal_status = "Ready"
@@ -344,6 +346,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
                             "Portrait (2:3)": "portrait_2_3"
                         }
                         mapped_aspect = aspect_map.get(aspect_ratio_str, "square")
+                        
+                        image_model_text = ""
+                        if self.image_model_selector and hasattr(self.image_model_selector, "getText"):
+                            image_model_text = self.image_model_selector.getText()
 
                         base_size_val = 512
                         if self.base_size_input:
@@ -369,7 +375,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
                             {
                                 "prompt": query_text,
                                 "aspect_ratio": mapped_aspect,
-                                "base_size": base_size_val
+                                "base_size": base_size_val,
+                                "image_model": image_model_text
                             },
                             model,
                             self.ctx,
@@ -666,9 +673,19 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 # Check signature of execute_tool_fn to see if it accepts status_callback
                 import inspect
                 sig = inspect.signature(execute_tool_fn)
+                
+                # Fetch the current image model from the selector, if available
+                image_model_override = self.image_model_selector.getText() if self.image_model_selector else None
+                
                 if "status_callback" in sig.parameters or "kwargs" in sig.parameters:
+                    # Pass image_model_override if it's not None
+                    if image_model_override:
+                        func_args["image_model"] = image_model_override
                     result = execute_tool_fn(func_name, func_args, model, self.ctx, status_callback=tool_status_callback)
                 else:
+                    # Pass image_model_override if it's not None
+                    if image_model_override:
+                        func_args["image_model"] = image_model_override
                     result = execute_tool_fn(func_name, func_args, model, self.ctx)
                     
                 debug_log("Tool result: %s" % result, context="Chat")
@@ -1157,7 +1174,9 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 self.ctx, self.xFrame,
                 send_btn, stop_btn, query_ctrl, response_ctrl,
                 image_model_selector, model_selector, status_ctrl, self.session,
-                direct_image_checkbox=direct_image_check)
+                direct_image_checkbox=direct_image_check,
+                aspect_ratio_selector=aspect_ratio_selector,
+                base_size_input=base_size_input)
 
             # Detect and store initial document type for strict verification
             if model:

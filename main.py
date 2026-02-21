@@ -26,11 +26,7 @@ import re
 from com.sun.star.beans import PropertyValue
 from com.sun.star.container import XNamed
 
-USER_AGENT = (
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-    'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/114.0.0.0 Safari/537.36'
-)
+
 
 # The MainJob is a UNO component derived from unohelper.Base class
 # and also the XJobExecutor, the implemented interface
