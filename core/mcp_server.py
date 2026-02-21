@@ -1,3 +1,7 @@
+# Port utilities and HTTP server structure adapted from the LibreOffice MCP
+# Extension (in-repo: libreoffice-mcp-extension/). See registration.py (port
+# helpers) and pythonpath/ai_interface.py (server/handler). We're grateful for
+# their work; when maintaining this module, check that directory for updates.
 """
 MCP HTTP server for LocalWriter. Exposes Writer/Calc/Draw tools to external AI
 clients. Document targeting via X-Document-URL header; all UNO work runs on
@@ -269,3 +273,4 @@ class MCPHttpServer:
 
     def stop(self):
         self._server.shutdown()
+        self._server.server_close()

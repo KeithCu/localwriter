@@ -1,3 +1,7 @@
+# Main-thread queue pattern for MCP adapted from the LibreOffice MCP Extension
+# (in-repo: libreoffice-mcp-extension/). Their ai_interface runs UNO on the
+# main thread; this module provides the same contract for LocalWriter. Thanks
+# to that project; check libreoffice-mcp-extension/ when maintaining this module.
 """
 MCP main-thread executor: work is queued from HTTP handler threads and drained
 on the UNO main thread (via UNO Timer in main.py). All UNO calls must run on
