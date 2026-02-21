@@ -337,7 +337,7 @@ We implemented a custom engine in `core/format_support.py` that iterates charact
   - Windows: `%APPDATA%\LibreOffice\4\user\localwriter.json`
 - **Single file**: No presets or multiple configs. To use a different setup, copy your config to the path above as `localwriter.json`.
 - **Settings dialog** reads/writes this file via `get_config()` / `set_config()` in `core/config.py`.
-- **Chat-related keys**: `chat_context_length` (default 8000), `chat_max_tokens` (default 512 menu / 16384 sidebar), `additional_instructions`. Also `api_key`, `api_type` for the configured endpoint.
+- **Chat-related keys**: `chat_context_length` (default 8000), `chat_max_tokens` (default 512 menu / 16384 sidebar), `additional_instructions`. Also **per-endpoint API keys**: `api_keys_by_endpoint` (JSON map: normalized endpoint URL → API key); `get_api_key_for_endpoint(ctx, endpoint)` / `set_api_key_for_endpoint(ctx, endpoint, key)` in `core/config.py`. Legacy `api_key` is migrated once into the map under the current endpoint and then removed. Settings dialog shows and saves the key for the selected endpoint. `api_type` for the configured endpoint.
 - **Model keys**: `text_model` (chat/LLM model; backward compat: `model`), `model_lru` (recent text models); `image_model` (image model when using chat endpoint for images), `image_model_lru` (recent image models). See Section 3d.
 
 ---

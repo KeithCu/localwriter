@@ -99,6 +99,24 @@ def set_config(ctx, key, value):
         print("Error writing to %s: %s" % (config_file_path, e))
 
 
+def remove_config(ctx, key):
+    """Remove a config key. Used e.g. to delete legacy api_key after migration."""
+    config_file_path = _config_path(ctx)
+    if not os.path.exists(config_file_path):
+        return
+    try:
+        with open(config_file_path, "r", encoding="utf-8") as f:
+            config_data = json.load(f)
+    except (IOError, json.JSONDecodeError):
+        return
+    config_data.pop(key, None)
+    try:
+        with open(config_file_path, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=4)
+    except IOError as e:
+        print("Error writing to %s: %s" % (config_file_path, e))
+
+
 # Listeners are called when config is changed (e.g. after Settings dialog).
 # Sidebar uses weakref in its callback so panels can be GC'd without unregistering.
 _config_listeners = []
@@ -332,6 +350,43 @@ def set_image_model(ctx, val, update_lru=True):
     notify_config_changed(ctx)
 
 
+def _migrate_api_key_to_map_if_needed(ctx):
+    """One-time upgrade: move legacy api_key into api_keys_by_endpoint under current endpoint, then delete api_key."""
+    data = get_config(ctx, "api_keys_by_endpoint", {})
+    if isinstance(data, dict) and data:
+        return
+    legacy_key = str(get_config(ctx, "api_key", "")).strip()
+    current_endpoint = str(get_config(ctx, "endpoint", "")).strip()
+    if not legacy_key or not current_endpoint:
+        return
+    if not isinstance(data, dict):
+        data = {}
+    normalized = _normalize_endpoint_url(current_endpoint)
+    data[normalized] = legacy_key
+    set_config(ctx, "api_keys_by_endpoint", data)
+    remove_config(ctx, "api_key")
+
+
+def get_api_key_for_endpoint(ctx, endpoint):
+    """Return API key for the given endpoint. Runs migration first; then map lookup with legacy fallback."""
+    _migrate_api_key_to_map_if_needed(ctx)
+    data = get_config(ctx, "api_keys_by_endpoint", {})
+    if not isinstance(data, dict):
+        data = {}
+    normalized = _normalize_endpoint_url(endpoint or "")
+    return data.get(normalized) or str(get_config(ctx, "api_key", ""))
+
+
+def set_api_key_for_endpoint(ctx, endpoint, key):
+    """Store API key for the given endpoint in api_keys_by_endpoint."""
+    data = get_config(ctx, "api_keys_by_endpoint", {})
+    if not isinstance(data, dict):
+        data = {}
+    normalized = _normalize_endpoint_url(endpoint or "")
+    data[normalized] = str(key)
+    set_config(ctx, "api_keys_by_endpoint", data)
+
+
 def get_api_config(ctx):
     """Build API config dict from ctx for LlmClient. Pass to LlmClient(config, ctx)."""
     endpoint = str(get_config(ctx, "endpoint", "http://127.0.0.1:5000")).rstrip("/")
@@ -340,7 +395,7 @@ def get_api_config(ctx):
         or "open-webui" in endpoint.lower()
         or "openwebui" in endpoint.lower()
     )
-    api_key = str(get_config(ctx, "api_key", ""))
+    api_key = get_api_key_for_endpoint(ctx, endpoint)
 
     is_openrouter = "openrouter.ai" in endpoint.lower()
     return {

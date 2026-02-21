@@ -9,7 +9,7 @@ if _ext_dir not in sys.path:
 import unohelper
 import officehelper
 
-from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history, notify_config_changed, populate_image_model_selector, populate_endpoint_selector, endpoint_from_selector_text, get_image_model, set_image_model
+from core.config import get_config, set_config, as_bool, get_api_config, validate_api_config, populate_combobox_with_lru, update_lru_history, notify_config_changed, populate_image_model_selector, populate_endpoint_selector, endpoint_from_selector_text, get_image_model, set_image_model, get_api_key_for_endpoint, set_api_key_for_endpoint
 from core.api import LlmClient, format_error_message
 from core.document import get_full_document_text, get_document_context_for_chat
 from core.async_stream import run_stream_completion_async
@@ -185,7 +185,6 @@ class MainJob(unohelper.Base, XJobExecutor):
         direct_keys = [
             "extend_selection_max_tokens",
             "edit_selection_max_new_tokens",
-            "api_key",
             "is_openwebui",
             "openai_compatibility",
             "text_model",
@@ -267,6 +266,9 @@ class MainJob(unohelper.Base, XJobExecutor):
                     self.set_config("mcp_port", port)
             except (TypeError, ValueError):
                 pass
+
+        if "api_key" in result:
+            set_api_key_for_endpoint(self.ctx, current_endpoint, result["api_key"])
 
         notify_config_changed(self.ctx)
 
@@ -408,11 +410,12 @@ class MainJob(unohelper.Base, XJobExecutor):
 
         openai_compatibility_value = "true" if as_bool(self.get_config("openai_compatibility", False)) else "false"
         is_openwebui_value = "true" if as_bool(self.get_config("is_openwebui", False)) else "false"
+        current_endpoint_for_specs = str(self.get_config("endpoint", "")).strip()
         field_specs = [
             {"name": "endpoint", "value": str(self.get_config("endpoint", "http://127.0.0.1:5000"))},
             {"name": "text_model", "value": str(self.get_config("text_model", "") or self.get_config("model", ""))},
             {"name": "image_model", "value": str(get_image_model(self.ctx))},
-            {"name": "api_key", "value": str(self.get_config("api_key", ""))},
+            {"name": "api_key", "value": str(get_api_key_for_endpoint(self.ctx, current_endpoint_for_specs))},
             {"name": "api_type", "value": str(self.get_config("api_type", "completions"))},
             {"name": "is_openwebui", "value": is_openwebui_value, "type": "bool"},
             {"name": "openai_compatibility", "value": openai_compatibility_value, "type": "bool"},
@@ -520,6 +523,12 @@ class MainJob(unohelper.Base, XJobExecutor):
                                                         "image_model_lru", resolved, strict=True)
                                                 else:
                                                     populate_image_model_selector(self._main.ctx, image_ctrl)
+                                            api_key_ctrl = self._dlg.getControl("api_key")
+                                            if api_key_ctrl:
+                                                try:
+                                                    api_key_ctrl.getModel().Text = get_api_key_for_endpoint(self._main.ctx, resolved)
+                                                except Exception:
+                                                    pass
                                     except Exception:
                                         pass
                                 def disposing(self, ev):
