@@ -5,7 +5,8 @@
 <section class="hero">
     <div class="wrap">
         <h1>AI in LibreOffice.<br>Your data stays local.</h1>
-        <p class="hero-lead">A LibreOffice extension that adds generative AI editing to Writer, Calc, and Draw. Run private models locally or switch cloud providers in seconds—you stay in control.</p>
+        <p class="hero-lead">A LibreOffice extension that adds generative AI editing to Writer, Calc, and Draw. Run
+            private models locally or switch cloud providers in seconds—you stay in control.</p>
         <p class="hero-cta">
             <a href="{{ url_for('install') }}" class="btn btn-primary">Install</a>
             <a href="{{ release_url }}" class="btn btn-secondary" target="_blank" rel="noopener">Download .oxt</a>
@@ -17,9 +18,11 @@
     <div class="wrap">
         <h2>Why LocalWriter</h2>
         <ul class="props-list">
-            <li><strong>Local-first</strong> — Run Ollama, LM Studio, or your own server; documents never leave your machine.</li>
+            <li><strong>Local-first</strong> — Run Ollama, LM Studio, or your own server; documents never leave your
+                machine.</li>
             <li><strong>Provider-agnostic</strong> — Switch between cloud APIs in under 2 seconds. No lock-in.</li>
-            <li><strong>Deep integration</strong> — Chat with your document, extend or edit selection, format preservation, image generation, and more.</li>
+            <li><strong>Deep integration</strong> — Chat with your document, extend or edit selection, format
+                preservation, image generation, and more.</li>
         </ul>
     </div>
 </section>
@@ -27,15 +30,22 @@
 <section class="cloud-providers">
     <div class="wrap">
         <h2>When you use the cloud, it’s not all the same cloud</h2>
-        <p>LocalWriter doesn’t send your data to Microsoft or Google by default. You choose the endpoint. The actual inference—the models and the GPUs—is run by <strong>inference providers</strong>: the companies that operate the infrastructure. Those providers have different privacy policies: whether they train on your data, how long they retain it, where it’s processed (e.g. EU-only), and how open they are about it. You can pick one that fits your priorities.</p>
+        <p>LocalWriter doesn’t send your data to Microsoft or Google by default. You choose the endpoint. The actual
+            inference—the models and the GPUs—is run by <strong>inference providers</strong>. Those providers have
+            different privacy policies regarding data training and retention. You can pick one that fits your
+            priorities.</p>
         <p>Many users choose providers that are known for stronger privacy commitments. For example:</p>
         <ul class="props-list">
-            <li><strong>Anthropic</strong> — States that it does not train on customer API data; commitments to no retention of prompts and completions for enterprise.</li>
-            <li><strong>Together</strong> — Open-weight and custom models; privacy and data handling documented; options for no training on your data.</li>
-            <li><strong>Groq</strong> — Fast inference; privacy policy specifies no use of API data for model training.</li>
-            <li><strong>Mistral</strong> — European provider; transparent on data processing and retention; GDPR-oriented.</li>
+            <li><strong>Together AI</strong> — Strong privacy; zero data retention (ZDR) options, no training on
+                prompts/completions by default, and explicit controls.</li>
+            <li><strong>Mistral</strong> — Solid GDPR-oriented (EU-based) choice; transparent processing with strict
+                controls for Enterprise/API tiers.</li>
+            <li><strong>Groq</strong> — Excellent defaults; no retention of inference data by default, ZDR available via
+                settings, and no training on API data.</li>
+            <li><strong>Anthropic (Claude API)</strong> — Nuanced; consumer plans are opt-in for training with 5-year
+                retention, while API/Enterprise default to no training (30-day logs).</li>
         </ul>
-        <p>Policies vary and change; check each provider’s terms. The point is: when you use cloud with LocalWriter, you’re not locked into a single “cloud”—you can choose who runs the models.</p>
+        <p>Policies vary and change. <a href="{{ url_for('privacy') }}">Read more about provider privacy &rarr;</a></p>
     </div>
 </section>
 
@@ -45,27 +55,33 @@
 
         <article class="feature">
             <h3>Chat with Document (Writer, Calc, Draw)</h3>
-            <p>Multi-turn chat in the sidebar with tool-calling that reads and edits the document. Persistent connections, undo grouping (revert an entire AI turn with one <kbd>Ctrl+Z</kbd>), and an optional menu fallback.</p>
+            <p>Multi-turn chat in the sidebar with tool-calling that reads and edits the document. Persistent
+                connections, undo grouping (revert an entire AI turn with one <kbd>Ctrl+Z</kbd>), and an optional menu
+                fallback.</p>
         </article>
 
         <article class="feature">
             <h3>Edit &amp; Extend Selection (Writer)</h3>
-            <p><kbd>Ctrl+Q</kbd> — The model continues the selected text. <kbd>Ctrl+E</kbd> — Rewrite selection to your instructions (e.g. “make this more formal”, “translate to Spanish”).</p>
+            <p><kbd>Ctrl+Q</kbd> — The model continues the selected text. <kbd>Ctrl+E</kbd> — Rewrite selection to your
+                instructions (e.g. “make this more formal”, “translate to Spanish”).</p>
         </article>
 
         <article class="feature">
             <h3>Format preservation</h3>
-            <p>When the AI returns plain text (e.g. a typo fix), we preserve your existing formatting—highlights, bold, colors. When it returns Markdown or HTML, we use the import path. The choice is automatic.</p>
+            <p>When the AI returns plain text (e.g. a typo fix), we preserve your existing formatting—highlights, bold,
+                colors. When it returns Markdown or HTML, we use the import path. The choice is automatic.</p>
         </article>
 
         <article class="feature">
             <h3>Image generation &amp; AI Horde</h3>
-            <p>Generate and edit images from chat (tools or “Use Image model”). Backends: AI Horde (Stable Diffusion, SDXL) or the same endpoint as chat with a separate image model.</p>
+            <p>Generate and edit images from chat (tools or “Use Image model”). Backends: AI Horde (Stable Diffusion,
+                SDXL) or the same endpoint as chat with a separate image model.</p>
         </article>
 
         <article class="feature">
             <h3>MCP Server (optional)</h3>
-            <p>Enable an HTTP server on localhost to expose Writer/Calc/Draw tools to external AI clients (Cursor, Claude Desktop, scripts). Target documents via <code>X-Document-URL</code> header.</p>
+            <p>Enable an HTTP server on localhost to expose Writer/Calc/Draw tools to external AI clients (Cursor,
+                Claude Desktop, scripts). Target documents via <code>X-Document-URL</code> header.</p>
         </article>
 
         <article class="feature">
@@ -79,11 +95,13 @@
     <div class="wrap">
         <h2>See it in action</h2>
         <figure>
-            <img src="{{ url_for('static', filename='images/Opus46Resume.png') }}" alt="Opus 4.6 generated Arch Linux resume in Writer" width="800" height="auto">
+            <img src="{{ url_for('static', filename='images/Opus46Resume.png') }}"
+                alt="Opus 4.6 generated Arch Linux resume in Writer" width="800" height="auto">
             <figcaption>Opus 4.6 one-shotted this Arch Linux resume in Writer.</figcaption>
         </figure>
         <figure>
-            <img src="{{ url_for('static', filename='images/Sonnet46Spreadsheet.png') }}" alt="Chat sidebar with spreadsheet in Calc" width="800" height="auto">
+            <img src="{{ url_for('static', filename='images/Sonnet46Spreadsheet.png') }}"
+                alt="Chat sidebar with spreadsheet in Calc" width="800" height="auto">
             <figcaption>Chat sidebar with dashboard in Calc.</figcaption>
         </figure>
     </div>
@@ -93,15 +111,20 @@
     <div class="wrap">
         <h2>Built for performance</h2>
         <ul class="arch-list">
-            <li><strong>Responsive streaming</strong> — Background thread and queue keep the UI alive; no freezing while the AI responds.</li>
-            <li><strong>Interleaved streaming &amp; tool calling</strong> — Reasoning tokens, content streaming, and multi-turn tools in one flow.</li>
+            <li><strong>Responsive streaming</strong> — Background thread and queue keep the UI alive; no freezing while
+                the AI responds.</li>
+            <li><strong>Interleaved streaming &amp; tool calling</strong> — Reasoning tokens, content streaming, and
+                multi-turn tools in one flow.</li>
             <li><strong>High throughput</strong> — 200+ tokens per second with zero UI stutter.</li>
-            <li><strong>Isolated contexts</strong> — Each document has its own sidebar; no cross-talk when multiple docs are open.</li>
-            <li><strong>Writer tools</strong> — Styles, comments, track changes, tables: the AI can list and use what’s actually in your document.</li>
+            <li><strong>Isolated contexts</strong> — Each document has its own sidebar; no cross-talk when multiple docs
+                are open.</li>
+            <li><strong>Writer tools</strong> — Styles, comments, track changes, tables: the AI can list and use what’s
+                actually in your document.</li>
             <li><strong>HiDPI UI</strong> — Dialogs and sidebar use XDL and device-independent units.</li>
         </ul>
         <figure>
-            <img src="{{ url_for('static', filename='images/Sonnet46ArchDiagram.jpg') }}" alt="LocalWriter architecture diagram" width="800" height="auto">
+            <img src="{{ url_for('static', filename='images/Sonnet46ArchDiagram.jpg') }}"
+                alt="LocalWriter architecture diagram" width="800" height="auto">
             <figcaption>Architecture diagram.</figcaption>
         </figure>
     </div>
@@ -110,14 +133,18 @@
 <section class="credits">
     <div class="wrap">
         <h2>Credits</h2>
-        <p>LocalWriter builds on <a href="https://extensions.libreoffice.org/en/extensions/show/99509" target="_blank" rel="noopener">LibreCalc AI Assistant</a> and the <a href="https://github.com/quazardous/mcp-libre" target="_blank" rel="noopener">LibreOffice MCP Extension</a>. We’re grateful for their open work.</p>
+        <p>LocalWriter builds on <a href="https://extensions.libreoffice.org/en/extensions/show/99509" target="_blank"
+                rel="noopener">LibreCalc AI Assistant</a> and the <a href="https://github.com/quazardous/mcp-libre"
+                target="_blank" rel="noopener">LibreOffice MCP Extension</a>. We’re grateful for their open work.</p>
     </div>
 </section>
 
 <section class="cta-block">
     <div class="wrap">
-        <p><a href="{{ url_for('install') }}" class="btn btn-primary">Get started</a> <a href="{{ release_url }}" class="btn btn-secondary" target="_blank" rel="noopener">Releases</a></p>
-        <p>Consider <a href="{{ kofi_url }}" target="_blank" rel="noopener">donating on Ko-fi</a> to support development.</p>
+        <p><a href="{{ url_for('install') }}" class="btn btn-primary">Get started</a> <a href="{{ release_url }}"
+                class="btn btn-secondary" target="_blank" rel="noopener">Releases</a></p>
+        <p>Consider <a href="{{ kofi_url }}" target="_blank" rel="noopener">donating on Ko-fi</a> to support
+            development.</p>
     </div>
 </section>
 {% endblock %}

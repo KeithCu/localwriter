@@ -31,6 +31,14 @@ def install():
     )
 
 
+@app.route("/privacy/")
+def privacy():
+    return render_template(
+        "privacy.html",
+        github_url=GITHUB_URL,
+    )
+
+
 @app.errorhandler(404)
 def not_found(e):
     return render_template("404.html", github_url=GITHUB_URL), 404

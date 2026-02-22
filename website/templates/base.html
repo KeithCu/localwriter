@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,11 +9,13 @@
     <link rel="icon" href="{{ url_for('static', filename='images/icon.png') }}" type="image/png">
     {% block head %}{% endblock %}
 </head>
+
 <body>
     <header class="site-header">
         <div class="wrap">
             <a href="{{ url_for('index') }}" class="logo">
-                <img src="{{ url_for('static', filename='images/icon.png') }}" alt="" width="32" height="32" class="logo-img">
+                <img src="{{ url_for('static', filename='images/icon.png') }}" alt="" width="32" height="32"
+                    class="logo-img">
                 <span class="logo-text">LocalWriter</span>
             </a>
             <nav class="nav">
@@ -32,10 +35,12 @@
             <p>
                 <a href="https://github.com/balisujohn/localwriter">GitHub</a>
                 · <a href="https://ko-fi.com/johnbalis">Support on Ko-fi</a>
+                · <a href="{{ url_for('privacy') }}">Privacy</a>
                 · <a href="https://github.com/balisujohn/localwriter/blob/main/License.txt">MPL 2.0</a>
             </p>
             <p class="copyright">Copyright &copy; 2024 John Balis</p>
         </div>
     </footer>
 </body>
+
 </html>

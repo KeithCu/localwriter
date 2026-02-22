@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Privacy{% endblock %}
+
+{% block content %}
+<section class="privacy-content">
+    <div class="wrap">
+        <h1>AI Provider Privacy & Data Handling</h1>
+        <p class="hero-lead">When you use cloud-based AI models through LocalWriter, your data is processed by the
+            provider you select. Below is a summary of the latest privacy commitments from major inference providers as
+            of late 2025.</p>
+
+        <article class="privacy-provider">
+            <h2>Together AI</h2>
+            <p><strong>Status:</strong> Still strong on privacy.</p>
+            <p>They emphasize zero data retention options (ZDR toggleable in platform), no training on
+                prompts/completions by default, and explicit controls so data isn't stored or used for model
+                improvement. Their docs and terms highlight full control for fine-tuning/custom models without exposure.
+                Good fit for a "stronger privacy commitments" choice — they document it clearly and offer no-training
+                paths.</p>
+        </article>
+
+        <article class="privacy-provider">
+            <h2>Mistral</h2>
+            <p><strong>Status:</strong> Solid GDPR-oriented choice (EU-based).</p>
+            <p>API/fine-tuning data retention until you delete it (or account termination). Consumer "Le Chat" has
+                temporary storage (~30 days for context), with opt-out from training and incognito mode. Enterprise/API
+                tiers lean toward no training by default or strict controls. Good for EU users prioritizing data
+                residency/sovereignty.</p>
+        </article>
+
+        <article class="privacy-provider">
+            <h2>Groq</h2>
+            <p><strong>Status:</strong> Excellent privacy defaults.</p>
+            <p>Default is no retention of customer data for inference requests (inputs/outputs not stored except for
+                specific features like batch/fine-tuning or abuse troubleshooting). Zero Data Retention (ZDR) explicitly
+                available via settings. No explicit training on API data; they focus on "not retained or used beyond
+                service delivery." Fast inference + strong privacy defaults make them a top pick for privacy-conscious
+                users.</p>
+        </article>
+
+        <article class="privacy-provider">
+            <h2>Anthropic (Claude API)</h2>
+            <p><strong>Status:</strong> Nuanced (Users must actively manage opt-out/opt-in).</p>
+            <p>No longer the clear "no training" leader for consumers. As of late 2025 updates (effective ~Aug/Sep
+                2025), they shifted to opt-in training for consumer plans (Free/Pro/Max), with 5-year retention if you
+                allow it (de-identified). API/enterprise tiers still default to no training (30-day retention for
+                logs/abuse monitoring only), but it's more nuanced now — users have to actively opt out/opt in. Not the
+                slam-dunk privacy story it was pre-2025.</p>
+        </article>
+
+        <p class="disclaimer"><em>Note: Policies change. We recommend reviewing the terms of service for each provider
+                directly before choosing one for sensitive data. LocalWriter provides the tools, but you choose where
+                your bits go.</em></p>
+    </div>
+</section>
+{% endblock %}
