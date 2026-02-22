@@ -74,9 +74,11 @@ WORKFLOW:
 3. Use the tools to perform the operation. Always use ranges for multiple cells to reduce calls and improve efficiency.
 4. Give a short confirmation; when you changed cells, mention the range or addresses (e.g. "Wrote totals in B5:B8").
 
-FORMULA SYNTAX: LibreOffice uses semicolon (;) as the formula argument separator.
+FORMULA SYNTAX: LibreOffice uses semicolon (;) as the formula argument separator in formulas.
 - Correct: =SUM(A1:A10), =IF(A1>0;B1;C1)
-- Wrong: =SUM(A1,A10), =IF(A1>0,"Yes","No") (no commas)
+- Wrong: =SUM(A1,A10), =IF(A1>0,"Yes","No") (no commas in formulas)
+
+CSV DATA: Use comma (,) for import_csv_from_string.
 
 TOOLS (grouped by use):
 

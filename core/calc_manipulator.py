@@ -10,34 +10,81 @@ logger = logging.getLogger(__name__)
 
 def _parse_formula_or_values_string(s: str):
     """
-    Parse formula_or_values when it arrives as a JSON string (e.g. from the AI tool call).
+    Parse formula_or_values when it arrives as a JSON string (e.g. from the AI tool call)
+    or as a raw semicolon-separated string.
 
     Workaround: The AI often sends formula_or_values as a JSON-encoded string (e.g.
-    '["Name"; "Category"; "Value"]'), so after parsing tool args we get a str, not a list.
-    Without this, write_formula_range would write that whole string as one value per cell
-    and formulas would be lost. We normalize LibreOffice-style semicolon separators to
-    commas and flatten 2D arrays to row-major order so per-cell values and formula
-    detection work correctly.
+    '["Name"; "Category"; "Value"]') or as a raw string 'Name;Category;Value'.
+    Without this, write_formula_range would write that whole string as one value per cell.
+    We normalize LibreOffice-style semicolon separators and return a flat list.
 
     Returns:
-        A flat list of values, or None if s should not be treated as an array.
+        A flat list of values, or None if s should be treated as a single literal value.
     """
-    if not isinstance(s, str) or not s.strip().startswith("["):
+    if not isinstance(s, str):
         return None
-    try:
-        normalized = s.replace(";", ",")
-        data = json.loads(normalized)
-    except (json.JSONDecodeError, TypeError):
+
+    s_strip = s.strip()
+    if not s_strip:
         return None
-    if not isinstance(data, list):
-        return None
-    flat = []
-    for item in data:
-        if isinstance(item, list):
-            flat.extend(item)
-        else:
-            flat.append(item)
-    return flat
+
+    import re
+    import json
+
+    # Case 1: JSON array e.g. ["a"; "b"] or ["a", "b"]
+    if s_strip.startswith("["):
+        try:
+            # Formula-safe replacement: only replace semicolons NOT inside double quotes.
+            # Manual character-by-character scan to correctly handle escaped quotes.
+            normalized_list = []
+            in_quotes = False
+            escaped = False
+            for char in s_strip:
+                if char == '"' and not escaped:
+                    in_quotes = not in_quotes
+                
+                if char == ';' and not in_quotes:
+                    normalized_list.append(',')
+                else:
+                    normalized_list.append(char)
+                
+                if char == '\\' and not escaped:
+                    escaped = True
+                else:
+                    escaped = False
+            
+            normalized = "".join(normalized_list)
+            data = json.loads(normalized)
+            if isinstance(data, list):
+                flat = []
+                for item in data:
+                    if isinstance(item, list):
+                        flat.extend(item)
+                    else:
+                        flat.append(item)
+                return flat
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Case 2: Raw semicolon-separated string e.g. "Name;Age;Country"
+    # But ONLY if it's not a formula (starting with =) and not a single value
+    if ";" in s and not s_strip.startswith("="):
+        import csv
+        import io
+        # Use csv.reader with semicolon delimiter to safely handle quoted values
+        # containing semicolons or other special characters.
+        try:
+            # Add skipinitialspace=True so that a space after a semicolon (common in LLM output)
+            # doesn't prevent detection of the quote as the start of a field.
+            reader = csv.reader(io.StringIO(s), delimiter=";", skipinitialspace=True)
+            rows = list(reader)
+            if rows:
+                # Flatten the first row (ai usually sends 1 row of headers/data)
+                return [val.strip() for val in rows[0]]
+        except:
+            pass
+
+    return None
 
 
 class CellManipulator:
@@ -867,19 +914,30 @@ class CellManipulator:
             logger.error("Range formula write error (%s): %s", range_str, str(e))
             raise
 
-    def import_csv_from_string(self, csv_data: str, delimiter: str = ",", target_cell: str = "A1"):
+    def import_csv_from_string(self, csv_data: str, target_cell: str = "A1"):
         """
         Imports CSV data into the sheet starting at target_cell.
+        Automatically detects if the delimiter is ',' or ';'.
 
         Args:
             csv_data: CSV content as a string.
-            delimiter: Field delimiter (default ',').
             target_cell: Starting cell (e.g. "A1").
 
         Returns:
             Summary string of the import result.
         """
         try:
+            # Simple auto-detection: if first line has ';' and no ',', use ';'
+            # Otherwise default to ','
+            delimiter = ","
+            first_line = csv_data.split('\n')[0] if csv_data else ""
+            if ";" in first_line and "," not in first_line:
+                delimiter = ";"
+                debug_log("import_csv_from_string: detected semicolon delimiter", context="Chat")
+            elif "," in first_line:
+                delimiter = ","
+                debug_log("import_csv_from_string: detected comma delimiter", context="Chat")
+
             col_start, row_start = parse_address(target_cell)
             import csv
             import io

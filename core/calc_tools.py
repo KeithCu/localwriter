@@ -250,10 +250,6 @@ CALC_TOOLS = [
                         "type": "string",
                         "description": "CSV content as string (rows separated by \\n)."
                     },
-                    "delimiter": {
-                        "type": "string",
-                        "description": "Field delimiter (default ',')."
-                    },
                     "target_cell": {
                         "type": "string",
                         "description": "Starting cell (default 'A1')."
@@ -478,7 +474,6 @@ def execute_calc_tool(tool_name, arguments, doc, ctx=None):
         elif tool_name == "import_csv_from_string":
             result = tools["manipulator"].import_csv_from_string(
                 arguments["csv_data"],
-                delimiter=arguments.get("delimiter", ","),
                 target_cell=arguments.get("target_cell", "A1")
             )
             return json.dumps({"status": "ok", "message": result})
