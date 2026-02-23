@@ -1,10 +1,12 @@
 import threading
 
-class McpEventBus:
+
+class EventBus:
     """
     Internal event bus to allow background threads (like the MCP server)
     to notify the UI (main thread) about activity.
     """
+
     def __init__(self):
         self._listeners = []
         self._lock = threading.Lock()
@@ -25,7 +27,7 @@ class McpEventBus:
         with self._lock:
             # Copy list to allow listeners to unsubscribe during callback
             targets = list(self._listeners)
-        
+
         for listener in targets:
             try:
                 listener(event_type, data)
@@ -33,5 +35,6 @@ class McpEventBus:
                 # Silently ignore errors in listeners
                 pass
 
+
 # Global instance
-mcp_bus = McpEventBus()
+tool_bus = EventBus()

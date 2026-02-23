@@ -17,7 +17,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from core.mcp_thread import execute_on_main_thread
 from core.document import is_calc, is_draw, is_writer
-from core.mcp_events import mcp_bus
+from core.tool_bus import tool_bus
 
 # Health response body must contain this so _probe_health identifies our server
 MCP_HEALTH_SIGNATURE = "LocalWriter MCP"
@@ -237,7 +237,7 @@ class MCPHandler(BaseHTTPRequestHandler):
             return
         doc_url = self.headers.get("X-Document-URL") or None
 
-        mcp_bus.broadcast("request", {"method": "POST", "tool": tool_name, "args": body})
+        tool_bus.broadcast("request", {"method": "POST", "tool": tool_name, "args": body})
 
         def _run():
             from core.calc_bridge import CalcBridge
@@ -260,7 +260,7 @@ class MCPHandler(BaseHTTPRequestHandler):
             
             # Broadcast result snippet
             snippet = (res_json or "")[:200]
-            mcp_bus.broadcast("result", {"tool": tool_name, "result": snippet})
+            tool_bus.broadcast("result", {"tool": tool_name, "result": snippet})
             
             self._respond(200, res_json)
         except TimeoutError:

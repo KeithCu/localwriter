@@ -40,6 +40,7 @@ localwriter/
 │   ├── async_stream.py  # run_stream_completion_async: worker + queue + main-thread drain (no UNO Timer)
 │   ├── mcp_thread.py    # execute_on_main_thread, drain_mcp_queue (for MCP HTTP handler → main thread)
 │   ├── mcp_server.py    # MCPHttpServer, MCPHandler (GET /health, /tools, /, /documents; POST /tools/{name}); port utilities
+│   ├── tool_bus.py      # EventBus + global tool_bus; shared tool execution event stream (MCP + sidebar)
 │   ├── calc_bridge.py   # in-process get_active_document, get_active_sheet, etc.
 │   ├── calc_address_utils.py
 │   ├── calc_inspector.py

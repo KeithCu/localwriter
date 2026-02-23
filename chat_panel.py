@@ -157,11 +157,11 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self._terminal_status = "Ready"
         self._send_busy = False
         self.client = None
-        
-        # Subscribe to MCP events
+
+        # Subscribe to MCP/tool bus events
         try:
-            from core.mcp_events import mcp_bus
-            mcp_bus.subscribe(self._on_mcp_event)
+            from core.tool_bus import tool_bus
+            tool_bus.subscribe(self._on_mcp_event)
         except Exception as e:
             debug_log("MCP subscribe error: %s" % e, context="Chat")
 
@@ -842,8 +842,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
     def disposing(self, evt):
         try:
-            from core.mcp_events import mcp_bus
-            mcp_bus.unsubscribe(self._on_mcp_event)
+            from core.tool_bus import tool_bus
+            tool_bus.unsubscribe(self._on_mcp_event)
         except Exception:
             pass
 
