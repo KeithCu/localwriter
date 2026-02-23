@@ -43,20 +43,7 @@ def _get_arg(args, name):
     return None
 
 
-def _drain_mcp_if_enabled(ctx):
-    """Drain MCP queue once when MCP is enabled. Safe to call from main thread (e.g. layout callbacks).
-    We cannot run a true 'at all times' loop without a UNO Timer (which fails in this environment),
-    so we drain on every main-thread entry point the sidebar gives us (e.g. getHeightForWidth)."""
-    if ctx is None:
-        return
-    try:
-        from core.config import get_config, as_bool
-        if not as_bool(get_config(ctx, "mcp_enabled", False)):
-            return
-        from core.mcp_thread import drain_mcp_queue
-        drain_mcp_queue()
-    except Exception:
-        pass
+
 
 
 def _ensure_extension_on_path(ctx):
@@ -934,8 +921,6 @@ class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         return self.PanelWindow
 
     def getHeightForWidth(self, width):
-        # Drain MCP queue when enabled; sidebar calls this on layout passes so we service MCP without a Timer.
-        _drain_mcp_if_enabled(self.ctx)
         debug_log("getHeightForWidth(width=%s)" % width, context="Chat")
         # Constrain panel to sidebar width (and parent height when available).
         if self.parent_window and self.PanelWindow and width > 0:
@@ -947,7 +932,6 @@ class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 280, -1, 280)
 
     def getMinimalWidth(self):
-        _drain_mcp_if_enabled(self.ctx)
         return 180
 
 

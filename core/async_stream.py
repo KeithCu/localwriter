@@ -32,16 +32,6 @@ def run_stream_drain_loop(
     """
     thinking_open = [False]
     while not job_done[0]:
-        # Service MCP queue when enabled: this loop runs on the main thread during
-        # streaming, so we use it to drain the MCP queue and avoid a separate UNO Timer.
-        if ctx is not None:
-            try:
-                from core.config import get_config, as_bool
-                if as_bool(get_config(ctx, "mcp_enabled", False)):
-                    from core.mcp_thread import drain_mcp_queue
-                    drain_mcp_queue()
-            except Exception:
-                pass
         items = []
         try:
             items.append(q.get(timeout=0.1))

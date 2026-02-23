@@ -35,57 +35,67 @@ from com.sun.star.container import XNamed
 # pattern) because we need periodic ticks even when no user action is active.
 
 _mcp_server = None
-_mcp_timer = None
-_mcp_timer_listener = None
+_mcp_timer_thread = None
+_mcp_timer_stop_event = None
 
 
 def _start_mcp_timer(ctx):
-    """Start UNO Timer that drains MCP queue on main thread. Keep refs in module globals.
-
-    Requires the 'com' package (from com.sun.star.util import XTimerListener). That is
-    available when this is called from the sidebar context, but NOT when called from
-    the dispatch context (system Python). So we start the timer from the sidebar when
-    the panel is created; see try_ensure_mcp_timer() and chat_panel._wireControls.
+    """Start Python background thread that periodically dispatches a drain command
+    to the main thread. We use dispatch instead of a UNO Timer because UNO Timers
+    fail to instantiate in the system Python environment (missing 'com' package).
     """
-    global _mcp_timer, _mcp_timer_listener
+    global _mcp_timer_thread, _mcp_timer_stop_event
     from core.logging import debug_log
+    import threading
+    import time
 
-    try:
-        from com.sun.star.util import XTimerListener
+    if _mcp_timer_thread and _mcp_timer_thread.is_alive():
+        return
 
-        class _MCPTimerListener(unohelper.Base, XTimerListener):
-            def notifyTimer(self, event):
-                try:
-                    from core.mcp_thread import drain_mcp_queue
-                    drain_mcp_queue()
-                except Exception:
-                    pass
+    _mcp_timer_stop_event = threading.Event()
 
-            def disposing(self, event):
-                pass
+    def timer_loop():
+        try:
+            smgr = ctx.getServiceManager()
+            async_cb = smgr.createInstanceWithContext("com.sun.star.awt.AsyncCallback", ctx)
+            
+            from com.sun.star.awt import XCallback
+            import unohelper
+            
+            class _MCPDrainCallback(unohelper.Base, XCallback):
+                def notify(self, data):
+                    try:
+                        from core.mcp_thread import drain_mcp_queue
+                        drain_mcp_queue()
+                    except Exception as e:
+                        debug_log("MCP drain failed: %s" % e, context="MCP")
+            
+            callback = _MCPDrainCallback()
+            
+        except Exception as e:
+            debug_log("MCP Timer thread failed to initialize AsyncCallback or XCallback: %s" % e, context="MCP")
+            return
 
-        smgr = ctx.getServiceManager()
-        timer = smgr.createInstanceWithContext("com.sun.star.util.Timer", ctx)
-        _mcp_timer_listener = _MCPTimerListener()
-        timer.addTimerListener(_mcp_timer_listener)
-        timer.Timeout = 100
-        timer.IsRepeating = True
-        timer.start()
-        _mcp_timer = timer
-        debug_log("MCP Timer started (drain every 100ms)", context="MCP")
-    except Exception as e:
-        _mcp_timer = None
-        _mcp_timer_listener = None
-        debug_log("MCP timer failed to start: %s" % e, context="MCP")
-        debug_log("MCP timer failure sys.executable=%s" % getattr(sys, "executable", "?"), context="MCP")
+        while not _mcp_timer_stop_event.is_set():
+            time.sleep(0.1) # 100ms
+            if _mcp_timer_stop_event.is_set():
+                break
+            try:
+                async_cb.addCallback(callback, None)
+            except Exception as e:
+                debug_log("MCP async_cb error: %s" % str(e), context="MCP")
+
+    _mcp_timer_thread = threading.Thread(target=timer_loop, daemon=True)
+    _mcp_timer_thread.start()
+    debug_log("MCP Timer thread started (drain every 100ms via Dispatch)", context="MCP")
 
 
 def try_ensure_mcp_timer(ctx):
     """Start the MCP drain timer if the server is running but the timer is not.
-    Called from the sidebar when the panel is created (context has 'com' available).
+    Called from the sidebar when the panel is created.
     If config has mcp_enabled but the server was not started this session (e.g. after
     restart), start the server first so the timer can run."""
-    global _mcp_server, _mcp_timer
+    global _mcp_server, _mcp_timer_thread
     from core.logging import debug_log
     if _mcp_server is None:
         if as_bool(get_config(ctx, "mcp_enabled", False)):
@@ -94,7 +104,7 @@ def try_ensure_mcp_timer(ctx):
         if _mcp_server is None:
             debug_log("MCP: server not running, skipping timer start", context="MCP")
             return
-    if _mcp_timer is not None:
+    if _mcp_timer_thread is not None and _mcp_timer_thread.is_alive():
         debug_log("MCP: timer already running", context="MCP")
         return
     debug_log("MCP: starting drain timer from sidebar", context="MCP")
@@ -102,12 +112,10 @@ def try_ensure_mcp_timer(ctx):
 
 
 def _stop_mcp_timer():
-    global _mcp_timer, _mcp_timer_listener
+    global _mcp_timer_stop_event
     try:
-        if _mcp_timer:
-            _mcp_timer.stop()
-            _mcp_timer = None
-        _mcp_timer_listener = None
+        if _mcp_timer_stop_event:
+            _mcp_timer_stop_event.set()
     except Exception:
         pass
 
@@ -739,6 +747,14 @@ class MainJob(unohelper.Base, XJobExecutor):
             return
         if args == "MCPStatus":
             _do_mcp_status(self.ctx)
+            return
+        if args == "TestTypes":
+            from core.test_types import test_types
+            test_types(self.ctx)
+            return
+        if args == "DrainMCP":
+            from core.mcp_thread import drain_mcp_queue
+            drain_mcp_queue()
             return
         if args == "NoOp":
             return
