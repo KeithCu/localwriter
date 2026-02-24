@@ -197,13 +197,14 @@ def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint, strict
     if not isinstance(lru, list):
         lru = []
     
-    # If LRU is empty, try to populate from DEFAULT_MODELS
-    if not lru:
-        provider = get_provider_from_endpoint(endpoint)
-        if provider and provider in DEFAULT_MODELS:
-            model_type = "image" if "image" in lru_key.lower() else "text"
-            defaults = DEFAULT_MODELS[provider].get(model_type, [])
-            lru = [m["id"] for m in defaults]
+    # Always try to merge DEFAULT_MODELS into the options so they are always choices
+    provider = get_provider_from_endpoint(endpoint)
+    if provider and provider in DEFAULT_MODELS:
+        model_type = "image" if "image" in lru_key.lower() else "text"
+        defaults = DEFAULT_MODELS[provider].get(model_type, [])
+        for m in defaults:
+            if m["id"] not in lru:
+                lru.append(m["id"])
 
     curr_val_str = str(current_val).strip()
     to_show = list(lru)

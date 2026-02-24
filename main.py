@@ -311,9 +311,9 @@ class MainJob(unohelper.Base, XJobExecutor):
                 elif key == "image_model" and val:
                     set_image_model(self.ctx, val)
                 elif key == "additional_instructions" and val:
-                    self._update_lru_history(val, "prompt_lru", current_endpoint)
+                    self._update_lru_history(val, "prompt_lru", "")
                 elif key == "image_base_size" and val:
-                    self._update_lru_history(str(val), "image_base_size_lru", current_endpoint)
+                    self._update_lru_history(str(val), "image_base_size_lru", "")
 
         # Handle provider toggle from checkbox
         if "use_aihorde" in result:
@@ -456,8 +456,7 @@ class MainJob(unohelper.Base, XJobExecutor):
             # Populate prompt selector history
             prompt_ctrl = dlg.getControl("prompt_selector")
             current_prompt = self.get_config("additional_instructions", "")
-            current_endpoint = get_current_endpoint(self.ctx)
-            self._populate_combobox_with_lru(prompt_ctrl, current_prompt, "prompt_lru", current_endpoint)
+            self._populate_combobox_with_lru(prompt_ctrl, current_prompt, "prompt_lru", "")
 
             dlg.getControl("edit").setFocus()
             dlg.getControl("edit").setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", 0, len(str(default))))
@@ -521,7 +520,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                     elif field["name"] == "image_model":
                         populate_image_model_selector(self.ctx, ctrl)
                     elif field["name"] == "additional_instructions":
-                        self._populate_combobox_with_lru(ctrl, field["value"], "prompt_lru", current_endpoint)
+                        self._populate_combobox_with_lru(ctrl, field["value"], "prompt_lru", "")
                     elif field["name"] == "endpoint":
                         populate_endpoint_selector(self.ctx, ctrl, field["value"])
                         # When user selects an item from dropdown, set combobox text to URL and refresh model combos
@@ -570,7 +569,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                                     pass
                             ctrl.addItemListener(EndpointItemListener(dlg, self, ctrl))
                     elif field["name"] == "image_base_size":
-                        self._populate_combobox_with_lru(ctrl, field["value"], "image_base_size_lru", current_endpoint)
+                        self._populate_combobox_with_lru(ctrl, field["value"], "image_base_size_lru", "")
                     else:
                                 is_checkbox = is_checkbox_control(ctrl)
                                 if field.get("type") == "bool" and is_checkbox:

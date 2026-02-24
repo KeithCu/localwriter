@@ -185,7 +185,7 @@ The "Additional Instructions" (previously system prompts) are now unified across
 - **Implementation**:
     - **Shared LRU Logic**: `core/config.py` contains `populate_combobox_with_lru()` and `update_lru_history()` used by all dialogs and features.
     - **Unified Key**: All features use the `additional_instructions` config key. LEGACY: The key was renamed from `chat_system_prompt` to avoid legacy data from "full system prompt" iterations.
-    - **History Persistence**: Up to 10 entries are stored in `prompt_lru` (JSON list).
+    - **History Persistence**: Up to 10 entries are stored in `prompt_lru` (JSON list). Not per-endpoint.
 - **Behavior**:
     - **Dropdown (ComboBox)**: Settings and Edit Selection input show a dropdown of recent instructions. The Chat sidebar does **not** show additional instructions (configured in Settings only; see Section 3d for sidebar controls).
     - **Multiline Support**: LibreOffice ComboBoxes are single-line. We display a preview in the list and restore full multiline content upon selection.
