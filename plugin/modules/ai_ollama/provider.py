@@ -6,9 +6,9 @@ Ollama exposes an OpenAI-compatible API at /v1/chat/completions since v0.1.14.
 
 import logging
 
-from plugin.modules.openai_compat.provider import OpenAICompatProvider
+from plugin.modules.ai_openai.provider import OpenAICompatProvider
 
-log = logging.getLogger("localwriter.ollama")
+log = logging.getLogger("localwriter.ai_ollama")
 
 
 class OllamaProvider(OpenAICompatProvider):
@@ -18,7 +18,7 @@ class OllamaProvider(OpenAICompatProvider):
     compatibility layer uses the same /v1/chat/completions endpoint.
     """
 
-    name = "ollama"
+    name = "ai_ollama"
 
     def _endpoint(self):
         return self._config.get("endpoint") or "http://localhost:11434"

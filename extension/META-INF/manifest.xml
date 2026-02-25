@@ -18,20 +18,20 @@
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/main.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/core.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/core.xcu" />
-	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/horde.xcs" />
-	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/horde.xcu" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/ai.xcs" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ai.xcu" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/ai_horde.xcs" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ai_horde.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/writer.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/writer.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/calc.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/calc.xcu" />
-	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/openai_compat.xcs" />
-	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/openai_compat.xcu" />
-	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/ollama.xcs" />
-	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ollama.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/http.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/http.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/mcp.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/mcp.xcu" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/ai_ollama.xcs" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ai_ollama.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/chatbot.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/chatbot.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/tunnel.xcs" />
@@ -42,4 +42,6 @@
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/tunnel_cloudflare.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/tunnel_ngrok.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/tunnel_ngrok.xcu" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/ai_openai.xcs" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ai_openai.xcu" />
 </manifest:manifest>

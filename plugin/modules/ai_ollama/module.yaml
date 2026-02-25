@@ -1,0 +1,76 @@
+name: ai.ollama
+description: Ollama local LLM backend
+provides_services: [llm]
+requires: [ai]
+capabilities: [text, tools]
+
+config:
+  default_endpoint:
+    type: string
+    default: "http://localhost:11434"
+    widget: text
+    label: Default Ollama URL
+    helper: "Fallback URL when no instance is configured"
+    public: true
+
+  default_model:
+    type: string
+    default: ""
+    widget: select
+    label: Default Model
+    helper: "Select a model from the catalog"
+    public: true
+    options_provider: "plugin.modules.ai_ollama:get_model_options"
+
+  temperature:
+    type: float
+    default: 0.7
+    min: 0.0
+    max: 2.0
+    step: 0.1
+    widget: slider
+    label: Temperature
+    helper: "Controls randomness: 0 = deterministic, 2 = very creative"
+
+  max_tokens:
+    type: int
+    default: 4096
+    min: 1
+    max: 128000
+    widget: number
+    label: Max Tokens
+    helper: "Maximum number of tokens in the generated response"
+
+  request_timeout:
+    type: int
+    default: 300
+    min: 10
+    max: 600
+    widget: number
+    label: Request Timeout (seconds)
+    helper: "Ollama may need longer for initial model loading"
+
+  instances:
+    type: string
+    default: "[]"
+    widget: list_detail
+    inline: true
+    label: Instances
+    name_field: name
+    item_fields:
+      name:
+        type: string
+        label: Name
+        widget: text
+        default: ""
+      endpoint:
+        type: string
+        label: Ollama URL
+        widget: text
+        default: "http://localhost:11434"
+      model:
+        type: string
+        label: Model
+        widget: select
+        default: ""
+        options_from: default_model

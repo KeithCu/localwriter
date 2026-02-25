@@ -403,6 +403,209 @@ class DocumentService(ServiceBase):
         except Exception:
             return str(id(model))
 
+    def get_document_end(self, model, max_chars=4000):
+        """Return the last *max_chars* characters of the document."""
+        try:
+            text = model.getText()
+            cursor = text.createTextCursor()
+            cursor.gotoEnd(False)
+            cursor.gotoStart(True)
+            full = cursor.getString()
+            if len(full) <= max_chars:
+                return full
+            return full[-max_chars:]
+        except Exception:
+            return ""
+
+    # ── Chat context builders ─────────────────────────────────────
+
+    def get_document_context_for_chat(self, model, max_context=8000,
+                                      include_end=True,
+                                      include_selection=True):
+        """Build a context string for the chat LLM.
+
+        Dispatches to Writer / Calc / Draw specific builders.
+        Returns a human-readable summary with selection markers.
+        """
+        if self.is_calc(model):
+            return self._calc_context_for_chat(model, max_context)
+        if self.is_draw(model):
+            return self._draw_context_for_chat(model, max_context)
+        return self._writer_context_for_chat(
+            model, max_context, include_end, include_selection)
+
+    def _writer_context_for_chat(self, model, max_context, include_end,
+                                 include_selection):
+        try:
+            text = model.getText()
+            cursor = text.createTextCursor()
+            cursor.gotoStart(False)
+            cursor.gotoEnd(True)
+            full = cursor.getString()
+            doc_len = len(full)
+        except Exception:
+            return ("Document length: 0.\n\n"
+                    "[DOCUMENT START]\n(empty)\n[END DOCUMENT]")
+
+        start_offset, end_offset = (0, 0)
+        if include_selection:
+            try:
+                from plugin.modules.writer.ops import get_selection_range
+                start_offset, end_offset = get_selection_range(model)
+            except Exception:
+                pass
+            start_offset = max(0, min(start_offset, doc_len))
+            end_offset = max(0, min(end_offset, doc_len))
+            if start_offset > end_offset:
+                start_offset, end_offset = end_offset, start_offset
+            max_span = 2000
+            if end_offset - start_offset > max_span:
+                end_offset = start_offset + max_span
+
+        if include_end and doc_len > (max_context // 2):
+            start_chars = max_context // 2
+            end_chars = max_context - start_chars
+            start_excerpt = self._inject_markers(
+                full[:start_chars], 0, start_chars,
+                start_offset, end_offset,
+                "[DOCUMENT START]\n", "\n[DOCUMENT END]")
+            end_excerpt = self._inject_markers(
+                full[-end_chars:], doc_len - end_chars, doc_len,
+                start_offset, end_offset,
+                "[DOCUMENT END]\n", "\n[END DOCUMENT]")
+            middle = ("\n\n[... middle of document omitted ...]\n\n"
+                      if doc_len > max_context else "")
+            return ("Document length: %d characters.\n\n%s%s%s"
+                    % (doc_len, start_excerpt, middle, end_excerpt))
+
+        take = min(doc_len, max_context)
+        excerpt = full[:take]
+        if doc_len > max_context:
+            excerpt += "\n\n[... document truncated ...]"
+        excerpt = self._inject_markers(
+            excerpt, 0, take, start_offset, end_offset,
+            "[DOCUMENT START]\n", "\n[END DOCUMENT]")
+        return "Document length: %d characters.\n\n%s" % (doc_len, excerpt)
+
+    def _calc_context_for_chat(self, model, max_context):
+        try:
+            from plugin.modules.calc.bridge import CalcBridge
+            from plugin.modules.calc.analyzer import SheetAnalyzer
+
+            bridge = CalcBridge(model)
+            analyzer = SheetAnalyzer(bridge)
+            summary = analyzer.get_sheet_summary()
+
+            ctx_str = "Spreadsheet: %s\n" % (
+                model.getURL() or "Untitled")
+            ctx_str += "Active Sheet: %s\n" % summary["sheet_name"]
+            ctx_str += "Used Range: %s (%d rows x %d columns)\n" % (
+                summary["used_range"],
+                summary["row_count"], summary["col_count"])
+            headers = [str(h) for h in summary.get("headers", []) if h]
+            if headers:
+                ctx_str += "Columns: %s\n" % ", ".join(headers)
+
+            controller = model.getCurrentController()
+            selection = controller.getSelection()
+            if selection and hasattr(selection, "getRangeAddress"):
+                addr = selection.getRangeAddress()
+                from plugin.modules.calc.address_utils import index_to_column
+                sel_range = "%s%d:%s%d" % (
+                    index_to_column(addr.StartColumn),
+                    addr.StartRow + 1,
+                    index_to_column(addr.EndColumn),
+                    addr.EndRow + 1)
+                ctx_str += "Current Selection: %s\n" % sel_range
+
+                cell_count = ((addr.EndRow - addr.StartRow + 1) *
+                              (addr.EndColumn - addr.StartColumn + 1))
+                if cell_count < 100:
+                    from plugin.modules.calc.inspector import CellInspector
+                    inspector = CellInspector(bridge)
+                    cells = inspector.read_range(sel_range)
+                    ctx_str += "Selection Content (CSV-like):\n"
+                    for row in cells:
+                        ctx_str += ", ".join([
+                            str(c["value"]) if c["value"] is not None
+                            else "" for c in row]) + "\n"
+
+            return ctx_str
+        except Exception as e:
+            return "Error getting Calc context: %s" % e
+
+    def _draw_context_for_chat(self, model, max_context):
+        try:
+            from plugin.modules.draw.bridge import DrawBridge
+            bridge = DrawBridge(model)
+            pages = bridge.get_pages()
+            active_page = bridge.get_active_page()
+
+            is_impress = model.supportsService(
+                "com.sun.star.presentation.PresentationDocument")
+            doc_type = "Impress Presentation" if is_impress else "Draw Document"
+            page_label = "Slide" if is_impress else "Page"
+
+            ctx_str = "%s: %s\n" % (doc_type, model.getURL() or "Untitled")
+            ctx_str += "Total %ss: %d\n" % (page_label, pages.getCount())
+
+            active_idx = -1
+            for i in range(pages.getCount()):
+                if pages.getByIndex(i) == active_page:
+                    active_idx = i
+                    break
+            ctx_str += "Active %s Index: %d\n" % (page_label, active_idx)
+
+            if active_page:
+                shapes = bridge.get_shapes(active_page)
+                ctx_str += "\nShapes on %s %d:\n" % (page_label, active_idx)
+                for i, s in enumerate(shapes):
+                    type_name = s.getShapeType().split(".")[-1]
+                    pos = s.getPosition()
+                    size = s.getSize()
+                    ctx_str += "- [%d] %s: pos(%d, %d) size(%dx%d)" % (
+                        i, type_name, pos.X, pos.Y,
+                        size.Width, size.Height)
+                    if hasattr(s, "getString"):
+                        text = s.getString()
+                        if text:
+                            ctx_str += " text: \"%s\"" % text[:200]
+                    ctx_str += "\n"
+
+                if is_impress and hasattr(active_page, "getNotesPage"):
+                    try:
+                        notes_page = active_page.getNotesPage()
+                        notes_text = ""
+                        for i in range(notes_page.getCount()):
+                            shape = notes_page.getByIndex(i)
+                            if shape.getShapeType() == (
+                                    "com.sun.star.presentation"
+                                    ".NotesShape"):
+                                notes_text += shape.getString() + "\n"
+                        if notes_text.strip():
+                            ctx_str += ("\nSpeaker Notes:\n%s\n"
+                                        % notes_text.strip())
+                    except Exception:
+                        pass
+
+            return ctx_str
+        except Exception as e:
+            return "Error getting Draw context: %s" % e
+
+    @staticmethod
+    def _inject_markers(excerpt, excerpt_start, excerpt_end,
+                        sel_start, sel_end, prefix, suffix):
+        """Inject [SELECTION_START]/[SELECTION_END] markers into excerpt."""
+        if sel_start >= excerpt_end or sel_end <= excerpt_start:
+            return prefix + excerpt + suffix
+        local_start = max(0, sel_start - excerpt_start)
+        local_end = min(len(excerpt), sel_end - excerpt_start)
+        before = excerpt[:local_start]
+        between = excerpt[local_start:local_end]
+        after = excerpt[local_end:]
+        return (prefix + before + "[SELECTION_START]" + between +
+                "[SELECTION_END]" + after + suffix)
+
     # ── GUI yield ──────────────────────────────────────────────────
 
     _yield_counter = 0

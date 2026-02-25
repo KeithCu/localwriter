@@ -14,7 +14,7 @@ See `legacy_docs/architecture/section-replace-options.md` for detailed analysis 
 
 ## AI Horde improvements
 
-Open items for the horde image module:
+Open items for the ai_horde image module:
 
 - **Progress feedback**: Generation can take minutes but sidebar only shows "Running...". The `AiHordeClient` receives progress events — thread them to the UI status bar.
 - **Smart image dimensions**: `edit_image` hardcodes replacement to 512x512. Should read the original image dimensions and pass them to the generation request.

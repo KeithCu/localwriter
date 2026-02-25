@@ -45,8 +45,25 @@ config:
     options:
       - value: endpoint
         label: LLM Endpoint
-      - value: horde
+      - value: ai_horde
         label: AI Horde (free)
+
+  extend_selection_max_tokens:
+    type: int
+    default: 70
+    min: 10
+    max: 4096
+    widget: number
+    label: Extend Selection Max Tokens
+
+  edit_selection_max_new_tokens:
+    type: int
+    default: 0
+    min: 0
+    max: 4096
+    widget: number
+    label: Edit Selection Extra Tokens
+    helper: "Extra tokens beyond original text length. 0 = same length as original."
 
   show_mcp_activity:
     type: boolean

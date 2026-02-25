@@ -1,0 +1,68 @@
+name: ai
+description: Unified AI provider registry (model catalog, instance selection)
+provides_services: [ai]
+requires: [config, events]
+
+config:
+  text_instance:
+    type: string
+    default: ""
+    widget: select
+    label: Active Text AI
+    public: true
+    options_provider: "plugin.modules.ai.service:get_text_instance_options"
+
+  image_instance:
+    type: string
+    default: ""
+    widget: select
+    label: Active Image AI
+    public: true
+    options_provider: "plugin.modules.ai.service:get_image_instance_options"
+
+  custom_models:
+    type: string
+    default: "[]"
+    widget: list_detail
+    inline: true
+    label: Custom Models
+    helper: "Close Options to save; model lists refresh on reopen"
+    name_field: display_name
+    item_fields:
+      id:
+        type: string
+        label: Model ID
+        widget: text
+        default: ""
+      display_name:
+        type: string
+        label: Display Name
+        widget: text
+        default: ""
+      capability:
+        type: string
+        label: Capabilities
+        widget: text
+        default: "text"
+        helper: "Comma-separated: text, image, vision, tools"
+      providers:
+        type: string
+        label: Providers
+        widget: text
+        default: ""
+        helper: "Comma-separated: openai, openrouter, together, ollama (empty = all)"
+      priority:
+        type: int
+        label: Priority
+        widget: number
+        default: 5
+        min: 0
+        max: 10
+        helper: "Higher = listed first in model dropdowns (0-10)"
+
+  models_file:
+    type: string
+    default: ""
+    widget: file
+    label: Models File (YAML)
+    helper: "Override or extend the built-in model catalog for all providers"

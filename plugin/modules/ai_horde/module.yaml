@@ -1,0 +1,56 @@
+name: ai.horde
+description: AI Horde image generation (free, no key required)
+provides_services: [image]
+requires: [ai]
+capabilities: [image]
+
+config:
+  default_model:
+    type: string
+    default: stable_diffusion
+    widget: select
+    label: Default Model
+    helper: "Fallback model when no instance is configured"
+    public: true
+    options_provider: "plugin.modules.ai_horde:get_model_options"
+
+  max_wait:
+    type: int
+    default: 5
+    min: 1
+    max: 30
+    widget: number
+    label: Max Wait (minutes)
+    helper: "Maximum time to wait for AI Horde to generate an image"
+
+  nsfw:
+    type: boolean
+    default: false
+    widget: checkbox
+    label: Allow NSFW
+    helper: "Allow Not-Safe-For-Work content in generated images"
+
+  instances:
+    type: string
+    default: "[]"
+    widget: list_detail
+    inline: true
+    label: Instances
+    name_field: name
+    item_fields:
+      name:
+        type: string
+        label: Name
+        widget: text
+        default: ""
+      api_key:
+        type: string
+        label: API Key
+        widget: text
+        default: "0000000000"
+      model:
+        type: string
+        label: Model
+        widget: select
+        default: "stable_diffusion"
+        options_from: default_model

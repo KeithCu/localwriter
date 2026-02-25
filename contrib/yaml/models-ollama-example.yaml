@@ -1,0 +1,43 @@
+# Example models file for Ollama (local inference).
+#
+# Place this file anywhere and point to it in:
+#   Tools > Options > LocalWriter > Ai > Models File (YAML)
+#
+# Models listed here are merged with the built-in catalog.
+
+models:
+  - id: "llama3.3:70b-instruct"
+    display_name: "Llama 3.3 70B Instruct (local)"
+    capability: text
+    context_length: 128000
+    notes: "Top local generalist, good agents/tools"
+    priority: 9
+    ids:
+      ollama: "llama3.3:70b-instruct"
+
+  - id: "mistral:7b-instruct-v0.3"
+    display_name: "Mistral 7B Instruct v0.3 (local)"
+    capability: text
+    context_length: 32768
+    notes: "Fast local inference, solid function calling"
+    priority: 8
+    ids:
+      ollama: "mistral:7b-instruct-v0.3"
+
+  - id: "granite3.2:8b"
+    display_name: "Granite 3.2 8B (local)"
+    capability: text
+    context_length: 128000
+    notes: "IBM enterprise-tuned, tool improvements"
+    priority: 7
+    ids:
+      ollama: "granite3.2:8b"
+
+  - id: "llava"
+    display_name: "LLaVA (vision local)"
+    capability: image
+    context_length: 4096
+    notes: "Classic local multimodal"
+    priority: 8
+    ids:
+      ollama: "llava"

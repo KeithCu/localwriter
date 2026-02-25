@@ -39,9 +39,9 @@ LocalWriter uses a modular framework where each feature is a self-contained modu
 | `common` | Cross-document tools (info, export) |
 | `batch` | Multi-tool execution with variable chaining |
 | `chatbot` | AI chat sidebar |
-| `openai_compat` | OpenAI-compatible LLM backend |
-| `ollama` | Ollama LLM backend |
-| `horde` | AI Horde image generation |
+| `ai_openai` | OpenAI-compatible LLM backend |
+| `ai_ollama` | Ollama LLM backend |
+| `ai_horde` | AI Horde image generation |
 | `http` | Shared HTTP server with optional SSL |
 | `mcp` | MCP JSON-RPC protocol |
 | `tunnel` | Tunnel manager (ngrok, cloudflare, bore, tailscale) |

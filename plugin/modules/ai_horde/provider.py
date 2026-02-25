@@ -8,7 +8,7 @@ import logging
 
 from plugin.modules.core.services.image import ImageProvider
 
-log = logging.getLogger("localwriter.horde")
+log = logging.getLogger("localwriter.ai_horde")
 
 
 class _HordeInformer:
@@ -47,7 +47,7 @@ class _HordeInformer:
 class HordeProvider(ImageProvider):
     """AI Horde image generation via crowdsourced workers."""
 
-    name = "horde"
+    name = "ai_horde"
 
     def __init__(self, config_proxy):
         self._config = config_proxy

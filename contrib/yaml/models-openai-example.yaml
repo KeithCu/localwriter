@@ -1,0 +1,26 @@
+# Example models file for OpenAI direct endpoint.
+#
+# Place this file anywhere and point to it in:
+#   Tools > Options > LocalWriter > Ai > Models File (YAML)
+#
+# Models listed here are merged with the built-in catalog.
+# Use this to add models not yet in the default list.
+
+models:
+  - id: "gpt-4o"
+    display_name: "GPT-4o"
+    capability: text,image
+    context_length: 128000
+    notes: "Mature tool calling, reliable baseline, built-in multimodal"
+    priority: 9
+    ids:
+      openai: "gpt-4o"
+
+  - id: "gpt-4o-mini"
+    display_name: "GPT-4o Mini"
+    capability: text
+    context_length: 128000
+    notes: "Cheap and fast, good for simple tasks"
+    priority: 7
+    ids:
+      openai: "gpt-4o-mini"

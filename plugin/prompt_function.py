@@ -38,7 +38,7 @@ try:
                 from plugin.main import bootstrap, get_services
                 bootstrap(self.ctx)
                 services = get_services()
-                self._provider = services.llm.get_active_provider()
+                self._provider = services.ai.get_provider("text")
             except Exception:
                 log.exception("Failed to get LLM provider")
             return self._provider

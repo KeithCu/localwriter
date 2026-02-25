@@ -15,7 +15,7 @@ param(
     [switch]$BuildOnly,
     [switch]$Uninstall,
     [switch]$Cache,
-    [string]$Modules = "core writer calc draw openai_compat ollama horde chatbot mcp",
+    [string]$Modules = "core writer calc draw ai_openai ai_ollama ai_horde chatbot mcp",
     [switch]$Help
 )
 

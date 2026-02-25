@@ -9,8 +9,17 @@ Registered as a UNO component in META-INF/manifest.xml.
 
 import json
 import logging
+import os
 import queue
+import sys
 import threading
+
+# Ensure plugin parent is on path so "plugin.xxx" imports work
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_plugin_dir = os.path.join(_this_dir, os.pardir, os.pardir)
+_parent = os.path.normpath(os.path.join(_plugin_dir, os.pardir))
+if _parent not in sys.path:
+    sys.path.insert(0, _parent)
 
 log = logging.getLogger("localwriter.chatbot.factory")
 

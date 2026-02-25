@@ -7,7 +7,7 @@
   xmlns:d="http://openoffice.org/extensions/description/2006"
   xmlns:l="http://libreoffice.org/extensions/description/2011">
     <identifier value="org.extension.localwriter"/>
-    <version value="1.1.1"/>
+    <version value="1.2.0"/>
 	<dependencies>
 		<l:LibreOffice-minimal-version d:name="LibreOffice 4.1" value="4.1"/>
 	</dependencies>

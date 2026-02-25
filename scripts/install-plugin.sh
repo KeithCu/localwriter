@@ -25,7 +25,7 @@ FORCE=false
 BUILD_ONLY=false
 UNINSTALL=false
 CACHE=false
-MODULES="core writer calc draw openai_compat ollama horde chatbot mcp"
+MODULES="core writer calc draw ai_openai ai_ollama ai_horde chatbot mcp"
 while [ $# -gt 0 ]; do
     case "$1" in
         --force)      FORCE=true ;;

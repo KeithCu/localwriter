@@ -47,7 +47,7 @@ Makefile                       # All build/dev/install targets
 
 ### Modules (`plugin/modules/`)
 
-`core`, `writer`, `writer_nav`, `writer_index`, `calc`, `draw`, `common`, `batch`, `openai_compat`, `ollama`, `horde`, `chatbot`, `http`, `mcp`, `tunnel`, `tunnel_bore`, `tunnel_cloudflare`, `tunnel_ngrok`, `tunnel_tailscale`
+`core`, `writer`, `writer_nav`, `writer_index`, `calc`, `draw`, `common`, `batch`, `ai_openai`, `ai_ollama`, `ai_horde`, `chatbot`, `http`, `mcp`, `tunnel`, `tunnel_bore`, `tunnel_cloudflare`, `tunnel_ngrok`, `tunnel_tailscale`
 
 Each module: `module.yaml` manifest → auto-discovered at build time → `_manifest.py` + XCS/XCU + Options UI.
 

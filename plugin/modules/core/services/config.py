@@ -330,7 +330,7 @@ class ModuleConfigProxy:
     When ``get("port")`` is called (no dot), it auto-prefixes with the
     module name -> ``"mcp.port"``.
 
-    Cross-module reads require the full key: ``get("openai_compat.endpoint")``.
+    Cross-module reads require the full key: ``get("ai_openai.endpoint")``.
     """
 
     __slots__ = ("_config", "_module")

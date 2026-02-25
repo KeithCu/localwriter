@@ -15,7 +15,7 @@ import urllib.request
 
 from plugin.modules.core.services.llm import LlmProvider
 
-log = logging.getLogger("localwriter.openai_compat")
+log = logging.getLogger("localwriter.ai_openai")
 
 REPEATED_CHUNK_LIMIT = 20
 
@@ -81,7 +81,7 @@ def _format_http_error(status, reason, body):
 class OpenAICompatProvider(LlmProvider):
     """OpenAI-compatible chat completions provider."""
 
-    name = "openai_compat"
+    name = "ai_openai"
 
     def __init__(self, config_proxy):
         self._config = config_proxy

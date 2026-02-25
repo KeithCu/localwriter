@@ -1,6 +1,6 @@
 """Auto-generated module manifest. DO NOT EDIT."""
 
-VERSION = '1.1.1'
+VERSION = '1.2.0'
 
 MODULES = [
     {
@@ -64,40 +64,107 @@ MODULES = [
         "action_icons": {}
 },
     {
-        "name": "horde",
-        "description": "AI Horde image generation (free, no key required)",
+        "name": "ai",
+        "description": "Unified AI provider registry (model catalog, instance selection)",
         "requires": [
                 "config",
                 "events"
         ],
         "provides_services": [
+                "ai"
+        ],
+        "config": {
+                "text_instance": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Active Text AI",
+                        "public": True,
+                        "options_provider": "plugin.modules.ai.service:get_text_instance_options"
+                },
+                "image_instance": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Active Image AI",
+                        "public": True,
+                        "options_provider": "plugin.modules.ai.service:get_image_instance_options"
+                },
+                "custom_models": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "Custom Models",
+                        "helper": "Close Options to save; model lists refresh on reopen",
+                        "name_field": "display_name",
+                        "item_fields": {
+                                "id": {
+                                        "type": "string",
+                                        "label": "Model ID",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "display_name": {
+                                        "type": "string",
+                                        "label": "Display Name",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "capability": {
+                                        "type": "string",
+                                        "label": "Capabilities",
+                                        "widget": "text",
+                                        "default": "text",
+                                        "helper": "Comma-separated: text, image, vision, tools"
+                                },
+                                "providers": {
+                                        "type": "string",
+                                        "label": "Providers",
+                                        "widget": "text",
+                                        "default": "",
+                                        "helper": "Comma-separated: openai, openrouter, together, ollama (empty = all)"
+                                },
+                                "priority": {
+                                        "type": "int",
+                                        "label": "Priority",
+                                        "widget": "number",
+                                        "default": 5,
+                                        "min": 0,
+                                        "max": 10,
+                                        "helper": "Higher = listed first in model dropdowns (0-10)"
+                                }
+                        }
+                },
+                "models_file": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "file",
+                        "label": "Models File (YAML)",
+                        "helper": "Override or extend the built-in model catalog for all providers"
+                }
+        },
+        "actions": [],
+        "action_icons": {}
+},
+    {
+        "name": "ai.horde",
+        "description": "AI Horde image generation (free, no key required)",
+        "requires": [
+                "ai"
+        ],
+        "provides_services": [
                 "image"
         ],
         "config": {
-                "api_key": {
-                        "type": "string",
-                        "default": "0000000000",
-                        "widget": "text",
-                        "label": "API Key (optional)",
-                        "description": "Leave default for anonymous access",
-                        "public": True
-                },
-                "model": {
+                "default_model": {
                         "type": "string",
                         "default": "stable_diffusion",
                         "widget": "select",
-                        "label": "Model",
+                        "label": "Default Model",
+                        "helper": "Fallback model when no instance is configured",
                         "public": True,
-                        "options": [
-                                {
-                                        "value": "stable_diffusion",
-                                        "label": "Stable Diffusion"
-                                },
-                                {
-                                        "value": "stable_diffusion_xl",
-                                        "label": "SDXL"
-                                }
-                        ]
+                        "options_provider": "plugin.modules.ai_horde:get_model_options"
                 },
                 "max_wait": {
                         "type": "int",
@@ -105,13 +172,44 @@ MODULES = [
                         "min": 1,
                         "max": 30,
                         "widget": "number",
-                        "label": "Max Wait (minutes)"
+                        "label": "Max Wait (minutes)",
+                        "helper": "Maximum time to wait for AI Horde to generate an image"
                 },
                 "nsfw": {
                         "type": "boolean",
                         "default": False,
                         "widget": "checkbox",
-                        "label": "Allow NSFW"
+                        "label": "Allow NSFW",
+                        "helper": "Allow Not-Safe-For-Work content in generated images"
+                },
+                "instances": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "Instances",
+                        "name_field": "name",
+                        "item_fields": {
+                                "name": {
+                                        "type": "string",
+                                        "label": "Name",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "api_key": {
+                                        "type": "string",
+                                        "label": "API Key",
+                                        "widget": "text",
+                                        "default": "0000000000"
+                                },
+                                "model": {
+                                        "type": "string",
+                                        "label": "Model",
+                                        "widget": "select",
+                                        "default": "stable_diffusion",
+                                        "options_from": "default_model"
+                                }
+                        }
                 }
         },
         "actions": [],
@@ -173,124 +271,6 @@ MODULES = [
         ],
         "provides_services": [],
         "config": {},
-        "actions": [],
-        "action_icons": {}
-},
-    {
-        "name": "openai_compat",
-        "description": "OpenAI-compatible API backend (OpenAI, OpenRouter, LM Studio, etc.)",
-        "requires": [
-                "config",
-                "events"
-        ],
-        "provides_services": [
-                "llm"
-        ],
-        "config": {
-                "endpoint": {
-                        "type": "string",
-                        "default": "",
-                        "widget": "text",
-                        "label": "API Endpoint",
-                        "placeholder": "https://api.openai.com/v1",
-                        "public": True
-                },
-                "api_key": {
-                        "type": "string",
-                        "default": "",
-                        "widget": "password",
-                        "label": "API Key"
-                },
-                "model": {
-                        "type": "string",
-                        "default": "",
-                        "widget": "text",
-                        "label": "Model",
-                        "placeholder": "gpt-4o-mini",
-                        "public": True
-                },
-                "temperature": {
-                        "type": "float",
-                        "default": 0.7,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.1,
-                        "widget": "slider",
-                        "label": "Temperature"
-                },
-                "max_tokens": {
-                        "type": "int",
-                        "default": 4096,
-                        "min": 1,
-                        "max": 128000,
-                        "widget": "number",
-                        "label": "Max Tokens"
-                },
-                "request_timeout": {
-                        "type": "int",
-                        "default": 120,
-                        "min": 10,
-                        "max": 600,
-                        "widget": "number",
-                        "label": "Request Timeout (seconds)"
-                }
-        },
-        "actions": [],
-        "action_icons": {}
-},
-    {
-        "name": "ollama",
-        "description": "Ollama local LLM backend",
-        "requires": [
-                "config",
-                "events"
-        ],
-        "provides_services": [
-                "llm"
-        ],
-        "config": {
-                "endpoint": {
-                        "type": "string",
-                        "default": "http://localhost:11434",
-                        "widget": "text",
-                        "label": "Ollama URL",
-                        "public": True
-                },
-                "model": {
-                        "type": "string",
-                        "default": "",
-                        "widget": "text",
-                        "label": "Model",
-                        "placeholder": "llama3.2",
-                        "public": True
-                },
-                "temperature": {
-                        "type": "float",
-                        "default": 0.7,
-                        "min": 0.0,
-                        "max": 2.0,
-                        "step": 0.1,
-                        "widget": "slider",
-                        "label": "Temperature"
-                },
-                "max_tokens": {
-                        "type": "int",
-                        "default": 4096,
-                        "min": 1,
-                        "max": 128000,
-                        "widget": "number",
-                        "label": "Max Tokens"
-                },
-                "request_timeout": {
-                        "type": "int",
-                        "default": 300,
-                        "min": 10,
-                        "max": 600,
-                        "widget": "number",
-                        "label": "Request Timeout (seconds)",
-                        "description": "Ollama may need longer for initial model loading"
-                }
-        },
         "actions": [],
         "action_icons": {}
 },
@@ -384,6 +364,94 @@ MODULES = [
         "action_icons": {}
 },
     {
+        "name": "ai.ollama",
+        "description": "Ollama local LLM backend",
+        "requires": [
+                "ai"
+        ],
+        "provides_services": [
+                "llm"
+        ],
+        "config": {
+                "default_endpoint": {
+                        "type": "string",
+                        "default": "http://localhost:11434",
+                        "widget": "text",
+                        "label": "Default Ollama URL",
+                        "helper": "Fallback URL when no instance is configured",
+                        "public": True
+                },
+                "default_model": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Default Model",
+                        "helper": "Select a model from the catalog",
+                        "public": True,
+                        "options_provider": "plugin.modules.ai_ollama:get_model_options"
+                },
+                "temperature": {
+                        "type": "float",
+                        "default": 0.7,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.1,
+                        "widget": "slider",
+                        "label": "Temperature",
+                        "helper": "Controls randomness: 0 = deterministic, 2 = very creative"
+                },
+                "max_tokens": {
+                        "type": "int",
+                        "default": 4096,
+                        "min": 1,
+                        "max": 128000,
+                        "widget": "number",
+                        "label": "Max Tokens",
+                        "helper": "Maximum number of tokens in the generated response"
+                },
+                "request_timeout": {
+                        "type": "int",
+                        "default": 300,
+                        "min": 10,
+                        "max": 600,
+                        "widget": "number",
+                        "label": "Request Timeout (seconds)",
+                        "helper": "Ollama may need longer for initial model loading"
+                },
+                "instances": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "Instances",
+                        "name_field": "name",
+                        "item_fields": {
+                                "name": {
+                                        "type": "string",
+                                        "label": "Name",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "endpoint": {
+                                        "type": "string",
+                                        "label": "Ollama URL",
+                                        "widget": "text",
+                                        "default": "http://localhost:11434"
+                                },
+                                "model": {
+                                        "type": "string",
+                                        "label": "Model",
+                                        "widget": "select",
+                                        "default": "",
+                                        "options_from": "default_model"
+                                }
+                        }
+                }
+        },
+        "actions": [],
+        "action_icons": {}
+},
+    {
         "name": "chatbot",
         "description": "AI chat sidebar",
         "requires": [
@@ -419,10 +487,27 @@ MODULES = [
                                         "label": "LLM Endpoint"
                                 },
                                 {
-                                        "value": "horde",
+                                        "value": "ai_horde",
                                         "label": "AI Horde (free)"
                                 }
                         ]
+                },
+                "extend_selection_max_tokens": {
+                        "type": "int",
+                        "default": 70,
+                        "min": 10,
+                        "max": 4096,
+                        "widget": "number",
+                        "label": "Extend Selection Max Tokens"
+                },
+                "edit_selection_max_new_tokens": {
+                        "type": "int",
+                        "default": 0,
+                        "min": 0,
+                        "max": 4096,
+                        "widget": "number",
+                        "label": "Edit Selection Extra Tokens",
+                        "helper": "Extra tokens beyond original text length. 0 = same length as original."
                 },
                 "show_mcp_activity": {
                         "type": "boolean",
@@ -598,6 +683,101 @@ MODULES = [
         ],
         "provides_services": [],
         "config": {},
+        "actions": [],
+        "action_icons": {}
+},
+    {
+        "name": "ai.openai",
+        "description": "OpenAI-compatible API backend (OpenAI, OpenRouter, LM Studio, etc.)",
+        "requires": [
+                "ai"
+        ],
+        "provides_services": [
+                "llm"
+        ],
+        "config": {
+                "default_endpoint": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "text",
+                        "label": "Default Endpoint",
+                        "placeholder": "https://api.openai.com/v1",
+                        "helper": "Fallback API endpoint when no instance is configured",
+                        "public": True
+                },
+                "default_model": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Default Model",
+                        "helper": "Select a model from the catalog",
+                        "public": True,
+                        "options_provider": "plugin.modules.ai_openai:get_model_options"
+                },
+                "temperature": {
+                        "type": "float",
+                        "default": 0.7,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "step": 0.1,
+                        "widget": "slider",
+                        "label": "Temperature",
+                        "helper": "Controls randomness: 0 = deterministic, 2 = very creative"
+                },
+                "max_tokens": {
+                        "type": "int",
+                        "default": 4096,
+                        "min": 1,
+                        "max": 128000,
+                        "widget": "number",
+                        "label": "Max Tokens",
+                        "helper": "Maximum number of tokens in the generated response"
+                },
+                "request_timeout": {
+                        "type": "int",
+                        "default": 120,
+                        "min": 10,
+                        "max": 600,
+                        "widget": "number",
+                        "label": "Request Timeout (seconds)",
+                        "helper": "Time limit for API calls before they are cancelled"
+                },
+                "instances": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "Instances",
+                        "name_field": "name",
+                        "item_fields": {
+                                "name": {
+                                        "type": "string",
+                                        "label": "Name",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "endpoint": {
+                                        "type": "string",
+                                        "label": "API Endpoint",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "api_key": {
+                                        "type": "string",
+                                        "label": "API Key",
+                                        "widget": "password",
+                                        "default": ""
+                                },
+                                "model": {
+                                        "type": "string",
+                                        "label": "Model",
+                                        "widget": "select",
+                                        "default": "",
+                                        "options_from": "default_model"
+                                }
+                        }
+                }
+        },
         "actions": [],
         "action_icons": {}
 },

@@ -1,8 +1,11 @@
 """LlmService — interface and router for LLM backends.
 
-This service defines the contract that LLM backend modules (openai_compat,
-ollama, etc.) must implement. It routes calls to the active provider
+This service defines the contract that LLM backend modules (ai_openai,
+ai_ollama, etc.) must implement. It routes calls to the active provider
 based on config.
+
+Since the introduction of AiService, LlmService acts as a thin shim
+that delegates to AiService for backward compatibility.
 """
 
 import logging
@@ -46,38 +49,48 @@ class LlmProvider(ABC):
 
 
 class LlmService(ServiceBase):
-    """Router that delegates to the active LLM provider.
+    """Shim that delegates to AiService for backward compatibility.
 
-    Backend modules register themselves during initialization::
-
-        services.llm.register_provider("openai_compat", MyProvider())
-
-    The active provider is determined by config (``core.llm_backend``).
+    Backend modules now register via AiService. Legacy callers that use
+    ``services.llm.get_provider()`` or ``services.llm.stream()`` still work.
     """
 
     name = "llm"
 
     def __init__(self):
-        self._providers = {}  # name -> LlmProvider
+        self._ai = None
         self._config = None
 
     def set_config(self, config):
         self._config = config
 
+    def set_ai_service(self, ai_service):
+        """Wire the backing AiService (called during bootstrap)."""
+        self._ai = ai_service
+
     def register_provider(self, name, provider):
-        """Register an LLM provider (called by backend modules)."""
-        self._providers[name] = provider
-        log.info("LLM provider registered: %s", name)
+        """Legacy registration — now a no-op (AI modules register via AiService)."""
+        log.debug("LlmService.register_provider(%s) — delegated to AiService", name)
 
     def get_provider(self, name=None):
         """Get a provider by name, or the active one from config."""
-        if name is None:
-            name = self._get_active_name()
-        return self._providers.get(name)
+        if self._ai:
+            try:
+                return self._ai.get_provider(capability="text",
+                                             instance_id=name)
+            except RuntimeError:
+                return None
+        return None
+
+    def get_active_provider(self):
+        """Get the active text provider (public convenience method)."""
+        return self._get_active_provider()
 
     @property
     def available_providers(self):
-        return list(self._providers.keys())
+        if self._ai:
+            return [i.name for i in self._ai.list_instances("text")]
+        return []
 
     def stream(self, messages, tools=None, **kwargs):
         """Stream via the active provider."""
@@ -95,17 +108,7 @@ class LlmService(ServiceBase):
 
     # ── Internal ──────────────────────────────────────────────────────
 
-    def _get_active_name(self):
-        if self._config:
-            return self._config.get("core.llm_backend", caller_module=None) or "openai_compat"
-        return "openai_compat"
-
     def _get_active_provider(self):
-        name = self._get_active_name()
-        provider = self._providers.get(name)
-        if provider is None:
-            available = ", ".join(self._providers.keys()) or "(none)"
-            raise RuntimeError(
-                f"LLM provider '{name}' not registered. Available: {available}"
-            )
-        return provider
+        if self._ai:
+            return self._ai.get_provider("text")
+        raise RuntimeError("No AI service configured")

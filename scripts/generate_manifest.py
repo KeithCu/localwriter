@@ -9,7 +9,7 @@ Reads each module.yaml under plugin/modules/, validates it, and produces:
 
 Usage:
     python3 scripts/generate_manifest.py
-    python3 scripts/generate_manifest.py --modules core mcp openai_compat
+    python3 scripts/generate_manifest.py --modules core mcp ai_openai
 """
 
 import argparse
@@ -216,6 +216,13 @@ _HELPER_GAP = 1
 _BROWSE_BTN_WIDTH = 20
 _BROWSE_BTN_GAP = 2
 
+# List-detail layout constants
+_LD_LIST_HEIGHT = 80
+_LD_INLINE_LIST_HEIGHT = 50
+_LD_BTN_WIDTH = 44
+_LD_BTN_GAP = 4
+_LD_LIST_WIDTH = _PAGE_WIDTH - _MARGIN * 2 - _LD_BTN_WIDTH - _LD_BTN_GAP
+
 _DLG_NS = "http://openoffice.org/2000/dialog"
 _SCRIPT_NS = "http://openoffice.org/2000/script"
 _OOR_NS = "http://openoffice.org/2001/registry"
@@ -286,6 +293,16 @@ def _add_menulist(board, field_name, schema, y):
     ET.SubElement(board, _dlg("menulist"), attrs)
 
 
+def _add_combobox(board, field_name, schema, y):
+    attrs = _common_attrs(field_name, y)
+    attrs[_dlg("dropdown")] = "true"
+    attrs[_dlg("autocomplete")] = "true"
+    attrs[_dlg("linecount")] = "20"
+    combo_el = ET.SubElement(board, _dlg("combobox"), attrs)
+    # menupopup child is required for the dropdown to initialize
+    ET.SubElement(combo_el, _dlg("menupopup"))
+
+
 def _add_label(board, field_name, label_text, y):
     attrs = {
         _dlg("id"): "lbl_%s" % field_name,
@@ -344,6 +361,125 @@ def _xdl_to_string(root):
     )
 
 
+_SEPARATOR_HEIGHT = 1
+_SEPARATOR_GAP = 4
+
+
+def _add_separator(board, sep_id, y):
+    """Add a horizontal separator line. Returns new y after the separator."""
+    ET.SubElement(board, _dlg("fixedline"), {
+        _dlg("id"): sep_id,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(_MARGIN),
+        _dlg("top"): str(y),
+        _dlg("width"): str(_PAGE_WIDTH - _MARGIN * 2),
+        _dlg("height"): str(_SEPARATOR_HEIGHT),
+    })
+    return y + _SEPARATOR_HEIGHT + _SEPARATOR_GAP
+
+
+def _add_inline_list_detail(board, field_name, schema, y):
+    """Add list_detail controls inline on the main page. Returns new y."""
+    section_label = schema.get("label", field_name.replace("_", " ").title())
+    ET.SubElement(board, _dlg("text"), {
+        _dlg("id"): "lbl_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(_MARGIN),
+        _dlg("top"): str(y),
+        _dlg("width"): str(_PAGE_WIDTH - _MARGIN * 2),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): section_label,
+    })
+    y += _ROW_HEIGHT + _ROW_GAP
+
+    # Listbox
+    list_y = y
+    ET.SubElement(board, _dlg("menulist"), {
+        _dlg("id"): "lst_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(_MARGIN),
+        _dlg("top"): str(list_y),
+        _dlg("width"): str(_LD_LIST_WIDTH),
+        _dlg("height"): str(_LD_INLINE_LIST_HEIGHT),
+    })
+
+    # Add button
+    btn_x = _MARGIN + _LD_LIST_WIDTH + _LD_BTN_GAP
+    ET.SubElement(board, _dlg("button"), {
+        _dlg("id"): "add_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(btn_x),
+        _dlg("top"): str(list_y),
+        _dlg("width"): str(_LD_BTN_WIDTH),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): "Add",
+    })
+
+    # Remove button
+    ET.SubElement(board, _dlg("button"), {
+        _dlg("id"): "del_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(btn_x),
+        _dlg("top"): str(list_y + _ROW_HEIGHT + _ROW_GAP),
+        _dlg("width"): str(_LD_BTN_WIDTH),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): "Remove",
+    })
+
+    # Apply button
+    ET.SubElement(board, _dlg("button"), {
+        _dlg("id"): "apply_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(btn_x),
+        _dlg("top"): str(list_y + (_ROW_HEIGHT + _ROW_GAP) * 2),
+        _dlg("width"): str(_LD_BTN_WIDTH),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): "Apply",
+    })
+
+    y = list_y + _LD_INLINE_LIST_HEIGHT + _ROW_GAP
+
+    # Field-level helper (below the list, above item fields)
+    helper_text = schema.get("helper")
+    if helper_text:
+        _add_helper(board, field_name, helper_text, y)
+        y += _HELPER_HEIGHT + _ROW_GAP
+
+    # Detail fields
+    item_fields = schema.get("item_fields", {})
+    for item_fname, item_schema in item_fields.items():
+        ctrl_id = "%s__%s" % (field_name, item_fname)
+        label_text = item_schema.get("label", item_fname)
+        widget = item_schema.get("widget", "text")
+
+        _add_label(board, ctrl_id, label_text, y)
+
+        if widget == "checkbox":
+            _add_checkbox(board, ctrl_id, item_schema, y)
+        elif widget == "password":
+            _add_textfield(board, ctrl_id, item_schema, y, echo_char=42)
+        elif widget in ("number", "slider"):
+            _add_numericfield(board, ctrl_id, item_schema, y)
+        elif widget == "select":
+            _add_menulist(board, ctrl_id, item_schema, y)
+        elif widget == "combo":
+            _add_combobox(board, ctrl_id, item_schema, y)
+        else:
+            _add_textfield(board, ctrl_id, item_schema, y)
+
+        y += _ROW_HEIGHT
+
+        helper_text = item_schema.get("helper")
+        if helper_text:
+            y += _HELPER_GAP
+            _add_helper(board, ctrl_id, helper_text, y)
+            y += _HELPER_HEIGHT
+
+        y += _ROW_GAP
+
+    return y
+
+
 def generate_xdl(module_name, config_fields):
     """Generate an XDL dialog page for a module's config fields."""
     page_id = "LocalWriter_%s" % module_name.replace(".", "_")
@@ -373,8 +509,27 @@ def generate_xdl(module_name, config_fields):
 
     y = _MARGIN
 
-    for field_name, schema in config_fields.items():
+    # Build ordered list of (field_name, schema) for separator logic
+    field_items = list(config_fields.items())
+    sep_counter = [0]
+
+    for fi, (field_name, schema) in enumerate(field_items):
         widget = schema.get("widget", "text")
+
+        # list_detail: embed inline or skip for separate page
+        if widget == "list_detail":
+            if schema.get("inline"):
+                # Separator before if not the first visible field
+                if fi > 0:
+                    sep_counter[0] += 1
+                    y = _add_separator(board, "sep_%d" % sep_counter[0], y)
+                y = _add_inline_list_detail(board, field_name, schema, y)
+                # Separator after if not the last field
+                if fi < len(field_items) - 1:
+                    sep_counter[0] += 1
+                    y = _add_separator(board, "sep_%d" % sep_counter[0], y)
+            continue
+
         label_text = schema.get("label", field_name)
 
         _add_label(board, field_name, label_text, y)
@@ -390,6 +545,8 @@ def generate_xdl(module_name, config_fields):
             _add_numericfield(board, field_name, schema, y)
         elif widget == "select":
             _add_menulist(board, field_name, schema, y)
+        elif widget == "combo":
+            _add_combobox(board, field_name, schema, y)
         elif widget in ("file", "folder"):
             _add_filefield(board, field_name, schema, y)
         else:
@@ -401,6 +558,143 @@ def generate_xdl(module_name, config_fields):
         if helper_text:
             y += _HELPER_GAP
             _add_helper(board, field_name, helper_text, y)
+            y += _HELPER_HEIGHT
+
+        y += _ROW_GAP
+
+    return _xdl_to_string(window)
+
+
+def generate_list_detail_xdl(module_name, field_name, schema):
+    """Generate a full-page XDL for a list_detail widget.
+
+    Layout: listbox (left) + add/remove buttons (right),
+    then detail fields below the listbox.
+    """
+    safe_mod = module_name.replace(".", "_")
+    page_id = "LocalWriter_%s__%s" % (safe_mod, field_name)
+
+    window = ET.Element(_dlg("window"), {
+        _dlg("id"): page_id,
+        _dlg("left"): "0",
+        _dlg("top"): "0",
+        _dlg("width"): str(_PAGE_WIDTH),
+        _dlg("height"): str(_PAGE_HEIGHT),
+        _dlg("closeable"): "true",
+        _dlg("withtitlebar"): "false",
+    })
+    window.set("xmlns:script", _SCRIPT_NS)
+
+    board = ET.SubElement(window, _dlg("bulletinboard"))
+
+    # Hidden __module__ control
+    ET.SubElement(board, _dlg("text"), {
+        _dlg("id"): "__module__",
+        _dlg("tab-index"): "0",
+        _dlg("left"): "0", _dlg("top"): "0",
+        _dlg("width"): "0", _dlg("height"): "0",
+        _dlg("value"): module_name,
+    })
+
+    # Hidden __list_detail__ control (identifies the field)
+    ET.SubElement(board, _dlg("text"), {
+        _dlg("id"): "__list_detail__",
+        _dlg("tab-index"): "0",
+        _dlg("left"): "0", _dlg("top"): "0",
+        _dlg("width"): "0", _dlg("height"): "0",
+        _dlg("value"): field_name,
+    })
+
+    y = _MARGIN
+
+    # Section label
+    section_label = schema.get("label", field_name.replace("_", " ").title())
+    ET.SubElement(board, _dlg("text"), {
+        _dlg("id"): "lbl_section",
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(_MARGIN),
+        _dlg("top"): str(y),
+        _dlg("width"): str(_PAGE_WIDTH - _MARGIN * 2),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): section_label,
+    })
+    y += _ROW_HEIGHT + _ROW_GAP
+
+    # Listbox (no dropdown = full list)
+    list_y = y
+    ET.SubElement(board, _dlg("menulist"), {
+        _dlg("id"): "lst_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(_MARGIN),
+        _dlg("top"): str(list_y),
+        _dlg("width"): str(_LD_LIST_WIDTH),
+        _dlg("height"): str(_LD_LIST_HEIGHT),
+    })
+
+    # Add button
+    btn_x = _MARGIN + _LD_LIST_WIDTH + _LD_BTN_GAP
+    ET.SubElement(board, _dlg("button"), {
+        _dlg("id"): "add_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(btn_x),
+        _dlg("top"): str(list_y),
+        _dlg("width"): str(_LD_BTN_WIDTH),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): "Add",
+    })
+
+    # Remove button
+    ET.SubElement(board, _dlg("button"), {
+        _dlg("id"): "del_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(btn_x),
+        _dlg("top"): str(list_y + _ROW_HEIGHT + _ROW_GAP),
+        _dlg("width"): str(_LD_BTN_WIDTH),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): "Remove",
+    })
+
+    # Apply button
+    ET.SubElement(board, _dlg("button"), {
+        _dlg("id"): "apply_%s" % field_name,
+        _dlg("tab-index"): "0",
+        _dlg("left"): str(btn_x),
+        _dlg("top"): str(list_y + (_ROW_HEIGHT + _ROW_GAP) * 2),
+        _dlg("width"): str(_LD_BTN_WIDTH),
+        _dlg("height"): str(_ROW_HEIGHT),
+        _dlg("value"): "Apply",
+    })
+
+    y = list_y + _LD_LIST_HEIGHT + _ROW_GAP
+
+    # Detail fields
+    item_fields = schema.get("item_fields", {})
+    for item_fname, item_schema in item_fields.items():
+        ctrl_id = "%s__%s" % (field_name, item_fname)
+        label_text = item_schema.get("label", item_fname)
+        widget = item_schema.get("widget", "text")
+
+        _add_label(board, ctrl_id, label_text, y)
+
+        if widget == "checkbox":
+            _add_checkbox(board, ctrl_id, item_schema, y)
+        elif widget == "password":
+            _add_textfield(board, ctrl_id, item_schema, y, echo_char=42)
+        elif widget in ("number", "slider"):
+            _add_numericfield(board, ctrl_id, item_schema, y)
+        elif widget == "select":
+            _add_menulist(board, ctrl_id, item_schema, y)
+        elif widget == "combo":
+            _add_combobox(board, ctrl_id, item_schema, y)
+        else:
+            _add_textfield(board, ctrl_id, item_schema, y)
+
+        y += _ROW_HEIGHT
+
+        helper_text = item_schema.get("helper")
+        if helper_text:
+            y += _HELPER_GAP
+            _add_helper(board, ctrl_id, helper_text, y)
             y += _HELPER_HEIGHT
 
         y += _ROW_GAP
@@ -420,10 +714,24 @@ def generate_xdl_files(modules, output_dir):
 
         name = m["name"]
         safe = name.replace(".", "_")
+
+        # Main page (regular fields, skips list_detail)
         xdl_path = os.path.join(output_dir, "%s.xdl" % safe)
         with open(xdl_path, "w") as f:
             f.write(generate_xdl(name, config))
         count += 1
+
+        # Separate pages for each non-inline list_detail field
+        for field_name, schema in config.items():
+            if schema.get("widget") != "list_detail":
+                continue
+            if schema.get("inline"):
+                continue  # inline list_detail is on the main page
+            ld_safe = "%s__%s" % (safe, field_name)
+            ld_path = os.path.join(output_dir, "%s.xdl" % ld_safe)
+            with open(ld_path, "w") as f:
+                f.write(generate_list_detail_xdl(name, field_name, schema))
+            count += 1
 
     if count:
         print("  Generated %d XDL dialog pages in %s" % (count, output_dir))
@@ -826,6 +1134,21 @@ def generate_options_dialog_xcu(modules):
                   group_id=lw_node_name, group_index=group_idx)
         group_idx += 1
 
+        # Extra leaves for non-inline list_detail fields
+        for field_name, schema in config.items():
+            if schema.get("widget") != "list_detail":
+                continue
+            if schema.get("inline"):
+                continue  # inline list_detail is on the main page
+            ld_safe = "%s__%s" % (safe, field_name)
+            ld_label = "%s: %s" % (
+                _pretty_name(name),
+                schema.get("page_label") or schema.get("label", field_name))
+            _add_leaf(lw_leaves, "LocalWriter_%s" % ld_safe, ld_label,
+                      name, ld_safe, handler_service,
+                      group_id=lw_node_name, group_index=group_idx)
+            group_idx += 1
+
     # ── Sub-module groups as leaves under LocalWriter ────────────────
     # LO doesn't reliably show multiple top-level Nodes from one extension.
     # Instead, add parent + children as leaves with a group separator label.
@@ -860,6 +1183,21 @@ def generate_options_dialog_xcu(modules):
                       child_name, child_safe, handler_service,
                       group_id=lw_node_name, group_index=group_idx)
             group_idx += 1
+
+            # list_detail leaves for sub-modules (non-inline only)
+            for field_name, schema in child_config.items():
+                if schema.get("widget") != "list_detail":
+                    continue
+                if schema.get("inline"):
+                    continue  # inline list_detail is on the main page
+                ld_safe = "%s__%s" % (child_safe, field_name)
+                ld_label = "%s: %s" % (
+                    child_label,
+                    schema.get("page_label") or schema.get("label", field_name))
+                _add_leaf(lw_leaves, "LocalWriter_%s" % ld_safe, ld_label,
+                          child_name, ld_safe, handler_service,
+                          group_id=lw_node_name, group_index=group_idx)
+                group_idx += 1
 
     ET.indent(root, space="  ")
     return ET.tostring(root, encoding="unicode", xml_declaration=True) + "\n"

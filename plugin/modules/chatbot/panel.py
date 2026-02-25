@@ -171,9 +171,9 @@ class SendButtonListener:
         max_rounds = config.get("max_tool_rounds") or DEFAULT_MAX_TOOL_ROUNDS
 
         # Get the LLM provider
-        llm = self._services.llm
-        provider = llm.get_active_provider()
-        if provider is None:
+        try:
+            provider = self._services.ai.get_provider("text")
+        except RuntimeError:
             self._set_status("No LLM provider configured")
             return
 
