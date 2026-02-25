@@ -92,13 +92,22 @@ To handle complex spreadsheet tasks, LocalWriter is optimized for high-throughpu
 
 We have recently integrated a comprehensive, internal **LLM Evaluation Suite** directly into the LibreOffice UI. This allows users and developers to benchmark models across 50+ real-world tasks in Writer, Calc, and Draw, tracking both accuracy and **Intelligence-per-Dollar (IpD)**. By fetching real-time pricing from OpenRouter, the system calculates the exact cost of every AI turn and ranks backends by their value-to-performance ratio.
 
-Our latest multi-model sweeps show significant leadership from frontier and specialized models:
-*   **openai/gpt-oss-120b**: Achieved a perfect **1.0 correctness** score with an unmatched value of **346.8 Corr/USD**.
-*   **google/gemini-3-flash-preview**: Maintains strong reasoning (**0.93 correctness**) at an exceptional value of **161.7 Corr/USD**.
-*   **allenai/olmo-3.1-32b-instruct**: High-fidelity open model with **0.96 correctness** and excellent stability.
-*   **openai/gpt-4o-mini**: Remains a reliable baseline with **0.94 correctness** and high token efficiency.
+**Top 10 models by Corr/USD** (Writer eval set; avg correctness ÷ total cost; higher = better value):
 
-This benchmarking framework is now used to automatically tune our system prompts and select the best-performing models for local-first office automation.
+| Rank | Model | Corr/USD | Avg correctness |
+|------|--------|----------|------------------|
+| 1 | openai/gpt-oss-120b | 346.8 | 1.000 |
+| 2 | google/gemini-3-flash-preview | 161.7 | 0.925 |
+| 3 | nvidia/nemotron-3-nano-30b-a3b | 131.2 | 0.725 |
+| 4 | openai/gpt-4o-mini | 98.8 | 0.938 |
+| 5 | allenai/olmo-3.1-32b-instruct | 84.1 | 0.963 |
+| 6 | nex-agi/deepseek-v3.1-nex-n1 | 58.9 | 0.925 |
+| 7 | x-ai/grok-4.1-fast | 40.2 | 1.000 |
+| 8 | minimax/minimax-m2.1 | 40.1 | 0.900 |
+| 9 | mistralai/devstral-2512 | 36.5 | 0.900 |
+| 10 | z-ai/glm-4.7 | 34.4 | 1.000 |
+
+This benchmarking framework is used to tune system prompts and select the best-performing models for local-first office automation. Details: [scripts/prompt_optimization/README.md](scripts/prompt_optimization/README.md).
 
 ## Roadmap
 
