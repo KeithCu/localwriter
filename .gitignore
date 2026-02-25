@@ -1,42 +1,43 @@
-# Configuration files with secrets
-localwriter.json
-
-# Build artifacts
+# Generated files (make build)
 build/
 *.oxt
+plugin/_manifest.py
+extension/META-INF/manifest.xml
+
+# Vendored dependencies (make vendor)
+vendor/
+plugin/lib/snowballstemmer/
+
+# Python
 *.pyc
 __pycache__/
 *.egg-info/
-
-# Virtual environment
 .venv/
 
-# System files
-.DS_Store
+# Secrets
+localwriter.json
+
+# Logs
+log.txt
+
+# IDE / editor
+.vscode/
+.idea/
+*.sublime-*
 *.swp
 *.swo
 *~
 
-# Log files
-log.txt
+# OS
+.DS_Store
 
-# IDE files
-.vscode/
-.idea/
-*.sublime-*
-
-# Temporary files
+# Scratch
 *.tmp
-
-# POC / scratch
 poc/
 poc-ext/
 portage/
-
-# Vendored pip dependencies (installed by make vendor)
-vendor/
-plugin/lib/snowballstemmer/
-
-# Vendor or external components
 libre_calc_ai*/
 loshd*/
+
+# Claude Code
+.claude/settings.local.json
