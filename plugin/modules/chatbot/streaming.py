@@ -1,16 +1,122 @@
 """Streaming helpers for the chatbot module.
 
 Provides:
+- chat_event_stream: unified NDJSON event generator for tool-calling loop
 - accumulate_delta: merge SSE chunk deltas into a complete message
 - run_stream_drain_loop: main-thread drain loop for streaming responses
 - run_stream_async: async wrapper that runs streaming on a worker thread
 """
 
+import json
 import queue
 import threading
 import logging
 
 log = logging.getLogger("localwriter.chatbot.streaming")
+
+
+# ── Unified NDJSON event stream ──────────────────────────────────────
+
+
+def chat_event_stream(provider, session, adapter, doc, ctx,
+                      max_rounds=15, stop_checker=None):
+    """Generator yielding NDJSON event dicts for a chat response.
+
+    Runs the full streaming + tool-calling loop. Each yielded dict has
+    a ``type`` key. Consumers iterate and dispatch on type.
+
+    Event types::
+
+        {"type": "text", "content": "..."}
+        {"type": "thinking", "content": "..."}
+        {"type": "tool_call", "name": "...", "arguments": {...}, "id": "..."}
+        {"type": "tool_result", "name": "...", "content": ..., "id": "..."}
+        {"type": "status", "message": "..."}
+        {"type": "done", "content": "..."}
+        {"type": "error", "message": "..."}
+
+    Args:
+        provider: LlmProvider instance.
+        session: ChatSession (messages are mutated in place).
+        adapter: ChatToolAdapter (or None to disable tools).
+        doc: UNO document (or None).
+        ctx: UNO component context (or None).
+        max_rounds: max tool-calling iterations.
+        stop_checker: callable returning True to abort.
+    """
+    tools = None
+    if adapter:
+        try:
+            tools = adapter.get_tools_for_doc(doc)
+        except Exception:
+            pass
+
+    for _round in range(max_rounds):
+        if stop_checker and stop_checker():
+            return
+
+        acc = {}
+        content_parts = []
+
+        try:
+            for chunk in provider.stream(
+                    session.messages, tools=tools):
+                if stop_checker and stop_checker():
+                    return
+                text = chunk.get("content", "")
+                thinking = chunk.get("thinking", "")
+                delta = chunk.get("delta", {})
+                if thinking:
+                    yield {"type": "thinking", "content": thinking}
+                if text:
+                    content_parts.append(text)
+                    yield {"type": "text", "content": text}
+                if delta:
+                    acc = accumulate_delta(acc, delta)
+        except Exception as e:
+            yield {"type": "error", "message": str(e)}
+            return
+
+        if stop_checker and stop_checker():
+            return
+
+        tool_calls = acc.get("tool_calls")
+        content = "".join(content_parts)
+
+        if not tool_calls:
+            session.add_assistant_message(content=content)
+            yield {"type": "done", "content": content}
+            return
+
+        # Process tool calls
+        session.add_assistant_message(
+            content=content or None, tool_calls=tool_calls)
+
+        for tc in tool_calls:
+            if stop_checker and stop_checker():
+                return
+            fn = tc.get("function", {})
+            name = fn.get("name", "")
+            tc_id = tc.get("id", "")
+            try:
+                args = json.loads(fn.get("arguments", "{}"))
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+
+            yield {"type": "tool_call", "name": name,
+                   "arguments": args, "id": tc_id}
+            yield {"type": "status", "message": "Tool: %s" % name}
+
+            if adapter:
+                result = adapter.execute_tool(name, args, doc, ctx)
+                result_str = json.dumps(
+                    result, ensure_ascii=False, default=str)
+                session.add_tool_result(tc_id, result_str)
+                yield {"type": "tool_result", "name": name,
+                       "content": result, "id": tc_id}
+
+    # Exhausted max rounds
+    yield {"type": "done", "content": "".join(content_parts)}
 
 
 # ── Delta accumulation ────────────────────────────────────────────────

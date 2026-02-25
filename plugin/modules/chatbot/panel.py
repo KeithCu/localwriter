@@ -250,7 +250,7 @@ class SendButtonListener:
             self._busy = False
 
     def _do_send(self, user_text, doc, ctx):
-        from plugin.modules.chatbot.streaming import accumulate_delta
+        from plugin.modules.chatbot.streaming import chat_event_stream
 
         config = self._services.config.proxy_for("chatbot")
         max_rounds = config.get("max_tool_rounds") or DEFAULT_MAX_TOOL_ROUNDS
@@ -275,82 +275,35 @@ class SendButtonListener:
         # Compress history if too long
         self._session.maybe_compress()
 
-        # Get tools for current doc
-        tools = self._adapter.get_tools_for_doc(doc)
-
         # Add user message
         self._session.add_user_message(user_text)
 
-        for _round in range(max_rounds):
-            if self.stop_requested:
-                self._set_status("Stopped")
-                break
-
-            # Stream response
-            acc = {}
-            content_parts = []
-
-            try:
-                for chunk in provider.stream(
-                    self._session.messages, tools=tools
-                ):
-                    if self.stop_requested:
-                        break
-                    text = chunk.get("content", "")
-                    thinking = chunk.get("thinking", "")
-                    delta = chunk.get("delta", {})
-                    if thinking and self.on_append_response:
-                        self.on_append_response(thinking, is_thinking=True)
-                    if text:
-                        content_parts.append(text)
-                        if self.on_append_response:
-                            self.on_append_response(text, is_thinking=False)
-                    if delta:
-                        acc = accumulate_delta(acc, delta)
-            except Exception as e:
-                self._set_status("Error: %s" % e)
-                break
-
-            if self.stop_requested:
-                break
-
-            # Check for tool calls
-            tool_calls = acc.get("tool_calls")
-            content = "".join(content_parts)
-
-            if not tool_calls:
-                # No tool calls — conversation turn complete
-                self._session.add_assistant_message(content=content)
-                break
-
-            # Process tool calls
-            self._session.add_assistant_message(
-                content=content or None, tool_calls=tool_calls)
-
-            for tc in tool_calls:
-                if self.stop_requested:
-                    break
-                fn = tc.get("function", {})
-                name = fn.get("name", "")
-                try:
-                    args = json.loads(fn.get("arguments", "{}"))
-                except (json.JSONDecodeError, TypeError):
-                    args = {}
-
-                self._set_status("Tool: %s" % name)
+        for event in chat_event_stream(
+            provider, self._session, self._adapter, doc, ctx,
+            max_rounds=max_rounds,
+            stop_checker=lambda: self.stop_requested,
+        ):
+            etype = event.get("type")
+            if etype == "text":
                 if self.on_append_response:
                     self.on_append_response(
-                        "\n[Tool: %s]\n" % name, is_thinking=False)
-
-                result = self._adapter.execute_tool(
-                    name, args, doc, ctx)
-                result_str = json.dumps(
-                    result, ensure_ascii=False, default=str)
-
-                self._session.add_tool_result(
-                    tc.get("id", ""), result_str)
-
-            # Continue loop for next round of tool calls
+                        event["content"], is_thinking=False)
+            elif etype == "thinking":
+                if self.on_append_response:
+                    self.on_append_response(
+                        event["content"], is_thinking=True)
+            elif etype == "tool_call":
+                if self.on_append_response:
+                    self.on_append_response(
+                        "\n[Tool: %s]\n" % event["name"],
+                        is_thinking=False)
+            elif etype == "status":
+                self._set_status(event["message"])
+            elif etype == "error":
+                self._set_status("Error: %s" % event["message"])
+                break
+            elif etype == "done":
+                break
 
         self._set_status("Ready")
         if self.on_done:

@@ -169,76 +169,38 @@ class ChatApiHandler:
 
     def _stream_response(self, provider, send_event, use_tools):
         """Run the streaming + tool-calling loop, emitting SSE events."""
-        from plugin.modules.chatbot.streaming import accumulate_delta
+        from plugin.modules.chatbot.streaming import chat_event_stream
+        from plugin.framework.uno_context import get_ctx
 
         config = self._services.config.proxy_for("chatbot")
         max_rounds = config.get("max_tool_rounds") or 15
 
-        tools = None
-        if use_tools and self._adapter:
-            try:
-                doc_svc = self._services.document
-                doc = doc_svc.get_active_document() if doc_svc else None
-                tools = self._adapter.get_tools_for_doc(doc)
-            except Exception:
-                pass
+        adapter = self._adapter if use_tools else None
+        doc_svc = self._services.document
+        doc = doc_svc.get_active_document() if doc_svc else None
+        ctx = get_ctx()
 
-        for _round in range(max_rounds):
-            acc = {}
-            content_parts = []
-
-            for chunk in provider.stream(
-                    self._session.messages, tools=tools):
-                text = chunk.get("content", "")
-                thinking = chunk.get("thinking", "")
-                delta = chunk.get("delta", {})
-
-                if thinking:
-                    send_event("thinking", {"text": thinking})
-                if text:
-                    content_parts.append(text)
-                    send_event("text", {"text": text})
-                if delta:
-                    acc = accumulate_delta(acc, delta)
-
-            tool_calls = acc.get("tool_calls")
-            content = "".join(content_parts)
-
-            if not tool_calls:
-                self._session.add_assistant_message(content=content)
-                send_event("done", {"content": content})
-                return
-
-            # Process tool calls
-            self._session.add_assistant_message(
-                content=content or None, tool_calls=tool_calls)
-
-            for tc in tool_calls:
-                fn = tc.get("function", {})
-                name = fn.get("name", "")
-                try:
-                    args = json.loads(fn.get("arguments", "{}"))
-                except (json.JSONDecodeError, TypeError):
-                    args = {}
-
+        for event in chat_event_stream(
+            provider, self._session, adapter, doc, ctx,
+            max_rounds=max_rounds,
+        ):
+            etype = event.get("type")
+            if etype == "text":
+                send_event("text", {"text": event["content"]})
+            elif etype == "thinking":
+                send_event("thinking", {"text": event["content"]})
+            elif etype == "tool_call":
                 send_event("tool_call", {
-                    "name": name, "arguments": args})
-
-                if self._adapter:
-                    from plugin.framework.uno_context import get_ctx
-                    doc_svc = self._services.document
-                    doc = doc_svc.get_active_document() if doc_svc else None
-                    ctx = get_ctx()
-                    result = self._adapter.execute_tool(
-                        name, args, doc, ctx)
-                    result_str = json.dumps(
-                        result, ensure_ascii=False, default=str)
-                    self._session.add_tool_result(
-                        tc.get("id", ""), result_str)
-                    send_event("tool_result", {
-                        "name": name, "result": result})
-
-        send_event("done", {"content": content})
+                    "name": event["name"],
+                    "arguments": event["arguments"]})
+            elif etype == "tool_result":
+                send_event("tool_result", {
+                    "name": event["name"],
+                    "result": event["content"]})
+            elif etype == "done":
+                send_event("done", {"content": event["content"]})
+            elif etype == "error":
+                send_event("error", {"message": event["message"]})
 
     # ── GET /api/chat — history ───────────────────────────────────────
 

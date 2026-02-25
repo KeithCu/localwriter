@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.1] — 2026-02-25
+
+### Changed
+
+- Unified streaming + tool-calling loop into `chat_event_stream()` generator in `streaming.py`
+- Panel and HTTP API chatbot handlers now consume the same NDJSON event stream
+
 ## [1.5.0] — 2026-02-25
 
 ### Added
