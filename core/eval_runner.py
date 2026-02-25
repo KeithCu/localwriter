@@ -248,4 +248,3 @@ def run_benchmark_suite(ctx, doc, model_name=None, categories=["Writer", "Calc"]
         "results": runner.get_results(),
         "summary": runner.get_summary()
     }
-set

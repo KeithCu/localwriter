@@ -1,0 +1,14 @@
+[project]
+name = "localwriter"
+version = "0.1.0"
+description = "LibreOffice extension (Writer, Calc, Draw) adding generative AI: extend/edit selection, chat with document (sidebar + tools), image generation, MCP server."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["dspy-ai"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["core"]
