@@ -102,3 +102,24 @@ For each model, `run_eval_multi.py` reports:
 - An **“intelligence per dollar”** figure: average correctness divided by total cost (higher is better).
 
 Use `--out path.json` or `--out path.csv` to write results (format by extension). Results are written after each model completes so partial data is saved if the run is interrupted. The final file is sorted by intelligence-per-dollar.
+
+### Eval framework (summary)
+
+- **Dataset** (`dataset.py`): Fixed Writer tasks (document + user_question), each with optional `expected_contains` / `reject_contains` for pass/fail.
+- **Program** (`program.py`): DSPy `WriterAssistant` (ReAct) with mock `get_document_content`, `apply_document_content`, `find_text`) and current `DEFAULT_CHAT_SYSTEM_PROMPT` from `core/constants.py`.
+- **Metric**: Per-example **correctness** (0–1 from expected/reject), then **score** = correctness − 0.01×(tokens/1000). No judge model; tasks are objective checks only.
+- **Single-model**: `run_eval.py` (one model, optional `--compare-with` for prompt A vs B).
+- **Multi-model**: `run_eval_multi.py` runs the same eval across all models in `model_configs.py`, estimates cost from list prices, and ranks by **Corr/USD** (avg correctness ÷ total $).
+
+### Benchmark results (best models, combined runs)
+
+From multi-model runs on the default 8-evaluation Writer set, ranked by **Corr/USD** (avg correctness ÷ total cost; higher = better value) and/or **correctness**:
+
+- **openai/gpt-oss-120b** — Top value in run 1 (346.8 Corr/USD, 1.0 correctness, ~$0.003 total).
+- **google/gemini-3-flash-preview** — Strong value (161.7 Corr/USD, 0.925 correctness).
+- **nvidia/nemotron-3-nano-30b-a3b** — Best value in run 2 (131.2 Corr/USD; 0.725 correctness, very cheap).
+- **allenai/olmo-3.1-32b-instruct** — High correctness (0.963) and good value (84.1 Corr/USD).
+- **openai/gpt-4o-mini** — Good balance (98.8 Corr/USD, 0.938 correctness).
+- **nex-agi/deepseek-v3.1-nex-n1** — Solid (58.9 Corr/USD, 0.925 correctness).
+
+Re-run with different model sets by editing `model_configs.py` (and uncommenting the block you want). Failed runs (0 tokens) usually mean a wrong OpenRouter id or API error; check stderr or logs.
