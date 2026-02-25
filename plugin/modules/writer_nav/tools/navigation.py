@@ -5,6 +5,7 @@ from plugin.framework.tool_base import ToolBase
 
 class NavigateHeading(ToolBase):
     name = "navigate_heading"
+    intent = "navigate"
     description = (
         "Navigate from a locator to a related heading. "
         "Directions: next, previous, parent, first_child, "
@@ -46,6 +47,7 @@ class NavigateHeading(ToolBase):
 
 class GetSurroundings(ToolBase):
     name = "get_surroundings"
+    intent = "navigate"
     description = (
         "Discover objects within a radius of paragraphs around a locator. "
         "Returns nearby paragraphs, heading chain, images, tables, "

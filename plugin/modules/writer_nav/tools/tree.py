@@ -5,6 +5,7 @@ from plugin.framework.tool_base import ToolBase
 
 class GetDocumentTree(ToolBase):
     name = "get_document_tree"
+    intent = "navigate"
     description = (
         "Get the document heading tree with bookmarks and content previews. "
         "Creates _mcp_ bookmarks on headings for stable addressing. "
@@ -41,6 +42,7 @@ class GetDocumentTree(ToolBase):
 
 class GetHeadingChildren(ToolBase):
     name = "get_heading_children"
+    intent = "navigate"
     description = (
         "Drill into a heading's children — body paragraphs and sub-headings. "
         "Identify the heading by locator (e.g. 'bookmark:_mcp_xxx', "

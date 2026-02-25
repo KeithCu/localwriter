@@ -5,6 +5,7 @@ from plugin.framework.tool_base import ToolBase
 
 class SearchFulltext(ToolBase):
     name = "search_fulltext"
+    intent = "navigate"
     description = (
         "Full-text search with Snowball stemming. Supports boolean queries: "
         "AND (default), OR, NOT, NEAR/N. "
@@ -144,6 +145,7 @@ def _build_page_map(doc):
 
 class GetIndexStats(ToolBase):
     name = "get_index_stats"
+    intent = "navigate"
     description = (
         "Get search index statistics: paragraph count, unique stems, "
         "language, build time, and top 20 most frequent stems."

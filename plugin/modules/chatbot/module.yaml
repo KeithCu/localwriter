@@ -83,6 +83,13 @@ config:
     label: Edit Selection Extra Tokens
     helper: "Extra tokens beyond original text length. 0 = same length as original."
 
+  tool_broker:
+    type: boolean
+    default: true
+    widget: checkbox
+    label: Tool Broker
+    helper: "Two-tier tool delivery: LLM gets core tools first, activates others by intent"
+
   enter_sends:
     type: boolean
     default: true

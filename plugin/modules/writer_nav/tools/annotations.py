@@ -5,6 +5,7 @@ from plugin.framework.tool_base import ToolBase
 
 class AddAiSummary(ToolBase):
     name = "add_ai_summary"
+    intent = "review"
     description = (
         "Add an AI-generated summary as a comment (MCP-AI author) "
         "at a heading or paragraph. Replaces any existing MCP-AI "
@@ -52,6 +53,7 @@ class AddAiSummary(ToolBase):
 
 class GetAiSummaries(ToolBase):
     name = "get_ai_summaries"
+    intent = "review"
     description = "List all MCP-AI summary annotations in the document."
     parameters = {"type": "object", "properties": {}, "required": []}
     doc_types = ["writer"]
@@ -64,6 +66,7 @@ class GetAiSummaries(ToolBase):
 
 class RemoveAiSummary(ToolBase):
     name = "remove_ai_summary"
+    intent = "review"
     description = "Remove an MCP-AI summary annotation at a paragraph."
     parameters = {
         "type": "object",

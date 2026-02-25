@@ -14,6 +14,7 @@ class GenerateImage(ToolBase):
     """Generate an image from a text prompt and insert it."""
 
     name = "generate_image"
+    intent = "media"
     description = (
         "Generate an image from a text prompt and insert it "
         "into the document."
@@ -65,6 +66,7 @@ class EditImage(ToolBase):
     """Edit the currently selected image using img2img."""
 
     name = "edit_image"
+    intent = "media"
     description = (
         "Edit the selected image using a text prompt (Img2Img). "
         "If no image is selected, it will fail."

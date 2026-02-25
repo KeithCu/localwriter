@@ -49,6 +49,7 @@ class GetDocumentContent(ToolBase):
         "required": [],
     }
     doc_types = ["writer"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         scope = kwargs.get("scope", "full")
@@ -130,6 +131,7 @@ class ApplyDocumentContent(ToolBase):
         "required": ["content", "target"],
     }
     doc_types = ["writer"]
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
@@ -288,6 +290,7 @@ class FindText(ToolBase):
         "required": ["search"],
     }
     doc_types = ["writer"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         search = kwargs.get("search")
@@ -339,6 +342,7 @@ class ReadParagraphs(ToolBase):
         "required": [],
     }
     doc_types = ["writer"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         start = kwargs.get("start_index", 0)
@@ -410,6 +414,7 @@ class InsertAtParagraph(ToolBase):
         "required": ["text"],
     }
     doc_types = ["writer"]
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
@@ -492,6 +497,7 @@ class SetParagraphText(ToolBase):
         "required": ["text"],
     }
     doc_types = ["writer"]
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
@@ -535,6 +541,7 @@ class SetParagraphStyle(ToolBase):
     """Change the paragraph style of a paragraph."""
 
     name = "set_paragraph_style"
+    intent = "edit"
     description = (
         "Set the paragraph style (e.g. 'Heading 1', 'Text Body', "
         "'List Bullet')."
@@ -604,6 +611,7 @@ class DeleteParagraph(ToolBase):
     """Delete a paragraph from the document."""
 
     name = "delete_paragraph"
+    intent = "edit"
     description = "Delete a paragraph from the document."
     parameters = {
         "type": "object",
@@ -667,6 +675,7 @@ class DuplicateParagraph(ToolBase):
     """Duplicate a paragraph (with its style) after itself."""
 
     name = "duplicate_paragraph"
+    intent = "edit"
     description = (
         "Duplicate a paragraph (with its style) after itself. "
         "Use count > 1 to duplicate multiple consecutive paragraphs."
@@ -755,6 +764,7 @@ class CloneHeadingBlock(ToolBase):
     """Clone an entire heading block (heading + all sub-headings + body)."""
 
     name = "clone_heading_block"
+    intent = "edit"
     description = (
         "Clone an entire heading block (heading + all sub-headings + body). "
         "The clone is inserted right after the original block."
@@ -853,6 +863,7 @@ class InsertParagraphsBatch(ToolBase):
     """Insert multiple paragraphs in one call."""
 
     name = "insert_paragraphs_batch"
+    intent = "edit"
     description = (
         "Insert multiple paragraphs in a single operation. "
         "Each item in paragraphs is {\"text\": \"...\", \"style\": \"...\"}. "

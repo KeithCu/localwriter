@@ -23,6 +23,7 @@ class GetDocumentOutline(ToolBase):
         "required": [],
     }
     doc_types = ["writer"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         doc_svc = ctx.services.document
@@ -37,6 +38,7 @@ class GetHeadingContent(ToolBase):
     """Return content under a heading identified by its path."""
 
     name = "get_heading_content"
+    intent = "navigate"
     description = (
         "Returns content under a heading identified by its path "
         "(e.g. '1.2' for the second child of the first heading)."

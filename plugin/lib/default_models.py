@@ -152,6 +152,15 @@ DEFAULT_MODELS = [
         "id": "ibm/granite-3.1-8b-instruct",
     },
     {
+        "display_name": "Qwen 2.5 32B (local)",
+        "capability": "text",
+        "context_length": 32768,
+        "priority": 9,
+        "notes": "Excellent tool calling, multilingual, fits 24GB VRAM",
+        "ids": {"ollama": "qwen2.5:32b"},
+        "id": "qwen2.5:32b",
+    },
+    {
         "display_name": "Granite 3.2 8B (local)",
         "capability": "text",
         "context_length": 128000,

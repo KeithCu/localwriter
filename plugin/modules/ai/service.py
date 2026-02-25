@@ -250,6 +250,20 @@ class AiService(ServiceBase):
         cap = "image" if capability in ("image",) else "text"
         return self._active.get(cap)
 
+    def get_instance_status(self, instance_id):
+        """Return status dict for a specific instance."""
+        inst = self._instances.get(instance_id)
+        if inst is None:
+            return {"ready": False, "message": "Unknown instance", "model": ""}
+        return inst.provider.get_status()
+
+    def get_active_status(self, capability):
+        """Return status dict for the active instance of a capability."""
+        inst = self.get_instance(capability=capability)
+        if inst is None:
+            return {"ready": False, "message": "No provider", "model": ""}
+        return inst.provider.get_status()
+
     def _get_active_instance_id(self, capability):
         """Return the active instance: volatile first, then config default."""
         cap = "image" if capability in ("image",) else "text"

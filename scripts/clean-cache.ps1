@@ -99,13 +99,8 @@ Write-OK "Cache dir: $CacheDir"
 
 if ($Nuke) {
     Write-Host ""
-    Write-Warn "This will wipe the entire user extension cache."
+    Write-Warn "Wiping entire user extension cache."
     Write-Info "You will need to reinstall extensions with unopkg afterwards."
-    $response = Read-Host "Continue? (y/N)"
-    if ($response -notmatch '^[Yy]') {
-        Write-Host "Aborted."
-        exit 0
-    }
 
     # Remove lock first
     $loLock = Join-Path (Split-Path (Split-Path $CacheDir)) ".lock"

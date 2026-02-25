@@ -15,6 +15,15 @@ log = logging.getLogger("localwriter.chatbot.panel")
 # Default max tool rounds when not in config
 DEFAULT_MAX_TOOL_ROUNDS = 15
 
+# Lazy tool injection: marker the LLM outputs when it needs tools
+_TOOLS_MARKER = "<<<TOOLS>>>"
+_TOOLS_HINT = (
+    "No tools are loaded for this turn. "
+    "If you need to call tools/functions to fulfill the user's request, "
+    "respond with exactly: %s\n"
+    "Otherwise, answer the user normally."
+) % _TOOLS_MARKER
+
 
 # ── Chat session ──────────────────────────────────────────────────────
 
@@ -169,15 +178,27 @@ class ChatToolAdapter:
 
     def get_tools_for_doc(self, doc):
         """Return OpenAI function-calling schemas for the active document."""
+        doc_type = self._detect_doc_type(doc)
+        return self.tool_registry.get_openai_schemas(doc_type)
+
+    def get_brokered_tools(self, doc, broker):
+        """Return core tools + extras activated via the tool broker."""
+        doc_type = self._detect_doc_type(doc)
+        schemas = self.tool_registry.get_openai_schemas(doc_type, tier="core")
+        if broker.get("extra_names"):
+            schemas += self.tool_registry.get_openai_schemas_by_names(
+                broker["extra_names"])
+        return schemas
+
+    def _detect_doc_type(self, doc):
+        """Return the doc_type string for *doc*, or None."""
         try:
             doc_svc = self.service_registry.document
             if doc_svc and doc:
-                doc_type = doc_svc.detect_doc_type(doc)
-            else:
-                doc_type = None
+                return doc_svc.detect_doc_type(doc)
         except Exception:
-            doc_type = None
-        return self.tool_registry.get_openai_schemas(doc_type)
+            pass
+        return None
 
     def execute_tool(self, tool_name, arguments, doc, ctx,
                      status_callback=None, doc_type=None):
@@ -235,7 +256,7 @@ class SendButtonListener:
         self.on_set_buttons = None
         self.on_done = None
 
-    def send(self, user_text, doc, ctx):
+    def send(self, user_text, doc, ctx, use_tools=True):
         """Process a user message with streaming and tool-calling."""
         if self._busy:
             return
@@ -243,17 +264,19 @@ class SendButtonListener:
         self.stop_requested = False
 
         try:
-            self._do_send(user_text, doc, ctx)
+            self._do_send(user_text, doc, ctx, use_tools=use_tools)
         except Exception:
             log.exception("send() failed")
         finally:
             self._busy = False
 
-    def _do_send(self, user_text, doc, ctx):
+    def _do_send(self, user_text, doc, ctx, use_tools=True):
         from plugin.modules.chatbot.streaming import chat_event_stream
 
         config = self._services.config.proxy_for("chatbot")
         max_rounds = config.get("max_tool_rounds") or DEFAULT_MAX_TOOL_ROUNDS
+        use_broker = config.get("tool_broker") or False
+        broker = {"extra_names": set()} if use_broker else None
 
         # Get the LLM provider (use panel instance selector or fallback)
         try:
@@ -278,10 +301,26 @@ class SendButtonListener:
         # Add user message
         self._session.add_user_message(user_text)
 
+        if use_tools == "lazy":
+            needs_tools = self._lazy_probe(provider, doc, ctx)
+            if needs_tools:
+                self._set_status("Loading tools...")
+                use_tools = True
+            else:
+                self._set_status("Ready")
+                if self.on_done:
+                    self.on_done()
+                return
+
+        # Chat mode: no tools → fast pure-text response
+        active_adapter = self._adapter if use_tools else None
+        active_broker = broker if use_tools else None
+
         for event in chat_event_stream(
-            provider, self._session, self._adapter, doc, ctx,
+            provider, self._session, active_adapter, doc, ctx,
             max_rounds=max_rounds,
             stop_checker=lambda: self.stop_requested,
+            broker=active_broker,
         ):
             etype = event.get("type")
             if etype == "text":
@@ -308,6 +347,45 @@ class SendButtonListener:
         self._set_status("Ready")
         if self.on_done:
             self.on_done()
+
+    def _lazy_probe(self, provider, doc, ctx):
+        """Probe without tools; return True if the LLM needs them."""
+        from plugin.modules.chatbot.streaming import chat_event_stream
+
+        hint_msg = {"role": "system", "content": _TOOLS_HINT}
+        self._session.messages.append(hint_msg)
+
+        response_text = ""
+        for event in chat_event_stream(
+            provider, self._session, None, doc, ctx,
+            max_rounds=1,
+            stop_checker=lambda: self.stop_requested,
+        ):
+            etype = event.get("type")
+            if etype == "text":
+                response_text += event["content"]
+                if _TOOLS_MARKER in response_text:
+                    break
+            elif etype in ("done", "error"):
+                break
+
+        # Remove hint from session
+        try:
+            self._session.messages.remove(hint_msg)
+        except ValueError:
+            pass
+
+        if _TOOLS_MARKER in response_text:
+            # Remove marker assistant response if it was added
+            while (self._session.messages
+                   and self._session.messages[-1]["role"] == "assistant"):
+                self._session.messages.pop()
+            return True
+
+        # Chat response is fine — push to UI
+        if response_text and self.on_append_response:
+            self.on_append_response(response_text, is_thinking=False)
+        return False
 
     def _set_status(self, text):
         if self.on_status:

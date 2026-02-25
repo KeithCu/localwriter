@@ -11,6 +11,7 @@ class ListTables(ToolBase):
     """List all text tables in the document."""
 
     name = "list_tables"
+    intent = "edit"
     description = (
         "List all text tables in the document with their names "
         "and dimensions (rows x cols)."
@@ -43,6 +44,7 @@ class ReadTable(ToolBase):
     """Read all cell contents from a named Writer table."""
 
     name = "read_table"
+    intent = "edit"
     description = "Read all cell contents from a named Writer table as a 2D array."
     parameters = {
         "type": "object",
@@ -99,6 +101,7 @@ class WriteTableCell(ToolBase):
     """Write a value to a specific cell in a Writer table."""
 
     name = "write_table_cell"
+    intent = "edit"
     description = (
         "Write a value to a specific cell in a named Writer table. "
         "Use Excel-style cell references (e.g. 'A1', 'B2'). "
@@ -163,6 +166,7 @@ class CreateTable(ToolBase):
     """Create a new table at a paragraph position."""
 
     name = "create_table"
+    intent = "edit"
     description = (
         "Create a new table at a paragraph position. "
         "The table is inserted relative to the target paragraph. "

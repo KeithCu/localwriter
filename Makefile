@@ -40,14 +40,15 @@ ifeq ($(OS),Windows_NT)
         SHELL   := $(BASH_PATH)
     endif
     .SHELLFLAGS := -c
+    MAKE    := "$(MAKE)"
     SCRIPTS = scripts
     RUN_SH  = powershell -ExecutionPolicy Bypass -File
     EXT     = .ps1
     PYTHON  = python
     RM_RF   = rm -rf
     MKDIR   = mkdir -p
-    LO_CONF = $(USERPROFILE)/AppData/Roaming/LibreOffice/4
-    HOME_DIR = $(USERPROFILE)
+    HOME_DIR = $(subst \,/,$(USERPROFILE))
+    LO_CONF = $(HOME_DIR)/AppData/Roaming/LibreOffice/4
 else
     SCRIPTS = scripts
     RUN_SH  = bash

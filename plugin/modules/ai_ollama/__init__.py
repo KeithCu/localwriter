@@ -1,6 +1,7 @@
 """Ollama local LLM backend module."""
 
 import logging
+import threading
 
 from plugin.framework.module_base import ModuleBase
 
@@ -35,11 +36,39 @@ class OllamaModule(ModuleBase):
                     capabilities={"text", "tools"},
                 ))
 
+                # Launch warmup in background
+                events = services.get("events")
+                if events:
+                    threading.Thread(
+                        target=_bg_warmup,
+                        args=(provider, instance_id, events),
+                        daemon=True,
+                    ).start()
+
     def shutdown(self):
         for provider in getattr(self, "_providers", []):
             if hasattr(provider, "close"):
                 provider.close()
 
+
+
+def _bg_warmup(provider, instance_id, events):
+    """Background warmup: emit status events on the bus."""
+    events.emit("ai:instance_status",
+                instance_id=instance_id, status="loading",
+                message="Loading model...")
+    try:
+        provider.warmup()
+        st = provider.get_status()
+        events.emit("ai:instance_status",
+                    instance_id=instance_id,
+                    status="ready" if st["ready"] else "error",
+                    message=st["message"])
+    except Exception as e:
+        log.warning("Background warmup failed for %s: %s", instance_id, e)
+        events.emit("ai:instance_status",
+                    instance_id=instance_id, status="error",
+                    message=str(e))
 
 
 def get_model_options(services):

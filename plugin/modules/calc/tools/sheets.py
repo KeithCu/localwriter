@@ -24,6 +24,7 @@ class ListSheets(ToolBase):
         "properties": {},
     }
     doc_types = ["calc"]
+    tier = "core"
     is_mutation = False
 
     def execute(self, ctx, **kwargs):
@@ -42,6 +43,7 @@ class SwitchSheet(ToolBase):
     """Switch to a specified sheet."""
 
     name = "switch_sheet"
+    intent = "edit"
     description = "Switches to the specified sheet (makes it active)."
     parameters = {
         "type": "object",
@@ -73,6 +75,7 @@ class CreateSheet(ToolBase):
     """Create a new sheet."""
 
     name = "create_sheet"
+    intent = "edit"
     description = "Creates a new sheet."
     parameters = {
         "type": "object",
@@ -127,6 +130,7 @@ class GetSheetSummary(ToolBase):
         "required": [],
     }
     doc_types = ["calc"]
+    tier = "core"
     is_mutation = False
 
     def execute(self, ctx, **kwargs):
@@ -146,6 +150,7 @@ class CreateChart(ToolBase):
     """Create a chart from data."""
 
     name = "create_chart"
+    intent = "edit"
     description = (
         "Creates a chart from data. Supports bar, column, line, pie, "
         "or scatter charts."

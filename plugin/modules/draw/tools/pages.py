@@ -5,6 +5,7 @@ from plugin.framework.tool_base import ToolBase
 
 class AddSlide(ToolBase):
     name = "add_slide"
+    intent = "edit"
     description = "Inserts a new slide (page) at the specified index."
     parameters = {
         "type": "object",
@@ -28,6 +29,7 @@ class AddSlide(ToolBase):
 
 class DeleteSlide(ToolBase):
     name = "delete_slide"
+    intent = "edit"
     description = "Deletes the slide (page) at the specified index."
     parameters = {
         "type": "object",
@@ -68,6 +70,7 @@ class ReadSlideText(ToolBase):
         "required": [],
     }
     doc_types = ["draw"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         from plugin.modules.draw.bridge import DrawBridge
@@ -128,6 +131,7 @@ class GetPresentationInfo(ToolBase):
     )
     parameters = {"type": "object", "properties": {}, "required": []}
     doc_types = ["draw"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         doc = ctx.doc

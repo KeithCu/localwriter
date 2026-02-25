@@ -68,6 +68,7 @@ class ReadCellRange(ToolBase):
         "required": ["range_name"],
     }
     doc_types = ["calc"]
+    tier = "core"
     is_mutation = False
 
     def execute(self, ctx, **kwargs):
@@ -118,6 +119,7 @@ class WriteCellRange(ToolBase):
         "required": ["range_name", "formula_or_values"],
     }
     doc_types = ["calc"]
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
@@ -143,6 +145,7 @@ class SetCellStyle(ToolBase):
     """Apply style and formatting to cells or ranges."""
 
     name = "set_cell_style"
+    intent = "edit"
     description = (
         "Applies style and formatting to the specified cell(s) or "
         "range(s). Supports lists for non-contiguous areas."
@@ -235,6 +238,7 @@ class MergeCells(ToolBase):
     """Merge a cell range."""
 
     name = "merge_cells"
+    intent = "edit"
     description = (
         "Merges the specified cell range(s). Typically used for main "
         "headers. Write text with write_formula_range and style with "
@@ -288,6 +292,7 @@ class ClearRange(ToolBase):
     """Clear all contents in a cell range."""
 
     name = "clear_range"
+    intent = "edit"
     description = (
         "Clears all contents (values, formulas) in the specified "
         "range(s). Supports lists for non-contiguous areas."
@@ -334,6 +339,7 @@ class SortRange(ToolBase):
     """Sort a range by a column."""
 
     name = "sort_range"
+    intent = "edit"
     description = (
         "Sorts the specified range(s) by a column. Use for ordering "
         "rows by values in one column. Supports lists for non-contiguous "
@@ -410,6 +416,7 @@ class ImportCsv(ToolBase):
     """Import CSV data into the sheet."""
 
     name = "import_csv_from_string"
+    intent = "edit"
     description = (
         "Inserts CSV data into the sheet starting at a cell. "
         "Handles large datasets efficiently."
@@ -449,6 +456,7 @@ class DeleteStructure(ToolBase):
     """Delete rows or columns."""
 
     name = "delete_structure"
+    intent = "edit"
     description = (
         "Deletes rows or columns. Use for structural changes; "
         "prefer ranges for data operations."

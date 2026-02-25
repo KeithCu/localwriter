@@ -26,6 +26,8 @@ class HttpModule(ModuleBase):
         # Built-in endpoints
         self._registry.add("GET", "/health", self._handle_health)
         self._registry.add("GET", "/", self._handle_info)
+        self._registry.add("GET", "/api/config", self._handle_config_get)
+        self._registry.add("POST", "/api/config", self._handle_config_set)
 
         if hasattr(services, "events"):
             services.events.subscribe("config:changed", self._on_config_changed)
@@ -223,3 +225,59 @@ class HttpModule(ModuleBase):
             "description": "LocalWriter HTTP server",
             "routes": ["%s %s" % (m, p) for m, p in sorted(routes)],
         })
+
+    def _handle_config_get(self, body, headers, query):
+        """GET /api/config — read config values.
+
+        Query params:
+          ?key=ai_ollama.instances   → single key
+          ?prefix=ai_ollama          → all keys with prefix
+          (none)                     → all config
+        """
+        cfg = self._services.config
+
+        key = (query.get("key") or [None])[0]
+        if key:
+            val = cfg.get(key)
+            return (200, {"key": key, "value": val})
+
+        module = (query.get("module") or [None])[0]
+        prefix = (query.get("prefix") or [None])[0]
+        all_config = cfg.get_dict()
+
+        if module:
+            p = module if module.endswith(".") else module + "."
+            filtered = {k: v for k, v in all_config.items()
+                        if k.startswith(p)}
+            return (200, {"config": filtered})
+
+        if prefix:
+            filtered = {k: v for k, v in all_config.items()
+                        if k.startswith(prefix)}
+            return (200, {"config": filtered})
+
+        return (200, {"config": all_config})
+
+    def _handle_config_set(self, body, headers, query):
+        """POST /api/config — write config values.
+
+        Body: {"key": "value", ...}
+        """
+        if not body or not isinstance(body, dict):
+            return (400, {"error": "Body must be a JSON object of key-value pairs"})
+
+        cfg = self._services.config
+        errors = []
+        written = []
+        for key, value in body.items():
+            try:
+                cfg.set(key, value)
+                written.append(key)
+            except Exception as e:
+                errors.append({"key": key, "error": str(e)})
+
+        result = {"written": written}
+        if errors:
+            result["errors"] = errors
+            return (207, result)
+        return (200, result)

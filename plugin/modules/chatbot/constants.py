@@ -38,6 +38,8 @@ FORMAT_RULES = (HTML_FORMATTING_RULES if DOCUMENT_FORMAT == "html"
 DEFAULT_WRITER_SYSTEM_PROMPT = (
     "You are a LibreOffice document assistant. "
     "Edit the document directly using tools.\n\n"
+    "CHAT RESPONSES: Use plain text only (no HTML tags). "
+    "HTML is ONLY for apply_document_content tool arguments.\n\n"
     "TOOLS:\n"
     "- get_document_content: Read document as %s.\n"
     "- apply_document_content: Write %s. "
@@ -109,9 +111,23 @@ def get_greeting(doc_type):
     return _GREETINGS.get(doc_type, DEFAULT_WRITER_GREETING)
 
 
-def get_system_prompt(doc_type, additional=""):
+BROKER_HINT = (
+    "\n\nTOOL ACTIVATION:\n"
+    "Some tools above require activation first. "
+    "Call request_tools(intent=\"...\") to load a group:\n"
+    "- \"navigate\": headings, bookmarks, sections, full-text search\n"
+    "- \"edit\": tables, frames, styles, paragraph operations\n"
+    "- \"review\": comments, track changes, health checks\n"
+    "- \"media\": images, file operations, document management\n"
+    "Or list_available_tools() to browse all tools."
+)
+
+
+def get_system_prompt(doc_type, additional="", broker=False):
     """Return the system prompt for the given document type."""
     base = _SYSTEM_PROMPTS.get(doc_type, DEFAULT_WRITER_SYSTEM_PROMPT)
+    if broker:
+        base += BROKER_HINT
     if additional and str(additional).strip():
         return base + "\n\n" + str(additional).strip()
     return base

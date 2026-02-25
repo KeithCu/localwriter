@@ -18,6 +18,10 @@ class ToolBase(ABC):
         parameters:  JSON Schema dict (MCP ``inputSchema`` format).
         doc_types:   List of supported doc types (["writer"], ["calc"],
                      ["draw"], or None for all types).
+        tier:        "core" = always sent to the LLM, "extended" = on demand
+                     via the tool broker.  Default "extended".
+        intent:      Broker group: "navigate", "edit", "review", or "media".
+                     Used by request_tools(intent=...) to load tool groups.
         is_mutation:  Whether the tool mutates the document.  ``None``
                      means auto-detect from name prefix.
         long_running: Hint that the tool may take a while (e.g. image gen).
@@ -27,6 +31,8 @@ class ToolBase(ABC):
     description: str = ""
     parameters: dict = None
     doc_types: list = None
+    tier: str = "extended"
+    intent: str = None
     is_mutation: bool = None
     long_running: bool = False
 

@@ -11,6 +11,7 @@ class SetTrackChanges(ToolBase):
     """Enable or disable change tracking."""
 
     name = "set_track_changes"
+    intent = "review"
     description = "Enable or disable track changes (change recording) in the document."
     parameters = {
         "type": "object",
@@ -37,6 +38,7 @@ class GetTrackedChanges(ToolBase):
     """List all tracked changes (redlines) in the document."""
 
     name = "get_tracked_changes"
+    intent = "review"
     description = (
         "List all tracked changes (redlines) in the document, "
         "including type, author, date, and comment."
@@ -100,6 +102,7 @@ class AcceptAllChanges(ToolBase):
     """Accept all tracked changes in the document."""
 
     name = "accept_all_changes"
+    intent = "review"
     description = "Accept all tracked changes in the document."
     parameters = {
         "type": "object",
@@ -126,6 +129,7 @@ class RejectAllChanges(ToolBase):
     """Reject all tracked changes in the document."""
 
     name = "reject_all_changes"
+    intent = "review"
     description = "Reject all tracked changes in the document."
     parameters = {
         "type": "object",

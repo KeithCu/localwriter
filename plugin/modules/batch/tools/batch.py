@@ -126,6 +126,7 @@ class ExecuteBatch(ToolBase):
         },
         "required": ["operations"],
     }
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):

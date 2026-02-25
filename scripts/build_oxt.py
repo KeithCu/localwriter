@@ -113,6 +113,7 @@ def collect_files(base_dir, include_paths):
 
 def remap_path(f):
     """Convert a project-relative path to its .oxt archive path."""
+    f = f.replace(os.sep, "/")
     if f.startswith("extension/"):
         return f[len("extension/"):]
     if f.startswith("build/generated/"):

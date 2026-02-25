@@ -6,6 +6,7 @@ from plugin.framework.tool_base import ToolBase
 
 class ListSections(ToolBase):
     name = "list_sections"
+    intent = "navigate"
     description = "List all named sections in the document."
     parameters = {"type": "object", "properties": {}, "required": []}
     doc_types = ["writer"]
@@ -32,6 +33,7 @@ class ListSections(ToolBase):
 
 class GotoPage(ToolBase):
     name = "goto_page"
+    intent = "navigate"
     description = "Navigate the view cursor to a specific page."
     parameters = {
         "type": "object",
@@ -54,6 +56,7 @@ class GotoPage(ToolBase):
 
 class GetPageObjects(ToolBase):
     name = "get_page_objects"
+    intent = "navigate"
     description = (
         "Get images, tables, and frames on a specific page. "
         "Provide page number, locator, or paragraph_index."
@@ -159,6 +162,7 @@ class GetPageObjects(ToolBase):
 
 class RefreshIndexes(ToolBase):
     name = "refresh_indexes"
+    intent = "navigate"
     description = "Refresh all document indexes (TOC, bibliography, etc.)."
     parameters = {"type": "object", "properties": {}, "required": []}
     doc_types = ["writer"]
@@ -186,6 +190,7 @@ class ReadSection(ToolBase):
     """Read the content of a named text section."""
 
     name = "read_section"
+    intent = "navigate"
     description = (
         "Read the text content of a named section. "
         "Returns the full text within the section boundaries."
@@ -250,6 +255,7 @@ class ResolveBookmark(ToolBase):
     """Resolve a bookmark to its paragraph index and heading text."""
 
     name = "resolve_bookmark"
+    intent = "navigate"
     description = (
         "Resolve a bookmark to its current paragraph index and text. "
         "Most tools accept 'bookmark:NAME' as locator directly -- use "
@@ -333,6 +339,7 @@ class UpdateFields(ToolBase):
     """Refresh all text fields in the document."""
 
     name = "update_fields"
+    intent = "navigate"
     description = (
         "Refresh all text fields (dates, page numbers, cross-references). "
         "Call after changes that affect computed fields."

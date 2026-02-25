@@ -21,6 +21,7 @@ class ListImages(ToolBase):
     """List all images/graphic objects in the document."""
 
     name = "list_images"
+    intent = "media"
     description = (
         "List all images/graphic objects in the document with name, "
         "dimensions, title, and description."
@@ -105,6 +106,7 @@ class GetImageInfo(ToolBase):
     """Get detailed info about a specific image."""
 
     name = "get_image_info"
+    intent = "media"
     description = (
         "Get detailed info about a specific image: URL, dimensions, "
         "anchor type, orientation, and paragraph index."
@@ -223,6 +225,7 @@ class SetImageProperties(ToolBase):
     """Resize, reposition, crop, or update caption/alt-text for an image."""
 
     name = "set_image_properties"
+    intent = "media"
     description = (
         "Resize, reposition, crop, or update caption/alt-text for an image."
     )
@@ -353,6 +356,7 @@ class DownloadImage(ToolBase):
     """Download an image from URL to local cache."""
 
     name = "download_image"
+    intent = "media"
     description = (
         "Download an image from URL to local cache. Returns local path "
         "for insert_image/replace_image."
@@ -404,6 +408,7 @@ class InsertImage(ToolBase):
     """Insert an image from local path or URL into the document."""
 
     name = "insert_image"
+    intent = "media"
     description = (
         "Insert an image from local path or URL into the document. "
         "URLs are auto-downloaded first."
@@ -526,6 +531,7 @@ class DeleteImage(ToolBase):
     """Delete an image from the document."""
 
     name = "delete_image"
+    intent = "media"
     description = "Delete an image from the document."
     parameters = {
         "type": "object",
@@ -579,6 +585,7 @@ class ReplaceImage(ToolBase):
     """Replace an image's source file keeping position and frame."""
 
     name = "replace_image"
+    intent = "media"
     description = (
         "Replace an image's source file keeping position and frame."
     )

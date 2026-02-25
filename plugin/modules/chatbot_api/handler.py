@@ -38,7 +38,9 @@ class ChatApiHandler:
             from plugin.modules.chatbot.constants import get_system_prompt
             cfg = self._services.config.proxy_for("chatbot")
             extra = cfg.get("system_prompt") or ""
-            system_prompt = get_system_prompt(doc_type, extra)
+            use_broker = cfg.get("tool_broker") or False
+            system_prompt = get_system_prompt(doc_type, extra,
+                                              broker=use_broker)
         except Exception:
             pass
 
@@ -155,6 +157,13 @@ class ChatApiHandler:
             except Exception:
                 raise ConnectionError("Client disconnected")
 
+        # Notify client if provider is still loading
+        if not provider.is_ready():
+            st = provider.get_status()
+            send_event("status", {
+                "message": st.get("message", "Model loading, please wait...")
+            })
+
         try:
             self._stream_response(
                 provider, send_event, body.get("tools", True))
@@ -174,15 +183,18 @@ class ChatApiHandler:
 
         config = self._services.config.proxy_for("chatbot")
         max_rounds = config.get("max_tool_rounds") or 15
+        use_broker = config.get("tool_broker") or False
+        broker = {"extra_names": set()} if use_broker else None
 
         adapter = self._adapter if use_tools else None
+        active_broker = broker if use_tools else None
         doc_svc = self._services.document
         doc = doc_svc.get_active_document() if doc_svc else None
         ctx = get_ctx()
 
         for event in chat_event_stream(
             provider, self._session, adapter, doc, ctx,
-            max_rounds=max_rounds,
+            max_rounds=max_rounds, broker=active_broker,
         ):
             etype = event.get("type")
             if etype == "text":
@@ -199,6 +211,8 @@ class ChatApiHandler:
                     "result": event["content"]})
             elif etype == "done":
                 send_event("done", {"content": event["content"]})
+            elif etype == "status":
+                send_event("status", {"message": event["message"]})
             elif etype == "error":
                 send_event("error", {"message": event["message"]})
 

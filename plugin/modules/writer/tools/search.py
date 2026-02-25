@@ -45,6 +45,7 @@ class SearchInDocument(ToolBase):
         "required": ["pattern"],
     }
     doc_types = ["writer"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         import re as re_mod
@@ -191,6 +192,7 @@ class ReplaceInDocument(ToolBase):
         "required": ["search", "replace"],
     }
     doc_types = ["writer"]
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):

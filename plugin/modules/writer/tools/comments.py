@@ -12,6 +12,7 @@ class ListComments(ToolBase):
     """List all comments (annotations) in the document."""
 
     name = "list_comments"
+    intent = "review"
     description = (
         "List all comments/annotations in the document, including "
         "author, content, date, resolved status, and anchor preview. "
@@ -69,6 +70,7 @@ class AddComment(ToolBase):
     """Add a comment anchored to a paragraph."""
 
     name = "add_comment"
+    intent = "review"
     description = (
         "Add a comment/annotation. Anchor via search_text, locator, "
         "or paragraph_index. Use your AI name as author for multi-agent "
@@ -165,6 +167,7 @@ class DeleteComment(ToolBase):
     """Delete comments by name or author."""
 
     name = "delete_comment"
+    intent = "review"
     description = (
         "Delete comments by name or author. "
         "Use comment_name to delete a specific comment and its replies. "
@@ -237,6 +240,7 @@ class ResolveComment(ToolBase):
     """Resolve a comment with an optional reason."""
 
     name = "resolve_comment"
+    intent = "review"
     description = (
         "Resolve a comment with an optional reason. Adds a reply "
         "with the resolution text, then marks as resolved."
@@ -320,6 +324,7 @@ class ScanTasks(ToolBase):
     """Scan comments for actionable task prefixes."""
 
     name = "scan_tasks"
+    intent = "review"
     description = (
         "Scan comments for actionable task prefixes: TODO-AI, FIX, "
         "QUESTION, VALIDATION, NOTE. Returns unresolved tasks with locators."
@@ -398,6 +403,7 @@ class GetWorkflowStatus(ToolBase):
     """Read the master workflow dashboard comment."""
 
     name = "get_workflow_status"
+    intent = "review"
     description = (
         "Read the master workflow dashboard comment "
         "(author: MCP-WORKFLOW). Returns key-value pairs."
@@ -447,6 +453,7 @@ class SetWorkflowStatus(ToolBase):
     """Create or update the master workflow dashboard comment."""
 
     name = "set_workflow_status"
+    intent = "review"
     description = (
         "Create or update the master workflow dashboard comment. "
         "Content should be key: value lines."
@@ -508,6 +515,7 @@ class CheckStopConditions(ToolBase):
     """Check for stop/cancel signals in comments."""
 
     name = "check_stop_conditions"
+    intent = "review"
     description = (
         "Check for stop signals: unresolved comments starting with "
         "STOP or CANCEL, or workflow status containing 'stop' or 'pause'. "

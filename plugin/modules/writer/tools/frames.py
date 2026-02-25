@@ -15,6 +15,7 @@ class ListTextFrames(ToolBase):
     """List all text frames in the document."""
 
     name = "list_text_frames"
+    intent = "edit"
     description = "List all text frames in the document."
     parameters = {
         "type": "object",
@@ -72,6 +73,7 @@ class GetTextFrameInfo(ToolBase):
     """Get detailed info about a text frame."""
 
     name = "get_text_frame_info"
+    intent = "edit"
     description = "Get detailed info about a text frame."
     parameters = {
         "type": "object",
@@ -172,6 +174,7 @@ class SetTextFrameProperties(ToolBase):
     """Resize or reposition a text frame."""
 
     name = "set_text_frame_properties"
+    intent = "edit"
     description = "Resize or reposition a text frame."
     parameters = {
         "type": "object",

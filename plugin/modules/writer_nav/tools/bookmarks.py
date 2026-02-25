@@ -5,6 +5,7 @@ from plugin.framework.tool_base import ToolBase
 
 class ListBookmarks(ToolBase):
     name = "list_bookmarks"
+    intent = "navigate"
     description = (
         "List all bookmarks in the document with their anchor text preview. "
         "Includes both user bookmarks and _mcp_ heading bookmarks."
@@ -34,6 +35,7 @@ class ListBookmarks(ToolBase):
 
 class CleanupBookmarks(ToolBase):
     name = "cleanup_bookmarks"
+    intent = "navigate"
     description = (
         "Remove all _mcp_* bookmarks from the document. "
         "Use when bookmarks become stale after major edits."

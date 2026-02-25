@@ -11,6 +11,7 @@ class DocumentHealthCheck(ToolBase):
     """Run structural health checks on a Writer document."""
 
     name = "document_health_check"
+    intent = "review"
     description = (
         "Run structural health checks on the document. "
         "Detects empty headings, heading level jumps, orphan images, "
@@ -220,6 +221,7 @@ class SetDocumentProtection(ToolBase):
     """Set or remove document section protection."""
 
     name = "set_document_protection"
+    intent = "review"
     description = "Set or remove document section protection."
     parameters = {
         "type": "object",

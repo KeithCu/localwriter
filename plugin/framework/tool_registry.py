@@ -91,9 +91,37 @@ class ToolRegistry:
 
     # ── Schema generation ─────────────────────────────────────────────
 
-    def get_openai_schemas(self, doc_type=None):
-        """Return list of OpenAI function-calling schemas."""
-        return [to_openai_schema(t) for t in self.tools_for_doc_type(doc_type)]
+    def get_openai_schemas(self, doc_type=None, tier=None):
+        """Return list of OpenAI function-calling schemas.
+
+        When *tier* is set (e.g. ``"core"``), only tools with that tier
+        are included.
+        """
+        tools = self.tools_for_doc_type(doc_type)
+        if tier:
+            tools = (t for t in tools if t.tier == tier)
+        return [to_openai_schema(t) for t in tools]
+
+    def get_openai_schemas_by_names(self, names):
+        """Return OpenAI schemas for specific tool *names*."""
+        return [to_openai_schema(self._tools[n])
+                for n in names if n in self._tools]
+
+    def get_tool_summaries(self, doc_type=None, tier=None):
+        """Lightweight catalogue: ``[{"name", "description", "tier"}]``."""
+        tools = self.tools_for_doc_type(doc_type)
+        if tier:
+            tools = (t for t in tools if t.tier == tier)
+        return [{"name": t.name,
+                 "description": (t.description or "")[:120],
+                 "tier": t.tier,
+                 "intent": t.intent}
+                for t in tools]
+
+    def get_tool_names_by_intent(self, doc_type=None, intent=None):
+        """Return names of extended tools matching *intent*."""
+        return [t.name for t in self.tools_for_doc_type(doc_type)
+                if t.tier == "extended" and t.intent == intent]
 
     def get_mcp_schemas(self, doc_type=None):
         """Return list of MCP tools/list schemas."""

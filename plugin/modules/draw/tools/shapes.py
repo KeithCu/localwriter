@@ -33,6 +33,7 @@ class ListPages(ToolBase):
     description = "Lists all pages (slides) in the document."
     parameters = {"type": "object", "properties": {}, "required": []}
     doc_types = ["draw"]
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         from plugin.modules.draw.bridge import DrawBridge
@@ -47,6 +48,7 @@ class ListPages(ToolBase):
 
 class GetDrawSummary(ToolBase):
     name = "get_draw_summary"
+    intent = "edit"
     description = "Returns a summary of shapes on the active or specified page."
     parameters = {
         "type": "object",
@@ -110,6 +112,7 @@ class CreateShape(ToolBase):
         "required": ["shape_type", "x", "y", "width", "height"],
     }
     doc_types = ["draw"]
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
@@ -154,6 +157,7 @@ class CreateShape(ToolBase):
 
 class EditShape(ToolBase):
     name = "edit_shape"
+    intent = "edit"
     description = "Modifies properties of an existing shape."
     parameters = {
         "type": "object",
@@ -214,6 +218,7 @@ class EditShape(ToolBase):
 
 class DeleteShape(ToolBase):
     name = "delete_shape"
+    intent = "edit"
     description = "Deletes a shape by index."
     parameters = {
         "type": "object",

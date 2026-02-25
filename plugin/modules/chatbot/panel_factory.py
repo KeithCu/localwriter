@@ -187,13 +187,16 @@ try:
 
             # Extra instructions from config
             extra = ""
+            use_broker = False
             try:
                 cfg = services.config.proxy_for("chatbot")
                 extra = cfg.get("system_prompt") or ""
+                use_broker = cfg.get("tool_broker") or False
             except Exception:
                 pass
 
-            system_prompt = get_system_prompt(doc_type, extra)
+            system_prompt = get_system_prompt(doc_type, extra,
+                                              broker=use_broker)
 
             # ── Create session and adapter ─────────────────────────
 
@@ -210,14 +213,50 @@ try:
             # Connect UI callbacks
             query_label = _get_optional(root_window, "query_label")
 
+            _spinner_active = [False]
+            _spinner_text = [""]
+
+            def _start_spinner(text=""):
+                """Start or update spinner. No restart if already running."""
+                _spinner_text[0] = text
+                if _spinner_active[0]:
+                    return  # thread running, just updated text
+                _spinner_active[0] = True
+                def _spin():
+                    frames = ["-", "\\", "|", "/"]
+                    i = 0
+                    while _spinner_active[0]:
+                        try:
+                            if query_label and query_label.getModel():
+                                t = _spinner_text[0]
+                                if t:
+                                    query_label.getModel().Label = (
+                                        "%s %s" % (
+                                            frames[i % len(frames)], t))
+                                else:
+                                    query_label.getModel().Label = (
+                                        " %s" % frames[i % len(frames)])
+                        except Exception:
+                            break
+                        i += 1
+                        threading.Event().wait(0.15)
+                threading.Thread(
+                    target=_spin, daemon=True).start()
+
             def set_status(text):
-                try:
-                    if query_label and query_label.getModel():
-                        query_label.getModel().Label = "Ask (%s)" % text
-                except Exception:
-                    pass
+                if text == "Ready":
+                    _spinner_active[0] = False
+                    try:
+                        if query_label and query_label.getModel():
+                            query_label.getModel().Label = (
+                                "Enter=chat  Ctrl+Enter=do  (%s)" % text)
+                    except Exception:
+                        pass
+                else:
+                    _start_spinner(text)
 
             def append_response(text, is_thinking=False):
+                _start_spinner()
                 try:
                     if response_ctrl and response_ctrl.getModel():
                         current = response_ctrl.getModel().Text or ""
@@ -233,11 +272,13 @@ try:
 
             def set_buttons(send_enabled, stop_enabled):
                 for ctrl, enabled in [(send_btn, send_enabled),
-                                      (stop_btn, stop_enabled)]:
+                                      (stop_btn, stop_enabled),
+                                      (query_ctrl, send_enabled)]:
                     if ctrl and ctrl.getModel():
                         ctrl.getModel().Enabled = bool(enabled)
 
             def on_done():
+                _spinner_active[0] = False
                 set_buttons(True, False)
                 set_status("Ready")
 
@@ -253,6 +294,7 @@ try:
                     self._query = query_ctrl
                     self._ctx = ctx
                     self._frame = frame
+                    self._use_tools = "lazy"  # default: auto-detect
 
                 def actionPerformed(self, evt):
                     text = ""
@@ -282,7 +324,15 @@ try:
                         except Exception:
                             pass
 
-                    self._listener.send(text, d, self._ctx)
+                    use_tools = self._use_tools
+                    self._use_tools = "lazy"  # reset for next call
+
+                    # Run in background thread to avoid UI freeze
+                    def _worker():
+                        self._listener.send(text, d, self._ctx,
+                                            use_tools=use_tools)
+                    threading.Thread(
+                        target=_worker, daemon=True).start()
 
                 def disposing(self, evt):
                     pass
@@ -393,11 +443,20 @@ try:
                         if nxt is not None:
                             self._query.getModel().Text = nxt
                     elif (evt.KeyCode == RETURN
-                          and enter_sends
                           and not (evt.Modifiers & 1)):
-                        # Enter sends, Shift+Enter inserts newline
-                        # Modifiers & 1 = SHIFT
-                        self._send.actionPerformed(None)
+                        # Shift+Enter (bit 1) → newline, handled by default
+                        # Guard: only send if the send button is enabled
+                        if not (send_btn and send_btn.getModel()
+                                and send_btn.getModel().Enabled):
+                            return
+                        if evt.Modifiers & 2:
+                            # Ctrl+Enter → Do mode (force tools)
+                            self._send._use_tools = True
+                            self._send.actionPerformed(None)
+                        elif enter_sends:
+                            # Enter → Lazy mode (auto-detect tools)
+                            self._send._use_tools = "lazy"
+                            self._send.actionPerformed(None)
 
                 def keyReleased(self, evt):
                     pass
@@ -443,10 +502,48 @@ try:
                 clear_btn.addActionListener(
                     _ClearAction(session, response_ctrl))
 
-            # ── Initial state ──────────────────────────────────────
+            # ── Initial state + warmup check ──────────────────────
 
-            set_buttons(True, False)
-            set_status("Ready")
+            ai = services.get("ai")
+            events = services.get("events")
+
+            # Check if provider is ready; grey out if not
+            _provider_ready = [True]
+            try:
+                if ai:
+                    st = ai.get_active_status("text")
+                    if not st.get("ready", True):
+                        _provider_ready[0] = False
+                        set_buttons(False, False)
+                        set_status(st.get("message", "Loading..."))
+            except Exception:
+                pass
+
+            if _provider_ready[0]:
+                set_buttons(True, False)
+                set_status("Ready")
+
+            # Subscribe to warmup status events
+            if events and ai:
+                def _on_instance_status(instance_id="", status="",
+                                        message="", **kw):
+                    try:
+                        active_id = ai._get_active_instance_id("text")
+                        if instance_id != active_id and active_id:
+                            return
+                        if status == "ready":
+                            _provider_ready[0] = True
+                            set_buttons(True, False)
+                            set_status("Ready")
+                        else:
+                            _provider_ready[0] = False
+                            set_buttons(False, False)
+                            set_status(message or status)
+                    except Exception:
+                        pass
+
+                events.subscribe("ai:instance_status",
+                                 _on_instance_status)
 
             greeting = get_greeting(doc_type)
             if response_ctrl and response_ctrl.getModel():
@@ -674,16 +771,48 @@ try:
 
             # Label + dropdown on same row, 22px row height, 12px gap
             _add_label("text_label", 10, "Text AI")
-            _add_dropdown(
+            text_dd = _add_dropdown(
                 "text_instance", 10,
                 get_text_instance_options(services),
                 "text")
 
             _add_label("image_label", 46, "Image AI")
-            _add_dropdown(
+            image_dd = _add_dropdown(
                 "image_instance", 46,
                 get_image_instance_options(services),
                 "image")
+
+            # Refresh dropdowns when config changes (e.g. new AI instances)
+            events = services.get("events")
+            if events:
+                def _refresh_dropdown(lc, options_fn, capability):
+                    """Repopulate a ListBox from fresh options."""
+                    lc.removeItems(0, lc.getItemCount())
+                    ids = []
+                    for opt in options_fn(services):
+                        lc.addItem(opt["label"], len(ids))
+                        ids.append(opt["value"])
+                    current = ""
+                    if ai:
+                        current = ai._get_active_instance_id(capability)
+                    sel = 0
+                    for i, v in enumerate(ids):
+                        if v == current:
+                            sel = i
+                            break
+                    if ids:
+                        lc.selectItemPos(sel, True)
+
+                def _on_config_changed(**data):
+                    try:
+                        _refresh_dropdown(
+                            text_dd, get_text_instance_options, "text")
+                        _refresh_dropdown(
+                            image_dd, get_image_instance_options, "image")
+                    except Exception:
+                        pass
+
+                events.subscribe("config:changed", _on_config_changed)
 
     class ChatPanelFactory(unohelper.Base, XUIElementFactory):
         """Factory that creates chat and settings panel elements."""

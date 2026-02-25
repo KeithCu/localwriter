@@ -177,15 +177,32 @@ class OpenAICompatProvider(LlmProvider):
         path = self._request_path()
         headers = self._headers()
 
+        endpoint = self._endpoint()
+        log.info("stream: %s%s model=%s tools=%d msgs=%d",
+                 endpoint, path, body.get("model", "?"),
+                 len(body.get("tools") or []), len(messages))
+
         conn = self._get_conn()
         try:
             conn.request("POST", path, body=data, headers=headers)
             resp = conn.getresponse()
-        except (http.client.HTTPException, socket.error, OSError):
+        except socket.timeout:
+            self.close()
+            raise RuntimeError(
+                "Request timed out after %ds" % self._timeout())
+        except (http.client.HTTPException, socket.error, OSError) as e:
+            log.warning("stream: connection error, retrying: %s", e)
             self.close()
             conn = self._get_conn()
-            conn.request("POST", path, body=data, headers=headers)
-            resp = conn.getresponse()
+            try:
+                conn.request("POST", path, body=data, headers=headers)
+                resp = conn.getresponse()
+            except socket.timeout:
+                self.close()
+                raise RuntimeError(
+                    "Request timed out after %ds" % self._timeout())
+
+        log.info("stream: response status=%d", resp.status)
 
         if resp.status != 200:
             err = resp.read().decode("utf-8", errors="replace")
@@ -257,11 +274,20 @@ class OpenAICompatProvider(LlmProvider):
         try:
             conn.request("POST", path, body=data, headers=headers)
             resp = conn.getresponse()
+        except socket.timeout:
+            self.close()
+            raise RuntimeError(
+                "Request timed out after %ds" % self._timeout())
         except (http.client.HTTPException, socket.error, OSError):
             self.close()
             conn = self._get_conn()
-            conn.request("POST", path, body=data, headers=headers)
-            resp = conn.getresponse()
+            try:
+                conn.request("POST", path, body=data, headers=headers)
+                resp = conn.getresponse()
+            except socket.timeout:
+                self.close()
+                raise RuntimeError(
+                    "Request timed out after %ds" % self._timeout())
 
         raw = resp.read().decode("utf-8", errors="replace")
         if resp.status != 200:
@@ -285,3 +311,7 @@ class OpenAICompatProvider(LlmProvider):
 
     def supports_vision(self):
         return False
+
+    def get_status(self):
+        model = self._config.get("model") or ""
+        return {"ready": True, "message": "Ready", "model": model}

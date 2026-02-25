@@ -38,6 +38,19 @@ class LlmProvider(ABC):
         """Whether this provider supports image inputs."""
         return False
 
+    def warmup(self):
+        """Pre-load the model. Called at startup or on instance switch.
+        By default: no-op (provider is considered ready)."""
+        pass
+
+    def is_ready(self):
+        """True if the provider is ready to receive requests."""
+        return True
+
+    def get_status(self):
+        """Return status dict: {"ready": bool, "message": str, "model": str}"""
+        return {"ready": True, "message": "Ready", "model": ""}
+
 
 class ImageProvider(ABC):
     """Interface that image backend modules implement."""

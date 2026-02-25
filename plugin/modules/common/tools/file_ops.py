@@ -34,6 +34,7 @@ class SaveDocument(ToolBase):
         "required": [],
     }
     doc_types = None
+    tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
@@ -68,6 +69,7 @@ class ExportPdf(ToolBase):
         "required": ["path"],
     }
     doc_types = None
+    tier = "core"
     is_mutation = False
 
     def execute(self, ctx, **kwargs):
@@ -117,6 +119,7 @@ class SaveDocumentAs(ToolBase):
     """Save a copy of the document to a new path."""
 
     name = "save_document_as"
+    intent = "media"
     description = "Save a copy of the document to a new path."
     parameters = {
         "type": "object",
@@ -182,6 +185,7 @@ class CreateDocument(ToolBase):
     """Create a new empty document in LibreOffice."""
 
     name = "create_document"
+    intent = "media"
     description = "Create a new empty document in LibreOffice."
     parameters = {
         "type": "object",
@@ -237,6 +241,7 @@ class OpenDocument(ToolBase):
     """Open a document file in LibreOffice."""
 
     name = "open_document"
+    intent = "media"
     description = "Open a document file in LibreOffice."
     parameters = {
         "type": "object",
@@ -273,6 +278,7 @@ class CloseDocument(ToolBase):
     """Close the current document."""
 
     name = "close_document"
+    intent = "media"
     description = (
         "Close the current document. Use save_document first if needed."
     )
@@ -298,6 +304,7 @@ class ListOpenDocuments(ToolBase):
     """List all currently open documents in LibreOffice."""
 
     name = "list_open_documents"
+    intent = "media"
     description = "List all currently open documents in LibreOffice."
     parameters = {
         "type": "object",
@@ -376,6 +383,7 @@ class GetRecentDocuments(ToolBase):
     """Get list of recently opened documents from LibreOffice history."""
 
     name = "get_recent_documents"
+    intent = "media"
     description = (
         "Get list of recently opened documents from LibreOffice history."
     )
@@ -424,6 +432,7 @@ class SetDocumentProperties(ToolBase):
     """Set document metadata properties."""
 
     name = "set_document_properties"
+    intent = "media"
     description = (
         "Set document metadata properties "
         "(title, subject, author, description, keywords)."

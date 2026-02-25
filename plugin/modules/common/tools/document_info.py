@@ -21,6 +21,7 @@ class GetDocumentInfo(ToolBase):
         "required": [],
     }
     doc_types = None  # works with all document types
+    tier = "core"
 
     def execute(self, ctx, **kwargs):
         doc = ctx.doc

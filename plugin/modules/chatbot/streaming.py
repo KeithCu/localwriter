@@ -19,7 +19,7 @@ log = logging.getLogger("localwriter.chatbot.streaming")
 
 
 def chat_event_stream(provider, session, adapter, doc, ctx,
-                      max_rounds=15, stop_checker=None):
+                      max_rounds=15, stop_checker=None, broker=None):
     """Generator yielding NDJSON event dicts for a chat response.
 
     Runs the full streaming + tool-calling loop. Each yielded dict has
@@ -43,13 +43,24 @@ def chat_event_stream(provider, session, adapter, doc, ctx,
         ctx: UNO component context (or None).
         max_rounds: max tool-calling iterations.
         stop_checker: callable returning True to abort.
+        broker: mutable dict ``{"extra_names": set()}`` to enable
+                two-tier tool delivery, or None for classic mode.
     """
     tools = None
     if adapter:
         try:
-            tools = adapter.get_tools_for_doc(doc)
+            if broker is not None:
+                tools = adapter.get_brokered_tools(doc, broker)
+                log.info("Broker mode: %d core+extra tools", len(tools) if tools else 0)
+            else:
+                tools = adapter.get_tools_for_doc(doc)
+                log.info("Classic mode: %d tools", len(tools) if tools else 0)
         except Exception:
             pass
+
+    tools_count = len(tools) if tools else 0
+    if tools_count:
+        yield {"type": "status", "message": "Sending %d tools..." % tools_count}
 
     for _round in range(max_rounds):
         if stop_checker and stop_checker():
@@ -114,6 +125,20 @@ def chat_event_stream(provider, session, adapter, doc, ctx,
                 session.add_tool_result(tc_id, result_str)
                 yield {"type": "tool_result", "name": name,
                        "content": result, "id": tc_id}
+
+                # Broker: activate requested tools for next round
+                if (broker is not None and name == "request_tools"
+                        and result.get("status") == "ok"):
+                    enabled = result.get("enabled", [])
+                    if enabled:
+                        broker["extra_names"].update(enabled)
+                        try:
+                            tools = adapter.get_brokered_tools(doc, broker)
+                        except Exception:
+                            pass
+                        yield {"type": "status",
+                               "message": "Enabling %d additional tools..."
+                               % len(enabled)}
 
     # Exhausted max rounds
     yield {"type": "done", "content": "".join(content_parts)}

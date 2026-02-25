@@ -18,6 +18,7 @@ class DetectErrors(ToolBase):
     """Detect and explain formula errors in a range."""
 
     name = "detect_and_explain_errors"
+    intent = "edit"
     description = (
         "Detects formula errors in the specified range(s) and provides "
         "an explanation and fix suggestion. Supports lists for "

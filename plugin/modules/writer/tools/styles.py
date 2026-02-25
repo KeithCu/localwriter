@@ -32,6 +32,7 @@ class ListStyles(ToolBase):
     """List available styles in a given family."""
 
     name = "list_styles"
+    intent = "edit"
     description = (
         "List available styles in the document. "
         "Call this before applying styles to discover exact style names."
@@ -89,6 +90,7 @@ class GetStyleInfo(ToolBase):
     """Get detailed properties of a named style."""
 
     name = "get_style_info"
+    intent = "edit"
     description = (
         "Get detailed properties of a specific style "
         "(font, size, margins, etc.)."
