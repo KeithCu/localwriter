@@ -20,10 +20,22 @@ DEFAULT_MAX_TOOL_ROUNDS = 15
 
 
 class ChatSession:
-    """Maintains the message history for one sidebar chat session."""
+    """Maintains the message history for one sidebar chat session.
+
+    Supports cumulative summarization: when total message size exceeds
+    *max_history_chars*, older turns are compressed into a running
+    summary that preserves conversation context without consuming
+    the entire LLM context window.
+    """
+
+    # Threshold to trigger compression (chars across all messages)
+    MAX_HISTORY_CHARS = 24000
+    # Keep this many recent messages untouched
+    KEEP_RECENT = 6
 
     def __init__(self, system_prompt=None):
         self.messages = []
+        self._summary = ""  # cumulative conversation summary
         if system_prompt:
             self.messages.append({"role": "system", "content": system_prompt})
 
@@ -55,14 +67,86 @@ class ChatSession:
         insert_at = 1 if self.messages and self.messages[0]["role"] == "system" else 0
         self.messages.insert(insert_at, {"role": "system", "content": context_msg})
 
+    def maybe_compress(self):
+        """Compress older messages into a summary if history is too long.
+
+        Keeps system messages and recent turns intact. Replaces older
+        user/assistant/tool messages with a summary system message.
+        """
+        total = sum(len(m.get("content") or "") for m in self.messages)
+        if total < self.MAX_HISTORY_CHARS:
+            return
+
+        # Separate system messages from conversation messages
+        system_msgs = []
+        conv_msgs = []
+        for msg in self.messages:
+            if msg["role"] == "system":
+                system_msgs.append(msg)
+            else:
+                conv_msgs.append(msg)
+
+        if len(conv_msgs) <= self.KEEP_RECENT:
+            return
+
+        # Split: older messages to summarize, recent to keep
+        to_compress = conv_msgs[:-self.KEEP_RECENT]
+        to_keep = conv_msgs[-self.KEEP_RECENT:]
+
+        # Build summary from older messages
+        new_summary = self._build_summary(to_compress)
+
+        # Reconstruct messages: system + summary + recent
+        self.messages = list(system_msgs)
+        if new_summary:
+            self._summary = new_summary
+            summary_marker = "[CONVERSATION SUMMARY]"
+            summary_msg = "%s\n%s\n[/SUMMARY]" % (summary_marker, new_summary)
+            # Remove any existing summary message
+            self.messages = [
+                m for m in self.messages
+                if not (m["role"] == "system"
+                        and "[CONVERSATION SUMMARY]" in (m.get("content") or ""))
+            ]
+            self.messages.append({"role": "system", "content": summary_msg})
+        self.messages.extend(to_keep)
+
+    def _build_summary(self, messages):
+        """Build a concise summary from a list of conversation messages."""
+        parts = []
+        if self._summary:
+            parts.append(self._summary)
+
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content") or ""
+            if role == "user" and content:
+                # Keep user queries in full (they're usually short)
+                parts.append("User: %s" % content[:300])
+            elif role == "assistant" and content:
+                # Summarize assistant responses
+                preview = content[:200]
+                if len(content) > 200:
+                    preview += "..."
+                parts.append("Assistant: %s" % preview)
+            elif role == "tool":
+                # Just note that a tool was called
+                parts.append("(tool result)")
+            # Skip tool_calls details in summary
+
+        return "\n".join(parts)
+
     def clear(self):
         """Reset to just the system prompt."""
         system = None
         for msg in self.messages:
             if msg["role"] == "system" and "[DOCUMENT CONTENT]" not in (msg.get("content") or ""):
+                if "[CONVERSATION SUMMARY]" in (msg.get("content") or ""):
+                    continue
                 system = msg
                 break
         self.messages = []
+        self._summary = ""
         if system:
             self.messages.append(system)
 
@@ -178,6 +262,18 @@ class SendButtonListener:
         except RuntimeError:
             self._set_status("No LLM provider configured")
             return
+
+        # Inject document context
+        if doc:
+            from plugin.modules.chatbot.context import build_context
+            strategy = config.get("context_strategy") or "auto"
+            doc_context = build_context(
+                doc, self._services, strategy=strategy)
+            if doc_context:
+                self._session.update_document_context(doc_context)
+
+        # Compress history if too long
+        self._session.maybe_compress()
 
         # Get tools for current doc
         tools = self._adapter.get_tools_for_doc(doc)

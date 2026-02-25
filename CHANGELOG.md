@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.0] — 2026-02-25
+
+### Added
+
+- Document context strategies (full/page/tree/stats/auto) with config `chatbot.context_strategy`
+- Session summary compression: older messages condensed when history exceeds 24K chars
+- Chatbot HTTP API module (`chatbot_api`): REST/SSE endpoints for external integrations
+- Debug module: System Info and Test AI Providers actions (conditional on `debug.enabled`)
+- Dummy AI provider (`ai_dummy`): Homer Simpson mode for testing (streams "D'oh!")
+- Enter-to-send in chat panel (Shift+Enter for newline), configurable via `chatbot.enter_sends`
+- Query input history with up/down arrow keys, persisted across sessions
+- EndpointImageProvider: separate image instance when `image: true` on ai_openai instances
+- Model name displayed in AI Settings dropdown labels
+- `internal: true` support in module.yaml config fields (hidden from Options UI, stored in registry)
+
+### Changed
+
+- AI Settings panel: fixed height, inline labels ("Text AI" / "Image AI") next to dropdowns
+- AI Settings panel: wider dropdowns, better vertical spacing
+
 ## [1.4.0] — 2026-02-25
 
 ### Changed

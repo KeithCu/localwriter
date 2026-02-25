@@ -50,7 +50,9 @@ try:
     from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
     from com.sun.star.ui.UIElementType import TOOLPANEL
     from com.sun.star.awt import (
-        XActionListener, XItemListener, XWindowListener, XFocusListener)
+        XActionListener, XItemListener, XWindowListener, XFocusListener,
+        XKeyListener)
+    from com.sun.star.awt.Key import UP, DOWN, RETURN
 
     SETTINGS_XDL_PATH = "LocalWriterDialogs/ChatSettingsDialog.xdl"
 
@@ -58,12 +60,13 @@ try:
         """Holds the panel window; implements XToolPanel + XSidebarPanel."""
 
         def __init__(self, panel_window, parent_window, ctx,
-                     preferred_height=280):
+                     preferred_height=280, fixed_height=False):
             self.ctx = ctx
             self.PanelWindow = panel_window
             self.Window = panel_window
             self.parent_window = parent_window
             self._preferred_height = preferred_height
+            self._fixed = fixed_height
 
         def getWindow(self):
             return self.Window
@@ -74,10 +77,14 @@ try:
         def getHeightForWidth(self, width):
             h = self._preferred_height
             if self.parent_window and self.PanelWindow and width > 0:
-                parent_rect = self.parent_window.getPosSize()
-                if parent_rect.Height > 0:
-                    h = parent_rect.Height
+                if not self._fixed:
+                    parent_rect = self.parent_window.getPosSize()
+                    if parent_rect.Height > 0:
+                        h = parent_rect.Height
                 self.PanelWindow.setPosSize(0, 0, width, h, 15)
+            if self._fixed:
+                return uno.createUnoStruct(
+                    "com.sun.star.ui.LayoutSize", h, h, h)
             return uno.createUnoStruct(
                 "com.sun.star.ui.LayoutSize", h, -1, h)
 
@@ -280,8 +287,126 @@ try:
                 def disposing(self, evt):
                     pass
 
-            send_btn.addActionListener(
-                _SendAction(listener, query_ctrl, self.ctx, self.xFrame))
+            send_action = _SendAction(
+                listener, query_ctrl, self.ctx, self.xFrame)
+            send_btn.addActionListener(send_action)
+
+            # ── Query input history (up/down arrows) ──────────────
+
+            class _QueryHistory:
+                """Ring buffer for sent messages, navigable with arrows.
+
+                Persisted to ``chatbot.query_history`` config key (JSON list).
+                """
+
+                def __init__(self, config_proxy, max_size=50):
+                    self._cfg = config_proxy
+                    self._max = max_size
+                    self._pos = -1
+                    self._draft = ""
+                    self._items = self._load()
+
+                def _load(self):
+                    try:
+                        raw = self._cfg.get("query_history") or "[]"
+                        items = json.loads(raw)
+                        if isinstance(items, list):
+                            return items[-self._max:]
+                    except Exception:
+                        pass
+                    return []
+
+                def _save(self):
+                    try:
+                        self._cfg.set(
+                            "query_history",
+                            json.dumps(self._items[-self._max:],
+                                       ensure_ascii=False))
+                    except Exception:
+                        pass
+
+                def push(self, text):
+                    if text and (not self._items or self._items[-1] != text):
+                        self._items.append(text)
+                        if len(self._items) > self._max:
+                            self._items.pop(0)
+                        self._save()
+                    self._pos = -1
+                    self._draft = ""
+
+                def up(self, current_text):
+                    if not self._items:
+                        return None
+                    if self._pos == -1:
+                        self._draft = current_text
+                        self._pos = len(self._items) - 1
+                    elif self._pos > 0:
+                        self._pos -= 1
+                    else:
+                        return None
+                    return self._items[self._pos]
+
+                def down(self, current_text):
+                    if self._pos == -1:
+                        return None
+                    if self._pos < len(self._items) - 1:
+                        self._pos += 1
+                        return self._items[self._pos]
+                    self._pos = -1
+                    return self._draft
+
+            cfg = services.config.proxy_for("chatbot")
+            history = _QueryHistory(cfg)
+
+            # Patch send_action to record history
+            _orig_action = send_action.actionPerformed
+
+            def _action_with_history(evt):
+                text = ""
+                if query_ctrl and query_ctrl.getModel():
+                    text = (query_ctrl.getModel().Text or "").strip()
+                if text:
+                    history.push(text)
+                _orig_action(evt)
+
+            send_action.actionPerformed = _action_with_history
+
+            enter_sends = cfg.get("enter_sends") if cfg else True
+            if enter_sends is None:
+                enter_sends = True
+
+            class _QueryKeyListener(unohelper.Base, XKeyListener):
+                def __init__(self, query_ctrl, history, send_action):
+                    self._query = query_ctrl
+                    self._history = history
+                    self._send = send_action
+
+                def keyPressed(self, evt):
+                    if evt.KeyCode == UP:
+                        current = (self._query.getModel().Text or "")
+                        prev = self._history.up(current)
+                        if prev is not None:
+                            self._query.getModel().Text = prev
+                    elif evt.KeyCode == DOWN:
+                        current = (self._query.getModel().Text or "")
+                        nxt = self._history.down(current)
+                        if nxt is not None:
+                            self._query.getModel().Text = nxt
+                    elif (evt.KeyCode == RETURN
+                          and enter_sends
+                          and not (evt.Modifiers & 1)):
+                        # Enter sends, Shift+Enter inserts newline
+                        # Modifiers & 1 = SHIFT
+                        self._send.actionPerformed(None)
+
+                def keyReleased(self, evt):
+                    pass
+
+                def disposing(self, evt):
+                    pass
+
+            query_ctrl.addKeyListener(
+                _QueryKeyListener(query_ctrl, history, send_action))
 
             # ── Wire stop button ───────────────────────────────────
 
@@ -440,7 +565,7 @@ try:
                     root_window = self._create_panel_window()
                     self.toolpanel = ChatToolPanel(
                         root_window, self.xParentWindow, self.ctx,
-                        preferred_height=100)
+                        preferred_height=80, fixed_height=True)
                     self._wire_controls(root_window)
                 except Exception:
                     log.exception("ChatSettingsElement.getRealInterface failed")
@@ -482,6 +607,10 @@ try:
 
             smgr = self.ctx.getServiceManager()
 
+            _M = 6
+            _LABEL_W = 66
+            _DD_W = 320
+
             def _add_label(name, y, text):
                 fm = smgr.createInstanceWithContext(
                     "com.sun.star.awt.UnoControlFixedTextModel", self.ctx)
@@ -489,7 +618,7 @@ try:
                 fc = smgr.createInstanceWithContext(
                     "com.sun.star.awt.UnoControlFixedText", self.ctx)
                 fc.setModel(fm)
-                fc.setPosSize(6, y, 200, 16, 15)
+                fc.setPosSize(_M, y + 3, _LABEL_W, 16, 15)
                 root_window.addControl(name, fc)
                 return fc
 
@@ -503,7 +632,8 @@ try:
                 lc = smgr.createInstanceWithContext(
                     "com.sun.star.awt.UnoControlListBox", self.ctx)
                 lc.setModel(lm)
-                lc.setPosSize(6, y, 200, 20, 15)
+                dd_x = _M + _LABEL_W + 4
+                lc.setPosSize(dd_x, y, _DD_W, 22, 15)
                 root_window.addControl(name, lc)
 
                 ids = []
@@ -542,16 +672,16 @@ try:
                     _Listener(ai, capability, ids))
                 return lc
 
-            # All in pixels — label 16px, dropdown 22px, group gap 12px
-            _add_label("text_label", 6, "Text AI:")
+            # Label + dropdown on same row, 22px row height, 12px gap
+            _add_label("text_label", 10, "Text AI")
             _add_dropdown(
-                "text_instance", 24,
+                "text_instance", 10,
                 get_text_instance_options(services),
                 "text")
 
-            _add_label("image_label", 58, "Image AI:")
+            _add_label("image_label", 46, "Image AI")
             _add_dropdown(
-                "image_instance", 76,
+                "image_instance", 46,
                 get_image_instance_options(services),
                 "image")
 

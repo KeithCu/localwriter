@@ -514,6 +514,10 @@ def generate_xdl(module_name, config_fields):
     sep_counter = [0]
 
     for fi, (field_name, schema) in enumerate(field_items):
+        # Internal fields are stored in registry but not shown in UI
+        if schema.get("internal"):
+            continue
+
         widget = schema.get("widget", "text")
 
         # list_detail: embed inline or skip for separate page

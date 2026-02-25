@@ -79,3 +79,9 @@ config:
         widget: select
         default: ""
         options_from: default_model
+      image:
+        type: boolean
+        label: Image Generation
+        widget: checkbox
+        default: false
+        helper: "Enable /v1/images/generations for this instance"

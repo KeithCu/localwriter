@@ -1,0 +1,19 @@
+name: chatbot_api
+description: REST/SSE API for the chatbot (external clients)
+requires: [config, events, http_routes, ai, document]
+
+config:
+  enabled:
+    type: boolean
+    default: false
+    widget: checkbox
+    label: Enable Chat API
+    helper: "Expose /api/chat endpoints on the HTTP server"
+    public: true
+
+  auth_token:
+    type: string
+    default: ""
+    widget: text
+    label: Auth Token
+    helper: "Optional Bearer token. Leave empty to disable auth."

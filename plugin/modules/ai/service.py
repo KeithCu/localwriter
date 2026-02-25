@@ -116,6 +116,11 @@ class AiService(ServiceBase):
         return [i for i in self._instances.values()
                 if capability in i.capabilities]
 
+    def providers_for(self, capability):
+        """Return [(instance_id, AiInstance)] for a capability."""
+        return [(iid, inst) for iid, inst in self._instances.items()
+                if capability in inst.capabilities]
+
     # -- Convenience delegates -------------------------------------------------
 
     def stream(self, messages, tools=None, **kwargs):
@@ -263,9 +268,20 @@ class AiService(ServiceBase):
 
 
 def _instance_label(inst):
-    """Format instance label as '[Provider] Name'."""
+    """Format instance label as '[Provider] Name (model)'."""
     provider = inst.module_name.rsplit(".", 1)[-1] if inst.module_name else "?"
     name = inst.name or inst.module_name or "?"
+    model = ""
+    try:
+        cfg = getattr(inst.provider, "_config", None)
+        if cfg:
+            model = cfg.get("model") or ""
+    except Exception:
+        pass
+    if model:
+        # Shorten long model ids: keep last segment after /
+        short = model.rsplit("/", 1)[-1] if "/" in model else model
+        return "[%s] %s (%s)" % (provider, name, short)
     return "[%s] %s" % (provider, name)
 
 

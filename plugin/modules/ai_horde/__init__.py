@@ -1,6 +1,5 @@
 """AI Horde image generation backend module."""
 
-import json
 import logging
 
 from plugin.framework.module_base import ModuleBase
@@ -36,12 +35,13 @@ class HordeModule(ModuleBase):
     def initialize(self, services):
         from plugin.modules.ai_horde.provider import HordeProvider
         from plugin.modules.ai.service import AiInstance
-        from plugin.modules.ai.dict_config_proxy import DictConfigProxy
+        from plugin.modules.ai.dict_config_proxy import (
+            DictConfigProxy, load_instances_json)
         cfg = services.config.proxy_for(self.name)
         ai = services.ai
         self._providers = []
 
-        instances = self._load_instances(cfg)
+        instances = load_instances_json(cfg)
 
         if instances:
             for inst_def in instances:
@@ -57,15 +57,3 @@ class HordeModule(ModuleBase):
                     capabilities={"image"},
                 ))
 
-    @staticmethod
-    def _load_instances(cfg):
-        raw = cfg.get("instances", "[]")
-        if not raw or raw == "[]":
-            return None
-        try:
-            items = json.loads(raw)
-            if isinstance(items, list) and items:
-                return items
-        except (json.JSONDecodeError, TypeError):
-            log.warning("Invalid instances JSON in config")
-        return None

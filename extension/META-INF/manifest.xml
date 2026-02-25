@@ -44,4 +44,10 @@
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ai_ollama.xcu" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/ai_horde.xcs" />
 	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ai_horde.xcu" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/chatbot_api.xcs" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/chatbot_api.xcu" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/debug.xcs" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/debug.xcu" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-schema" manifest:full-path="registry/ai_dummy.xcs" />
+	<manifest:file-entry manifest:media-type="application/vnd.sun.star.configuration-data" manifest:full-path="registry/ai_dummy.xcu" />
 </manifest:manifest>

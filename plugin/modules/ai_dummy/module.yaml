@@ -1,0 +1,21 @@
+name: ai.dummy
+description: Dummy AI provider for testing (Homer Simpson mode)
+requires: [config, ai]
+
+config:
+  enabled:
+    type: boolean
+    default: false
+    widget: checkbox
+    label: Enable Dummy Provider
+    helper: "Registers a fake AI that responds like Homer Simpson"
+    public: true
+
+  delay:
+    type: int
+    default: 50
+    min: 0
+    max: 2000
+    widget: number
+    label: Streaming Delay (ms)
+    helper: "Delay between streamed chunks in milliseconds"

@@ -31,6 +31,24 @@ config:
     widget: number
     label: Max Tool Rounds
 
+  context_strategy:
+    type: string
+    default: "auto"
+    widget: select
+    label: Document Context Strategy
+    helper: "How much document content to include in LLM context"
+    options:
+      - value: auto
+        label: Auto (by document size)
+      - value: full
+        label: Full document text
+      - value: page
+        label: Pages around cursor
+      - value: tree
+        label: Outline + excerpt
+      - value: stats
+        label: Stats + outline only
+
   system_prompt:
     type: string
     default: ""
@@ -65,9 +83,21 @@ config:
     label: Edit Selection Extra Tokens
     helper: "Extra tokens beyond original text length. 0 = same length as original."
 
+  enter_sends:
+    type: boolean
+    default: true
+    widget: checkbox
+    label: Enter Sends Message
+    helper: "Press Enter to send, Shift+Enter for newline"
+
   show_mcp_activity:
     type: boolean
     default: true
     widget: checkbox
     label: Show MCP Activity
     public: true
+
+  query_history:
+    type: string
+    default: "[]"
+    internal: true

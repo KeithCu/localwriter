@@ -1,6 +1,6 @@
 """Auto-generated module manifest. DO NOT EDIT."""
 
-VERSION = '1.4.0'
+VERSION = '1.5.0'
 
 MODULES = [
     {
@@ -312,6 +312,35 @@ MODULES = [
                         "widget": "number",
                         "label": "Max Tool Rounds"
                 },
+                "context_strategy": {
+                        "type": "string",
+                        "default": "auto",
+                        "widget": "select",
+                        "label": "Document Context Strategy",
+                        "helper": "How much document content to include in LLM context",
+                        "options": [
+                                {
+                                        "value": "auto",
+                                        "label": "Auto (by document size)"
+                                },
+                                {
+                                        "value": "full",
+                                        "label": "Full document text"
+                                },
+                                {
+                                        "value": "page",
+                                        "label": "Pages around cursor"
+                                },
+                                {
+                                        "value": "tree",
+                                        "label": "Outline + excerpt"
+                                },
+                                {
+                                        "value": "stats",
+                                        "label": "Stats + outline only"
+                                }
+                        ]
+                },
                 "system_prompt": {
                         "type": "string",
                         "default": "",
@@ -351,12 +380,24 @@ MODULES = [
                         "label": "Edit Selection Extra Tokens",
                         "helper": "Extra tokens beyond original text length. 0 = same length as original."
                 },
+                "enter_sends": {
+                        "type": "boolean",
+                        "default": True,
+                        "widget": "checkbox",
+                        "label": "Enter Sends Message",
+                        "helper": "Press Enter to send, Shift+Enter for newline"
+                },
                 "show_mcp_activity": {
                         "type": "boolean",
                         "default": True,
                         "widget": "checkbox",
                         "label": "Show MCP Activity",
                         "public": True
+                },
+                "query_history": {
+                        "type": "string",
+                        "default": "[]",
+                        "internal": True
                 }
         },
         "actions": [
@@ -614,6 +655,13 @@ MODULES = [
                                         "widget": "select",
                                         "default": "",
                                         "options_from": "default_model"
+                                },
+                                "image": {
+                                        "type": "boolean",
+                                        "label": "Image Generation",
+                                        "widget": "checkbox",
+                                        "default": False,
+                                        "helper": "Enable /v1/images/generations for this instance"
                                 }
                         }
                 }
@@ -768,6 +816,93 @@ MODULES = [
                                         "options_from": "default_model"
                                 }
                         }
+                }
+        },
+        "actions": [],
+        "action_icons": {}
+},
+    {
+        "name": "chatbot_api",
+        "description": "REST/SSE API for the chatbot (external clients)",
+        "requires": [
+                "config",
+                "events",
+                "http_routes",
+                "ai",
+                "document"
+        ],
+        "provides_services": [],
+        "config": {
+                "enabled": {
+                        "type": "boolean",
+                        "default": False,
+                        "widget": "checkbox",
+                        "label": "Enable Chat API",
+                        "helper": "Expose /api/chat endpoints on the HTTP server",
+                        "public": True
+                },
+                "auth_token": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "text",
+                        "label": "Auth Token",
+                        "helper": "Optional Bearer token. Leave empty to disable auth."
+                }
+        },
+        "actions": [],
+        "action_icons": {}
+},
+    {
+        "name": "debug",
+        "description": "Debug tools and diagnostics",
+        "requires": [
+                "config",
+                "events",
+                "ai",
+                "document"
+        ],
+        "provides_services": [],
+        "config": {
+                "enabled": {
+                        "type": "boolean",
+                        "default": False,
+                        "widget": "checkbox",
+                        "label": "Enable Debug Actions",
+                        "helper": "Debug actions appear in menus but only execute when enabled",
+                        "public": True
+                }
+        },
+        "actions": [
+                "debug_info",
+                "test_providers"
+        ],
+        "action_icons": {}
+},
+    {
+        "name": "ai.dummy",
+        "description": "Dummy AI provider for testing (Homer Simpson mode)",
+        "requires": [
+                "config",
+                "ai"
+        ],
+        "provides_services": [],
+        "config": {
+                "enabled": {
+                        "type": "boolean",
+                        "default": False,
+                        "widget": "checkbox",
+                        "label": "Enable Dummy Provider",
+                        "helper": "Registers a fake AI that responds like Homer Simpson",
+                        "public": True
+                },
+                "delay": {
+                        "type": "int",
+                        "default": 50,
+                        "min": 0,
+                        "max": 2000,
+                        "widget": "number",
+                        "label": "Streaming Delay (ms)",
+                        "helper": "Delay between streamed chunks in milliseconds"
                 }
         },
         "actions": [],

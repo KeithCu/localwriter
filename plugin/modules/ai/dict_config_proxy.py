@@ -4,6 +4,25 @@ Mimics the ModuleConfigProxy interface (get/set) so that providers
 created from YAML instance definitions work unchanged.
 """
 
+import json
+import logging
+
+log = logging.getLogger("localwriter.ai")
+
+
+def load_instances_json(cfg):
+    """Parse the instances JSON list from config. Returns list or None."""
+    raw = cfg.get("instances", "[]")
+    if not raw or raw == "[]":
+        return None
+    try:
+        items = json.loads(raw)
+        if isinstance(items, list) and items:
+            return items
+    except (json.JSONDecodeError, TypeError):
+        log.warning("Invalid instances JSON in config")
+    return None
+
 
 class DictConfigProxy:
     """Wraps a flat dict to look like a ModuleConfigProxy."""

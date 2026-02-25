@@ -1,0 +1,24 @@
+name: debug
+description: Debug tools and diagnostics
+requires: [config, events, ai, document]
+
+config:
+  enabled:
+    type: boolean
+    default: false
+    widget: checkbox
+    label: Enable Debug Actions
+    helper: "Debug actions appear in menus but only execute when enabled"
+    public: true
+
+actions:
+  debug_info:
+    title: "Debug: System Info"
+  test_providers:
+    title: "Debug: Test AI Providers"
+
+menus:
+  - action: debug_info
+    context: [writer, calc, draw]
+  - action: test_providers
+    context: [writer, calc, draw]
