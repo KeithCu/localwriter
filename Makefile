@@ -33,12 +33,21 @@ EXTENSION_NAME = localwriter
 # ── OS detection ─────────────────────────────────────────────────────────────
 
 ifeq ($(OS),Windows_NT)
+    # Use Git Bash as shell so Unix commands (sleep, rm, cat, tail...) work everywhere.
+    # Run install.ps1 to ensure Git for Windows is installed.
+    BASH_PATH := $(firstword $(wildcard C:/Program\ Files/Git/usr/bin/bash.exe) $(wildcard C:/Program\ Files/Git/bin/bash.exe))
+    ifneq ($(BASH_PATH),)
+        SHELL   := $(BASH_PATH)
+    endif
+    .SHELLFLAGS := -c
     SCRIPTS = scripts
     RUN_SH  = powershell -ExecutionPolicy Bypass -File
     EXT     = .ps1
     PYTHON  = python
-    RM_RF   = powershell -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue"
-    MKDIR   = powershell -Command "New-Item -ItemType Directory -Force -Path"
+    RM_RF   = rm -rf
+    MKDIR   = mkdir -p
+    LO_CONF = $(USERPROFILE)/AppData/Roaming/LibreOffice/4
+    HOME_DIR = $(USERPROFILE)
 else
     SCRIPTS = scripts
     RUN_SH  = bash
@@ -46,6 +55,8 @@ else
     PYTHON  = python3
     RM_RF   = rm -rf
     MKDIR   = mkdir -p
+    LO_CONF = $(HOME)/.config/libreoffice/4
+    HOME_DIR = $(HOME)
 endif
 
 # ── Phony targets ────────────────────────────────────────────────────────────
@@ -110,10 +121,10 @@ repack:
 repack-deploy: repack
 	$(MAKE) lo-kill
 	@sleep 3
-	@rm -f $(HOME)/.config/libreoffice/4/.lock $(HOME)/.config/libreoffice/4/user/.lock
+	@rm -f $(LO_CONF)/.lock $(LO_CONF)/user/.lock
 	-unopkg remove org.extension.localwriter 2>/dev/null; sleep 1
 	unopkg add build/$(EXTENSION_NAME).oxt
-	@rm -f $(HOME)/localwriter.log
+	@rm -f $(HOME_DIR)/localwriter.log
 	@sleep 1
 	$(MAKE) lo-start
 	@echo "Waiting for LO to load..."
@@ -128,13 +139,8 @@ xcu: manifest
 
 clean:
 	$(RM_RF) build
-ifeq ($(OS),Windows_NT)
-	powershell -Command "Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force -EA SilentlyContinue"
-	powershell -Command "Get-ChildItem -Recurse -Filter *.pyc | Remove-Item -Force -EA SilentlyContinue"
-else
 	find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete 2>/dev/null || true
-endif
 
 # ── Install ──────────────────────────────────────────────────────────────────
 
@@ -209,28 +215,24 @@ else
 endif
 
 nuke-cache-force:
-ifeq ($(OS),Windows_NT)
-	$(RM_RF) "$(USERPROFILE)\AppData\Roaming\LibreOffice\4\user\uno_packages\cache"
-else
-	$(RM_RF) $(HOME)/.config/libreoffice/4/user/uno_packages/cache
-	rm -f $(HOME)/.config/libreoffice/4/.lock
-endif
+	$(RM_RF) "$(LO_CONF)/user/uno_packages/cache"
+	rm -f "$(LO_CONF)/.lock"
 
 # ── Shortcuts ───────────────────────────────────────────────────────────────
 
 lo-restart:
 	$(MAKE) lo-kill
 	sleep 3
-	rm -f $(HOME)/.config/libreoffice/4/.lock $(HOME)/.config/libreoffice/4/user/.lock
+	rm -f $(LO_CONF)/.lock $(LO_CONF)/user/.lock
 	$(MAKE) lo-start
 
 deploy: build
 	$(MAKE) lo-kill
 	@sleep 3
-	@rm -f $(HOME)/.config/libreoffice/4/.lock $(HOME)/.config/libreoffice/4/user/.lock
+	@rm -f $(LO_CONF)/.lock $(LO_CONF)/user/.lock
 	-unopkg remove org.extension.localwriter 2>/dev/null; sleep 1
 	unopkg add build/$(EXTENSION_NAME).oxt
-	@rm -f $(HOME)/localwriter.log
+	@rm -f $(HOME_DIR)/localwriter.log
 	@sleep 1
 	$(MAKE) lo-start
 	@echo "Waiting for LO to load..."
@@ -238,13 +240,13 @@ deploy: build
 	@$(MAKE) log
 
 log:
-	@cat $(HOME)/localwriter.log 2>/dev/null || echo "No localwriter.log found"
+	@cat $(HOME_DIR)/localwriter.log 2>/dev/null || echo "No localwriter.log found"
 
 log-tail:
-	@tail -f $(HOME)/localwriter.log
+	@tail -f $(HOME_DIR)/localwriter.log
 
 lo-log:
-	@cat $(HOME)/soffice-debug.log 2>/dev/null || echo "No soffice-debug.log found"
+	@cat $(HOME_DIR)/soffice-debug.log 2>/dev/null || echo "No soffice-debug.log found"
 
 check-ext:
 	@unopkg list 2>&1 | head -10
@@ -280,16 +282,16 @@ poc-uninstall:
 	@echo "POC removed"
 
 poc-log:
-	@cat $(HOME)/poc-ext.log 2>/dev/null || echo "No poc-ext.log"
+	@cat $(HOME_DIR)/poc-ext.log 2>/dev/null || echo "No poc-ext.log"
 
 poc-log-tail:
-	@tail -f $(HOME)/poc-ext.log
+	@tail -f $(HOME_DIR)/poc-ext.log
 
 poc-deploy: poc-install
 	$(MAKE) lo-kill
 	@sleep 3
-	@rm -f $(HOME)/.config/libreoffice/4/.lock $(HOME)/.config/libreoffice/4/user/.lock
-	@rm -f $(HOME)/poc-ext.log
+	@rm -f $(LO_CONF)/.lock $(LO_CONF)/user/.lock
+	@rm -f $(HOME_DIR)/poc-ext.log
 	$(MAKE) lo-start
 	@echo "Waiting for LO..."
 	@sleep 10

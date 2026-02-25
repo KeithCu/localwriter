@@ -130,9 +130,9 @@ function Install-Extension {
 
     Confirm-LOStopped
 
-    # Remove previous version
+    # Remove previous version (ignore error if not installed)
     Write-Host "[*] Removing previous version (if any)..."
-    & $Unopkg remove $ExtensionId 2>&1 | Out-Null
+    try { & $Unopkg remove $ExtensionId 2>&1 | Out-Null } catch { }
 
     Start-Sleep -Seconds 2
 

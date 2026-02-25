@@ -93,6 +93,58 @@ if (Get-Command unopkg -ErrorAction SilentlyContinue) {
     Write-Warn "unopkg not found (needed for extension installation)"
 }
 
+# -- bash (Git for Windows) ------------------------------------------------
+
+$bash = Get-Command bash -ErrorAction SilentlyContinue
+if ($bash) {
+    Write-Ok "bash available at $($bash.Source)"
+} elseif ($Check) {
+    Write-Warn "bash not found -- needed by Makefile (install Git for Windows)"
+} else {
+    Write-Host "Installing Git for Windows via winget..."
+    $gitResult = Start-Process -FilePath winget -ArgumentList "install","--id","Git.Git","--accept-package-agreements","--accept-source-agreements" -Wait -PassThru -NoNewWindow 2>$null
+    $gitBash = "$env:ProgramFiles\Git\usr\bin"
+    if (Test-Path (Join-Path $gitBash "bash.exe")) {
+        $env:Path += ";$gitBash"
+        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($userPath -notlike "*Git*usr*bin*") {
+            [Environment]::SetEnvironmentVariable("Path", "$userPath;$gitBash", "User")
+        }
+        Write-Ok "bash installed and added to PATH -- restart your terminal to use it"
+    } elseif (Get-Command bash -ErrorAction SilentlyContinue) {
+        Write-Ok "bash installed"
+    } else {
+        Write-Warn "bash install failed -- install Git for Windows manually: winget install Git.Git"
+    }
+}
+
+# -- make ------------------------------------------------------------------
+
+if (Get-Command make -ErrorAction SilentlyContinue) {
+    Write-Ok "make available"
+} elseif ($Check) {
+    Write-Warn "make not found -- needed for build commands"
+} else {
+    Write-Host "Installing make via winget..."
+    $wingetResult = Start-Process -FilePath winget -ArgumentList "install","--id","GnuWin32.Make","--accept-package-agreements","--accept-source-agreements" -Wait -PassThru -NoNewWindow 2>$null
+    $gnuBin = Join-Path ${env:ProgramFiles} "..\Program Files (x86)\GnuWin32\bin"
+    if (-not (Test-Path (Join-Path $gnuBin "make.exe"))) {
+        $gnuBin = "C:\Program Files (x86)\GnuWin32\bin"
+    }
+    if (Test-Path (Join-Path $gnuBin "make.exe")) {
+        $env:Path += ";$gnuBin"
+        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($userPath -notlike "*GnuWin32*") {
+            [Environment]::SetEnvironmentVariable("Path", "$userPath;$gnuBin", "User")
+        }
+        Write-Ok "make installed and added to PATH -- restart your terminal to use it"
+    } elseif (Get-Command make -ErrorAction SilentlyContinue) {
+        Write-Ok "make installed"
+    } else {
+        Write-Warn "make install failed -- install manually: winget install GnuWin32.Make"
+    }
+}
+
 # -- openssl ---------------------------------------------------------------
 
 if (Get-Command openssl -ErrorAction SilentlyContinue) {
