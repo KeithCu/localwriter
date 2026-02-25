@@ -46,8 +46,11 @@ EXAMPLES:
 # Select the appropriate rules based on format
 FORMAT_RULES = HTML_FORMATTING_RULES if DOCUMENT_FORMAT == "html" else MARKDOWN_FORMATTING_RULES
 
-DEFAULT_CHAT_SYSTEM_PROMPT = f"""You are a DEVELOPMENT VERSION OF LibreOffice document assistant.
-Edit the document directly using tools.
+DEFAULT_CHAT_SYSTEM_PROMPT = f"""You are a LibreOffice document assistant.
+
+When asked to create something new, use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
+Do not explain, just do the task directly using tools. 
+
 
 TOOLS:
 - get_document_content: Read document (full/selection/range) as {_FORMAT_LABEL}.

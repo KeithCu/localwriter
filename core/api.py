@@ -203,7 +203,7 @@ def _normalize_message_content(raw):
 
 def _is_openai_compatible(config):
     endpoint = config.get("endpoint", "")
-    return config.get("openai_compatibility", False) or (
+    return config.get("openai_compatibility", True) or (
         "api.openai.com" in endpoint.lower()
     )
 
@@ -311,7 +311,7 @@ class LlmClient:
         endpoint = self._endpoint()
         api_path = self._api_path()
         if api_type is None:
-            api_type = self.config.get("api_type", "completions")
+            api_type = self.config.get("api_type", "chat")
         api_type = "chat" if api_type == "chat" else "completions"
         model = self.config.get("model", "")
         temperature = self.config.get("temperature", 0.5)
@@ -475,6 +475,7 @@ class LlmClient:
         append_callback,
         append_thinking_callback=None,
         stop_checker=None,
+        status_callback=None,
     ):
         """Stream a completion/chat response via callbacks."""
         method, path, body, headers = self.make_api_request(

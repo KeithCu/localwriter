@@ -529,7 +529,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # 3. Set up config and LlmClient
         max_context = int(get_config(self.ctx, "chat_context_length", 8000))
         max_tokens = int(get_config(self.ctx, "chat_max_tokens", 16384))
-        api_type = str(get_config(self.ctx, "api_type", "completions")).lower()
+        api_type = str(get_config(self.ctx, "api_type", "chat")).lower()
         debug_log("_do_send: config loaded: api_type=%s, max_tokens=%d, max_context=%d" %
                     (api_type, max_tokens, max_context), context="Chat")
 

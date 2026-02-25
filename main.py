@@ -250,7 +250,7 @@ class MainJob(unohelper.Base, XJobExecutor):
 
     def _get_settings_field_specs(self):
         """Return field specs for Settings dialog (single source for dialog and apply keys)."""
-        openai_compatibility_value = "true" if as_bool(self.get_config("openai_compatibility", False)) else "false"
+        openai_compatibility_value = "true" if as_bool(self.get_config("openai_compatibility", True)) else "false"
         is_openwebui_value = "true" if as_bool(self.get_config("is_openwebui", False)) else "false"
         current_endpoint_for_specs = get_current_endpoint(self.ctx)
         return [
@@ -258,7 +258,7 @@ class MainJob(unohelper.Base, XJobExecutor):
             {"name": "text_model", "value": str(self.get_config("text_model", "") or self.get_config("model", ""))},
             {"name": "image_model", "value": str(get_image_model(self.ctx))},
             {"name": "api_key", "value": str(get_api_key_for_endpoint(self.ctx, current_endpoint_for_specs))},
-            {"name": "api_type", "value": str(self.get_config("api_type", "completions"))},
+            {"name": "api_type", "value": str(self.get_config("api_type", "chat"))},
             {"name": "is_openwebui", "value": is_openwebui_value, "type": "bool"},
             {"name": "openai_compatibility", "value": openai_compatibility_value, "type": "bool"},
             {"name": "temperature", "value": str(self.get_config("temperature", "0.5")), "type": "float"},
@@ -374,6 +374,7 @@ class MainJob(unohelper.Base, XJobExecutor):
         append_callback,
         append_thinking_callback=None,
         stop_checker=None,
+        status_callback=None,
     ):
         """Single entry point for streaming completions. Raises on error."""
         self._get_client().stream_completion(
@@ -384,6 +385,7 @@ class MainJob(unohelper.Base, XJobExecutor):
             append_callback,
             append_thinking_callback=append_thinking_callback,
             stop_checker=stop_checker,
+            status_callback=status_callback,
         )
 
     def make_chat_request(self, messages, max_tokens=512, tools=None, stream=False):
@@ -827,7 +829,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                         max_tokens = self.get_config("extend_selection_max_tokens", 70)
                         model_val = self.get_config("text_model", "") or self.get_config("model", "")
                         self._update_lru_history(model_val, "model_lru", current_endpoint)
-                        api_type = str(self.get_config("api_type", "completions")).lower()
+                        api_type = str(self.get_config("api_type", "chat")).lower()
                         api_config = get_api_config(self.ctx)
                         ok, err_msg = validate_api_config(api_config)
                         if not ok:
@@ -866,7 +868,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                 prompt = "ORIGINAL VERSION:\n" + original_text + "\n Below is an edited version according to the following instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
                 system_prompt = extra_instructions or ""
                 max_tokens = len(original_text) + self.get_config("edit_selection_max_new_tokens", 0)
-                api_type = str(self.get_config("api_type", "completions")).lower()
+                api_type = str(self.get_config("api_type", "chat")).lower()
                 api_config = get_api_config(self.ctx)
                 ok, err_msg = validate_api_config(api_config)
                 if not ok:
@@ -930,7 +932,7 @@ class MainJob(unohelper.Base, XJobExecutor):
                 col_range = range(start_col, end_col + 1)
                 row_range = range(start_row, end_row + 1)
 
-                api_type = str(self.get_config("api_type", "completions")).lower()
+                api_type = str(self.get_config("api_type", "chat")).lower()
                 extend_system_prompt = self.get_config("extend_selection_system_prompt", "")
                 extend_max_tokens = self.get_config("extend_selection_max_tokens", 70)
                 edit_system_prompt = self.get_config("edit_selection_system_prompt", "")

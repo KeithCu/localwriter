@@ -322,7 +322,7 @@ def validate_api_config(config):
     endpoint = (config.get("endpoint") or "").strip()
     if not endpoint:
         return (False, "Please set Endpoint in Settings.")
-    api_type = (config.get("api_type") or "completions").lower()
+    api_type = (config.get("api_type") or "chat").lower()
     if api_type == "chat":
         model = (config.get("model") or "").strip()
         if not model:
@@ -409,10 +409,10 @@ def get_api_config(ctx):
         "endpoint": endpoint,
         "api_key": api_key,
         "model": get_text_model(ctx),
-        "api_type": str(get_config(ctx, "api_type", "completions")).lower(),
+        "api_type": str(get_config(ctx, "api_type", "chat")).lower(),
         "is_openwebui": is_openwebui,
         "is_openrouter": is_openrouter,
-        "openai_compatibility": as_bool(get_config(ctx, "openai_compatibility", False)),
+        "openai_compatibility": as_bool(get_config(ctx, "openai_compatibility", True)),
         "temperature": _safe_float(get_config(ctx, "temperature", 0.5), 0.5),
         "seed": get_config(ctx, "seed", ""),
         "request_timeout": _safe_int(get_config(ctx, "request_timeout", 120), 120),
