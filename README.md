@@ -47,7 +47,7 @@ A cell formula to call the model directly from within your spreadsheet:
 
 Opus 4.6 one-shotted this Arch Linux resume:
 ![Opus 4.6 Resume](Opus46Resume.png)
-Sonnet 4.5 one-shotted this "pretty spreadsheet"
+Sonnet 4.6 one-shotted this "pretty spreadsheet"
 ![Chat Sidebar with Dashboard](Sonnet46Spreadsheet.png)
 
 
