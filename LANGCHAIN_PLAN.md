@@ -45,10 +45,39 @@ Enhance LocalWriter's AI capabilities by replacing manual prompt construction wi
   - Default: **stdlib only** (no Chroma, FAISS, sqlite-vector). Pure-Python vector store: cosine in a loop, in-memory dict, copy logic from `langchain_core.vectorstores.in_memory` and use pure-Python cosine. **Caveat**: per-element Python math will run slowly for large vectors or many comparisons; acceptable for small stores or MVP only.
   - **When we need performance**: At some point we may **depend on a system (or venv) install of NumPy**. NumPy is not in system Python by default and is a large add, but doing Python calculations per dimension over many vectors is a bad idea and will be slow. Design the store so that **if NumPy is available** we use it for similarity (and optionally batch/streaming); if not, fall back to pure-Python. Document that for heavier RAG use, users can point LibreOffice at a venv with NumPy (and optionally hnsw-lite) installed.
   - **Optional — more efficient index**: For faster search when the working set is in memory (e.g. recent N days loaded into RAM), vendor a small HNSW (e.g. **hnsw-lite**). Use NumPy for distance when available; fall back to pure-Python when not. Use only for the in-memory index path.
-- **Embeddings**:
-  - Generate embeddings for paragraphs, sections, or previous AI edits (via existing API or a small local embedder). The vendored store accepts an embedding callable and stores vectors in memory.
+- **Embeddings**: Prefer **embedding APIs from the same providers** LocalWriter already uses, so RAG works with no extra dependencies and the same credentials:
+  - **OpenRouter**: `POST https://openrouter.ai/api/v1/embeddings` with the same API key as chat; `model` selects the embedding model (list via models API).
+  - **Together AI**: `POST {endpoint}/embeddings` (e.g. `https://api.together.xyz/v1/embeddings`), OpenAI-compatible; same API key; models include BGE, M2-BERT (2k/8k/32k context).
+  - **Ollama**: `POST {ollama_base}/api/embed` (e.g. `http://localhost:11434/api/embed`); no key; `model` e.g. `nomic-embed-text`, `embeddinggemma`, `all-minilm`.
+- Implement a small **embedding client** that, given current `get_api_config(ctx)` (or equivalent) and an optional `embedding_model` config key, dispatches to the correct URL and payload (OpenRouter vs Together vs Ollama) and returns vectors. The vendored vector store accepts this as the embedding callable. **Fallback**: a small local embedder (e.g. sentence-transformers in venv) for offline use when no embedding API is configured.
 - **Retrieval Augmented Generation**:
   - Build a retriever on top of the vendored store (same interface as LangChain’s `as_retriever()`: take a query, return top-k documents). Inject retrieved snippets into the chat prompt so the AI can answer about distant document parts.
+
+#### Embedding APIs from existing providers
+
+Many embedding models are available through the same gateways LocalWriter already uses for chat. Using them for Phase 4 RAG avoids extra dependencies and reuses endpoint + API key.
+
+- **OpenRouter**
+  - Endpoint: `POST https://openrouter.ai/api/v1/embeddings`.
+  - Same API key as chat. Request: `model` (embedding model id), `input` (string or array of strings).
+  - Optional: `dimensions`, `encoding_format`, `input_type`, `provider`.
+  - Embedding models are listed via OpenRouter's models API.
+- **Together AI**
+  - Endpoint: `POST https://api.together.xyz/v1/embeddings` (OpenAI-compatible).
+  - Same API key as chat.
+  - Models: e.g. BAAI/bge-large-en-v1.5, BAAI/bge-base-en-v1.5, WhereIsAI/UAE-Large-V1, togethercomputer/m2-bert-80M-8k-retrieval (and 2k/32k).
+  - When the user's config endpoint is Together's base URL, use `endpoint + "/embeddings"` with the same key.
+- **Ollama**
+  - Endpoint: `POST {base}/api/embed` (e.g. `http://localhost:11434/api/embed`).
+  - No API key. Body: `model`, `input`; optional `truncate`, `dimensions`, `keep_alive`.
+  - Recommended models: `all-minilm`, `nomic-embed-text`, `embeddinggemma`.
+  - Same host as chat when Ollama is used locally; only path and payload differ.
+- **Config**
+  - Reuse existing endpoint and API key from `get_api_config(ctx)` where applicable.
+  - Add an optional **embedding model** setting (e.g. `embedding_model` and `embedding_model_lru`), analogous to `image_model` / `image_model_lru`, so the user can choose the embedding model per provider.
+  - Default behavior: when the configured endpoint is OpenRouter, Together, or Ollama, use the embedding API above; otherwise fall back to a local embedder if available.
+- **Local / offline**
+  - Keep the existing "small local embedder" option (e.g. sentence-transformers in a venv) for users without an embedding API or for offline use.
 
 #### Persistence for the Vector Store
 
@@ -87,7 +116,7 @@ Keeping this in mind makes it easier to choose stdlib-friendly storage (e.g. SQL
 ## Architecture Decision: Custom Wrapper vs. Provider Packages
 We will proceed with writing a custom LangChain wrapper (`LocalWriterLangChainModel`) around our existing `LlmClient` rather than importing heavy provider packages like `langchain-openai` or `langchain-ollama`. LocalWriter runs in LibreOffice's constrained Python environment; keeping dependencies minimal (just `langchain-core`) is critical to avoid bloat and cross-platform installation issues, while allowing us to keep our custom UI streaming loops and connection management.
 
-For Phase 4 (RAG), the **vector store is vendored**: stdlib-only (pure-Python cosine) by default so it runs with no extra deps, but **per-element Python math will be slow** for large stores. Design for an **optional NumPy path**: when NumPy is available (system or venv), use it for similarity and batch operations; document that heavier RAG use may require pointing LibreOffice at a venv with NumPy installed. Persistence: binary vectors (`struct`) + JSON (or SQLite for metadata/chunk text; see note above). Support **streaming search** for large data. Optional: vendor HNSW (e.g. hnsw-lite) with NumPy when available. No Chroma, FAISS, or sqlite-vector.
+For Phase 4 (RAG), the **vector store is vendored**: stdlib-only (pure-Python cosine) by default so it runs with no extra deps, but **per-element Python math will be slow** for large stores. Design for an **optional NumPy path**: when NumPy is available (system or venv), use it for similarity and batch operations; document that heavier RAG use may require pointing LibreOffice at a venv with NumPy installed. Persistence: binary vectors (`struct`) + JSON (or SQLite for metadata/chunk text; see note above). Support **streaming search** for large data. Optional: vendor HNSW (e.g. hnsw-lite) with NumPy when available. No Chroma, FAISS, or sqlite-vector. Embeddings for RAG are supplied by the same providers (OpenRouter, Together, Ollama) via a small embedding client that reuses endpoint and API key; a local embedder remains an optional fallback.
 
 ---
 
