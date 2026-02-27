@@ -61,3 +61,11 @@ config:
     label: SSL Private Key
     helper: "Optional. Leave empty to use auto-generated self-signed key."
     file_filter: "PEM files (*.pem)|*.pem"
+
+  mcp_enabled:
+    type: boolean
+    default: true
+    widget: checkbox
+    label: Enable MCP Protocol
+    public: true
+    helper: "Expose MCP JSON-RPC routes on the same port"

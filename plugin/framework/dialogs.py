@@ -384,21 +384,21 @@ def about_dialog(ctx):
 
 
 def load_module_dialog(module_name, dialog_name):
-    """Load an XDL dialog from a module's dialogs/ directory.
+    """Load an XDL dialog from a module's directory.
 
     Returns an XDialog ready for execute()/dispose().
     """
     module_dir = module_name.replace(".", "_")
-    xdl_path = "plugin/modules/%s/dialogs/%s.xdl" % (module_dir, dialog_name)
+    xdl_path = "plugin/modules/%s/%s.xdl" % (module_dir, dialog_name)
     return _load_xdl(xdl_path)
 
 
 def load_framework_dialog(dialog_name):
-    """Load an XDL dialog from the framework's dialogs/ directory.
+    """Load an XDL dialog from the framework's directory.
 
     Returns an XDialog ready for execute()/dispose().
     """
-    xdl_path = "plugin/framework/dialogs/%s.xdl" % dialog_name
+    xdl_path = "plugin/framework/%s.xdl" % dialog_name
     return _load_xdl(xdl_path)
 
 

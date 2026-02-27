@@ -86,7 +86,7 @@ class ModuleBase(ABC):
     # ── Dialog helpers ───────────────────────────────────────────────
 
     def load_dialog(self, dialog_name):
-        """Load an XDL dialog from this module's dialogs/ directory."""
+        """Load an XDL dialog from this module's directory."""
         from plugin.framework.dialogs import load_module_dialog
         return load_module_dialog(self.name, dialog_name)
 

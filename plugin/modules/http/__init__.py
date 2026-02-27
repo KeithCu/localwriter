@@ -10,8 +10,10 @@ log = logging.getLogger("localwriter.http")
 class HttpModule(ModuleBase):
     """Manages the shared HTTP server and route registry.
 
-    Other modules (MCP, chatbot, debug) register routes via the
+    Other modules (chatbot, doc) register routes via the
     ``http_routes`` service during their initialize() phase.
+    This module also handles the MCP (Model Context Protocol) 
+    JSON-RPC routes if enabled.
     This module starts the server in start_background() (phase 2b).
     """
 
@@ -22,12 +24,18 @@ class HttpModule(ModuleBase):
         services.register_instance("http_routes", self._registry)
         self._server = None
         self._services = services
+        self._mcp_protocol = None
+        self._mcp_routes_registered = False
 
         # Built-in endpoints
         self._registry.add("GET", "/health", self._handle_health)
         self._registry.add("GET", "/", self._handle_info)
         self._registry.add("GET", "/api/config", self._handle_config_get)
         self._registry.add("POST", "/api/config", self._handle_config_set)
+
+        # MCP endpoints
+        if services.config.proxy_for(self.name).get("mcp_enabled"):
+            self._register_mcp_routes(services)
 
         if hasattr(services, "events"):
             services.events.subscribe("config:changed", self._on_config_changed)
@@ -41,11 +49,19 @@ class HttpModule(ModuleBase):
         if not key.startswith("http."):
             return
         cfg = self._services.config.proxy_for(self.name)
-        enabled = cfg.get("enabled")
-        if enabled and not self._server:
-            self._start_server(self._services)
-        elif not enabled and self._server:
-            self._stop_server()
+
+        if key == "http.enabled":
+            enabled = cfg.get("enabled")
+            if enabled and not self._server:
+                self._start_server(self._services)
+            elif not enabled and self._server:
+                self._stop_server()
+        elif key == "http.mcp_enabled":
+            enabled = cfg.get("mcp_enabled")
+            if enabled and not self._mcp_routes_registered:
+                self._register_mcp_routes(self._services)
+            elif not enabled and self._mcp_routes_registered:
+                self._unregister_mcp_routes(self._services)
 
     def _start_server(self, services):
         from plugin.framework.http_server import HttpServer
@@ -85,6 +101,46 @@ class HttpModule(ModuleBase):
 
     def shutdown(self):
         self._stop_server()
+        if self._mcp_routes_registered:
+            self._unregister_mcp_routes(self._services)
+
+    def _register_mcp_routes(self, services):
+        from plugin.modules.http.mcp_protocol import MCPProtocolHandler
+
+        self._mcp_protocol = MCPProtocolHandler(services)
+        p = self._mcp_protocol
+
+        # MCP streamable-http (raw — JSON-RPC + custom headers + SSE)
+        self._registry.add("POST", "/mcp", p.handle_mcp_post, raw=True)
+        self._registry.add("GET", "/mcp", p.handle_mcp_sse, raw=True)
+        self._registry.add("DELETE", "/mcp", p.handle_mcp_delete, raw=True)
+
+        # Legacy SSE transport (raw — streaming)
+        self._registry.add("POST", "/sse", p.handle_sse_post, raw=True)
+        self._registry.add("POST", "/messages", p.handle_sse_post, raw=True)
+        self._registry.add("GET", "/sse", p.handle_sse_stream, raw=True)
+
+        # Debug (simple — returns dict, server handles JSON)
+        self._registry.add("GET", "/debug", p.handle_debug_info)
+        # Debug POST (raw — complex response handling)
+        self._registry.add("POST", "/debug", p.handle_debug_post, raw=True)
+
+        self._mcp_routes_registered = True
+        log.info("MCP routes registered on HTTP server")
+
+    def _unregister_mcp_routes(self, services):
+        for method, path in [
+            ("POST", "/mcp"), ("GET", "/mcp"), ("DELETE", "/mcp"),
+            ("POST", "/sse"), ("POST", "/messages"), ("GET", "/sse"),
+            ("GET", "/debug"), ("POST", "/debug"),
+        ]:
+            try:
+                self._registry.remove(method, path)
+            except Exception:
+                pass
+        self._mcp_routes_registered = False
+        self._mcp_protocol = None
+        log.info("MCP routes unregistered from HTTP server")
 
     # ── Action dispatch ──────────────────────────────────────────────
 
