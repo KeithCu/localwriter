@@ -22,7 +22,6 @@ ENDPOINT_PRESETS = [
     ("OpenRouter", "https://openrouter.ai/api"),
     ("Mistral", "https://api.mistral.ai"),
     ("Together AI", "https://api.together.xyz"),
-    ("OpenAI", "https://api.openai.com"),
     # ("Hugging Face", "https://api-inference.huggingface.co"),  # verify OpenAI-compatible base URL
     # ("Groq", "https://api.groq.com/openai"),
     # ("Fireworks AI", "https://api.fireworks.ai/inference"),

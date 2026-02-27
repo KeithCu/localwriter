@@ -138,7 +138,7 @@ class ChatSession:
 class SendButtonListener(unohelper.Base, XActionListener):
     """Listener for the Send button - runs chat with document, supports tool-calling."""
 
-    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None):
+    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None, web_search_checkbox=None):
         self.ctx = ctx
         self.frame = frame
         self.send_control = send_control
@@ -152,6 +152,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self.direct_image_checkbox = direct_image_checkbox
         self.aspect_ratio_selector = aspect_ratio_selector
         self.base_size_input = base_size_input
+        self.web_search_checkbox = web_search_checkbox
         self.initial_doc_type = None # Set by _wireControls
         self.stop_requested = False
         self._terminal_status = "Ready"
@@ -318,7 +319,13 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._terminal_status = "Error"
             return
         debug_log("_do_send: got document model OK", context="Chat")
-        
+
+        # Defensive defaults so later tool import logic never sees undefined flags,
+        # even if this function is partially updated or an earlier step fails.
+        is_calc_doc = False
+        is_draw_doc = False
+        is_writer_doc = False
+
         # Verify document type matches what we expect from sidebar initialization
         # (A new sidebar is created/wired for a new document, so it shouldn't change).
         is_calc_doc = is_calc(model)
@@ -353,6 +360,21 @@ class SendButtonListener(unohelper.Base, XActionListener):
             return
         if self.query_control and self.query_control.getModel():
             self.query_control.getModel().Text = ""
+
+        # Optional web-search path: when checked, bypass normal document chat and run the web search sub-agent directly.
+        web_search_checked = False
+        web_read_state = None
+        if self.web_search_checkbox:
+            try:
+                web_read_state = get_checkbox_state(self.web_search_checkbox)
+                web_search_checked = (web_read_state == 1)
+            except Exception as e:
+                debug_log("_do_send: Web search checkbox read error: %s" % e, context="Chat")
+        debug_log("_do_send: Web search checkbox state=%s" % (web_read_state,), context="Chat")
+        if web_search_checked:
+            debug_log("_do_send: using web search sub-agent — skip chat model and direct image", context="Chat")
+            self._run_web_search(query_text, model)
+            return
 
         # Direct image path: orthogonal to LLM tool list; uses document_tools.execute_tool for all doc types
         direct_image_checked = False
@@ -480,14 +502,21 @@ class SendButtonListener(unohelper.Base, XActionListener):
             return
 
         try:
-            if is_calc_doc:
+            # Re-derive document type here so this block is robust even if earlier
+            # locals were not set due to a partial update or early return.
+            from core.document import is_calc as _is_calc_doc, is_draw as _is_draw_doc, is_writer as _is_writer_doc
+            doc_is_calc = _is_calc_doc(model)
+            doc_is_draw = _is_draw_doc(model)
+            doc_is_writer = _is_writer_doc(model)
+
+            if doc_is_calc:
                 debug_log("_do_send: importing calc_tools...", context="Chat")
                 from core.calc_tools import CALC_TOOLS, execute_calc_tool
                 active_tools = CALC_TOOLS
                 # Calc tools don't support status_callback yet, but we should handle the kwarg safely
                 execute_fn = lambda name, args, doc, ctx, status_callback=None: execute_calc_tool(name, args, doc)
                 debug_log("_do_send: calc_tools imported OK (%d tools)" % len(CALC_TOOLS), context="Chat")
-            elif is_draw_doc:
+            elif doc_is_draw:
                 debug_log("_do_send: importing draw_tools...", context="Chat")
                 from core.draw_tools import DRAW_TOOLS, execute_draw_tool
                 active_tools = DRAW_TOOLS
@@ -585,6 +614,96 @@ class SendButtonListener(unohelper.Base, XActionListener):
     # Future work: Undo grouping for AI edits (user can undo all edits from one turn with Ctrl+Z).
     # Previous attempt used enterUndoContext("AI Edit") / leaveUndoContext() but leaveUndoContext
     # was failing in some environments. Revisit when integrating with the async tool-calling path.
+
+    def _run_web_search(self, query_text, model):
+        """Run the search_web tool via the sub-agent and stream its result into the response area."""
+        from core.api import format_error_message
+        from core.document_tools import execute_tool
+
+        self._append_response("\nYou: %s\n" % query_text)
+        self._append_response("\n[Using web research.]\n")
+        self._set_status("Starting web research...")
+
+        q = queue.Queue()
+        job_done = [False]
+
+        def run_search():
+            try:
+                def status_cb(msg):
+                    q.put(("status", msg))
+
+                def thinking_cb(msg):
+                    q.put(("thinking", msg))
+
+                result = execute_tool(
+                    "search_web",
+                    {"query": query_text},
+                    model,
+                    self.ctx,
+                    status_callback=status_cb,
+                    append_thinking_callback=thinking_cb,
+                )
+
+                try:
+                    data = json.loads(result)
+                except Exception:
+                    data = {"status": "error", "message": "Invalid JSON from web search tool."}
+
+                if data.get("status") == "ok":
+                    answer = data.get("result", "")
+                    if not isinstance(answer, str):
+                        answer = str(answer)
+                    q.put(("chunk", "AI (web): %s\n" % answer))
+                else:
+                    msg = data.get("message", "Unknown web search error.")
+                    q.put(("chunk", "[Web research error: %s]\n" % msg))
+
+                q.put(("stream_done", {}))
+            except Exception as e:
+                q.put(("error", e))
+
+        threading.Thread(target=run_search, daemon=True).start()
+
+        try:
+            toolkit = self.ctx.getServiceManager().createInstanceWithContext(
+                "com.sun.star.awt.Toolkit", self.ctx)
+        except Exception as e:
+            self._append_response("\n[Error: %s]\n" % str(e))
+            self._terminal_status = "Error"
+            self._set_status("Error")
+            return
+
+        def apply_chunk(chunk_text, is_thinking=False):
+            self._append_response(chunk_text)
+
+        def on_stream_done(response):
+            job_done[0] = True
+            if self._terminal_status != "Error":
+                self._terminal_status = "Ready"
+                self._set_status("Ready")
+            return True
+
+        def on_stopped():
+            # Web research cannot currently be cancelled mid-run; treat Stop as best-effort.
+            self._terminal_status = "Stopped"
+            self._set_status("Stopped")
+
+        def on_error(e):
+            err_msg = format_error_message(e)
+            self._append_response("\n[Web research error: %s]\n" % err_msg)
+            self._terminal_status = "Error"
+            self._set_status("Error")
+
+        run_stream_drain_loop(
+            q, toolkit, job_done, apply_chunk,
+            on_stream_done=on_stream_done,
+            on_stopped=on_stopped,
+            on_error=on_error,
+            on_status_fn=self._set_status,
+            ctx=self.ctx,
+        )
+
+
 
     def _start_tool_calling_async(self, client, model, max_tokens, tools, execute_tool_fn, max_tool_rounds=None):
         """Tool-calling loop: worker thread + queue, main thread drains queue with processEventsToIdle (pure Python threading, no UNO Timer)."""
@@ -1054,6 +1173,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         model_label = get_optional("model_label")
         status_ctrl = get_optional("status")
         direct_image_check = get_optional("direct_image_check")
+        web_search_check = get_optional("web_search_check")
         aspect_ratio_selector = get_optional("aspect_ratio_selector")
         base_size_input = get_optional("base_size_input")
         base_size_label = get_optional("base_size_label")
@@ -1246,7 +1366,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 image_model_selector, model_selector, status_ctrl, self.session,
                 direct_image_checkbox=direct_image_check,
                 aspect_ratio_selector=aspect_ratio_selector,
-                base_size_input=base_size_input)
+                base_size_input=base_size_input,
+                web_search_checkbox=web_search_check)
 
             # Detect and store initial document type for strict verification
             if model:

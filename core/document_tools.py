@@ -225,7 +225,7 @@ def tool_edit_image(model, ctx, args, status_callback=None):
         return json.dumps({"status": "error", "message": str(e)})
 
 
-def tool_search_web(model, ctx, args, status_callback=None):
+def tool_search_web(model, ctx, args, status_callback=None, append_thinking_callback=None):
     from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
     from core.config import get_api_config
     from core.api import LlmClient
@@ -252,8 +252,34 @@ def tool_search_web(model, ctx, args, status_callback=None):
         )
         task = f"Please find the answer to this query by searching the web and reading pages if needed: {query}"
 
+        def run_agent_stream():
+            if not append_thinking_callback:
+                return agent.run(task)
+                
+            final_ans = None
+            from core.smolagents_vendor.memory import ActionStep, FinalAnswerStep
+            for step in agent.run(task, stream=True):
+                if isinstance(step, ActionStep):
+                    msg = f"Step {step.step_number}:\n"
+                    if step.model_output:
+                        msg += f"{step.model_output.strip()}\n"
+                    elif getattr(step, "model_output_message", None) and step.model_output_message.content:
+                        msg += f"{str(step.model_output_message.content).strip()}\n"
+                    
+                    if step.tool_calls:
+                        for tc in step.tool_calls:
+                            msg += f"Running tool: {tc.name} with {tc.arguments}\n"
+                    
+                    if step.observations:
+                        msg += f"Observation: {str(step.observations).strip()}\n"
+                        
+                    append_thinking_callback(msg + "\n")
+                elif isinstance(step, FinalAnswerStep):
+                    final_ans = step.output
+            return final_ans
+
         with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(agent.run, task)
+            future = executor.submit(run_agent_stream)
             try:
                 answer = future.result(timeout=search_timeout)
             except FuturesTimeoutError:
@@ -314,7 +340,7 @@ def _truncate_for_log(obj, max_len=200):
     return obj
 
 
-def execute_tool(tool_name, arguments, doc, ctx, status_callback=None):
+def execute_tool(tool_name, arguments, doc, ctx, status_callback=None, append_thinking_callback=None):
     """Execute a tool by name. Returns JSON result string."""
     # If the tool is a writer operation, it might mutate the document.
     # Invalidate cache if it's not a 'get' or 'read' or 'list' tool.
@@ -330,10 +356,13 @@ def execute_tool(tool_name, arguments, doc, ctx, status_callback=None):
                   data={"tool": tool_name, "arguments": _truncate_for_log(arguments or {})},
                   hypothesis_id="C,E")
         sig = inspect.signature(func)
+        kwargs = {}
         if "status_callback" in sig.parameters or "kwargs" in sig.parameters:
-            result = func(doc, ctx, arguments, status_callback=status_callback)
-        else:
-            result = func(doc, ctx, arguments)
+            kwargs["status_callback"] = status_callback
+        if "append_thinking_callback" in sig.parameters or "kwargs" in sig.parameters:
+            kwargs["append_thinking_callback"] = append_thinking_callback
+            
+        result = func(doc, ctx, arguments, **kwargs)
         agent_log("document_tools.py:execute_tool", "Tool result",
                   data={"tool": tool_name, "result_snippet": (result or "")[:120]},
                   hypothesis_id="C,E")
