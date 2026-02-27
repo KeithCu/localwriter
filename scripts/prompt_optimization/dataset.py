@@ -27,16 +27,17 @@ Controller|Victron SmartSolar MPPT 100/30|$135.15[2]|Handles the 440W panel easi
 
 Tycon TP-DCDC-1224G-4P|$66.00|Critical: Stabilizes 24V battery voltage (which swings 20V-29V) to a clean 24V PoE for the Ubiquiti.
 
-* USB Charger|Blue Sea Systems 1045 (4.8A)|$43.00|Industrial grade. Accepts 24V input directly.
-
 Enclosure|Saginaw SCE-202010ELJ|$215.31|20x20x10 NEMA 4 steel box.
 """
 
 TABLE_FROM_MESS = {
     "document_content": MESSY_TABLE_INPUT,
-    "user_question": "Cleanup and make pretty.",
+    "user_question": "Convert this messy parts list into a clean HTML table with headings and a total price.",
     "task_id": "table_from_mess",
     "expected_contains": ["Battle Born", "Victron", "SmartSolar", "NEMA 4"],
+    "is_non_trivial": True,
+    "category": "structural",
+    "rubric": "Output must be an HTML table (not a list). It should have clear column headings, one row per unique item, a total entry, and preserve all prices exactly.",
 }
 
 # ---------------------------------------------------------------------------
@@ -45,13 +46,16 @@ TABLE_FROM_MESS = {
 PLAIN_RESUME = """john doe
 john@example.com  |  555-1234
 
-WORK HISTORY
-* acme corp 2020-2023  developer
-  built apis and fixed bugs  led 2 junior devs
+SUMMARY
+I am a very dedicated developer who has worked at many places and I really love coding in Python and doing APIs. I led some people once and it was good. I have experience in both front-end and back-end stuff and I am looking for a new job.
 
-* techstart inc  2023-present  senior developer
-  microservices  ci/cd  on-call rotation
-  no bullets here just run-on
+WORK HISTORY
+* acme corp 2020 to 2023  developer
+  built apis and fixed bugs  led 2 junior devs. we used python mostly.
+
+- techstart inc  Feb '23-present  senior developer
+  microservices architecture  ci/cd  on-call rotation. worked on high scale stuff with high availability requirements
+  We scaled the system to 100K users and 100M requests per month using a novel caching strategy.
 
 EDUCATION
 state university  bs computer science 2016  gpa 3.8
@@ -65,6 +69,9 @@ REFORMAT_RESUME = {
     "user_question": "Reformat this plain text resume as professional. Use clear section headings and consistent formatting.",
     "task_id": "reformat_resume",
     "expected_contains": ["John", "Work", "Skills", "Education", "Acme", "TechStart"],
+    "is_non_trivial": True,
+    "category": "creative",
+    "rubric": "Professional resume format. Clear section headings (WORK HISTORY, EDUCATION, SKILLS). Consistent bullet points for all work experience items.",
 }
 
 # ---------------------------------------------------------------------------
@@ -83,6 +90,9 @@ TABLE_ENGINEERING = {
     "user_question": "Convert this comma-separated list into a clean table with headers (Item, Price, Quantity). Fix missing or extra commas.",
     "task_id": "table_engineering",
     "expected_contains": ["Item", "Price", "Quantity"],
+    "is_non_trivial": True,
+    "category": "structural",
+    "rubric": "Clean CSV-to-table conversion. Map 'Fruit' to 'Item'. Ensure numeric values are right-aligned if possible, or at least consistent.",
 }
 
 # ---------------------------------------------------------------------------
@@ -101,18 +111,21 @@ BULK_CLEANUP = {
     "task_id": "bulk_cleanup",
     "expected_contains": [],
     "reject_contains": ["  ", " .", "..", " ,"],  # no double spaces, space-before-period, double period, space before comma
+    "category": "structural",
 }
 
 # ---------------------------------------------------------------------------
 # 5. Logical Rewriting
 # ---------------------------------------------------------------------------
-TECH_PARAGRAPH = """The API utilizes a RESTful architecture and supports JSON serialization. We have implemented OAuth2 for authentication and rate limiting to prevent abuse. The SDK is available for Python and JavaScript."""
+TECH_PARAGRAPH = """We are incredibly excited to announce the release of LocalWriter version 2.0, a significant leap forward in our mission to provide the most powerful local AI editing experience for word processors. This update introduces a brand new, sophisticated 'Judge' system that leverages multi-dimensional scoring models to provide more accurate and consistent evaluations of model performance. By utilizing frameworks like G-Eval and Prometheus, we've moved beyond simple string matching to a nuanced analysis of semantic correctness, formatting fidelity, and naturalness. Furthermore, version 2.0 includes a new 'Dual-Mode' evaluation system that intelligently distinguishes between structural tasks like table generation and creative tasks like logical rewriting, applying weighted criteria specifically tailored to each task type. We've also optimized our OpenRouter integration to support the latest model releases, including the Qwen 3.5 and Gemini 3 Flash series. Download the update today to experience the future of local AI-assisted writing."""
 
 LOGICAL_REWRITING = {
     "document_content": TECH_PARAGRAPH,
-    "user_question": "Rewrite this paragraph to be professional and concise while preserving all technical terms (API, RESTful, JSON, OAuth2, SDK).",
+    "user_question": "Rewrite this paragraph to be professional and concise.",
     "task_id": "logical_rewriting",
-    "expected_contains": ["API", "RESTful", "JSON", "OAuth2", "SDK"],
+    "expected_contains": ["LocalWriter", "2.0"],
+    "is_non_trivial": True,
+    "category": "creative",
 }
 
 # ---------------------------------------------------------------------------
@@ -126,6 +139,7 @@ FORMAT_PRESERVATION = {
     "task_id": "format_preservation",
     "expected_contains": ["Jane Smith"],
     "reject_contains": ["John Doe"],
+    "category": "structural",
 }
 
 # ---------------------------------------------------------------------------
@@ -138,6 +152,7 @@ STYLE_APPLICATION = {
     "user_question": "Make 'Introduction' a Heading 1.",
     "task_id": "style_application",
     "expected_contains": ["Introduction"],
+    "category": "structural",
 }
 
 # ---------------------------------------------------------------------------
@@ -153,6 +168,7 @@ BULLET_CONSISTENCY = {
     "user_question": "Ensure all bullet points in this list end with a period.",
     "task_id": "bullet_consistency",
     "expected_contains": ["First item.", "Second item.", "Third item."],
+    "category": "structural",
 }
 
 # ---------------------------------------------------------------------------
@@ -170,6 +186,26 @@ ALL_EXAMPLES = [
 ]
 
 
+def _load_gold_standards(examples: list[dict]) -> list[dict]:
+    """Load gold documents from gold_standards.json if it exists."""
+    import json
+    p = Path(__file__).parent / "gold_standards.json"
+    if not p.exists():
+        return examples
+    try:
+        golds = json.loads(p.read_text(encoding="utf-8"))
+        for ex in examples:
+            tid = ex.get("task_id")
+            if tid in golds:
+                ex["gold_document"] = golds[tid]
+    except Exception as e:
+        print(f"Warning: Failed to load gold_standards.json: {e}")
+    return examples
+
+
+ALL_EXAMPLES = _load_gold_standards(ALL_EXAMPLES)
+
+
 def to_dspy_examples(examples=None, with_inputs=True):
     """Convert dict examples to dspy.Example objects. Requires dspy."""
     import dspy
@@ -183,6 +219,10 @@ def to_dspy_examples(examples=None, with_inputs=True):
             task_id=ex.get("task_id", ""),
             expected_contains=ex.get("expected_contains", []),
             reject_contains=ex.get("reject_contains", []),
+            rubric=ex.get("rubric", ""),
+            gold_document=ex.get("gold_document", ""),
+            is_non_trivial=ex.get("is_non_trivial", False),
+            category=ex.get("category", "structural"),
         ).with_inputs("document_content", "user_question") if with_inputs else dspy.Example(**ex)
         out.append(e)
     return out

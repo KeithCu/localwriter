@@ -32,7 +32,6 @@ class ModelConfig:
     notes: Optional[str] = None
 
 
-'''  # kept for later
 MODELS: list[ModelConfig] = [
     ModelConfig(
         openrouter_id="openai/gpt-oss-120b",
@@ -112,6 +111,14 @@ MODELS: list[ModelConfig] = [
         ),
     ),
     ModelConfig(
+        openrouter_id="anthropic/claude-sonnet-4.6",
+        display_name="Anthropic: Claude Sonnet 4.6",
+        context_window_tokens=200_000,
+        input_cost_per_million=3.00,
+        output_cost_per_million=15.00,
+        notes="Sonnet 4.6; used for gold standard generation.",
+    ),
+    ModelConfig(
         openrouter_id="x-ai/grok-4.1-fast",
         display_name="xAI: Grok 4.1 Fast",
         context_window_tokens=2_000_000,
@@ -121,11 +128,6 @@ MODELS: list[ModelConfig] = [
             "Grok 4.1 Fast; 2M-token context; $0.20/M input, $0.50/M output."
         ),
     ),
-]
-'''
-
-# Current test set: Qwen 3.5 series + Liquid LFM2
-MODELS: list[ModelConfig] = [
     ModelConfig(
         openrouter_id="qwen/qwen3.5-35b-a3b",
         display_name="Qwen: Qwen3.5-35B-A3B",
@@ -150,22 +152,22 @@ MODELS: list[ModelConfig] = [
         output_cost_per_million=3.20,
         notes="VLM MoE; second to Qwen3.5-397B-A17B; strong text and visual.",
     ),
-    ModelConfig(
-        openrouter_id="qwen/qwen3.5-flash",
-        display_name="Qwen: Qwen3.5-Flash",
-        context_window_tokens=1_000_000,
-        input_cost_per_million=0.10,
-        output_cost_per_million=0.40,
-        notes="Flash VLM; fast, efficient; leap over 3 series for text and multimodal.",
-    ),
-    ModelConfig(
-        openrouter_id="liquid-ai/lfm2-24b-a2b",
-        display_name="LiquidAI: LFM2-24B-A2B",
-        context_window_tokens=33_000,
-        input_cost_per_million=0.03,
-        output_cost_per_million=0.12,
-        notes="24B MoE, 2B active; on-device; 32 GB RAM; high quality, low cost.",
-    ),
+#    ModelConfig(
+#        openrouter_id="qwen/qwen3.5-flash",
+#        display_name="Qwen: Qwen3.5-Flash",
+#        context_window_tokens=1_000_000,
+#        input_cost_per_million=0.10,
+#        output_cost_per_million=0.40,
+#        notes="Flash VLM; fast, efficient; leap over 3 series for text and multimodal.",
+#    ),
+#    ModelConfig(
+#        openrouter_id="liquid-ai/lfm2-24b-a2b",
+#        display_name="LiquidAI: LFM2-24B-A2B",
+#        context_window_tokens=33_000,
+#        input_cost_per_million=0.03,
+#        output_cost_per_million=0.12,
+#        notes="24B MoE, 2B active; on-device; 32 GB RAM; high quality, low cost.",
+#    ),
     ModelConfig(
         openrouter_id="allenai/olmo-3.1-32b-instruct",
         display_name="AllenAI: Olmo 3.1 32B Instruct",

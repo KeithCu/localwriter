@@ -48,6 +48,14 @@ def _parse_model_ids(arg: str | None) -> Sequence[str]:
     return [s.strip() for s in arg.split(",") if s.strip()]
 
 
+def _get_lm(model_id: str, api_key: str, api_base: str) -> dspy.LM:
+    """Instantiate a dspy.LM with OpenRouter prefixing if needed."""
+    model = model_id
+    if "openrouter" in api_base.lower() and not model.startswith("openrouter/"):
+        model = "openrouter/" + model
+    return dspy.LM(model=model, api_key=api_key, api_base=api_base, model_type="chat")
+
+
 def _estimate_cost_usd(
     results: Iterable[ExampleEval],
     cfg: ModelConfig,
@@ -59,6 +67,27 @@ def _estimate_cost_usd(
             + (r.completion_tokens / 1_000_000.0) * cfg.output_cost_per_million
         )
     return total_cost
+
+
+def _write_details(out_path: Path, all_details: list[dict[str, Any]]) -> None:
+    """Write detailed per-example results to a separate file (e.g. eval_details.json/csv)."""
+    detailed_path = out_path.parent / (out_path.stem + "_details" + out_path.suffix)
+    detailed_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    as_csv = detailed_path.suffix.lower() == ".csv"
+    if as_csv:
+        import csv
+        if not all_details:
+            detailed_path.write_text("")
+            return
+        keys = list(all_details[0].keys())
+        with detailed_path.open("w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=keys)
+            w.writeheader()
+            w.writerows(all_details)
+    else:
+        import json
+        detailed_path.write_text(json.dumps(all_details, indent=2), encoding="utf-8")
 
 
 def _write_results(out_path: Path, model_summaries: list[dict[str, Any]]) -> None:
@@ -97,8 +126,11 @@ def _run_one_model(
     verbose: bool,
     debug_usage: bool,
     bust_cache: bool,
+    judge_model_id: str | None = None,
+    gold_model_id: str | None = None,
 ) -> dict[str, Any]:
     """Run eval for one model (used in a worker process). Returns summary dict."""
+    import dspy
     import tools_mock as _tools_mock
     from dataset import ALL_EXAMPLES, to_dspy_examples
     from eval_core import run_eval_on_examples, summarize_results
@@ -113,9 +145,16 @@ def _run_one_model(
         examples = examples[:n]
     cfg = MODEL_BY_ID[model_id]
     model = model_id
-    if "openrouter" in api_base.lower() and not model.startswith("openrouter/"):
-        model = "openrouter/" + model
-    lm = dspy.LM(model=model, api_key=api_key, api_base=api_base, model_type="chat")
+    lm = _get_lm(model_id, api_key, api_base)
+    
+    judge_lm = None
+    if judge_model_id:
+        judge_lm = _get_lm(judge_model_id, api_key, api_base)
+    
+    gold_lm = None
+    if gold_model_id:
+        gold_lm = _get_lm(gold_model_id, api_key, api_base)
+
     dspy.configure(lm=lm)
     program = build_program(instruction=None, tool_names=None)
     results = run_eval_on_examples(
@@ -125,26 +164,49 @@ def _run_one_model(
         debug_usage=debug_usage,
         bust_cache=bust_cache,
         quiet=False,
+        judge_lm=judge_lm,
+        gold_lm=gold_lm,
     )
     summary = summarize_results(results)
     total_cost = _estimate_cost_usd(results, cfg)
     avg_cost_per_example = total_cost / len(results) if results else 0.0
     eps = 1e-9
-    ipd_correctness = summary["avg_correctness"] / max(total_cost, eps) if total_cost > 0 else 0.0
-    ipd_metric = summary["avg_metric_score"] / max(total_cost, eps) if total_cost > 0 else 0.0
+    # Intelligence per Dollar = (Correctness^2 / Cost). 
+    # Squaring the correctness (P=2) prioritizes quality/accuracy over raw cost, 
+    # ensuring "cheap but broken" models don't dominate the leaderboard.
+    ipd_correctness = (summary["avg_correctness"]**2) / max(total_cost, eps) if total_cost > 0 else 0.0
+    ipd_metric = (summary["avg_metric_score"]**2) / max(total_cost, eps) if total_cost > 0 else 0.0
+    details = []
+    for r in results:
+        details.append({
+            "task_id": r.task_id,
+            "category": r.task_category,
+            "judge_score": r.judge_score,
+            "judge_accuracy": r.judge_accuracy,
+            "judge_formatting": r.judge_formatting,
+            "judge_naturalness": r.judge_naturalness,
+            "judge_reasoning": r.judge_reasoning,
+            "correctness": r.correctness,
+            "metric_score": r.metric_score,
+            "total_tokens": r.total_tokens,
+        })
+
     return {
-        "openrouter_id": cfg.openrouter_id,
-        "display_name": cfg.display_name,
-        "context_window_tokens": cfg.context_window_tokens,
-        "input_cost_per_million": cfg.input_cost_per_million,
-        "output_cost_per_million": cfg.output_cost_per_million,
-        "avg_correctness": summary["avg_correctness"],
-        "avg_metric_score": summary["avg_metric_score"],
-        "total_tokens": summary["total_tokens"],
-        "total_cost_usd": total_cost,
-        "avg_cost_per_example": avg_cost_per_example,
-        "intelligence_per_dollar_correctness": ipd_correctness,
-        "intelligence_per_dollar_metric": ipd_metric,
+        "summary": {
+            "openrouter_id": cfg.openrouter_id,
+            "display_name": cfg.display_name,
+            "context_window_tokens": cfg.context_window_tokens,
+            "input_cost_per_million": cfg.input_cost_per_million,
+            "output_cost_per_million": cfg.output_cost_per_million,
+            "avg_correctness": summary["avg_correctness"],
+            "avg_metric_score": summary["avg_metric_score"],
+            "total_tokens": summary["total_tokens"],
+            "total_cost_usd": total_cost,
+            "avg_cost_per_example": avg_cost_per_example,
+            "intelligence_per_dollar_correctness": ipd_correctness,
+            "intelligence_per_dollar_metric": ipd_metric,
+        },
+        "details": details
     }
 
 
@@ -210,6 +272,23 @@ def main() -> int:
         help="Write per-model summary to PATH (.json or .csv). Default: eval_results.csv in this script's directory.",
     )
     p.add_argument(
+        "--judge",
+        metavar="ID",
+        default="x-ai/grok-4.1-fast",
+        help="OpenRouter model id for the judge (default: x-ai/grok-4.1-fast).",
+    )
+    p.add_argument(
+        "--gold-model",
+        metavar="ID",
+        default="anthropic/claude-sonnet-4.6",
+        help="OpenRouter model id for gold standard generation (default: anthropic/claude-sonnet-4.6).",
+    )
+    p.add_argument(
+        "--generate-golds",
+        action="store_true",
+        help="One-time generation of gold standard answers using the gold-model. Saves to gold_standards.json.",
+    )
+    p.add_argument(
         "--jobs",
         "-j",
         type=int,
@@ -226,6 +305,8 @@ def main() -> int:
             file=sys.stderr,
         )
 
+    model_summaries: list[dict[str, Any]] = []
+    all_details: list[dict[str, Any]] = []
     model_ids = _parse_model_ids(args.models)
     unknown = [mid for mid in model_ids if mid not in MODEL_BY_ID]
     if unknown:
@@ -255,6 +336,30 @@ def main() -> int:
         examples = examples[: args.n]
 
     tools_mock.VERBOSE = args.verbose
+
+    # One-time gold generation logic
+    if args.generate_golds:
+        import json
+        print(f"Generating gold standards for {len(examples)} examples using {args.gold_model}...")
+        gold_lm = _get_lm(args.gold_model, api_key, api_base)
+        # We use a dummy program but configure it with the gold LM
+        program = build_program(instruction=None, tool_names=None)
+        
+        # We can't use run_eval_on_examples directly easily because we want to save them
+        # so let's just do a simple loop here.
+        gold_map = {}
+        with dspy.settings.context(lm=gold_lm, cache=False):
+            for i, ex in enumerate(examples):
+                tid = getattr(ex, "task_id", f"example_{i}")
+                print(f"  [{i+1}/{len(examples)}] Generating gold for {tid}...")
+                pred = program(document_content=ex.document_content, user_question=ex.user_question)
+                gold_map[tid] = getattr(pred, "final_document", "")
+        
+        out_p = SCRIPT_DIR / "gold_standards.json"
+        out_p.write_text(json.dumps(gold_map, indent=2), encoding="utf-8")
+        print(f"\nDone! Saved {len(gold_map)} gold standards to {out_p}")
+        return 0
+
     jobs = max(1, args.jobs)
     print(
         f"Running {len(examples)} example(s) for {len(model_ids)} model(s)"
@@ -269,49 +374,39 @@ def main() -> int:
         for model_id in model_ids:
             cfg = MODEL_BY_ID[model_id]
             model = model_id
-            if "openrouter" in api_base.lower() and not model.startswith("openrouter/"):
-                model = "openrouter/" + model
             print("=" * 60)
             print(f"Model: {cfg.display_name} ({cfg.openrouter_id})")
             print(f"  Context window: {cfg.context_window_tokens or 'unknown'} tokens")
             print(f"  Pricing: ${cfg.input_cost_per_million}/M input, "
                   f"${cfg.output_cost_per_million}/M output")
             print(f"  Using model id: {model} @ {api_base}\n")
-            lm = dspy.LM(model=model, api_key=api_key, api_base=api_base, model_type="chat")
-            dspy.configure(lm=lm)
-            program = build_program(instruction=None, tool_names=None)
-            results = run_eval_on_examples(
-                program,
-                examples,
-                verbose=args.verbose,
-                debug_usage=args.debug_usage,
-                bust_cache=not args.no_bust_cache,
-                quiet=False,
+            
+            res = _run_one_model(
+                model_id,
+                api_base,
+                api_key,
+                args.example,
+                args.n,
+                args.verbose,
+                args.debug_usage,
+                not args.no_bust_cache,
+                args.judge,
+                args.gold_model,
             )
-            summary = summarize_results(results)
-            total_cost = _estimate_cost_usd(results, cfg)
-            avg_cost_per_example = total_cost / len(results) if results else 0.0
-            eps = 1e-9
-            ipd_correctness = summary["avg_correctness"] / max(total_cost, eps) if total_cost > 0 else 0.0
-            ipd_metric = summary["avg_metric_score"] / max(total_cost, eps) if total_cost > 0 else 0.0
-            model_summaries.append({
-                "openrouter_id": cfg.openrouter_id,
-                "display_name": cfg.display_name,
-                "context_window_tokens": cfg.context_window_tokens,
-                "input_cost_per_million": cfg.input_cost_per_million,
-                "output_cost_per_million": cfg.output_cost_per_million,
-                "avg_correctness": summary["avg_correctness"],
-                "avg_metric_score": summary["avg_metric_score"],
-                "total_tokens": summary["total_tokens"],
-                "total_cost_usd": total_cost,
-                "avg_cost_per_example": avg_cost_per_example,
-                "intelligence_per_dollar_correctness": ipd_correctness,
-                "intelligence_per_dollar_metric": ipd_metric,
-            })
+            model_summaries.append(res["summary"])
+            
+            # Add model_id to each detail for tracking
+            for d in res["details"]:
+                d["model_id"] = model_id
+            all_details.extend(res["details"])
+            
             out_path = _out_path(args)
             if out_path:
                 _write_results(out_path, model_summaries)
-            print(f"Done: {cfg.openrouter_id}  avg_correctness={summary['avg_correctness']:.3f}  cost=${total_cost:.4f}  ({len(model_summaries)}/{len(model_ids)} models)")
+                _write_details(out_path, all_details)
+                
+            m = res["summary"]
+            print(f"Done: {m['openrouter_id']}  avg_correctness={m['avg_correctness']:.3f}  cost=${m['total_cost_usd']:.4f}  ({len(model_summaries)}/{len(model_ids)} models)")
     else:
         # Parallel: worker processes, progress prints interleaved; save after each model
         out_path = _out_path(args)
@@ -327,16 +422,27 @@ def main() -> int:
                     args.verbose,
                     args.debug_usage,
                     not args.no_bust_cache,
+                    args.judge,
+                    args.gold_model,
                 ): model_id
                 for model_id in model_ids
             }
             for future in as_completed(futures):
                 model_id = futures[future]
                 try:
-                    model_summaries.append(future.result())
-                    m = model_summaries[-1]
+                    res = future.result()
+                    model_summaries.append(res["summary"])
+                    
+                    # Add model_id to each detail for tracking
+                    for d in res["details"]:
+                        d["model_id"] = model_id
+                    all_details.extend(res["details"])
+                    
                     if out_path:
                         _write_results(out_path, model_summaries)
+                        _write_details(out_path, all_details)
+                    
+                    m = res["summary"]
                     print(f"Done: {m['openrouter_id']}  avg_correctness={m['avg_correctness']:.3f}  cost=${m['total_cost_usd']:.4f}  ({len(model_summaries)}/{len(model_ids)} models)")
                 except Exception as e:
                     print(f"Model {model_id} failed: {e}", file=sys.stderr)
@@ -373,7 +479,7 @@ def main() -> int:
     print("=" * 60)
     print(
         f"{'Rank':<4}  {'Model':<32}  {'AvgCorr':>7}  {'AvgScore':>8}  "
-        f"{'Tokens':>10}  {'Cost($)':>10}  {'Corr/USD':>9}"
+        f"{'Tokens':>10}  {'Cost($)':>10}  {'Value(C²/$)':>11}"
     )
     for idx, m in enumerate(model_summaries, start=1):
         print(
@@ -382,15 +488,17 @@ def main() -> int:
             f"{m['avg_metric_score']:>8.3f}  "
             f"{m['total_tokens']:>10}  "
             f"{m['total_cost_usd']:>10.4f}  "
-            f"{m['intelligence_per_dollar_correctness']:>9.3f}"
+            f"{m['intelligence_per_dollar_correctness']:>11.3f}"
         )
 
     # Write final results (JSON or CSV by extension); sequential run writes here, parallel already wrote incrementally
     out_path = _out_path(args)
     if out_path:
         _write_results(out_path, model_summaries)
+        _write_details(out_path, all_details)
         fmt = "CSV" if out_path.suffix.lower() == ".csv" else "JSON"
         print(f"\nWrote per-model summary ({fmt}) to {out_path}")
+        print(f"Wrote per-test details to {out_path.parent / (out_path.stem + '_details' + out_path.suffix)}")
 
     return 0
 

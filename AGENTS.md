@@ -139,6 +139,7 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
   - It directly invokes the `web_research` tool from `core/document_tools.py`, which runs the `ToolCallingAgent`-based sub-agent (`DuckDuckGoSearchTool` + `VisitWebpageTool`) to research the query.
   - The synthesized answer is streamed back into the response area as `AI (web): ...`, without modifying the document.
   - When unchecked (default), the sidebar behaves as standard Chat with Document; the main model may still call `web_research` autonomously via tool-calling when appropriate.
+  - The sub-agent uses smolagents' JSON-in-text parsing for tool calls; if the model returns malformed or missing JSON for a tool call, LocalWriter now falls back to the last useful text the web agent produced instead of surfacing a low-level "no JSON blob" error to the user.
 
 ### Markdown tool-calling (current)
 

@@ -100,28 +100,52 @@ To handle complex spreadsheet tasks, LocalWriter is optimized for high-throughpu
 
 We have recently integrated an internal **LLM Evaluation Suite** directly into the LibreOffice UI. This allows users and developers to benchmark models across 50+ real-world tasks in Writer, Calc, and Draw, tracking both accuracy and **Intelligence-per-Dollar (IpD)**. By fetching real-time pricing from OpenRouter, the system calculates the exact cost of every AI turn and ranks backends by their value-to-performance ratio.
 
-**Top 10 models by Corr/USD** (Writer eval set; avg correctness ÷ total cost; higher = better value):
+**Top 10 models by Value (C²/$)** (Writer eval set; (avg correctness)² ÷ total cost; higher = better quality/value ratio):
 
-| Rank | Model | Corr/USD | Avg correctness |
-|------|--------|----------|------------------|
-| 1 | openai/gpt-oss-120b | 346.8 | 1.000 |
-| 2 | google/gemini-3-flash-preview | 161.7 | 0.925 |
-| 3 | nvidia/nemotron-3-nano-30b-a3b | 131.2 | 0.725 |
-| 4 | openai/gpt-4o-mini | 98.8 | 0.938 |
-| 5 | allenai/olmo-3.1-32b-instruct | 84.1 | 0.963 |
-| 6 | nex-agi/deepseek-v3.1-nex-n1 | 58.9 | 0.925 |
-| 7 | x-ai/grok-4.1-fast | 40.2 | 1.000 |
-| 8 | minimax/minimax-m2.1 | 40.1 | 0.900 |
-| 9 | mistralai/devstral-2512 | 36.5 | 0.900 |
-| 10 | z-ai/glm-4.7 | 34.4 | 1.000 |
+| Rank | Model | Value (C²/$) | Avg Correctness | Tokens/Run | Cost ($) |
+|------|--------|----------|-----------------|------------|----------|
+| 1 | openai/gpt-oss-120b | 263.8 | 0.920 | 50,198 | 0.0032 |
+| 2 | google/gemini-3-flash-preview | 141.0 | 0.940 | 50,179 | 0.0063 |
+| 3 | openai/gpt-4o-mini | 70.5 | 0.790 | 47,540 | 0.0089 |
+| 4 | nvidia/nemotron-3-nano-30b-a3b | 60.6 | 0.560 | 50,243 | 0.0052 |
+| 5 | x-ai/grok-4.1-fast | 46.5 | 0.980 | 66,929 | 0.0207 |
+| 6 | nex-agi/deepseek-v3.1-nex-n1 | 39.4 | 0.915 | 64,222 | 0.0213 |
+| 7 | minimax/minimax-m2.1 | 39.2 | 0.983 | 62,394 | 0.0246 |
+| 8 | mistralai/devstral-2512 | 27.9 | 0.910 | 57,150 | 0.0297 |
+| 9 | z-ai/glm-4.7 | 26.9 | 0.953 | 63,035 | 0.0337 |
+| 10 | qwen/qwen3.5-27b | 26.5 | 0.993 | 52,210 | 0.0371 |
+| 11 | openai/gpt-5-nano | 26.4 | 0.825 | 99,576 | 0.0258 |
+| 12 | allenai/olmo-3.1-32b-instruct | 20.8 | 0.570 | 68,317 | 0.0156 |
+| 13 | qwen/qwen3.5-122b-a10b | 14.9 | 0.932 | 62,424 | 0.0583 |
+| 14 | qwen/qwen3.5-35b-a3b | 13.1 | 0.980 | 80,773 | 0.0734 |
+| 15 | anthropic/claude-haiku-4.5 | 11.3 | 0.993 | 60,730 | 0.0874 |
+| 16 | anthropic/claude-sonnet-4.6 | 4.3 | 1.000 | 54,890 | 0.2351 |
+
+---
+
+### Key Benchmarking Insights (Feb 2026)
+
+Our recent transition to **Quadratic Utility Scoring ($Value = C^2/USD$)** and hardened, realistic datasets has revealed several counter-intuitive truths about AI document engineering:
+
+#### 1. The "Verbosity Tax" (Example: Qwen 35B vs 122B)
+List prices don't tell the whole story. **Qwen 35B-A3B** (Rank 14) has a list price ~37% lower than the flagship **Qwen 122B-A10B** (Rank 13). However, because the 35B model is far more "chatty" (using 80,773 tokens vs 62,424 for the same tasks), it actually **costs 25% more** to complete the benchmark. This "Verbosity Tax" easily wipes out the perceived savings of smaller models.
+
+#### 2. The "Quality Premium"
+By squaring the correctness score ($C^2$), we ensure that "cheap but broken" models like **Nemotron** (#4) no longer dominate the leaderboard. A model that fails ~45% of professional office tasks is accurately penalized as a liability, allowing smarter, more reliable models like **GPT-4o-mini** to leapfrog them in value.
+
+#### 3. The Value "Elite": Gemini 3 Flash
+**Google Gemini 3 Flash** (Rank 2) is currently the "best all-rounder" for LocalWriter. It maintains near-perfect accuracy (**0.940**) while remaining cheap enough to yield a value of **141.0**—nearly twice that of the nearest competitor in its tier.
+
+#### 4. The "Budget Sonnet": Qwen 27B
+While **Claude Sonnet 4.6** (Rank 16) is our only perfect 1.000 accuracy model, **Qwen 3.5-27B** (Rank 10) achieved an incredible **0.993** accuracy at less than 1/6th the cost. If you need flawless document engineering on a budget, the dense Qwen 27B is currently the "Gold Standard" of high-intensity mid-range models.
 
 This benchmarking framework is used to tune system prompts and select the best-performing models for local-first office automation. Details: [scripts/prompt_optimization/README.md](scripts/prompt_optimization/README.md).
 
-**Scope of this release.** The current eval is an **initial MVP**: tasks are deliberately simple and objective (e.g. “add a heading,” “replace this phrase”), with little subjective difficulty or taste. The goal is to establish a reproducible baseline and support further research—e.g. harder tasks, human preference studies, or domain-specific benchmarks—rather than to claim broad “intelligence” of any model.
+**Sophisticated LLM-as-a-Judge Scoring.** We have moved beyond simple keyword matching to a nuanced, multi-dimensional evaluation system. A high-tier "Teacher" model (typically **Claude Sonnet 4.6**) generates gold-standard answers, while a specialized "Judge" model (**Grok 4.1 Fast**) evaluates performance using a weighted rubric.
 
-**Correctness is still primitive.** Right now we score “correctness” with **string containment only**: each task has optional `expected_contains` (required substrings in the final document) and `reject_contains` (strings that must not appear), and we penalize missing expected or present rejected strings. There is no check of document structure, formatting, or style, and no semantic understanding—so a model can “pass” by luck (e.g. the right phrase in the wrong place) or “fail” for minor wording differences. For more nuanced or subjective tasks (tone, clarity, layout quality), **judge models** (a separate LLM that grades the output against the instruction) could be used in some cases to produce a scalar or rubric-based score; that would complement or eventually replace the current keyword-based metric.
+This framework allows us to differentiate between "Flash" models that prioritize speed and "Frontier" models that possess the "taste" and refinement needed for professional documents.
 
-**Fine-tuning.** An interesting direction is to **fine-tune a model** specifically for this tool set and task distribution: the same correctness could potentially be achieved with fewer reasoning steps and fewer tokens, improving both latency and Corr/USD. The existing eval and dataset are a natural training signal (correct vs incorrect tool use, minimal vs verbose traces).
+**Fine-tuning.** An interesting direction is to **fine-tune a model** specifically for this tool set and task distribution: the same correctness could potentially be achieved with fewer reasoning steps and fewer tokens, improving both latency and Value (C²/$). The existing eval and dataset are a natural training signal (correct vs incorrect tool use, minimal vs verbose traces).
 
 **Tool set and model size.** LocalWriter already exposes a rich but curated subset of Writer/Calc/Draw operations (styles, comments, tables, markdown apply, etc.), not the full OpenDocument/UNO surface. An open question is whether we should or can **expose more of the full UNO tool set** for capable models, while keeping a **smaller subset** for smaller or cheaper models that might be confused or wasteful with too many options. That would allow “right-sized” backends: minimal tools for fast local models, full power for frontier models when the user needs it.
 

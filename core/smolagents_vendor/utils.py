@@ -150,7 +150,24 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
     "Extracts the JSON blob from the input and returns the JSON data and the rest of the input."
     try:
         first_accolade_index = json_blob.find("{")
-        last_accolade_index = [a.start() for a in list(re.finditer("}", json_blob))][-1]
+        if first_accolade_index == -1:
+            raise IndexError
+
+        # Find the smallest balanced JSON object starting from the first '{'
+        depth = 0
+        last_accolade_index = None
+        for i, ch in enumerate(json_blob[first_accolade_index:], start=first_accolade_index):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    last_accolade_index = i
+                    break
+
+        if last_accolade_index is None:
+            raise IndexError
+
         json_str = json_blob[first_accolade_index : last_accolade_index + 1]
         json_data = json.loads(json_str, strict=False)
         return json_data, json_blob[:first_accolade_index]
@@ -158,14 +175,14 @@ def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
         raise ValueError("The model output does not contain any JSON blob.")
     except json.JSONDecodeError as e:
         place = e.pos
-        if json_blob[place - 1 : place + 2] == "},\n":
+        if json_str[place - 1 : place + 2] == "},\n":
             raise ValueError(
                 "JSON is invalid: you probably tried to provide multiple tool calls in one action. PROVIDE ONLY ONE TOOL CALL."
             )
         raise ValueError(
             f"The JSON blob you used is invalid due to the following error: {e}.\n"
-            f"JSON blob was: {json_blob}, decoding failed on that specific part of the blob:\n"
-            f"'{json_blob[place - 4 : place + 5]}'."
+            f"JSON blob was: {json_str}, decoding failed on that specific part of the blob:\n"
+            f"'{json_str[place - 4 : place + 5]}'."
         )
 
 
