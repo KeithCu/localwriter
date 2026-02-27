@@ -132,6 +132,17 @@ Based on a review of the `langchain-community` codebase, here are specific compo
 - **SQLite Vector Store (`SQLiteVec`)**: Located in `vectorstores/sqlitevec.py`. It uses the standard library `sqlite3` and `struct` for storing embeddings as raw bytes. While it relies on the `sqlite-vec` C-extension, we can take its class structure and replace the similarity search backend with our own pure-Python streaming search logic.
 - **File/Text Based Components**: Components like `FileChatMessageHistory` (`chat_message_histories/file.py`) and `TextLoader` (`document_loaders/text.py`) have zero external dependencies. They rely solely on standard Python modules like `pathlib` and `json`, and can be copy-pasted almost verbatim if needed.
 
+#### Future Possibilities (Catalog of Ideas)
+While we don't need these immediately for the core LibreOffice integration, the repository contains a massive collection of reference implementations we could vendor if users request specific features:
+- **Document Loaders (170+ integrations)**: If we ever want to allow users to load data into LibreOffice from external sources, there are ready-made classes for Cloud Drives (Google Drive, OneDrive, S3), Workspaces (Confluence, Notion, Slack), and file formats (PDFs, ePub, Dataframes).
+- **Agent Tools (Web Search & Page Reading)**: While `langchain-community` has tools (often relying on heavy dependencies like Playwright), we should prefer adapting tools from lighter frameworks like **Hugging Face `smolagents`**.
+  - **Web Search (`smolagents.DuckDuckGoSearchTool`)**: We will adapt their lightweight DuckDuckGo scraper (which hits `lite.duckduckgo.com` and parses the HTML using the standard library `html.parser`), modifying it to use `urllib.request` instead of `requests` to achieve zero added dependencies.
+  - **Page Reading (`smolagents.VisitWebpageTool`)**: We will adapt their URL fetcher to use `urllib.request`, and optionally vendor their use of the small `markdownify` module (or write a simpler HTML stripper) to convert the fetched HTML into clean Markdown for the LLM.
+  - **Secure Local Python Execution (`smolagents.local_python_executor`)**: This is a brilliant, zero-dependency gem in their codebase. It uses Python's built-in `ast` (Abstract Syntax Tree) to safely evaluate and execute Python code with strict bounds (preventing dangerous imports, locking down `os`/`sys`, limiting `while` loop iterations, and enforcing threading timeouts). We can vendor this directly to give our AI a `python_interpreter` tool, allowing it to write scripts to process LibreCalc data or analyze text *without* needing heavy sandboxes like Docker or E2B.
+  - **Note on Browser Automation**: If we ever need to execute JS or grab rendered pages, we should look into using simpler, standard protocols on the user's *existing* browser installation (e.g., **PyCDP** for Chrome or **Marionette** for Firefox), avoiding massive binaries like Playwright.
+- **Retrievers (40+ strategies)**: Beyond standard vector search, it contains implementations for Lexical/Keyword search (BM25, TF-IDF, SVM) and Hybrid approaches, which we could adapt for local document search.
+- **Third-Party Model Integrations**: Communication plates for nearly every LLM provider, providing a solid reference if we ever need to expand our `LlmClient` to support obscure model gateways.
+
 ---
 
 ## Architecture Decision: Custom Wrapper vs. Provider Packages
