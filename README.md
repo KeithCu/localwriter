@@ -17,7 +17,7 @@ The main way to interact with your document. While you can ask it anything, **it
 *   **Undo Integration**: AI edits are grouped so you can revert an entire AI turn with a single `Ctrl+Z`.
 
 ### 3. Web Research & Fact-Checking (Local & Private)
-Powered by [Hugging Face smolagents](https://github.com/huggingface/smolagents). Now you can ask the AI a question and it will search the web and give you the answer—with all requests running directly from your computer. It uses DuckDuckGo for privacy and executes the entire search-and-browse loop locally, ensuring your research stays private.
+Powered by [Hugging Face smolagents](https://github.com/huggingface/smolagents) (vendored and adapted to have zero dependencies, per [this discussion](https://github.com/huggingface/smolagents/issues/1999)). Now you can ask the AI a question and it will search the web and give you the answer—with all requests running directly from your computer. It uses DuckDuckGo for privacy and executes the entire search-and-browse loop locally, ensuring your research stays private.
 
 It's better than a standard Google search box because it understands natural language and can synthesize information from multiple pages.
 *   **Ask a question**: "What is the current version of Python and when was it released?"
