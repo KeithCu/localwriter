@@ -132,6 +132,14 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
 - **Calc**: For Calc documents, `get_document_context_for_chat(..., ctx=...)` delegates to `get_calc_context_for_chat(model, max_context, ctx)` in `core/document.py`. **`ctx` is required for Calc** (component context from panel or MainJob); do not use `uno.getComponentContext()` in this path. Calc context includes: document URL, active sheet name, used range, column headers, current selection range, and (for small selections) selection content. See [Calc support from LibreCalc.md](Calc%20support%20from%20LibreCalc.md).
 - **Scope**: Chat with Document only. Extend Selection and Edit Selection are legacy and unchanged.
 
+### Web search sub-agent (sidebar toggle)
+
+- **Web search checkbox**: The chat sidebar includes a **Web search** checkbox (`web_search_check`) below the Send/Stop/Clear buttons. When checked for a send:
+  - The panel bypasses normal Chat with Document behavior (no document context or document tools are used for that turn).
+  - It directly invokes the `search_web` tool from `core/document_tools.py`, which runs the `ToolCallingAgent`-based sub-agent (`DuckDuckGoSearchTool` + `VisitWebpageTool`) to research the query.
+  - The synthesized answer is streamed back into the response area as `AI (web): ...`, without modifying the document.
+  - When unchecked (default), the sidebar behaves as standard Chat with Document; the main model may still call `search_web` autonomously via tool-calling when appropriate.
+
 ### Markdown tool-calling (current)
 
 - **get_markdown**: Returns the document (or selection/range) as Markdown. Parameters: optional `max_chars`, optional `scope` (`"full"` | `"selection"` | `"range"`); when `scope="range"`, required `start` and `end` (character offsets). Result JSON includes **`document_length`** so the AI can replace the whole doc with `apply_markdown(target="range", start=0, end=document_length)` or use `target="full"`. When `scope="range"`, result also includes `start` and `end` echoed back. Implementation: for full scope tries `XStorable.storeToURL` with FilterName `"Markdown"` to a temp file; on failure or for selection/range uses structural fallback (paragraph enumeration + `ParaStyleName` → headings, lists, blockquote). See `markdown_support.py`.

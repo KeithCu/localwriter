@@ -133,8 +133,7 @@ LocalWriter can delegate “research on the open web” to a small autonomous su
     ```
 
     By default it uses `nvidia/nemotron-3-nano-30b-a3b`, but you can override with `--model` or `--max-tokens`.
-
-Today this web search capability is available to the AI as a **tool**, not yet as a separate “mode” in the UI, but it’s designed so we can easily surface a dedicated “Web Research” entry point alongside “Chat with Document” in a future iteration.
+*   **Sidebar “Web search” checkbox**: In the Chat with Document sidebar, a per-message **Web search** checkbox lets you bypass document-aware chat for that turn and directly invoke the `search_web` sub-agent. The answer is streamed into the response area (labeled `AI (web): ...`) without editing the document. When the checkbox is off, the AI can still call `search_web` autonomously as a normal tool when it decides web research is needed.
 
 ## Roadmap
 
