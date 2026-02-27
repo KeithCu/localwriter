@@ -10,22 +10,29 @@ LocalWriter provides powerful AI-driven capabilities integrated directly into yo
 Unlike proprietary office suites that lock you into a single cloud provider and **send all your data to their servers**, LocalWriter is **local-first**. You can run fast, private models locally (via Ollama, LM Studio, or local servers) ensuring your documents never leave your machine. If you choose to use cloud APIs, you can switch between them in less than 2 seconds, maintaining full control over where your data goes.
 
 ### 2. Chat with Document (Writer, Calc, and Draw)
-The main way to interact with your document using natural language.
-
+The main way to interact with your document. While you can ask it anything, **its primary job is to edit your document**, not just answer questions.
 *   **Sidebar Panel**: A dedicated deck in the right sidebar for multi-turn chat. It supports tool-calling to read and edit the document directly.
 *   **Menu Item**: A fallback option that opens an input dialog and appends responses to the document.
 *   **Performance**: Features built-in connection management with persistent HTTPS connections for fast response times.
 *   **Undo Integration**: AI edits are grouped so you can revert an entire AI turn with a single `Ctrl+Z`.
 
-### 3. Edit & Extend Selection (Writer)
+### 3. Web Research & Fact-Checking (Local & Private)
+Now you can ask the AI a question and it will search the web and give you the answer—with all requests running directly from your computer. It uses DuckDuckGo for privacy and executes the entire search-and-browse loop locally, ensuring your research stays private.
+
+It's better than a standard Google search box because it understands natural language and can synthesize information from multiple pages.
+*   **Ask a question**: "What is the current version of Python and when was it released?"
+*   **Complex Tasks**: "Write a long and pretty summary of the After the Software Wars, according to Wikipedia."
+*   **Real-time Data**: Ask it to find the current price of a specific item and it can update your document with current data.
+
+### 4. Edit & Extend Selection (Writer)
 **Hotkey:** `Ctrl+Q`
 The model continues the selected text. Ideal for drafting emails, stories, or generating lists.
 
-### 4. Edit Selection
+### 5. Edit Selection
 **Hotkey:** `Ctrl+E`
 Prompt the model to rewrite your selection according to specific instructions (e.g., "make this more formal", "translate to Spanish").
 
-### 5. Format preservation (Writer)
+### 6. Format preservation (Writer)
 When you ask the AI to fix a typo or change a name, the result can keep the formatting you already had: highlights, bold, colors, font size, and so on. The AI does not need to—and typically cannot—describe LibreOffice’s full formatting model. In practice, the AI often sends back markup (e.g. bold like **Michael**) even for simple corrections. We auto-detect: when it sends **plain text**, we preserve your existing formatting; when it sends Markdown or HTML, we use the import path. So when the model does send plain text, you get full preservation without the AI needing to know LibreOffice’s capabilities.
 
 *Example:* The document has “Micheal” (one-letter typo) with yellow highlight and bold. You ask the AI to correct the spelling. If the AI returns plain “Michael,” we preserve the yellow highlight and bold. If it returns “**Michael**,” we treat that as formatted content (import path) and the highlight can be lost—a model quirk. The feature is especially valuable when the AI sends plain text.
@@ -35,16 +42,16 @@ Replacing text in Writer normally inherits formatting from the insertion point, 
 ### Ongoing Challenge: Styles vs. Custom Formatting
 One of the unique challenges of building an AI assistant for a rich word processor, unlike a plain-text code editor, is the multiple ways of applying formatting, both directly and through character and paragraph styles. Eventually, we will encourage models to output properly classed HTML that maps to your LibreOffice template, ensuring documents remain maintainable and consistently branded. For more details, see [LLM_STYLES.md](LLM_STYLES.md).
 
-### 6. Image generation and AI Horde integration
+### 7. Image generation and AI Horde integration
 Image generation and editing are integrated and complete. You can generate images from the chat (via tools or “Use Image model”) and edit selected images (Img2Img). Two backends are supported: **AI Horde** (Stable Diffusion, SDXL, etc., with its own API key and queue) and **same endpoint as chat** (uses your configured endpoint and a separate image model). Settings are in **LocalWriter > Settings** under the **Image Settings** tab, with shared options (size, insert behavior, prompt translation) and a clearly separated **AI Horde only** section.
 
-### 7. MCP Server (optional, external AI clients)
+### 8. MCP Server (optional, external AI clients)
 When enabled in **LocalWriter > Settings** (Chat/Text page), an HTTP server runs on localhost and exposes the same Writer/Calc/Draw tools to external AI clients (Cursor, Claude Desktop via a proxy, or any script).
 *   **Real-time Sidebar Monitoring**: All MCP activity (requests and tool results) is logged in real-time in the LocalWriter chat sidebar, providing full visibility into how external agents are interacting with your document.
 *   **Targeting**: Clients target a document by sending the **`X-Document-URL`** header (or use the active document).
 *   **Control**: Use **LocalWriter > Toggle MCP Server** and **MCP Server Status** to control and check the server. See [MCP_PROTOCOL.md](MCP_PROTOCOL.md) for endpoints, usage, and future work.
 
-### 8. Calc `=PROMPT()` function
+### 9. Calc `=PROMPT()` function
 A cell formula to call the model directly from within your spreadsheet:
 `=PROMPT(message, [system_prompt], [model], [max_tokens])`
 
@@ -118,21 +125,12 @@ This benchmarking framework is used to tune system prompts and select the best-p
 
 **Tool set and model size.** LocalWriter already exposes a rich but curated subset of Writer/Calc/Draw operations (styles, comments, tables, markdown apply, etc.), not the full OpenDocument/UNO surface. An open question is whether we should or can **expose more of the full UNO tool set** for capable models, while keeping a **smaller subset** for smaller or cheaper models that might be confused or wasteful with too many options. That would allow “right-sized” backends: minimal tools for fast local models, full power for frontier models when the user needs it.
 
-### 9. Web Search via Smolagents (experimental)
-
+### Implementation Details: Web Search via Smolagents
 LocalWriter can delegate “research on the open web” to a small autonomous sub-agent built with a vendored subset of Hugging Face’s **smolagents**:
 
 *   **ToolCallingAgent + tools**: We vendor `ToolCallingAgent` and lightweight tools `DuckDuckGoSearchTool` and `VisitWebpageTool` in `core/smolagents_vendor/`. They use only standard library networking (`urllib.request`) and parsing (`html.parser`), plus a realistic Firefox user agent string for fewer 403s.
 *   **`search_web` tool (Writer Chat)**: In `core/document_tools.py` we expose a `search_web` tool that the main chat agent can call. It spins up a ToolCallingAgent with those web tools and runs a ReAct loop (search → visit → synthesize) until it calls the `final_answer` tool, then returns `{"status": "ok", "result": "<answer>"}` back to the main agent.
 *   **Same model & endpoint as chat**: Inside LibreOffice, the sub-agent uses `LocalWriterSmolModel`, which wraps LocalWriter’s existing `LlmClient` and therefore respects your configured endpoint, model, API key, temperature, etc.
-*   **CLI harness for testing**: For manual testing and debugging, `scripts/test_search_web.py` uses an `OpenRouterSmolModel` that talks directly to OpenRouter’s OpenAI-compatible HTTP API with the same ToolCallingAgent + web tools. Example:
-
-    ```bash
-    export OPENROUTER_API_KEY="sk-or-..."
-    python -m scripts.test_search_web "What is the latest stable Python release and when was it released?"
-    ```
-
-    By default it uses `nvidia/nemotron-3-nano-30b-a3b`, but you can override with `--model` or `--max-tokens`.
 *   **Sidebar “Web search” checkbox**: In the Chat with Document sidebar, a per-message **Web search** checkbox lets you bypass document-aware chat for that turn and directly invoke the `search_web` sub-agent. The answer is streamed into the response area (labeled `AI (web): ...`) without editing the document. When the checkbox is off, the AI can still call `search_web` autonomously as a normal tool when it decides web research is needed.
 
 ## Roadmap
