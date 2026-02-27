@@ -9,7 +9,7 @@ import json
 import logging
 
 from plugin.framework.service_base import ServiceBase
-from plugin.lib.default_models import (
+from plugin.contrib.default_models import (
     DEFAULT_MODELS, merge_catalogs, resolve_model_id,
 )
 

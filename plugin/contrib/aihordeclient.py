@@ -28,7 +28,7 @@ from time import sleep
 from typing import Any, Dict, List, Tuple, Union
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
-from plugin.lib.translation import opustm_hf_translate, OPUSTM_SOURCE_LANGUAGES  # noqa F401
+from plugin.contrib.translation import opustm_hf_translate, OPUSTM_SOURCE_LANGUAGES  # noqa F401
 
 from plugin.framework.http import sync_request, format_error_message
 from plugin.framework.logging import debug_log, log_exception

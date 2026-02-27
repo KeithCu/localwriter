@@ -56,7 +56,7 @@ class HordeProvider(ImageProvider):
 
     def _get_client(self):
         if self._client is None:
-            from plugin.lib.aihordeclient import AiHordeClient
+            from plugin.contrib.aihordeclient import AiHordeClient
 
             self._client = AiHordeClient(
                 client_version="1.0.0",
