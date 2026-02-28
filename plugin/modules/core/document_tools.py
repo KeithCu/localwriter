@@ -225,8 +225,8 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
     from plugin.modules.core.config import get_api_config
     from plugin.framework.http import LlmClient
     from plugin.modules.core.smol_model import LocalWriterSmolModel
-    from plugin.modules.core.smolagents_vendor.agents import ToolCallingAgent
-    from plugin.modules.core.smolagents_vendor.default_tools import DuckDuckGoSearchTool, VisitWebpageTool
+    from plugin.contrib.smolagents.agents import ToolCallingAgent
+    from plugin.contrib.smolagents.default_tools import DuckDuckGoSearchTool, VisitWebpageTool
 
     query = args.get("query", "")
     if not query:
@@ -254,7 +254,7 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
         # Always use streaming mode so we can push status heartbeats between steps.
         # This keeps the UI drain loop active and LibreOffice responsive.
         final_ans = None
-        from plugin.modules.core.smolagents_vendor.memory import ActionStep, FinalAnswerStep
+        from plugin.contrib.smolagents.memory import ActionStep, FinalAnswerStep
         for step in agent.run(task, stream=True):
             if isinstance(step, ActionStep):
                 # Always push a status update so the drain loop stays active

@@ -15,7 +15,7 @@ This document outlines the architecture and implementation of the **web search**
 ## 2. Implementation Details
 
 ### Vendoring Smolagents
-To avoid introducing a heavy external dependency on `smolagents` (which ordinarily pulls in `requests`, `transformers`, `huggingface_hub`, etc.), we vendored only the core modules (`agents.py`, `models.py`, `tools.py`, `default_tools.py`, etc.) into `core/smolagents_vendor/`.
+To avoid introducing a heavy external dependency on `smolagents` (which ordinarily pulls in `requests`, `transformers`, `huggingface_hub`, etc.), we vendored only the core modules (`agents.py`, `models.py`, `tools.py`, `default_tools.py`, etc.) into `plugin/contrib/smolagents/`.
 - We removed all HF/Gradio specific code.
 - We modified `agents.py` to load its prompts from a local JSON file (`toolcalling_agent.json`) rather than depending on `pyyaml`.
 
@@ -40,13 +40,13 @@ To facilitate the sub-agent without burdening LocalWriter with dependencies, we'
 
 ### Significant Files
 
-**`core/smolagents_vendor/agents.py`**
+**`plugin/contrib/smolagents/agents.py`**
 This is the core engine of the sub-agent approach. It contains the `ToolCallingAgent` and `MultiStepAgent` classes which orchestrate the ReAct (Reasoning and Acting) loop. These classes are responsible for setting up the system prompts, delegating to the model, parsing the model's desired tool calls, executing those tools in the environment, and feeding the observations back into the loop until a final answer is reached. Modifications here are primarily focused on removing external prompt loading (like `pyyaml`) in favor of bundled JSON.
 
-**`core/smolagents_vendor/tools.py`**
+**`plugin/contrib/smolagents/tools.py`**
 This file defines the base `Tool` class and the infrastructure for exposing Python functions to the LLM. It contains the logic for inspecting function signatures, generating JSON schemas, and securely mapping the LLM's requested arguments to the actual Python execution. It is vital for ensuring the agent can understand what tools are available and how to call them correctly.
 
-**`core/smolagents_vendor/default_tools.py`**
+**`plugin/contrib/smolagents/default_tools.py`**
 This file houses the actual tools that the web search sub-agent relies on to achieve its goals. Most notably, it contains `DuckDuckGoSearchTool` for querying the web and `VisitWebpageTool` for scraping actual page content. We have completely overhauled this file to use only standard Python libraries (`urllib.request` and `html.parser`), eliminating the need for `requests`, `beautifulsoup4`, or `markdownify`.
 
 **`core/smol_model.py`**
@@ -54,20 +54,20 @@ This is a custom file specific to LocalWriter, acting as the bridge between `smo
 
 ### Trivial / Supporting Files
 
-- **`core/smolagents_vendor/models.py`**: Contains the abstract shapes and data classes (like `ChatMessage` and `ToolCall`) used by `smolagents` to model conversational turns, with all heavy provider-specific integrations stripped out.
-- **`core/smolagents_vendor/memory.py`**: Manages the conversation history and the agent's internal memory tape (`ActionStep`), keeping track of past tool calls and observations within a single run.
-- **`core/smolagents_vendor/utils.py`**: Provides various helper functions for string formatting, logging, and previously Jinja2 templating (which is in the process of being removed).
-- **`core/smolagents_vendor/agent_types.py`**: Defines core data structures and typed dicts used throughout the library to enforce type safety.
-- **`core/smolagents_vendor/serialization.py`, `_function_type_hints_utils.py`, `tool_validation.py`**: These provide the underlying parsing and validation logic that allows `smolagents` to convert python types into strict JSON schemas for the LLM to consume.
-- **`core/smolagents_vendor/monitoring.py`**: Contains hooks for logging and tracking agent performance, although much of its external telemetry has been bypassed for our local environment.
-- **`core/smolagents_vendor/__init__.py`**: Exposes the relevant classes for clean importing, heavily pruned to ignore modules we didn't vendor (e.g., Gradio UI, CLI).
+- **`plugin/contrib/smolagents/models.py`**: Contains the abstract shapes and data classes (like `ChatMessage` and `ToolCall`) used by `smolagents` to model conversational turns, with all heavy provider-specific integrations stripped out.
+- **`plugin/contrib/smolagents/memory.py`**: Manages the conversation history and the agent's internal memory tape (`ActionStep`), keeping track of past tool calls and observations within a single run.
+- **`plugin/contrib/smolagents/utils.py`**: Provides various helper functions for string formatting, logging, and previously Jinja2 templating (which is in the process of being removed).
+- **`plugin/contrib/smolagents/agent_types.py`**: Defines core data structures and typed dicts used throughout the library to enforce type safety.
+- **`plugin/contrib/smolagents/serialization.py`, `_function_type_hints_utils.py`, `tool_validation.py`**: These provide the underlying parsing and validation logic that allows `smolagents` to convert python types into strict JSON schemas for the LLM to consume.
+- **`plugin/contrib/smolagents/monitoring.py`**: Contains hooks for logging and tracking agent performance, although much of its external telemetry has been bypassed for our local environment.
+- **`plugin/contrib/smolagents/__init__.py`**: Exposes the relevant classes for clean importing, heavily pruned to ignore modules we didn't vendor (e.g., Gradio UI, CLI).
 
 ---
 
 ## 4. Current Status & Testing
 
 **What is Done:**
-- **Vendoring core files**: Copied `agents.py`, `models.py`, `tools.py`, `default_tools.py`, etc. to `core/smolagents_vendor`.
+- **Vendoring core files**: Copied `agents.py`, `models.py`, `tools.py`, `default_tools.py`, etc. to `plugin/contrib/smolagents`.
 - **Tool Adaptation**: Completely rewrote `DuckDuckGoSearchTool` and `VisitWebpageTool` in `default_tools.py` to use `urllib.request` and standard library parsers, with a realistic Firefox user agent to reduce 403s.
 - **Model Wrapper**: Built `LocalWriterSmolModel` (`core/smol_model.py`) to connect the sub-agent directly to LocalWriter's existing `LlmClient`.
 - **Tool Registration**: Registered the `search_web` task in `core/document_tools.py` executing the ReAct loop inline.

@@ -41,7 +41,7 @@ def _add_project_root_to_path() -> None:
 
 _add_project_root_to_path()
 
-from core.smolagents_vendor.models import (  # type: ignore  # noqa: E402
+from plugin.contrib.smolagents.models import (  # type: ignore  # noqa: E402
     ChatMessage,
     ChatMessageToolCall,
     ChatMessageToolCallFunction,
@@ -49,9 +49,9 @@ from core.smolagents_vendor.models import (  # type: ignore  # noqa: E402
     Model,
     TokenUsage,
 )
-from core.smolagents_vendor.utils import AgentParsingError  # type: ignore  # noqa: E402
-from core.smolagents_vendor.agents import ToolCallingAgent  # type: ignore  # noqa: E402
-from core.smolagents_vendor.default_tools import (  # type: ignore  # noqa: E402
+from plugin.contrib.smolagents.utils import AgentParsingError  # type: ignore  # noqa: E402
+from plugin.contrib.smolagents.agents import ToolCallingAgent  # type: ignore  # noqa: E402
+from plugin.contrib.smolagents.default_tools import (  # type: ignore  # noqa: E402
     DuckDuckGoSearchTool,
     VisitWebpageTool,
 )

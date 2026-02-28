@@ -1,4 +1,4 @@
-from plugin.modules.core.smolagents_vendor.models import Model, ChatMessage, MessageRole
+from plugin.contrib.smolagents.models import Model, ChatMessage, MessageRole
 
 class DummyTokenUsage:
     def __init__(self, input_tokens=0, output_tokens=0):
@@ -43,7 +43,7 @@ class LocalWriterSmolModel(Model):
         
         smol_tool_calls = []
         if tool_calls_dict:
-            from plugin.modules.core.smolagents_vendor.models import ChatMessageToolCall, ChatMessageToolCallFunction
+            from plugin.contrib.smolagents.models import ChatMessageToolCall, ChatMessageToolCallFunction
             for tc in tool_calls_dict:
                 func_data = tc.get("function", {})
                 smol_tool_calls.append(
@@ -60,7 +60,7 @@ class LocalWriterSmolModel(Model):
         usage_dict = result.get("usage", {})
         if usage_dict:
             try:
-                from plugin.modules.core.smolagents_vendor.models import TokenUsage
+                from plugin.contrib.smolagents.models import TokenUsage
                 token_usage = TokenUsage(
                     input_tokens=usage_dict.get("prompt_tokens", 0),
                     output_tokens=usage_dict.get("completion_tokens", 0)
