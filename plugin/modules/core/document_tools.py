@@ -296,7 +296,7 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
             elif isinstance(step, FinalAnswerStep):
                 final_ans = step.output
 
-        return json.dumps({"status": "ok", "result": str(final_ans)})
+        return json.dumps({"status": "ok", "message": f'searched for "{query}"', "result": str(final_ans)})
     except Exception as e:
         return json.dumps({"status": "error", "message": f"Web search failed: {str(e)}"})
 

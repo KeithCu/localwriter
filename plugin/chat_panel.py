@@ -737,7 +737,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             r = round_num[0]
             update_activity_state("tool_loop", round_num=r)
             debug_log("Tool loop round %d: sending %d messages to API..." % (r, len(self.session.messages)), context="Chat")
-            self._set_status("Waiting for model..." if r == 0 else "Connecting (round %d)..." % (r + 1))
+            self._set_status("Thinking..." if r == 0 else "Connecting (round %d)..." % (r + 1))
 
             def run():
                 try:
@@ -931,7 +931,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
     def _start_simple_stream_async(self, client, max_tokens, api_type):
         """Start simple streaming (no tools) via async helper; returns immediately."""
         debug_log("=== Simple stream START (api_type=%s) ===" % api_type, context="Chat")
-        self._set_status("Waiting for model...")
+        self._set_status("Thinking...")
         self._append_response("\nAI: ")
 
         last_user = ""
