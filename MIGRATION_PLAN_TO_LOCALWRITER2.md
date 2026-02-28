@@ -4,14 +4,14 @@ The goal of this plan is to incrementally reduce the diffs between the `localwri
 
 ## Proposed Changes
 
-### Phase 1: Porting Tooling & The Make System
+### Phase 1: Porting Tooling & The Make System ✅ (Completed)
 The current `localwriter` uses a simple `build.sh` script, while `localwriter2` uses a robust `Makefile` and python scripts in `scripts/`. We can migrate this by:
 1. Copying `Makefile`, `Makefile.local-dist`, and the `scripts/` directory from `localwriter2` into `localwriter`.
 2. Copying `plugin/_manifest.py` and `plugin/plugin.yaml` (which the new Make system needs to build `manifest.xml`).
 3. Commenting out any modules or configurations in `_manifest.py` that don't yet exist in the old `localwriter` tree.
 4. Verifying that `make build` and `make deploy` work for our current codebase, and then retiring `build.sh`.
 
-### Phase 2: Documentation and Root File Cleanup
+### Phase 2: Documentation and Root File Cleanup ✅ (Completed)
 `localwriter` has a lot of `.md` and `.odt` files cluttering the root directory. `localwriter2` organizes these better.
 1. Move the root project notes and design docs into `docs/` or `contrib/` matching the `localwriter2` layout.
 2. Remove any obsolete files that `localwriter2` has deleted.
@@ -24,9 +24,17 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
 
 ### Phase 4: Module Reorganization
 `localwriter2` heavily refactors logic out of core and into specific modules under `plugin/modules/writer/`, `plugin/modules/calc/`, `plugin/modules/chatbot/`, etc.
-1. We will tackle one module at a time (e.g., starting with Writer).
-2. Create the missing directories and progressively move tool implementations from `plugin/modules/core/document_tools.py` into their respective module files (e.g., `plugin/modules/writer/tables.py`, etc.).
-3. Update `AGENTS.md` and tests iteratively.
+1. We will tackle one module at a time.
+2. **Writer Module:** ✅ (Completed) Split `ops.py` into smaller focused files (`outline.py`, `tables.py`, etc.) and updated imports.
+3. **Calc Module:** Create missing directories and progressively move tool implementations from core to `plugin/modules/calc/`.
+4. **Chatbot Module:** Move UI and chat-specific logic out of core.
+5. Update `AGENTS.md` and tests iteratively.
+
+### Phase 5: Additional Core Services (Future Work)
+`localwriter2` separates LLM and web services into distinct modules.
+1. **AI Module:** Port over the `ai` module (`plugin/modules/ai/`) and register it properly in `_manifest.py`.
+2. **HTTP Module:** Port over the internal web server and MCP routes (`plugin/modules/http/`).
+3. Update `config.py` and remove legacy hardcoded settings in favor of the new modular configuration system.
 
 ## Verification Plan
 
