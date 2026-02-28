@@ -1214,6 +1214,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         # Ensure extension directory is on sys.path for cross-module imports
         _ensure_extension_on_path(self.ctx)
 
+        model = None
         try:
             # Read system prompt from config; use helper so Writer/Calc prompt matches document
             debug_log("_wireControls: importing core config...", context="Chat")
@@ -1388,7 +1389,6 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                     panel._refresh_controls_from_config()
             add_config_listener(on_config_changed)
 
-            model = None
             if self.xFrame:
                 try:
                     model = self.xFrame.getController().getModel()
