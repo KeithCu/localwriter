@@ -1,4 +1,7 @@
-"""Error detector module - Finds and explains formula errors in LibreOffice Calc cells."""
+"""Error detector module - Finds and explains formula errors in LibreOffice Calc cells.
+
+Ported from core/calc_error_detector.py for the plugin framework.
+"""
 
 import logging
 import re
@@ -11,7 +14,7 @@ except ImportError:
     EMPTY, VALUE, TEXT, FORMULA = 0, 1, 2, 3
     UNO_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("localwriter.calc")
 
 # LibreOffice Calc error types and descriptions
 ERROR_TYPES = {
@@ -128,10 +131,8 @@ class ErrorDetector:
             error_code = cell.getError()
             if error_code == 0:
                 return {}
-
             if error_code in ERROR_TYPES:
                 return ERROR_TYPES[error_code].copy()
-
             return {
                 "code": f"Err:{error_code}",
                 "name": "Unknown error",
@@ -208,7 +209,6 @@ class ErrorDetector:
                 len(errors), range_str or "full sheet",
             )
             return errors
-
         except Exception as e:
             logger.error("Error detection failure: %s", str(e))
             raise
@@ -233,12 +233,15 @@ class ErrorDetector:
         """
         try:
             cell_details = self.inspector.get_cell_details(address)
-            precedents = self.inspector.get_cell_precedents(address)
 
-            # Get cell and identify error type
+            # Get precedent cells via formula parsing
             col, row = parse_address(address)
             sheet = self.bridge.get_active_sheet()
             cell = sheet.getCellByPosition(col, row)
+            formula = cell.getFormula() or ""
+            refs = re.findall(r'\$?([A-Z]+)\$?(\d+)', formula.upper())
+            precedent_addrs = list(set([f"{c}{r}" for c, r in refs]))
+
             error_info = self.get_error_type(cell)
 
             if not error_info:
@@ -250,9 +253,8 @@ class ErrorDetector:
                     "suggestion": "No error detected in this cell.",
                 }
 
-            # Collect values of precedent cells
             precedent_details = []
-            for prec_addr in precedents:
+            for prec_addr in precedent_addrs:
                 try:
                     prec_info = self.inspector.read_cell(prec_addr)
                     precedent_details.append(prec_info)
@@ -263,7 +265,6 @@ class ErrorDetector:
                         "type": "unknown",
                     })
 
-            # Generate fix suggestion
             suggestion = self._generate_suggestion(error_info, precedent_details)
 
             return {
@@ -273,7 +274,6 @@ class ErrorDetector:
                 "precedents": precedent_details,
                 "suggestion": suggestion,
             }
-
         except Exception as e:
             logger.error(
                 "Error explanation failure (%s): %s", address, str(e)

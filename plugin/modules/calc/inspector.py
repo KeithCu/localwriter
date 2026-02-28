@@ -1,4 +1,7 @@
-"""Cell inspector - Reads detailed information of LibreOffice Calc cells."""
+"""Cell inspector - Reads detailed information of LibreOffice Calc cells.
+
+Ported from core/calc_inspector.py for the plugin framework.
+"""
 
 import logging
 import re
@@ -11,7 +14,7 @@ except ImportError:
     EMPTY, VALUE, TEXT, FORMULA = 0, 1, 2, 3
     UNO_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("localwriter.calc")
 
 
 class CellInspector:
@@ -97,7 +100,6 @@ class CellInspector:
                 "formula": formula,
                 "type": self._cell_type_name(cell_type),
             }
-
         except Exception as e:
             logger.error("Cell reading error (%s): %s", address, str(e))
             raise
@@ -150,99 +152,8 @@ class CellInspector:
                 "v_align": self._safe_prop(cell, "VertJustify"),
                 "wrap_text": self._safe_prop(cell, "IsTextWrapped"),
             }
-
         except Exception as e:
             logger.error("Cell detailed reading error (%s): %s", address, str(e))
-            raise
-
-    def get_cell_precedents(self, address: str) -> list:
-        """
-        Returns cells that the cell depends on (precedents).
-
-        Finds other cells referenced in the formula.
-
-        Args:
-            address: Cell address (e.g. "B2").
-
-        Returns:
-            List of precedent cell addresses.
-        """
-        try:
-            cell = self._get_cell(address)
-            formula = cell.getFormula()
-
-            if not formula:
-                return []
-
-            # Find cell references in the formula
-            references = re.findall(
-                r'\$?([A-Z]+)\$?(\d+)', formula.upper()
-            )
-
-            precedents = []
-            for col_str, row_str in references:
-                ref_address = f"{col_str}{row_str}"
-                if ref_address not in precedents:
-                    precedents.append(ref_address)
-
-            return precedents
-
-        except Exception as e:
-            logger.error(
-                "Precedent cell detection error (%s): %s", address, str(e)
-            )
-            raise
-
-    def get_cell_dependents(self, address: str) -> list:
-        """
-        Returns cells that depend on this cell (dependents).
-
-        Scans formulas in the used area of the active sheet to find
-        cells referencing this cell.
-
-        Args:
-            address: Cell address (e.g. "A1").
-
-        Returns:
-            List of dependent cell addresses.
-        """
-        try:
-            sheet = self.bridge.get_active_sheet()
-            target = address.strip().upper()
-
-            # Determine the used area of the sheet
-            cursor = sheet.createCursor()
-            cursor.gotoStartOfUsedArea(False)
-            cursor.gotoEndOfUsedArea(True)
-
-            addr = cursor.getRangeAddress()
-            end_col = addr.EndColumn
-            end_row = addr.EndRow
-
-            dependents = []
-
-            # More efficient search: try to find the row/col strings
-            col_target = re.match(r'^([A-Z]+)', target).group(1)
-            row_target = re.match(r'^[A-Z]+(\d+)$', target).group(1)
-            # Pattern matches common A1 references with or without $
-            pattern = rf'\$?{re.escape(col_target)}\$?{re.escape(row_target)}(?![0-9A-Z])'
-
-            for row in range(addr.StartRow, end_row + 1):
-                for col in range(addr.StartColumn, end_col + 1):
-                    cell = sheet.getCellByPosition(col, row)
-                    if cell.getType() == FORMULA:
-                        formula = cell.getFormula().upper()
-                        if re.search(pattern, formula):
-                            dep_col = self.bridge._index_to_column(col)
-                            dep_address = f"{dep_col}{row + 1}"
-                            dependents.append(dep_address)
-
-            return dependents
-
-        except Exception as e:
-            logger.error(
-                "Dependent cell detection error (%s): %s", address, str(e)
-            )
             raise
 
     def read_range(self, range_name: str) -> list[list[dict]]:
@@ -297,7 +208,6 @@ class CellInspector:
                 result.append(row_data)
 
             return result
-
         except Exception as e:
             logger.error("Range reading error (%s): %s", range_name, str(e))
             raise
@@ -349,76 +259,6 @@ class CellInspector:
                         })
 
             return formulas
-
         except Exception as e:
             logger.error("Formula listing error: %s", str(e))
-            raise
-
-    def analyze_spreadsheet_structure(self, sheet_name: str = None) -> dict:
-        """
-        Analyzes table structure and formula network.
-
-        Args:
-            sheet_name: Sheet name (active sheet if None).
-
-        Returns:
-            Structure analysis: {
-                input_cells: Cells where data is entered (without formulas),
-                output_cells: Result cells (with formulas but not used by another formula),
-                intermediate_cells: Intermediate calculation cells,
-                formula_chain: Formula chain (dependency order),
-            }
-        """
-        try:
-            formulas = self.get_all_formulas(sheet_name)
-
-            if not formulas:
-                return {
-                    "input_cells": [],
-                    "output_cells": [],
-                    "intermediate_cells": [],
-                    "formula_chain": [],
-                    "summary": "No formulas found on this sheet."
-                }
-
-            # Collect all formula cells and their references
-            formula_cells = {f["address"] for f in formulas}
-            all_precedents = set()
-            for f in formulas:
-                all_precedents.update(f["precedents"])
-
-            # Input cells: Cells referenced by formulas but that don't contains formulas themselves
-            input_cells = list(all_precedents - formula_cells)
-
-            # Output cells: Contain formulas but are not referenced by any other formula
-            referenced_formulas = set()
-            for f in formulas:
-                for p in f["precedents"]:
-                    if p in formula_cells:
-                        referenced_formulas.add(p)
-
-            output_cells = [f["address"] for f in formulas if f["address"] not in referenced_formulas]
-
-            # Intermediate cells
-            intermediate_cells = list(formula_cells - set(output_cells))
-
-            # Create formula chain
-            formula_chain = []
-            for f in formulas:
-                formula_chain.append({
-                    "cell": f["address"],
-                    "formula": f["formula"],
-                    "depends_on": f["precedents"],
-                })
-
-            return {
-                "input_cells": sorted(input_cells),
-                "output_cells": sorted(output_cells),
-                "intermediate_cells": sorted(intermediate_cells),
-                "formula_chain": formula_chain,
-                "summary": f"Analysis: {len(input_cells)} input, {len(intermediate_cells)} intermediate, {len(output_cells)} output cells."
-            }
-
-        except Exception as e:
-            logger.error("Structure analysis error: %s", str(e))
             raise

@@ -48,7 +48,7 @@ sys.modules['core.constants'] = MagicMock()
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from chat_panel import SendButtonListener
+from plugin.chat_panel import SendButtonListener
 
 class TestChatModelLogic(unittest.TestCase):
     def setUp(self):
@@ -70,7 +70,7 @@ class TestChatModelLogic(unittest.TestCase):
             self.model_selector, self.status_control, self.session
         )
 
-    @patch('chat_panel._ensure_extension_on_path')
+    @patch('plugin.chat_panel._ensure_extension_on_path')
     @patch('core.config.get_config')
     @patch('core.config.set_config')
     @patch('core.config.update_lru_history')

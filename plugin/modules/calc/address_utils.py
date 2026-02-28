@@ -1,4 +1,8 @@
-"""Cell address processing helper functions."""
+"""Cell address processing helper functions.
+
+Pure utility functions with no UNO dependency. Ported from
+core/calc_address_utils.py for the plugin framework.
+"""
 
 import re
 

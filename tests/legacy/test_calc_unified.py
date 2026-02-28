@@ -8,6 +8,38 @@ from plugin.modules.calc.error_detector import ERROR_TYPES, ERROR_PATTERNS
 from plugin.framework.constants import get_chat_system_prompt_for_document
 from plugin.modules.calc.tools import execute_calc_tool, _parse_color
 
+import sys
+from unittest.mock import MagicMock
+
+# --- Mock UNO Constants ---
+com = MagicMock()
+class FontWeight:
+    BOLD = 150.0
+    NORMAL = 100.0
+class FontSlant:
+    ITALIC = 2
+    NONE = 0
+class CellHoriJustify:
+    LEFT, CENTER, RIGHT, BLOCK, STANDARD = 1, 2, 3, 4, 0
+class CellVertJustify:
+    TOP, CENTER, BOTTOM, STANDARD = 1, 2, 3, 0
+
+com.sun.star.awt.FontWeight = FontWeight
+com.sun.star.awt.FontSlant = FontSlant
+com.sun.star.table.CellHoriJustify = CellHoriJustify
+com.sun.star.table.CellVertJustify = CellVertJustify
+
+# Mock modules
+sys.modules['com'] = com
+sys.modules['com.sun'] = com.sun
+sys.modules['com.sun.star'] = com.sun.star
+sys.modules['com.sun.star.awt'] = com.sun.star.awt
+sys.modules['com.sun.star.awt.FontWeight'] = FontWeight
+sys.modules['com.sun.star.awt.FontSlant'] = FontSlant
+sys.modules['com.sun.star.table'] = com.sun.star.table
+sys.modules['com.sun.star.table.CellHoriJustify'] = CellHoriJustify
+sys.modules['com.sun.star.table.CellVertJustify'] = CellVertJustify
+
 # --- Stateful Stubs for Dispatcher Testing ---
 
 class PropertyHolder:

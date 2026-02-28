@@ -1,0 +1,14 @@
+name: calc
+title: Calc spreadsheet tools
+requires: [document, config]
+config_inline: doc
+
+config:
+  max_rows_display:
+    type: int
+    default: 1000
+    min: 100
+    max: 100000
+    widget: number
+    label: Max Rows Display
+    public: true

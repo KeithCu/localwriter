@@ -1,7 +1,20 @@
-"""In-process UNO bridge for Calc."""
+"""In-process UNO bridge for Calc.
 
-import uno
-from plugin.modules.calc.address_utils import index_to_column, column_to_index, parse_range_string
+Wraps a Calc document and provides convenience methods for accessing
+sheets, cells, and ranges. Ported from core/calc_bridge.py for the
+plugin framework.
+"""
+
+import logging
+
+from plugin.modules.calc.address_utils import (
+    index_to_column,
+    column_to_index,
+    parse_range_string,
+)
+
+logger = logging.getLogger("localwriter.calc")
+
 
 class CalcBridge:
     def __init__(self, doc):
@@ -11,19 +24,24 @@ class CalcBridge:
         return self.doc
 
     def get_active_sheet(self):
-        doc = self.get_active_document()
-        # Spreadsheet documents support XSpreadsheetDocument
-        if not hasattr(doc, "getSheets"):
-             raise RuntimeError("Active document is not a spreadsheet.")
-        
-        controller = doc.getCurrentController()
+        """Return the currently active sheet.
+
+        Falls back to the first sheet when the controller does not expose
+        *getActiveSheet* (e.g. headless mode).
+
+        Raises:
+            RuntimeError: Document is not a spreadsheet or no sheet found.
+        """
+        if not hasattr(self.doc, "getSheets"):
+            raise RuntimeError("Active document is not a spreadsheet.")
+
+        controller = self.doc.getCurrentController()
         if hasattr(controller, "getActiveSheet"):
             sheet = controller.getActiveSheet()
         else:
-            # Fallback for situations where ActiveSheet is not directly available
-            sheets = doc.getSheets()
+            sheets = self.doc.getSheets()
             sheet = sheets.getByIndex(0)
-            
+
         if sheet is None:
             raise RuntimeError("No active sheet found.")
         return sheet
