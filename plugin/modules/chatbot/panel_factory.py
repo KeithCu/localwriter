@@ -82,7 +82,7 @@ try:
                 return uno.createUnoStruct(
                     "com.sun.star.ui.LayoutSize", h, h, h)
             return uno.createUnoStruct(
-                "com.sun.star.ui.LayoutSize", h, -1, h)
+                "com.sun.star.ui.LayoutSize", 100, -1, h)
 
         def getMinimalWidth(self):
             return 180
@@ -629,13 +629,19 @@ try:
                     w, h = r.Width, r.Height
                     if w <= 0 or h <= 0:
                         return
-                    m = 6
-                    btn_h = 24
-                    query_h = 50
-                    label_h = 16
-                    gap = 4
+                    # Determine a rough scaling factor for High DPI based on the vertical height
+                    # of the LibreOffice window. A typical 1080p window is ~1000px high.
+                    # A 4K window is comfortably >2000px high.
+                    scale_factor = max(1.0, h / 1000.0)
+                        
+                    m = int(8 * scale_factor)
+                    btn_h = int(28 * scale_factor)
+                    query_h = int(70 * scale_factor)
+                    label_h = int(22 * scale_factor)
+                    gap = int(10 * scale_factor)
+                    
                     cw = w - 2 * m
-                    btn_w = max(50, (cw - 2 * gap) // 3)
+                    btn_w = max(int(50 * scale_factor), (cw - 2 * gap) // 3)
 
                     if self._pos == "top":
                         # Top-down: label, query, buttons, then response
@@ -659,35 +665,52 @@ try:
                                     btn_w, btn_h, 15)
                         y += btn_h + gap
 
-                        resp_h = max(30, h - y - m)
+                        resp_h = max(30, h - y - m - 200)
                         c = self._c.get("response")
                         if c:
                             c.setPosSize(m, y, cw, resp_h, 15)
                     else:
                         # Bottom-up: response at top, input at bottom
-                        btn_y = h - m - btn_h
-                        for i, name in enumerate(
-                                ["send", "stop", "clear"]):
-                            c = self._c.get(name)
-                            if c:
-                                c.setPosSize(
-                                    m + i * (btn_w + gap), btn_y,
-                                    btn_w, btn_h, 15)
-
-                        query_y = btn_y - gap - query_h
-                        c = self._c.get("query")
-                        if c:
-                            c.setPosSize(m, query_y, cw, query_h, 15)
-
-                        qlabel_y = query_y - label_h
-                        c = self._c.get("query_label")
-                        if c:
-                            c.setPosSize(m, qlabel_y, cw, label_h, 15)
-
-                        resp_h = max(30, qlabel_y - gap - m)
+                        # The layout needs to be:
+                        # [response box]
+                        # [query label]
+                        # [query box]
+                        # [buttons]
+                        # [200px spacer]
+                        
+                        # To guarantee no overlap, we pack top-to-bottom.
+                        # Total height required by controls at the bottom:
+                        bottom_ctrls_h = label_h + gap + query_h + gap + btn_h
+                        resp_h = h - m - bottom_ctrls_h - m
+                        resp_h = max(30, resp_h)
+                        
+                        log.info(f"_relayout bottom-up: w={w}, h={h}, bottom_ctrls_h={bottom_ctrls_h}, resp_h={resp_h}")
+                        
+                        y = m
                         c = self._c.get("response")
                         if c:
-                            c.setPosSize(m, m, cw, resp_h, 15)
+                            c.setPosSize(m, y, cw, resp_h, 15)
+                            log.info(f"  response: y={y}, h={resp_h}")
+                        y += resp_h + gap
+                        
+                        c = self._c.get("query_label")
+                        if c:
+                            c.setPosSize(m, y, cw, label_h, 15)
+                            log.info(f"  query_label: y={y}, h={label_h}")
+                        y += label_h + gap
+                        
+                        c = self._c.get("query")
+                        if c:
+                            c.setPosSize(m, y, cw, query_h, 15)
+                            log.info(f"  query: y={y}, h={query_h}")
+                        y += query_h + gap
+                        
+                        for i, name in enumerate(["send", "stop", "clear"]):
+                            c = self._c.get(name)
+                            if c:
+                                btn_x = m + i * (btn_w + gap)
+                                c.setPosSize(btn_x, y, btn_w, btn_h, 15)
+                                log.info(f"  button {name}: y={y}, h={btn_h}")
 
             resize_listener = _ChatResize(ctrls, input_position)
             root_window.addWindowListener(resize_listener)
