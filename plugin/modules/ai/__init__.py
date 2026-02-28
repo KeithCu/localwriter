@@ -42,7 +42,7 @@ class Module(ModuleBase):
                 name = inst_def.get("name", "default")
                 instance_id = "ai_openai:%s" % name
                 ai.register_instance(instance_id, AiInstance(
-                    name=name, module_name="ai_openai", provider=provider,
+                    name=name, module_name="ai", provider=provider,
                     capabilities={"text", "tools"}
                 ))
                 
@@ -50,7 +50,7 @@ class Module(ModuleBase):
                     from .providers.openai_image import EndpointImageProvider
                     img_provider = EndpointImageProvider(proxy)
                     ai.register_instance(instance_id + ":image", AiInstance(
-                        name=name + " (image)", module_name="ai_openai",
+                        name=name + " (image)", module_name="ai",
                         provider=img_provider, capabilities={"image"}
                     ))
 
@@ -72,7 +72,7 @@ class Module(ModuleBase):
                 name = inst_def.get("name", "default")
                 instance_id = "ai_ollama:%s" % name
                 ai.register_instance(instance_id, AiInstance(
-                    name=name, module_name="ai_ollama", provider=provider,
+                    name=name, module_name="ai", provider=provider,
                     capabilities={"text", "tools"}
                 ))
 
@@ -92,7 +92,7 @@ class Module(ModuleBase):
                 name = inst_def.get("name", "default")
                 instance_id = "ai_horde:%s" % name
                 ai.register_instance(instance_id, AiInstance(
-                    name=name, module_name="ai_horde", provider=provider,
+                    name=name, module_name="ai", provider=provider,
                     capabilities={"image"}
                 ))
 

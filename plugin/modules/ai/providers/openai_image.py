@@ -30,7 +30,7 @@ class EndpointImageProvider(ImageProvider):
         Returns:
             (file_paths: list[str], error: str | None)
         """
-        from plugin.modules.ai_openai.provider import (
+        from plugin.modules.ai.providers.openai import (
             OpenAICompatProvider, _format_http_error, _unverified_ssl)
 
         # Create a temporary provider instance for HTTP connection

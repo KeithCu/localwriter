@@ -11,7 +11,7 @@ import socket
 import threading
 import urllib.parse
 
-from plugin.modules.ai_openai.provider import OpenAICompatProvider
+from plugin.modules.ai.providers.openai import OpenAICompatProvider
 
 log = logging.getLogger("localwriter.ai_ollama")
 
