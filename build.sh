@@ -11,21 +11,12 @@ if [ -f "${EXTENSION_NAME}.oxt" ]; then
 fi
 
 # Create the new package
+# Create the new package
 echo "Creating package ${EXTENSION_NAME}.oxt..."
+# We need to include 'plugin' as a directory, and everything *inside* 'extension' at the root.
+(cd extension && zip -r "../${EXTENSION_NAME}.oxt" . -x "*.git*" -x "*.DS_Store" -x "__pycache__*" -x "*.pyc")
 zip -r "${EXTENSION_NAME}.oxt" \
-    core/ \
-    Accelerators.xcu \
-    Addons.xcu \
-    description.xml \
-    main.py \
-    prompt_function.py \
-    chat_panel.py \
-    XPromptFunction.rdb \
-    LocalWriterDialogs/ \
-    META-INF/ \
-    registration/ \
-    registry/ \
-    assets/ \
+    plugin/ \
     -x "*.git*" -x "*.DS_Store" -x "__pycache__*" -x "*.pyc"
 
 if [ $? -eq 0 ]; then
