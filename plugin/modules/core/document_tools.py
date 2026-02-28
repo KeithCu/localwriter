@@ -7,26 +7,15 @@ import inspect
 
 from plugin.framework.logging import agent_log
 from plugin.modules.writer.format_support import FORMAT_TOOLS, tool_get_document_content, tool_apply_document_content, tool_find_text
-from plugin.modules.writer.ops import (
-    WRITER_OPS_TOOLS,
-    tool_get_document_outline,
-    tool_get_heading_content,
-    tool_read_paragraphs,
-    tool_get_document_stats,
-    tool_list_styles,
-    tool_get_style_info,
-    tool_list_comments,
-    tool_insert_at_paragraph,
-    tool_add_comment,
-    tool_delete_comment,
-    tool_set_track_changes,
-    tool_get_tracked_changes,
-    tool_accept_all_changes,
-    tool_reject_all_changes,
-    tool_list_tables,
-    tool_read_table,
-    tool_write_table_cell
-)
+from plugin.modules.writer.outline import OUTLINE_TOOLS, tool_get_document_outline, tool_get_heading_content
+from plugin.modules.writer.stats import STATS_TOOLS, tool_get_document_stats
+from plugin.modules.writer.styles import STYLES_TOOLS, tool_list_styles, tool_get_style_info
+from plugin.modules.writer.comments import COMMENTS_TOOLS, tool_list_comments, tool_add_comment, tool_delete_comment
+from plugin.modules.writer.content import CONTENT_TOOLS, tool_read_paragraphs, tool_insert_at_paragraph
+from plugin.modules.writer.tracking import TRACKING_TOOLS, tool_set_track_changes, tool_get_tracked_changes, tool_accept_all_changes, tool_reject_all_changes
+from plugin.modules.writer.tables import TABLES_TOOLS, tool_list_tables, tool_read_table, tool_write_table_cell
+
+WRITER_OPS_TOOLS = OUTLINE_TOOLS + STATS_TOOLS + STYLES_TOOLS + COMMENTS_TOOLS + CONTENT_TOOLS + TRACKING_TOOLS + TABLES_TOOLS
 from plugin.modules.core.document import (
     get_document_length,
     is_writer,

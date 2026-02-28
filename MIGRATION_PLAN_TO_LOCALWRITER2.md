@@ -1,6 +1,6 @@
 # Incremental Migration Plan: localwriter -> localwriter2
 
-The goal of this plan is to incrementally reduce the diffs between the `localwriter` (current directory) and `localwriter2` (new version), ensuring the plugin remains functional at every step.
+The goal of this plan is to incrementally reduce the diffs between the `localwriter` (current directory with some new features not in localwriter2) and `localwriter2` (refactoring from a week old fork), ensuring the plugin remains functional at every step.
 
 ## Proposed Changes
 
