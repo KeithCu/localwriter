@@ -254,17 +254,29 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
         # Always use streaming mode so we can push status heartbeats between steps.
         # This keeps the UI drain loop active and LibreOffice responsive.
         final_ans = None
-        from plugin.contrib.smolagents.memory import ActionStep, FinalAnswerStep
+        from plugin.contrib.smolagents.memory import ActionStep, FinalAnswerStep, ToolCall
+        from urllib.parse import urlparse
+        
         for step in agent.run(task, stream=True):
-            if isinstance(step, ActionStep):
-                # Always push a status update so the drain loop stays active
-                step_label = "Step %d" % step.step_number
-                if step.tool_calls:
-                    tool_names = ", ".join(tc.name for tc in step.tool_calls)
-                    step_label += ": %s" % tool_names
-                if status_callback:
-                    status_callback("Web research %s..." % step_label)
+            if isinstance(step, ToolCall):
+                status_msg = ""
+                if step.name == "web_search":
+                    q = str(step.arguments.get("query", "")) if isinstance(step.arguments, dict) else ""
+                    if len(q) > 25: q = q[:22] + "..."
+                    status_msg = f"Search: {q}"
+                elif step.name == "visit_webpage":
+                    url = str(step.arguments.get("url", "")) if isinstance(step.arguments, dict) else ""
+                    domain = urlparse(url).netloc or url[:30]
+                    if domain.startswith("www."):
+                        domain = domain[4:]
+                    status_msg = f"Read: {domain}"
+                else:
+                    status_msg = str(step.name)
 
+                if status_callback and status_msg:
+                    status_callback(f"{status_msg}...")
+
+            elif isinstance(step, ActionStep):
                 # Detailed thinking text is optional (controlled by show_search_thinking)
                 if append_thinking_callback:
                     msg = f"Step {step.step_number}:\n"
