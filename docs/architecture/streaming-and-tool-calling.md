@@ -215,51 +215,39 @@ This avoids adding the heavy `openai` dependency to the LibreOffice extension wh
 
 ---
 
-## 7. Error Handling and UI Threading
+## 7. Event Loop and UI Threading
 
-Since networking runs on a background thread to keep the LibreOffice UI responsive, events and errors must be carefully propagated to the main thread. 
+LibreOffice’s UI (VCL) is single-threaded. To keep the UI responsive during long-running network operations, LocalWriter uses a **flat event loop** architecture on the main thread, combined with worker threads that push messages to a single `queue.Queue`.
 
-**The UI Stream Queue:**
-LocalWriter uses a `queue.Queue` to bridge the worker thread and the main thread. This is **not** a request queue for batching, but a message pipe for UI updates (e.g. `("chunk", text)`, `("error", e)`).
+**The Architecture:**
 
-**The Pattern:**
+1. **Worker Threads (Producers):**
+   - The LLM stream (`_spawn_llm_worker`) runs on a background thread. It pushes messages like `("chunk", text)`, `("thinking", text)`, `("stream_done", response)`, or `("error", e)` to the queue.
+   - Long-running network tools (like Web Search or Image Generation) also run on background threads and push `("tool_thinking", text)", `("status", text)`, and `("tool_done", ...)` to the *same* queue.
 
-1.  **Worker Thread (Producer):**
-    - Runs the blocking `urllib` streaming loop.
-    - Wraps the entire operation in a `try...except` block.
-    - If an exception occurs (network, timeout, API error), it puts `("error", exception_obj)` into the shared `queue.Queue` and exits.
+2. **Main Thread (Consumer):**
+   - Runs a single `while True` event loop in `_start_tool_calling_async`.
+   - Blocks briefly on `q.get(timeout=0.1)`.
+   - If the queue is empty, it calls `toolkit.processEventsToIdle()` to pump LibreOffice UI events, keeping the application perfectly responsive.
+   - If an item is received, it dispatches based on the message type (e.g., appending text, updating status, executing tools).
 
-2.  **Main Thread (Consumer):**
-    - Runs a "drain loop" that checks the queue.
-    - Uses `toolkit.processEventsToIdle()` to keep the UI alive.
-    - When it pops `("error", e)`, it:
-        - Displays the error message in the chat panel (e.g., `[Error: Connection timeout]`).
-        - Sets the UI status to "Error".
-        - Stops the spinner/busy state.
+This flat architecture avoids nested callbacks and makes state transitions explicit.
 
-This ensures that network failures on the worker thread don't silently fail or crash the extension; they are always surfaced to the user in the UI.
-
-## 8. Parallel Tool Calling
+## 8. Tool Execution and Queuing
 
 ### Overview
 
-Standard LLM APIs support returning multiple tool calls in a single response (Parallel Tool Calling). LocalWriter supports this by accumulating the tool deltas and executing all requested tools before returning the results to the AI.
+When the LLM finishes a stream and requests tools (`"stream_done"`), LocalWriter must execute them. Some tools (like modifying the spreadsheet) must run synchronously on the main thread because LibreOffice UNO calls are not thread-safe. Other tools (like Web Research) must run on a background thread because they do heavy network I/O and would freeze the UI.
 
-### Implementation in LocalWriter
+### The `next_tool` Queuing System
 
-1.  **Accumulation**: The `LlmClient` uses `accumulate_delta` (Section 6) to merge partial arguments from the stream into a snapshot.
-2.  **Execution Loop**: In `chat_panel.py`, the `SendButtonListener` iterates through the list of `tool_calls` in the finished snapshot and executes them sequentially.
-3.  **Result Propagation**: Each tool result is added to the message history, and the client sends the updated history back to the model in the next turn.
+To handle both sync and async tools without freezing the UI, LocalWriter uses an internal dispatch queue:
 
-### Example Flow
+1. **Queueing:** When `"stream_done"` is received with `tool_calls`, the calls are added to a `pending_tools` list, and a `("next_tool",)` message is pushed onto the queue.
+2. **Dispatching:** The main loop picks up `"next_tool"`. It pops the first tool from `pending_tools`:
+   - **Async Tools (`ASYNC_TOOLS` set):** Spawned in a daemon thread. The main loop immediately returns to pumping UI events. When the thread finishes, it pushes a `("tool_done", ...)` message to the queue.
+   - **Sync Tools (UNO operations):** Executed immediately on the main thread. A `("tool_done", ...)` message is pushed to the queue.
+3. **Completion:** When `"tool_done"` is received, the result is saved to the session history, and another `("next_tool",)` message is pushed.
+4. **Next Round:** When `"next_tool"` finds an empty `pending_tools` list, all tools are finished. The loop increments the round counter and spawns a new LLM worker to send the results back to the model.
 
-```
-AI: "I need to check the document content and then read the spreadsheet."
-→ Stream: [tool_call: get_markdown, tool_call: read_range]
-→ Client: 
-    1. Runs get_markdown() -> returns result
-    2. Runs read_range() -> returns result
-→ Client sends both results back in the next turn.
-```
-
-This reduces the number of turns required when the AI knows it needs multiple pieces of information upfront.
+This sequentializes tool execution while guaranteeing the UI never freezes during network-bound tool operations.
