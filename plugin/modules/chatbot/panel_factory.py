@@ -597,9 +597,14 @@ try:
                 "clear": clear_btn,
             }
 
+            input_position = cfg.get("input_position") if cfg else "bottom"
+            if input_position not in ("top", "bottom"):
+                input_position = "bottom"
+
             class _ChatResize(unohelper.Base, XWindowListener):
-                def __init__(self, ctrls):
+                def __init__(self, ctrls, position):
                     self._c = ctrls
+                    self._pos = position
 
                 def windowResized(self, evt):
                     try:
@@ -629,34 +634,62 @@ try:
                     query_h = 50
                     label_h = 16
                     gap = 4
+                    cw = w - 2 * m
+                    btn_w = max(50, (cw - 2 * gap) // 3)
 
-                    # Bottom-up layout
-                    btn_y = h - m - btn_h
-                    btn_w = max(50, (w - 2 * m - 2 * gap) // 3)
-                    for i, name in enumerate(["send", "stop", "clear"]):
-                        c = self._c.get(name)
+                    if self._pos == "top":
+                        # Top-down: label, query, buttons, then response
+                        y = m
+                        c = self._c.get("query_label")
                         if c:
-                            c.setPosSize(
-                                m + i * (btn_w + gap), btn_y,
-                                btn_w, btn_h, 15)
+                            c.setPosSize(m, y, cw, label_h, 15)
+                        y += label_h
 
-                    query_y = btn_y - gap - query_h
-                    c = self._c.get("query")
-                    if c:
-                        c.setPosSize(m, query_y, w - 2 * m, query_h, 15)
+                        c = self._c.get("query")
+                        if c:
+                            c.setPosSize(m, y, cw, query_h, 15)
+                        y += query_h + gap
 
-                    qlabel_y = query_y - label_h
-                    c = self._c.get("query_label")
-                    if c:
-                        c.setPosSize(m, qlabel_y, w - 2 * m, label_h, 15)
+                        for i, name in enumerate(
+                                ["send", "stop", "clear"]):
+                            c = self._c.get(name)
+                            if c:
+                                c.setPosSize(
+                                    m + i * (btn_w + gap), y,
+                                    btn_w, btn_h, 15)
+                        y += btn_h + gap
 
-                    # Response fills remaining space from top
-                    resp_h = max(30, qlabel_y - gap - m)
-                    c = self._c.get("response")
-                    if c:
-                        c.setPosSize(m, m, w - 2 * m, resp_h, 15)
+                        resp_h = max(30, h - y - m)
+                        c = self._c.get("response")
+                        if c:
+                            c.setPosSize(m, y, cw, resp_h, 15)
+                    else:
+                        # Bottom-up: response at top, input at bottom
+                        btn_y = h - m - btn_h
+                        for i, name in enumerate(
+                                ["send", "stop", "clear"]):
+                            c = self._c.get(name)
+                            if c:
+                                c.setPosSize(
+                                    m + i * (btn_w + gap), btn_y,
+                                    btn_w, btn_h, 15)
 
-            resize_listener = _ChatResize(ctrls)
+                        query_y = btn_y - gap - query_h
+                        c = self._c.get("query")
+                        if c:
+                            c.setPosSize(m, query_y, cw, query_h, 15)
+
+                        qlabel_y = query_y - label_h
+                        c = self._c.get("query_label")
+                        if c:
+                            c.setPosSize(m, qlabel_y, cw, label_h, 15)
+
+                        resp_h = max(30, qlabel_y - gap - m)
+                        c = self._c.get("response")
+                        if c:
+                            c.setPosSize(m, m, cw, resp_h, 15)
+
+            resize_listener = _ChatResize(ctrls, input_position)
             root_window.addWindowListener(resize_listener)
             # Trigger initial layout
             resize_listener._relayout(root_window)

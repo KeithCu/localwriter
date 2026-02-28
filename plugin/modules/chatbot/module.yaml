@@ -90,6 +90,18 @@ config:
     label: Tool Broker
     helper: "Two-tier tool delivery: LLM gets core tools first, activates others by intent"
 
+  input_position:
+    type: string
+    default: "bottom"
+    widget: select
+    label: Input Position
+    helper: "Where the query input is placed in the chat panel"
+    options:
+      - value: bottom
+        label: Bottom (ChatGPT style)
+      - value: top
+        label: Top (terminal style)
+
   enter_sends:
     type: boolean
     default: true
