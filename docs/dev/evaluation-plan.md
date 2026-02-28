@@ -1,6 +1,10 @@
 # Detailed LLM Evaluation Suite for LocalWriter
 
-This document defines the 50 specific test cases for the LocalWriter evaluation suite, categorized by application and difficulty.
+This document defines the test cases for the LocalWriter evaluation suite. We use an **LLM-as-a-Judge** (Grok 4.1 Fast) to evaluate submissions against high-tier **Gold Standards** (Claude Sonnet 4.6).
+
+Each test is assigned a **Mode** to ensure appropriate weight distribution:
+- **Structural Mode**: Weighs Accuracy (60%) and Formatting (40%). Used for tables, cleanup, and data-entry.
+- **Creative Mode**: Weighs Naturalness (50%), Accuracy (30%), and Formatting (20%). Used for emails, resumes, and editing.
 
 ## 📝 Writer: Document Engineering (20 Tests)
 
@@ -74,7 +78,9 @@ This document defines the 50 specific test cases for the LocalWriter evaluation 
 4.  **Spatial Audit**: "Looking at this diagram, is the 'Database' icon correctly connected to the 'Web Server'?" -> Visual logic check.
 5.  **Infographic Summary**: "Summarize the key takeaways from this infographic image into the document." -> High-level visual reasoning.
 
-## 🧠 Metrology (Scorecard)
-- **IpD**: Intelligence-per-Dollar (Score / Total Token Cost).
-- **Trajectory**: Efficiency ratio (Actual Calls / Min Possible).
-- **Success Rate**: % Completion vs % Attempted.
+## 🧠 Metrology (Benchmarking Formula)
+- **Primary Score**: 0.0 - 1.0 (Composite of Accuracy, Formatting, and Naturalness).
+- **Utility Multiplier**: We use **Quadratic Value Weighting** to find the "bang for buck" for document editing:
+  $$Value = \frac{Correctness^2}{Total Cost (USD)}$$
+- **IpD**: Intelligence-per-Dollar (Quadratic value above).
+- **Reject Rate**: Models are penalized or rejected for hallucinating rejected keywords.
