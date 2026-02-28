@@ -72,7 +72,7 @@ SEARCH_TOOLS = [
         "type": "function",
         "function": {
             "name": "web_research",
-            "description": "Perform an autonomous web research using an AI sub-agent. The sub-agent will search the web, visit pages to read their content, and return a synthesized answer.",
+            "description": "Perform web research using an AI sub-agent which can understand natural language requests and questions to return a synthesized answer.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -211,7 +211,8 @@ def tool_edit_image(model, ctx, args, status_callback=None):
 
 
 def tool_web_research(model, ctx, args, status_callback=None, append_thinking_callback=None):
-    from plugin.modules.core.config import get_api_config
+    import os
+    from plugin.modules.core.config import get_api_config, get_config, user_config_dir
     from plugin.framework.http import LlmClient
     from plugin.modules.core.smol_model import LocalWriterSmolModel
     from plugin.contrib.smolagents.agents import ToolCallingAgent
@@ -229,12 +230,20 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
         max_tokens = int(config.get("chat_max_tokens", 2048))
         max_steps = int(config.get("search_web_max_steps", 10))
 
+        udir = user_config_dir(ctx)
+        raw_mb = int(get_config(ctx, "web_cache_max_mb", 50))
+        cache_max_mb = 0 if raw_mb <= 0 else max(1, min(500, raw_mb))
+        cache_path = os.path.join(udir, "localwriter_web_cache.db") if (udir and cache_max_mb > 0) else None
+
         smol_model = LocalWriterSmolModel(
             LlmClient(config, ctx), max_tokens=max_tokens,
             status_callback=status_callback,
         )
         agent = ToolCallingAgent(
-            tools=[DuckDuckGoSearchTool(), VisitWebpageTool()],
+            tools=[
+                DuckDuckGoSearchTool(cache_path=cache_path, cache_max_mb=cache_max_mb),
+                VisitWebpageTool(cache_path=cache_path, cache_max_mb=cache_max_mb),
+            ],
             model=smol_model,
             max_steps=max_steps,
         )

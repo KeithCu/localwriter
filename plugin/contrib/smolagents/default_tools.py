@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+import sqlite3
+import threading
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,6 +14,85 @@ from .local_python_executor import (
     evaluate_python_code,
 )
 from .tools import PipelineTool, Tool
+
+# ---------------------------------------------------------------------------
+# Disk cache for web_search and visit_webpage (SQLite, shared between processes)
+# ---------------------------------------------------------------------------
+
+_WEB_CACHE_LOCK = threading.Lock()
+_WEB_CACHE_MAX_RETRIES = 5
+
+
+def _web_cache_ensure_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS web_cache "
+        "(kind TEXT, key TEXT, value TEXT, size INTEGER, created_at REAL, PRIMARY KEY (kind, key))"
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_web_cache_created_at ON web_cache(created_at)")
+
+
+def _web_cache_with_connection(db_path: str, fn):
+    """Run fn(conn) with a locked connection; retry on database locked/busy."""
+    for attempt in range(_WEB_CACHE_MAX_RETRIES):
+        with _WEB_CACHE_LOCK:
+            try:
+                conn = sqlite3.connect(db_path, timeout=10.0)
+                try:
+                    _web_cache_ensure_schema(conn)
+                    return fn(conn)
+                finally:
+                    conn.close()
+            except sqlite3.OperationalError as e:
+                if attempt < _WEB_CACHE_MAX_RETRIES - 1 and ("locked" in str(e).lower() or "busy" in str(e).lower()):
+                    time.sleep(0.15 * (attempt + 1))
+                    continue
+                raise
+
+
+def _web_cache_get(db_path: str, kind: str, key: str) -> str | None:
+    """Return cached value for (kind, key), or None. On hit, touch row (update created_at)."""
+    if not db_path or not key:
+        return None
+
+    def do_get(conn):
+        row = conn.execute("SELECT value FROM web_cache WHERE kind = ? AND key = ?", (kind, key)).fetchone()
+        if row is None:
+            return None
+        conn.execute(
+            "UPDATE web_cache SET created_at = ? WHERE kind = ? AND key = ?",
+            (time.time(), kind, key),
+        )
+        conn.commit()
+        return row[0]
+
+    return _web_cache_with_connection(db_path, do_get)
+
+
+def _web_cache_set(db_path: str, kind: str, key: str, value: str, max_size_bytes: int) -> None:
+    """Store (kind, key) -> value; evict oldest entries until total size <= max_size_bytes."""
+    if not db_path or not key or max_size_bytes <= 0:
+        return
+    size = len(value.encode("utf-8"))
+
+    def do_set(conn):
+        now = time.time()
+        conn.execute(
+            "INSERT OR REPLACE INTO web_cache (kind, key, value, size, created_at) VALUES (?, ?, ?, ?, ?)",
+            (kind, key, value, size, now),
+        )
+        while True:
+            total = conn.execute("SELECT COALESCE(SUM(size), 0) FROM web_cache").fetchone()[0]
+            if total <= max_size_bytes:
+                break
+            row = conn.execute(
+                "SELECT kind, key FROM web_cache ORDER BY created_at ASC LIMIT 1"
+            ).fetchone()
+            if not row:
+                break
+            conn.execute("DELETE FROM web_cache WHERE kind = ? AND key = ?", row)
+        conn.commit()
+
+    _web_cache_with_connection(db_path, do_set)
 
 
 @dataclass
@@ -94,11 +176,19 @@ class DuckDuckGoSearchTool(Tool):
     inputs = {"query": {"type": "string", "description": "The search query to perform."}}
     output_type = "string"
 
-    def __init__(self, max_results: int = 10, **kwargs):
+    def __init__(self, max_results: int = 10, cache_path: str | None = None, cache_max_mb: int = 50, **kwargs):
         super().__init__()
         self.max_results = max_results
+        self._cache_path = cache_path
+        self._cache_max_mb = max(cache_max_mb, 0)
 
     def forward(self, query: str) -> str:
+        key = " ".join(str(query).strip().split())
+        if self._cache_path and self._cache_max_mb > 0 and key:
+            cached = _web_cache_get(self._cache_path, "search", key)
+            if cached is not None:
+                return cached
+
         import urllib.request
         import urllib.parse
         from html.parser import HTMLParser
@@ -161,12 +251,21 @@ class DuckDuckGoSearchTool(Tool):
         parser = SimpleResultParser()
         parser.feed(html)
         results = parser.results[:self.max_results]
-        
+
         if len(results) == 0:
-            return "No results found! Try a less restrictive/shorter query."
-            
-        postprocessed_results = [f"[{result['title']}]({result['link']})\n{result['description']}" for result in results]
-        return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+            result = "No results found! Try a less restrictive/shorter query."
+        else:
+            postprocessed_results = [f"[{r['title']}]({r['link']})\n{r['description']}" for r in results]
+            result = "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+        if self._cache_path and self._cache_max_mb > 0 and key:
+            _web_cache_set(
+                self._cache_path,
+                "search",
+                key,
+                result,
+                self._cache_max_mb * 1024 * 1024,
+            )
+        return result
 
 
 class VisitWebpageTool(Tool):
@@ -175,9 +274,11 @@ class VisitWebpageTool(Tool):
     inputs = {"url": {"type": "string", "description": "The url of the webpage to visit."}}
     output_type = "string"
 
-    def __init__(self, max_output_length: int = 40000):
+    def __init__(self, max_output_length: int = 40000, cache_path: str | None = None, cache_max_mb: int = 50, **kwargs):
         super().__init__()
         self.max_output_length = max_output_length
+        self._cache_path = cache_path
+        self._cache_max_mb = max(cache_max_mb, 0)
 
     def _truncate_content(self, content: str, max_length: int) -> str:
         if len(content) <= max_length:
@@ -185,6 +286,12 @@ class VisitWebpageTool(Tool):
         return content[:max_length] + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
 
     def forward(self, url: str) -> str:
+        key = str(url).strip()
+        if self._cache_path and self._cache_max_mb > 0 and key:
+            cached = _web_cache_get(self._cache_path, "page", key)
+            if cached is not None:
+                return cached
+
         import urllib.request
         from html.parser import HTMLParser
         import re
@@ -225,11 +332,28 @@ class VisitWebpageTool(Tool):
             extractor.feed(html)
             text_content = "\n".join(extractor.text)
             text_content = re.sub(r"\n{3,}", "\n\n", text_content)
-
-            return self._truncate_content(text_content, self.max_output_length)
+            result = self._truncate_content(text_content, self.max_output_length)
+            if self._cache_path and self._cache_max_mb > 0 and key:
+                _web_cache_set(
+                    self._cache_path,
+                    "page",
+                    key,
+                    result,
+                    self._cache_max_mb * 1024 * 1024,
+                )
+            return result
 
         except Exception as e:
-            return f"Error fetching the webpage: {str(e)}"
+            result = f"Error fetching the webpage: {str(e)}"
+            if self._cache_path and self._cache_max_mb > 0 and key:
+                _web_cache_set(
+                    self._cache_path,
+                    "page",
+                    key,
+                    result,
+                    self._cache_max_mb * 1024 * 1024,
+                )
+            return result
 
 
 TOOL_MAPPING = {
