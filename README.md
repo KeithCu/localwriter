@@ -21,7 +21,7 @@ Powered by [Hugging Face smolagents](https://github.com/huggingface/smolagents) 
 
 It's better than a standard Google search box because it understands natural language and can synthesize information from multiple pages.
 *   **Ask a question**: "What is the current version of Python and when was it released?"
-*   **Complex Tasks**: "Write a long and pretty summary of the After the Software Wars, according to Wikipedia."
+*   **Complex Tasks**: "Write a long and pretty summary of After the Software Wars, according to Wikipedia."
 *   **Real-time Data**: Ask it to find the current price of a specific item and it can update your document with current data.
 
 ### 4. Edit & Extend Selection (Writer)
