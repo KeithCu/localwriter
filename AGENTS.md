@@ -69,8 +69,21 @@ Auto-discovered at build time by `generate_manifest.py`.
 - **UNO context**: NEVER store `ctx` from `initialize()`. Use `get_ctx()` from `framework/uno_context.py`.
 - **Config**: Namespaced `"module.key"`, access via `ModuleConfigProxy`. Override: `LOCALWRITER_SET_CONFIG="key=val,..."`.
 - **Document scoping**: `self.xFrame.getController().getModel()` — never `desktop.getCurrentComponent()`.
-- **Sidebar**: `setVisible(True)` after `createContainerWindow()`.
+- **Sidebar**: Panels use programmatic layout (`plugin/framework/panel_layout.py`), not XDL. Use `create_panel_window()` + `add_control()` for new panels.
 - **Writer drawing layer**: `hasattr(model, "getDrawPages")` is True for Writer. Use `supportsService()`.
+
+## Cross-renderer testing
+
+Sidebar panels use programmatic layout (no XDL) — test on multiple VCL backends to catch rendering issues:
+
+```bash
+SAL_USE_VCLPLUGIN=kf6 make deploy      # KDE/Qt6 (install: dnf install libreoffice-kf6)
+SAL_USE_VCLPLUGIN=gtk3 make deploy     # GNOME (default)
+SAL_USE_VCLPLUGIN=gtk4 make deploy     # GTK4
+SAL_USE_VCLPLUGIN=gen make deploy      # X11 pure
+```
+
+Check: sidebar controls visible and non-overlapping, resize works, settings dropdowns functional. If the backend is missing, LO silently falls back to default — verify visually.
 
 ## Debugging
 

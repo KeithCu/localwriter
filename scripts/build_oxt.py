@@ -31,7 +31,6 @@ ALWAYS_INCLUDE_EXTENSION = [
     "extension/registration/",
     "extension/registry/",
     "extension/dialogs/",
-    "extension/LocalWriterDialogs/",
     "extension/assets/",
 ]
 

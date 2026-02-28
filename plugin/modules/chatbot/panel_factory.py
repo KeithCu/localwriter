@@ -1,8 +1,9 @@
 """Sidebar panel factory — UNO wiring for the chat panel.
 
 Creates the XUIElement and XToolPanel that LibreOffice needs for
-the sidebar. Loads the XDL dialog, wires controls to the framework's
-ChatSession and ChatToolAdapter, and handles streaming responses.
+the sidebar. Builds controls programmatically (no XDL), wires them
+to the framework's ChatSession and ChatToolAdapter, and handles
+streaming responses.
 
 Registered as a UNO component in META-INF/manifest.xml.
 """
@@ -22,9 +23,6 @@ if _parent not in sys.path:
     sys.path.insert(0, _parent)
 
 log = logging.getLogger("localwriter.chatbot.factory")
-
-EXTENSION_ID = "org.extension.localwriter"
-XDL_PATH = "LocalWriterDialogs/ChatPanelDialog.xdl"
 
 
 def _get_arg(args, name):
@@ -53,8 +51,6 @@ try:
         XActionListener, XItemListener, XWindowListener, XFocusListener,
         XKeyListener)
     from com.sun.star.awt.Key import UP, DOWN, RETURN
-
-    SETTINGS_XDL_PATH = "LocalWriterDialogs/ChatSettingsDialog.xdl"
 
     class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         """Holds the panel window; implements XToolPanel + XSidebarPanel."""
@@ -117,24 +113,29 @@ try:
             return self.toolpanel
 
         def _create_panel_window(self):
-            """Load the XDL dialog as a container window."""
-            pip = self.ctx.getValueByName(
-                "/singletons/com.sun.star.deployment"
-                ".PackageInformationProvider")
-            base_url = pip.getPackageLocation(EXTENSION_ID)
-            dialog_url = base_url + "/" + XDL_PATH
+            """Build panel container and controls programmatically."""
+            from plugin.framework.panel_layout import (
+                create_panel_window, add_control)
 
-            provider = self.ctx.getServiceManager().createInstanceWithContext(
-                "com.sun.star.awt.ContainerWindowProvider", self.ctx)
-            self.m_panelRootWindow = provider.createContainerWindow(
-                dialog_url, "", self.xParentWindow, None)
+            self.m_panelRootWindow = create_panel_window(
+                self.ctx, self.xParentWindow)
 
-            if self.m_panelRootWindow:
-                self.m_panelRootWindow.setVisible(True)
-            parent_rect = self.xParentWindow.getPosSize()
-            if parent_rect.Width > 0 and parent_rect.Height > 0:
-                self.m_panelRootWindow.setPosSize(
-                    0, 0, parent_rect.Width, parent_rect.Height, 15)
+            add_control(self.ctx, self.m_panelRootWindow,
+                        "response", "Edit",
+                        {"ReadOnly": True, "MultiLine": True,
+                         "VScroll": True})
+            add_control(self.ctx, self.m_panelRootWindow,
+                        "query_label", "FixedText",
+                        {"Label": "Chat (Ready)"})
+            add_control(self.ctx, self.m_panelRootWindow,
+                        "query", "Edit",
+                        {"MultiLine": True, "VScroll": True})
+            add_control(self.ctx, self.m_panelRootWindow,
+                        "send", "Button", {"Label": "Send"})
+            add_control(self.ctx, self.m_panelRootWindow,
+                        "stop", "Button", {"Label": "Stop"})
+            add_control(self.ctx, self.m_panelRootWindow,
+                        "clear", "Button", {"Label": "Clear"})
 
             return self.m_panelRootWindow
 
@@ -687,25 +688,11 @@ try:
             return self.toolpanel
 
         def _create_panel_window(self):
-            """Load XDL container, then add ListBox controls in code."""
-            pip = self.ctx.getValueByName(
-                "/singletons/com.sun.star.deployment"
-                ".PackageInformationProvider")
-            base_url = pip.getPackageLocation(EXTENSION_ID)
-            dialog_url = base_url + "/" + SETTINGS_XDL_PATH
+            """Build settings container programmatically."""
+            from plugin.framework.panel_layout import create_panel_window
 
-            provider = self.ctx.getServiceManager().createInstanceWithContext(
-                "com.sun.star.awt.ContainerWindowProvider", self.ctx)
-            self.m_panelRootWindow = provider.createContainerWindow(
-                dialog_url, "", self.xParentWindow, None)
-
-            if self.m_panelRootWindow:
-                self.m_panelRootWindow.setVisible(True)
-            parent_rect = self.xParentWindow.getPosSize()
-            if parent_rect.Width > 0 and parent_rect.Height > 0:
-                self.m_panelRootWindow.setPosSize(
-                    0, 0, parent_rect.Width, parent_rect.Height, 15)
-
+            self.m_panelRootWindow = create_panel_window(
+                self.ctx, self.xParentWindow)
             return self.m_panelRootWindow
 
         def _wire_controls(self, root_window):

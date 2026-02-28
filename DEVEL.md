@@ -132,6 +132,60 @@ List all available config keys:
 make set-config
 ```
 
+## Cross-renderer testing
+
+LibreOffice uses VCL backend plugins for rendering. The sidebar panels use programmatic layout (`setPosSize()` + `XWindowListener`) instead of XDL files to ensure consistent rendering across all backends.
+
+### Available backends
+
+List installed VCL plugins:
+
+```bash
+ls /usr/lib64/libreoffice/program/libvclplug_*
+```
+
+Common backends: `gtk3`, `gtk4`, `kf6` (KDE/Qt6), `gen` (X11, no toolkit).
+
+### Installing additional backends
+
+```bash
+# Fedora — install KDE/Qt6 backend alongside GTK (non-destructive)
+sudo dnf install libreoffice-kf6
+
+# Arch/Manjaro (KDE) — install GTK backend alongside Qt
+sudo pacman -S libreoffice-fresh  # includes all VCL backends
+# or if using libreoffice-still:
+sudo pacman -S libreoffice-still
+```
+
+On Arch, `libreoffice-fresh` ships all VCL backends (gtk3, gtk4, qt5, qt6, gen) in one package. No extra packages needed.
+
+### Testing with a specific backend
+
+Set `SAL_USE_VCLPLUGIN` before any `make` target that starts LO:
+
+```bash
+# Deploy and start LO with the KDE/Qt6 backend
+SAL_USE_VCLPLUGIN=kf6 make deploy
+
+# Just restart LO with a different backend (no rebuild)
+SAL_USE_VCLPLUGIN=kf6 make lo-restart
+
+# Other backends
+SAL_USE_VCLPLUGIN=gtk3 make deploy     # GNOME (default)
+SAL_USE_VCLPLUGIN=gtk4 make deploy     # GTK4
+SAL_USE_VCLPLUGIN=gen make deploy      # X11 pure (no toolkit)
+```
+
+If the requested backend is not installed, LO silently falls back to the default. Verify which plugin is actually loaded by checking for visual differences (widget style, font rendering).
+
+### What to check
+
+1. Sidebar chat panel — all 6 controls visible, no overlap
+2. Resize sidebar — controls reflow correctly
+3. Settings panel — AI dropdowns render and respond to clicks
+4. Modal dialogs (Tools > LocalWriter options) — layout is acceptable
+
 ## Logs and debugging
 
 | File | Content |

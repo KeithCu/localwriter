@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.7.3] — 2026-02-28
+
+### Changed
+
+- Sidebar panels use programmatic Python layout instead of XDL files (fixes cross-VCL-backend rendering issues on KDE/Qt)
+- Added `plugin/framework/panel_layout.py` with `create_panel_window()` and `add_control()` helpers
+- Removed `LocalWriterDialogs/` (XDL sidebar dialogs no longer needed)
+- Cross-renderer testing documentation in DEVEL.md and AGENTS.md
+
 ## [1.7.2] — 2026-02-27
 
 ### Changed
