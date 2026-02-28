@@ -5,7 +5,8 @@ Reads/writes localwriter.json in LibreOffice's user config directory.
 import os
 import json
 import uno
-from plugin.contrib.default_models import DEFAULT_MODELS
+# from plugin.contrib.default_models import DEFAULT_MODELS
+DEFAULT_MODELS = {}
 
 
 CONFIG_FILENAME = "localwriter.json"

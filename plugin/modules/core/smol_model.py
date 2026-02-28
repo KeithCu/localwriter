@@ -1,4 +1,5 @@
-from plugin.contrib.smolagents.models import Model, ChatMessage, MessageRole
+# from plugin.contrib.smolagents.models import Model, ChatMessage, MessageRole
+Model = object
 
 class DummyTokenUsage:
     def __init__(self, input_tokens=0, output_tokens=0):
