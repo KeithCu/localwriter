@@ -4,26 +4,26 @@
   dlg:id="ChatPanelDialog" dlg:left="0" dlg:top="0" dlg:width="168" dlg:height="303"
   dlg:closeable="false" dlg:moveable="false" dlg:resizeable="true" dlg:withtitlebar="false" dlg:title="">
  <dlg:bulletinboard>
-  <dlg:text dlg:id="response_label" dlg:left="4" dlg:top="4" dlg:width="158" dlg:height="10" dlg:value="Chat:" dlg:align="left"/>
-  <dlg:textfield dlg:id="response" dlg:left="4" dlg:top="16" dlg:width="158" dlg:height="140" dlg:tabstop="true" dlg:value="" dlg:readonly="true" dlg:multiline="true" dlg:vscroll="true"/>
-  <dlg:textfield dlg:id="status" dlg:left="4" dlg:top="158" dlg:width="158" dlg:height="10" dlg:value="" dlg:readonly="true" dlg:border="none" dlg:tabstop="false"/>
+  <dlg:text dlg:id="response_label" dlg:left="4" dlg:top="4" dlg:width="158" dlg:height="10" dlg:value="Chat (Testing):" dlg:align="left"/>
+  <dlg:textfield dlg:id="response" dlg:left="4" dlg:top="16" dlg:width="158" dlg:height="110" dlg:tabstop="true" dlg:value="" dlg:readonly="true" dlg:multiline="true" dlg:vscroll="true"/>
+  <dlg:textfield dlg:id="status" dlg:left="4" dlg:top="128" dlg:width="158" dlg:height="10" dlg:value="" dlg:readonly="true" dlg:border="none" dlg:tabstop="false"/>
   
-  <dlg:text dlg:id="query_label" dlg:left="4" dlg:top="170" dlg:width="158" dlg:height="10" dlg:value="Ask / instruct:" dlg:align="left"/>
-  <dlg:textfield dlg:id="query" dlg:left="4" dlg:top="182" dlg:width="158" dlg:height="30" dlg:tabstop="true" dlg:value="" dlg:multiline="true" dlg:vscroll="true"/>
+  <dlg:text dlg:id="query_label" dlg:left="4" dlg:top="140" dlg:width="158" dlg:height="10" dlg:value="Ask / instruct:" dlg:align="left"/>
+  <dlg:textfield dlg:id="query" dlg:left="4" dlg:top="152" dlg:width="158" dlg:height="30" dlg:tabstop="true" dlg:value="" dlg:multiline="true" dlg:vscroll="true"/>
   
-  <dlg:button dlg:id="send" dlg:left="4" dlg:top="216" dlg:width="50" dlg:height="15" dlg:value="Send" dlg:tabstop="true"/>
-  <dlg:button dlg:id="stop" dlg:left="56" dlg:top="216" dlg:width="50" dlg:height="15" dlg:value="Stop" dlg:tabstop="true"/>
-  <dlg:button dlg:id="clear" dlg:left="108" dlg:top="216" dlg:width="50" dlg:height="15" dlg:value="Clear" dlg:tabstop="true"/>
+  <dlg:button dlg:id="send" dlg:left="4" dlg:top="186" dlg:width="50" dlg:height="15" dlg:value="Send" dlg:tabstop="true"/>
+  <dlg:button dlg:id="stop" dlg:left="56" dlg:top="186" dlg:width="50" dlg:height="15" dlg:value="Stop" dlg:tabstop="true"/>
+  <dlg:button dlg:id="clear" dlg:left="108" dlg:top="186" dlg:width="50" dlg:height="15" dlg:value="Clear" dlg:tabstop="true"/>
 
-  <dlg:checkbox dlg:id="direct_image_check" dlg:left="4" dlg:top="233" dlg:width="78" dlg:height="10" dlg:value="Use Image model" dlg:checked="false"/>
-  <dlg:checkbox dlg:id="web_search_check" dlg:left="84" dlg:top="233" dlg:width="85" dlg:height="10" dlg:value="Web research" dlg:checked="false"/>
+  <dlg:checkbox dlg:id="direct_image_check" dlg:left="4" dlg:top="203" dlg:width="78" dlg:height="10" dlg:value="Use Image model" dlg:checked="false"/>
+  <dlg:checkbox dlg:id="web_search_check" dlg:left="84" dlg:top="203" dlg:width="85" dlg:height="10" dlg:value="Web research" dlg:checked="false"/>
 
-  <dlg:text dlg:id="model_label" dlg:left="4" dlg:top="247" dlg:width="158" dlg:height="10" dlg:value="AI Model:" dlg:align="left"/>
-  <dlg:combobox dlg:id="model_selector" dlg:left="4" dlg:top="259" dlg:width="158" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+  <dlg:text dlg:id="model_label" dlg:left="4" dlg:top="217" dlg:width="158" dlg:height="10" dlg:value="AI Model:" dlg:align="left"/>
+  <dlg:combobox dlg:id="model_selector" dlg:left="4" dlg:top="229" dlg:width="158" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
 
-  <dlg:combobox dlg:id="image_model_selector" dlg:left="4" dlg:top="245" dlg:width="158" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
-  <dlg:text dlg:id="base_size_label" dlg:left="4" dlg:top="265" dlg:width="20" dlg:height="10" dlg:value="Base:" dlg:align="left"/>
-  <dlg:combobox dlg:id="base_size_input" dlg:left="25" dlg:top="263" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
-  <dlg:combobox dlg:id="aspect_ratio_selector" dlg:left="70" dlg:top="263" dlg:width="88" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+  <dlg:combobox dlg:id="image_model_selector" dlg:left="4" dlg:top="215" dlg:width="158" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+  <dlg:text dlg:id="base_size_label" dlg:left="4" dlg:top="235" dlg:width="20" dlg:height="10" dlg:value="Base:" dlg:align="left"/>
+  <dlg:combobox dlg:id="base_size_input" dlg:left="25" dlg:top="233" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
+  <dlg:combobox dlg:id="aspect_ratio_selector" dlg:left="70" dlg:top="233" dlg:width="88" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
  </dlg:bulletinboard>
 </dlg:window>
