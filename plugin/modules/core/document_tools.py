@@ -6,6 +6,9 @@ import json
 import inspect
 
 from plugin.framework.logging import agent_log
+from plugin.framework.tool_base import ToolBase
+from plugin.framework.tool_registry import ToolRegistry
+from plugin.framework.tool_context import ToolContext
 from plugin.modules.writer.format_support import FORMAT_TOOLS, tool_get_document_content, tool_apply_document_content, tool_find_text
 from plugin.modules.writer.outline import OUTLINE_TOOLS, tool_get_document_outline, tool_get_heading_content
 from plugin.modules.writer.stats import STATS_TOOLS, tool_get_document_stats
@@ -334,6 +337,58 @@ TOOL_DISPATCH = {
     "web_research": tool_web_research,
 }
 
+# Build schema map from existing OpenAI-style list (used by Writer registry wrappers).
+_WRITER_SCHEMA_BY_NAME = {}
+for item in WRITER_TOOLS:
+    func = item.get("function", {})
+    name = func.get("name")
+    if name:
+        _WRITER_SCHEMA_BY_NAME[name] = (
+            func.get("description", ""),
+            func.get("parameters", {"type": "object", "properties": {}, "required": []}),
+        )
+
+_READ_ONLY_PREFIXES = ("get_", "read_", "list_", "find_", "search_", "count_")
+_READ_ONLY_NAMES = {"find_text", "web_research"}
+
+
+def _writer_tool_class(name, dispatch_func):
+    """Build a ToolBase subclass that delegates to the legacy TOOL_DISPATCH function."""
+    desc, params = _WRITER_SCHEMA_BY_NAME.get(name, ("", {"type": "object", "properties": {}, "required": []}))
+    is_mutation = name not in _READ_ONLY_NAMES and not any(name.startswith(p) for p in _READ_ONLY_PREFIXES)
+
+    class _WriterTool(ToolBase):
+        def execute(self, ctx, **kwargs):
+            status_cb = getattr(ctx, "status_callback", None)
+            thinking_cb = getattr(ctx, "append_thinking_callback", None)
+            sig = inspect.signature(dispatch_func)
+            extra = {}
+            if "status_callback" in sig.parameters or "kwargs" in sig.parameters:
+                extra["status_callback"] = status_cb
+            if "append_thinking_callback" in sig.parameters or "kwargs" in sig.parameters:
+                extra["append_thinking_callback"] = thinking_cb
+            result_str = dispatch_func(ctx.doc, ctx.ctx, kwargs, **extra)
+            try:
+                return json.loads(result_str) if isinstance(result_str, str) else result_str
+            except (json.JSONDecodeError, TypeError):
+                return {"status": "error", "message": "Invalid tool response"}
+
+    _WriterTool.name = name
+    _WriterTool.description = desc
+    _WriterTool.parameters = params
+    _WriterTool.doc_types = ["writer"]
+    _WriterTool.tier = "core"
+    _WriterTool.is_mutation = is_mutation
+    return _WriterTool
+
+
+_writer_registry = ToolRegistry(services={})
+for _name, _func in TOOL_DISPATCH.items():
+    _writer_registry.register(_writer_tool_class(_name, _func)())
+
+# Single source of truth for Writer tool schemas (panel + MCP).
+WRITER_TOOLS = _writer_registry.get_openai_schemas(doc_type="writer")
+
 
 def _truncate_for_log(obj, max_len=200):
     """Return a copy safe for logging: long strings truncated, dicts/lists traversed."""
@@ -354,6 +409,25 @@ def execute_tool(tool_name, arguments, doc, ctx, status_callback=None, append_th
     if is_mutation:
         DocumentCache.invalidate(doc)
 
+    tool = _writer_registry.get(tool_name)
+    if tool is not None:
+        try:
+            agent_log("document_tools.py:execute_tool", "Tool call",
+                      data={"tool": tool_name, "arguments": _truncate_for_log(arguments or {})},
+                      hypothesis_id="C,E")
+            tctx = ToolContext(
+                doc, ctx, "writer", {}, "chatbot",
+                status_callback=status_callback,
+                append_thinking_callback=append_thinking_callback,
+            )
+            result = _writer_registry.execute(tool_name, tctx, **(arguments or {}))
+            agent_log("document_tools.py:execute_tool", "Tool result",
+                      data={"tool": tool_name, "result_snippet": str(result)[:120]},
+                      hypothesis_id="C,E")
+            return json.dumps(result) if isinstance(result, dict) else result
+        except Exception as e:
+            return json.dumps({"status": "error", "message": str(e)})
+
     func = TOOL_DISPATCH.get(tool_name)
     if not func:
         return json.dumps({"status": "error", "message": "Unknown tool: %s" % tool_name})
@@ -367,8 +441,8 @@ def execute_tool(tool_name, arguments, doc, ctx, status_callback=None, append_th
             kwargs["status_callback"] = status_callback
         if "append_thinking_callback" in sig.parameters or "kwargs" in sig.parameters:
             kwargs["append_thinking_callback"] = append_thinking_callback
-            
-        result = func(doc, ctx, arguments, **kwargs)
+
+        result = func(doc, ctx, arguments or {}, **kwargs)
         agent_log("document_tools.py:execute_tool", "Tool result",
                   data={"tool": tool_name, "result_snippet": (result or "")[:120]},
                   hypothesis_id="C,E")

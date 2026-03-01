@@ -60,7 +60,7 @@ localwriter/
 │   ├── panel.py         # ChatSession, SendButtonListener, StopButtonListener, ClearButtonListener (session + send/tool loop)
 │   ├── streaming.py     # run_stream_drain_loop, run_stream_completion_async
 │   └── streaming_deltas.py
-├── core/document_tools.py  # WRITER_TOOLS, execute_tool; imports from format_support + writer_ops
+├── core/document_tools.py  # WRITER_TOOLS (from Writer ToolRegistry), execute_tool; ToolBase wrappers delegate to format_support + writer_ops
 ├── markdown_support.py  # Markdown read/write: document_to_markdown, apply_markdown (hidden doc + transferable)
 ├── XPromptFunction.rdb  # Type library for PromptFunction
 ├── LocalWriterDialogs/  # XDL dialogs (XML, Map AppFont units)

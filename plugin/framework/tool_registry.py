@@ -154,6 +154,12 @@ class ToolRegistry:
                 f"Tool {tool_name} does not support doc_type={ctx.doc_type}"
             )
 
+        # Restrict kwargs to this tool's schema so extra keys (e.g. image_model
+        # from API/LLM) do not cause "Unknown parameter" validation errors.
+        props = (tool.parameters or {}).get("properties", {})
+        if props:
+            kwargs = {k: v for k, v in kwargs.items() if k in props}
+
         # Validate parameters
         ok, err = tool.validate(**kwargs)
         if not ok:

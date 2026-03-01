@@ -2,7 +2,7 @@
 
 The goal of this plan is to incrementally reduce the diffs between the `localwriter` (current directory with some new features not in localwriter2) and `localwriter2` (refactoring from a week old fork), ensuring the plugin remains functional at every step.
 
-**Current status:** Phases 1, 2, and 4 are complete (tooling/Make, docs/cleanup by another agent, Writer/Calc/Chatbot module reorganization). Phase 3 (framework infrastructure) is partially done—core framework files exist; several localwriter2 framework files are not yet copied (see Phase 3 list). Phase 5 (AI/HTTP modules) remains.
+**Current status:** Phases 1, 2, and 4 are complete (tooling/Make, docs/cleanup by another agent, Writer/Calc/Chatbot module reorganization). Phase 3: framework files partially copied; Writer tools now use ToolBase + registry (item 3 done). Remaining: copy missing framework files (event_bus, service_registry, etc.). Phase 5 (AI/HTTP modules) remains.
 
 ## Proposed Changes
 
@@ -25,7 +25,7 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
 1. **Copy all new files** from `localwriter2/plugin/framework/` into `localwriter/plugin/framework/`.  
    **Status:** Core framework files are already present: `module_base.py`, `service_base.py`, `tool_base.py`, `tool_registry.py`, `tool_context.py`, `schema_convert.py`, `constants.py`, `uno_helpers.py`, `logging.py`, `http.py`, `image_utils.py`. Still **missing** (in localwriter2 but not in current): `event_bus.py`, `service_registry.py`, `panel_layout.py`, `dialogs.py`, `uno_context.py`, `config_schema.py`, `http_server.py`, `http_routes.py`, `main_thread.py`.
 2. Since these are mostly base classes and utilities, dropping them in shouldn't break the existing code.
-3. We can then incrementally refactor existing tools (like `format_support.py` or Calc tools) to inherit from the new base classes.
+3. **Writer tools on ToolBase** ✅ (Completed) Writer tools now use a `ToolRegistry` and thin `ToolBase` wrapper classes in `plugin/modules/core/document_tools.py`; `WRITER_TOOLS` is built from the registry and `execute_tool` routes through the registry. Implementations (format_support, outline, etc.) are unchanged; wrappers delegate and return dicts. `ToolContext` gained optional `status_callback` and `append_thinking_callback` for Writer tool callbacks.
 
 ### Phase 4: Module Reorganization ✅ (Completed)
 `localwriter2` heavily refactors logic out of core and into specific modules under `plugin/modules/writer/`, `plugin/modules/calc/`, `plugin/modules/chatbot/`, etc.
@@ -51,3 +51,15 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
 ### Manual Verification
 - After porting the Make system in Phase 1, we will actively use `make deploy` and verify the plugin starts up cleanly in LibreOffice.
 - For each subsequent phase, we will click a few tools via the Sidebar in LibreOffice to test end-to-end functionality.
+
+---
+
+## What to work on later (advised follow-ups)
+
+- **Phase 3 remaining:** Copy the missing framework files from `localwriter2/plugin/framework/` (`event_bus.py`, `service_registry.py`, `panel_layout.py`, `dialogs.py`, `uno_context.py`, `config_schema.py`, `http_server.py`, `http_routes.py`, `main_thread.py`) if you want to align with localwriter2’s infrastructure. Drop them in and fix imports; most are base/utility code.
+
+- **Writer tool layout (optional):** To make the repo “look” more like localwriter2, you can refactor Writer tools from a single block in `document_tools.py` into one module per domain (e.g. `plugin/modules/writer/format_tools.py`, `outline_tools.py`, …), each defining `ToolBase` subclasses whose `execute()` still delegates to the existing implementations. Same behavior, but file layout matches localwriter2.
+
+- **Writer tools with logic in ToolBase (optional):** Later you can replace the thin Writer wrappers with “real” ToolBase classes that contain the logic (or call a document/paragraph service) and use `ctx.services`, so Writer tools align with localwriter2’s style. That implies introducing a document service (and optionally writer_index, writer_tree) and wiring it into `ToolContext.services` when building the context for Writer.
+
+- **Phase 5:** Port the AI module (`plugin/modules/ai/`), HTTP/MCP module (`plugin/modules/http/`), and move config toward the new modular/schema-based system when you are ready to reduce divergence from localwriter2.

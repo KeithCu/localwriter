@@ -893,7 +893,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     debug_log("Tool call: %s(%s)" % (func_name, func_args_str), context="Chat")
 
                     image_model_override = self.image_model_selector.getText() if self.image_model_selector else None
-                    if image_model_override:
+                    if image_model_override and func_name in ("generate_image", "edit_image"):
                         func_args["image_model"] = image_model_override
 
                     def tool_status_callback(msg):
