@@ -231,7 +231,7 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
 
         config = get_api_config(ctx)
         max_tokens = int(config.get("chat_max_tokens", 2048))
-        max_steps = int(config.get("search_web_max_steps", 10))
+        max_steps = int(config.get("search_web_max_steps", 20))
 
         udir = user_config_dir(ctx)
         raw_mb = int(get_config(ctx, "web_cache_max_mb", 50))

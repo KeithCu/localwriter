@@ -22,6 +22,8 @@ except Exception:
     def debug_log(msg, context=None):  # noqa: ARG001
         pass
 
+USE_MARKDOWN = False
+
 # ---------------------------------------------------------------------------
 # Disk cache for web_search and visit_webpage (SQLite, shared between processes)
 # ---------------------------------------------------------------------------
@@ -282,8 +284,13 @@ class DuckDuckGoSearchTool(Tool):
         if len(results) == 0:
             result = "No results found! Try a less restrictive/shorter query."
         else:
-            postprocessed_results = [f"[{r['title']}]({r['link']})\n{r['description']}" for r in results]
-            result = "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+            if USE_MARKDOWN:
+                postprocessed_results = [f"[{r['title']}]({r['link']})\n{r['description']}" for r in results]
+                result = "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+            else:
+                postprocessed_results = [f"<div><h3><a href='{r['link']}'>{r['title']}</a></h3><p>{r['description']}</p></div>" for r in results]
+                result = "<h2>Search Results</h2>\n" + "\n".join(postprocessed_results)
+
         if self._cache_path and self._cache_max_mb > 0 and key:
             _web_cache_set(
                 self._cache_path,

@@ -5,7 +5,7 @@ APP_TITLE = "LocalWriter"
 USER_AGENT = "LocalWriter (https://github.com/keithcu/localwriter)"
 
 # Document format toggle: 'markdown' or 'html'
-# Markdown requires LibreOffice 24.8+; HTML works on older versions.
+# Markdown requires LibreOffice 26.2+; HTML works on older versions.
 DOCUMENT_FORMAT = "html"
 
 _FORMAT_LABEL = "Markdown" if DOCUMENT_FORMAT == "markdown" else "HTML"
@@ -48,7 +48,7 @@ EXAMPLES:
 # Select the appropriate rules based on format
 FORMAT_RULES = HTML_FORMATTING_RULES if DOCUMENT_FORMAT == "html" else MARKDOWN_FORMATTING_RULES
 
-DEFAULT_CHAT_SYSTEM_PROMPT = f"""You are a LibreOffice document assistant.
+DEFAULT_CHAT_SYSTEM_PROMPT = f"""You are a LibreOffice assistant who always makes polished, professional documents with a bit of color (when appropriate).
 
 When asked to answer a question or create or explain something, assume the user wants the 
 information to be inserted into the document. Use the apply_document_content tool to insert content 

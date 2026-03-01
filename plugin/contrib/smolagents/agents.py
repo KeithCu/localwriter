@@ -20,6 +20,7 @@ import os
 import tempfile
 import textwrap
 import time
+import uuid
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Generator
@@ -83,6 +84,7 @@ from .models import (
     ChatMessage,
     ChatMessageStreamDelta,
     ChatMessageToolCall,
+    ChatMessageToolCallFunction,
     MessageRole,
     Model,
     agglomerate_stream_deltas,
@@ -1380,7 +1382,25 @@ class ToolCallingAgent(MultiStepAgent):
             try:
                 chat_message = self.model.parse_tool_calls(chat_message)
             except Exception as e:
-                raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
+                # Model returned content with no JSON blob (e.g. direct answer as text). Treat content as final_answer.
+                raw_content = (chat_message.content or "").strip()
+                if raw_content:
+                    self.logger.log(
+                        f"Parsing failed (no JSON blob); treating model output as final answer (length={len(raw_content)}). Error: {e}",
+                        level=LogLevel.INFO,
+                    )
+                    chat_message.tool_calls = [
+                        ChatMessageToolCall(
+                            id=str(uuid.uuid4()),
+                            type="function",
+                            function=ChatMessageToolCallFunction(
+                                name="final_answer",
+                                arguments={"answer": raw_content},
+                            ),
+                        )
+                    ]
+                else:
+                    raise AgentParsingError(f"Error while parsing tool call from model output: {e}", self.logger)
         else:
             for tool_call in chat_message.tool_calls:
                 tool_call.function.arguments = parse_json_if_needed(tool_call.function.arguments)
