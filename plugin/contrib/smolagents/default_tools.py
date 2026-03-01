@@ -6,6 +6,7 @@ import threading
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlparse
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -27,6 +28,24 @@ except Exception:
 
 _WEB_CACHE_LOCK = threading.Lock()
 _WEB_CACHE_MAX_RETRIES = 5
+
+# VisitWebpageTool: sample size for garbage detection (binary/unreadable content)
+_GARBAGE_CHECK_BYTES = 4096
+
+# Minimum decoded length and garbage ratio threshold to treat content as binary
+_GARBAGE_MIN_CHARS = 100
+_GARBAGE_RATIO_THRESHOLD = 0.5
+
+
+def _is_garbage_text(s: str) -> bool:
+    """True if the decoded string looks like binary/garbage (e.g. PDF decoded as UTF-8)."""
+    if len(s) < _GARBAGE_MIN_CHARS:
+        return False
+    garbage_count = sum(
+        1 for c in s
+        if c == "\ufffd" or (not c.isspace() and not c.isprintable())
+    )
+    return (garbage_count / len(s)) > _GARBAGE_RATIO_THRESHOLD
 
 
 def _web_cache_ensure_schema(conn: sqlite3.Connection) -> None:
@@ -293,14 +312,36 @@ class VisitWebpageTool(Tool):
             return content
         return content[:max_length] + f"\n..._This content has been truncated to stay below {max_length} characters_...\n"
 
+    def _return_error(self, key: str, message: str) -> str:
+        """Return an error message and cache it when cache is enabled."""
+        if self._cache_path and self._cache_max_mb > 0 and key:
+            _web_cache_set(
+                self._cache_path,
+                "page",
+                key,
+                message,
+                self._cache_max_mb * 1024 * 1024,
+            )
+        return message
+
     def forward(self, url: str) -> str:
         key = str(url).strip()
+
+        # Cache lookup
         if self._cache_path and self._cache_max_mb > 0 and key:
             cached = _web_cache_get(self._cache_path, "page", key)
             if cached is not None:
                 debug_log("web_cache: page hit: %s" % (key[:60] + "..." if len(key) > 60 else key), context="Chat")
                 return cached
             debug_log("web_cache: page miss: %s" % (key[:60] + "..." if len(key) > 60 else key), context="Chat")
+
+        # Fail fast: URL path ends with .pdf
+        parsed = urlparse(url)
+        if (parsed.path or "").lower().endswith(".pdf"):
+            return self._return_error(
+                key,
+                "Error fetching the webpage: URL points to a PDF; text content cannot be extracted.",
+            )
 
         import urllib.request
         from html.parser import HTMLParser
@@ -314,8 +355,37 @@ class VisitWebpageTool(Tool):
                 },
             )
             with urllib.request.urlopen(req, timeout=20) as response:
-                content_type = response.headers.get_content_charset() or "utf-8"
-                html = response.read().decode(content_type, errors="ignore")
+                # Content-Type: reject application/pdf without reading body
+                content_type_header = (response.headers.get("Content-Type") or "").lower()
+                if "application/pdf" in content_type_header:
+                    return self._return_error(
+                        key,
+                        "Error fetching the webpage: Response is a PDF; text content cannot be extracted.",
+                    )
+
+                # Magic bytes: reject PDF by signature
+                first_bytes = response.read(8)
+                if first_bytes.startswith(b"%PDF-"):
+                    return self._return_error(
+                        key,
+                        "Error fetching the webpage: Response is a PDF; text content cannot be extracted.",
+                    )
+
+                # Sample first 4096 bytes for garbage detection
+                sample = response.read(_GARBAGE_CHECK_BYTES)
+                prefix_bytes = first_bytes + sample
+                charset = response.headers.get_content_charset() or "utf-8"
+                sample_str = prefix_bytes.decode(charset, errors="ignore")
+                if _is_garbage_text(sample_str):
+                    return self._return_error(
+                        key,
+                        "Error fetching the webpage: Content appears to be binary or unreadable.",
+                    )
+
+                # Read remainder and decode full body
+                rest = response.read()
+                raw_body = prefix_bytes + rest
+                html = raw_body.decode(charset, errors="ignore")
 
             class TextExtractor(HTMLParser):
                 def __init__(self):
@@ -354,16 +424,7 @@ class VisitWebpageTool(Tool):
             return result
 
         except Exception as e:
-            result = f"Error fetching the webpage: {str(e)}"
-            if self._cache_path and self._cache_max_mb > 0 and key:
-                _web_cache_set(
-                    self._cache_path,
-                    "page",
-                    key,
-                    result,
-                    self._cache_max_mb * 1024 * 1024,
-                )
-            return result
+            return self._return_error(key, f"Error fetching the webpage: {str(e)}")
 
 
 TOOL_MAPPING = {
