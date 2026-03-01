@@ -55,7 +55,11 @@ localwriter/
 │   ├── draw_tools.py    # DRAW_TOOLS (schemas), execute_draw_tool (pages, shapes)
 │   └── writer_ops.py    # WRITER_OPS_TOOLS (schemas) + implementations: styles, comments, track-changes, tables
 ├── prompt_function.py   # Calc =PROMPT() formula
-├── chat_panel.py        # Chat sidebar: ChatPanelFactory, ChatPanelElement, ChatToolPanel
+├── plugin/modules/chatbot/
+│   ├── panel_factory.py # Chat sidebar UNO: ChatPanelFactory, ChatPanelElement, ChatToolPanel; XDL wiring
+│   ├── panel.py         # ChatSession, SendButtonListener, StopButtonListener, ClearButtonListener (session + send/tool loop)
+│   ├── streaming.py     # run_stream_drain_loop, run_stream_completion_async
+│   └── streaming_deltas.py
 ├── core/document_tools.py  # WRITER_TOOLS, execute_tool; imports from format_support + writer_ops
 ├── markdown_support.py  # Markdown read/write: document_to_markdown, apply_markdown (hidden doc + transferable)
 ├── XPromptFunction.rdb  # Type library for PromptFunction
@@ -116,8 +120,8 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
   - **Stop button**: A dedicated "Stop" button allows users to halt AI generation mid-stream. It is enabled only while the AI is active and disabled when idle.
   - **Undo grouping**: AI edits performed during tool-calling rounds are grouped into a single undo context ("AI Edit"). Users can revert all changes from an AI turn with a single Ctrl+Z.
   - **Send/Stop button state (lifecycle-based)**: "AI is busy" is defined by the single run of `actionPerformed`: Send is disabled (Stop enabled) at the **start** of the run, and re-enabled (Stop disabled) **only** in the `finally` block when `_do_send()` has returned. No dependence on internal job_done or drain-loop state. `_set_button_states(send_enabled, stop_enabled)` uses per-control try/except with a simple `control.getModel().Enabled = val` check so a UNO failure on one control cannot leave Send stuck disabled. `SendButtonListener._send_busy` is set True at run start and False in finally for external checks. This prevents multiple concurrent requests.
-- **Implementation**: `chat_panel.py` (ChatPanelFactory, ChatPanelElement, ChatToolPanel); `ContainerWindowProvider` + `ChatPanelDialog.xdl`; `setVisible(True)` required after `createContainerWindow()`.
-- **Tool-calling**: `chat_panel.py` (and the menu path in `main.py`) detect document type using robust service-based identification (`supportsService`) in `core/document.py`. This ensures Writer, Calc, and Draw/Impress documents are never misidentified. **Gotcha**: `hasattr(model, "getDrawPages")` is `True` for Writer (drawing layer for shapes), so strict service checks are required.
+- **Implementation**: `plugin/modules/chatbot/panel_factory.py` (ChatPanelFactory, ChatPanelElement, ChatToolPanel); `ContainerWindowProvider` + `ChatPanelDialog.xdl`; `setVisible(True)` required after `createContainerWindow()`.
+- **Tool-calling**: `panel_factory.py` (and the menu path in `main.py`) detect document type using robust service-based identification (`supportsService`) in `core/document.py`. This ensures Writer, Calc, and Draw/Impress documents are never misidentified. **Gotcha**: `hasattr(model, "getDrawPages")` is `True` for Writer (drawing layer for shapes), so strict service checks are required.
     - **Writer**: `com.sun.star.text.TextDocument`. `core/document_tools.py` exposes **WRITER_TOOLS** = `get_document_content`, `apply_document_content`, `find_text` (in `core/format_support.py`) + `tool_get_document_outline`, `tool_get_heading_content`, `tool_read_paragraphs`, `tool_insert_at_paragraph`, `tool_get_document_stats`, `list_styles`, `get_style_info`, `list_comments`, `add_comment`, `delete_comment`, `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes`, `list_tables`, `read_table`, `write_table_cell` (in `core/writer_ops.py`) + `generate_image`, `edit_image`.
     - **Calc**: `com.sun.star.sheet.SpreadsheetDocument`. `core/calc_tools.py` exposes **CALC_TOOLS** and `execute_calc_tool`; core logic in `core/calc_*.py`.
     - **Draw/Impress**: `com.sun.star.drawing.DrawingDocument` or `com.sun.star.presentation.PresentationDocument`. `core/draw_tools.py` exposes **DRAW_TOOLS** and `execute_draw_tool`. Includes slide/page management (`add_slide`, `delete_slide`) and speaker notes context.
@@ -166,7 +170,7 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
   All streaming paths (sidebar tool-calling, sidebar simple stream, Writer Extend/Edit/menu Chat, Calc) use the same pattern so the UI stays responsive without relying on UNO Timers/listeners:
   - **Worker thread**: Runs blocking API/streaming (e.g. `stream_completion`, `stream_request_with_tools`), puts items on a **`queue.Queue`** (`("chunk", text)`, `("thinking", text)`, `("stream_done", ...)`, `("error", e)`, `("stopped",)`).
   - **Main thread**: After starting the worker, runs a **drain loop**: `q.get(timeout=0.1)` → process item (append text, update status, call on_done/on_error) → **`toolkit.processEventsToIdle()`**. Repeats until job_done.
-  - **Connection Keep-Alive**: `LlmClient` uses `http.client.HTTPConnection` (or `HTTPSConnection`) for persistent connections. The client instance is cached in `chat_panel.py` (sidebar), `main.py` (MainJob), and `prompt_function.py` (Calc =PROMPT()) to reuse connections across multiple requests, significantly improving performance for multi-turn chat and cell recalculations.
+  - **Connection Keep-Alive**: `LlmClient` uses `http.client.HTTPConnection` (or `HTTPSConnection`) for persistent connections. The client instance is cached in `plugin/modules/chatbot/panel_factory.py` (sidebar), `main.py` (MainJob), and `prompt_function.py` (Calc =PROMPT()) to reuse connections across multiple requests, significantly improving performance for multi-turn chat and cell recalculations.
   - **Streaming edge cases (LiteLLM-inspired):** `finish_reason=error` → raise; repeated identical content chunks → raise (infinite-loop guard); `finish_reason=stop` with tool_calls → remap to `tool_calls`; delta normalization for Mistral/Azure (`role`/`tool.type`/`function.arguments`). See [LITELLM_INTEGRATION.md](LITELLM_INTEGRATION.md).
 
 ---
@@ -181,7 +185,7 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
 - Modified `CalcBridge.__init__()` and `DrawBridge.__init__()` to take a specific document (`doc`) instead of global context (`ctx`).
 - Updated `execute_calc_tool()`, `execute_draw_tool()`, and `execute_tool()` to take `doc` directly.
 - Changed `get_document_context_for_chat()` and `get_calc_context_for_chat()` to take `doc` instead of `ctx`.
-- In `chat_panel.py`, each panel uses `self.doc = self.xFrame.getController().getModel()` and passes it to all operations.
+- In `panel_factory.py`, each panel uses `self.doc = self.xFrame.getController().getModel()` and passes it to all operations.
 - Menu chat continues to use the active document as expected.
 
 **Result**: Each sidebar panel now operates independently on its associated document, preventing cross-contamination when multiple documents are open.
@@ -237,7 +241,7 @@ LocalWriter can generate and edit images inside Writer and Calc via tools expose
 ### UI and config
 
 - **Settings** (`LocalWriterDialogs/SettingsDialog.xdl`): Tabbed. **Chat/Text** tab: Text/Chat Model and **Image model (same endpoint as chat)** comboboxes (LRU). **Image Settings** tab: shared section (width, height, auto gallery, insert frame, translate prompt) and **AI Horde** section (provider enabled via **"Use AI Horde for Image Generation"** on this tab, `aihorde_api_key`, CFG scale, steps, max wait, NSFW) with a fixedline separator. All image-related keys applied via `_apply_settings_result` in `main.py`.
-- **Chat sidebar** (`LocalWriterDialogs/ChatPanelDialog.xdl`, `chat_panel.py`): **AI Model** combobox (text model → `text_model`, `model_lru`) and **Image model (same endpoint as chat)** combobox (→ `image_model`, `image_model_lru`). **"Use Image model"** checkbox (config `chat_direct_image`): when checked, the current message is sent directly to the image pipeline (AI Horde or image model per Settings) for Writer, Calc, and Draw — no chat model round-trip. Orthogonal to which tools are given to the LLM; uses `document_tools.execute_tool("generate_image", ...)` for all doc types. No additional-instructions control in the sidebar; extra instructions come from config only when building the system prompt.
+- **Chat sidebar** (`LocalWriterDialogs/ChatPanelDialog.xdl`, `plugin/modules/chatbot/panel_factory.py`): **AI Model** combobox (text model → `text_model`, `model_lru`) and **Image model (same endpoint as chat)** combobox (→ `image_model`, `image_model_lru`). **"Use Image model"** checkbox (config `chat_direct_image`): when checked, the current message is sent directly to the image pipeline (AI Horde or image model per Settings) for Writer, Calc, and Draw — no chat model round-trip. Orthogonal to which tools are given to the LLM; uses `document_tools.execute_tool("generate_image", ...)` for all doc types. No additional-instructions control in the sidebar; extra instructions come from config only when building the system prompt.
 
 ### Config keys (summary)
 
@@ -270,7 +274,7 @@ To improve UI responsiveness and AI navigation in complex documents, we ported p
   - `debug_log(msg, context=None)` — single debug file. Writes to `localwriter_debug.log` in user config dir (or `~/localwriter_debug.log`). Use `context="API"`, `"Chat"`, or `"Markdown"` for prefixed lines. No ctx passed at write time.
   - `agent_log(location, message, ...)` — NDJSON to `localwriter_agent.log` (user config or `~/`), only if config `enable_agent_log` is true.
   - Watchdog: `update_activity_state(phase, ...)`, `start_watchdog_thread(ctx, status_control)` for hang detection (logs and status "Hung: ..." if no activity for threshold).
-- **`SendButtonListener._send_busy`** (`chat_panel.py`): Boolean; True from run start until the `finally` block of `actionPerformed` (single source of truth for "is the AI running?"). Used together with lifecycle-based `_set_button_states(send_enabled, stop_enabled)`.
+- **`SendButtonListener._send_busy`** (`panel_factory.py`): Boolean; True from run start until the `finally` block of `actionPerformed` (single source of truth for "is the AI running?"). Used together with lifecycle-based `_set_button_states(send_enabled, stop_enabled)`.
 - **`core/api.format_error_for_display(e)`**: Returns user-friendly error string for cells/dialogs (e.g. `"Error: Connection refused..."`).
 
 ---
@@ -374,7 +378,7 @@ We implemented a custom engine in `core/format_support.py` that iterates charact
   - macOS: `~/Library/Application Support/LibreOffice/4/user/localwriter.json`
   - Windows: `%APPDATA%\LibreOffice\4\user\localwriter.json`
 - **Single file**: No presets or multiple configs. To use a different setup, copy your config to the path above as `localwriter.json`.
-- **Settings dialog** reads/writes this file via `get_config()` / `set_config()` in `core/config.py`. Use **`get_current_endpoint(ctx)`** for the normalized current endpoint URL (single source; used by main.py and chat_panel.py).
+- **Settings dialog** reads/writes this file via `get_config()` / `set_config()` in `core/config.py`. Use **`get_current_endpoint(ctx)`** for the normalized current endpoint URL (single source; used by main.py and panel_factory.py).
 - **Chat-related keys**: `chat_context_length` (default 8000), `chat_max_tokens` (default 512 menu / 16384 sidebar), `additional_instructions`. Also **per-endpoint API keys**: `api_keys_by_endpoint` (JSON map: normalized endpoint URL → API key); `get_api_key_for_endpoint(ctx, endpoint)` / `set_api_key_for_endpoint(ctx, endpoint, key)` in `core/config.py`. Legacy `api_key` is migrated once into the map under the current endpoint and then removed. Settings dialog shows and saves the key for the selected endpoint. `api_type` (default `"chat"`) and `openai_compatibility` (default true) for the configured endpoint.
 - **Model keys**: `text_model` (chat/LLM model; backward compat: `model`), `model_lru` (recent text models); `image_model` (image model when using chat endpoint for images), `image_model_lru` (recent image models). See Section 3d.
 
@@ -438,10 +442,10 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - DSPy prompt optimization and evaluation live in `scripts/prompt_optimization/`. `run_eval.py` runs a fixed Writer dataset against the current `DEFAULT_CHAT_SYSTEM_PROMPT` (using mock tools) and reports correctness + token usage; `run_optimize.py` runs DSPy MIPROv2 to search for better system prompts; `run_eval_multi.py` sweeps **multiple models** (from `model_configs.py`) and ranks them by **intelligence per dollar** (average correctness divided by estimated USD cost from list prices).
 
 ### Optional refactoring (future work)
-- **chat_panel.py**: Split `SendButtonListener._do_send` into smaller methods (e.g. `_do_send_direct_image`, `_do_send_with_tools`, `_do_send_simple_stream`) with a short `_do_send` that validates and dispatches. Optionally simplify `_wireControls` by extracting "build initial model/prompt from config," "wire Send/Stop/Clear," "wire optional image UI."
+- **panel_factory.py**: Split `SendButtonListener._do_send` into smaller methods (e.g. `_do_send_direct_image`, `_do_send_with_tools`, `_do_send_simple_stream`) with a short `_do_send` that validates and dispatches. Optionally simplify `_wireControls` by extracting "build initial model/prompt from config," "wire Send/Stop/Clear," "wire optional image UI."
 - **main.py**: Split `trigger()` into handlers (e.g. `_handle_mcp`, `_handle_writer`, `_handle_calc`, `_handle_draw`) so `trigger` only delegates; optionally extract settings populate/read into helpers driven by `field_specs`.
 - **core/config.py**: Introduce internal helpers for "read full config" / "write full config" (e.g. build on `get_config_dict`) so `set_config`/`remove_config` share one write path and future caching or storage changes touch one place.
-- **chat_panel.py**: Consider a small doc-type registry (Writer/Calc/Draw → tools + execute function) so choosing tools and executor in `_do_send` is data-driven and adding a new doc type doesn't require editing a long if/elif chain.
+- **panel_factory.py**: Consider a small doc-type registry (Writer/Calc/Draw → tools + execute function) so choosing tools and executor in `_do_send` is data-driven and adding a new doc type doesn't require editing a long if/elif chain.
 
 ### Chat settings in UI — DONE
 - ~~Expose `chat_context_length`, `chat_max_tokens`, `additional_instructions` in the Settings dialog~~ (implemented in SettingsDialog.xdl).
@@ -479,11 +483,11 @@ Image generation and AI Horde integration are **complete** (generate_image, edit
 
 - **Settings dialog fields**: The list of settings is defined in **`MainJob._get_settings_field_specs()`** (single source); `_apply_settings_result` derives apply keys from it. Settings dialog field list in XDL must match the names in that method.
 - **Library name**: `LocalWriterDialogs` (folder name) must match `library:name` in `dialog.xlb`.
-- **DialogProvider deadlock**: Using `vnd.sun.star.script:...?location=application` URLs with `DialogProvider.createDialog()` will deadlock when the sidebar panel (chat_panel.py) is also registered as a UNO component. Always use direct package URLs instead (see Section 3).
+- **DialogProvider deadlock**: Using `vnd.sun.star.script:...?location=application` URLs with `DialogProvider.createDialog()` will deadlock when the sidebar panel (panel_factory.py) is also registered as a UNO component. Always use direct package URLs instead (see Section 3).
 - **Use `self.ctx` for PackageInformationProvider**: `uno.getComponentContext()` returns a limited global context that cannot look up extension singletons. Always use `self.ctx` (the context passed to the UNO component constructor).
 - **dtd reference**: XDL uses `<!DOCTYPE dlg:window PUBLIC "... "dialog.dtd">`. LibreOffice resolves this from its installation.
 - **Chat sidebar visibility**: After `createContainerWindow()`, call `setVisible(True)` on the returned window; otherwise the panel content stays blank.
-- **Chat panel imports**: `chat_panel.py` uses `_ensure_extension_on_path()` to add the extension dir to `sys.path` so `from main import MainJob` and `from document_tools import ...` work.
+- **Chat panel imports**: `plugin/modules/chatbot/panel_factory.py` uses `_ensure_extension_on_path()` to add the extension dir to `sys.path` so `from main import MainJob` and `from document_tools import ...` work.
 - **Logging**: Call `init_logging(ctx)` once from an entry point that has ctx. Then use `debug_log(msg, context="API"|"Chat"|"Markdown")` and `agent_log(...)`; both use global paths. Do not add new ad-hoc log paths.
 - **Streaming in sidebar**: Do not use UNO Timer or `XTimerListener` for draining the stream queue—the type is not available in the sidebar context. Use the pure Python pattern: worker + `queue.Queue` + main-thread loop with `toolkit.processEventsToIdle()` (see "Streaming I/O" in Section 3b).
 - **Document scoping in sidebar**: Each sidebar panel instance must operate on its associated document only. Use `self.xFrame.getController().getModel()` to get the document for the panel's frame. Do not rely on global `desktop.getCurrentComponent()` as it changes with user focus and causes the AI to edit the wrong document when multiple documents are open. Tool executions and context building must pass the specific document to avoid cross-document contamination.
