@@ -82,10 +82,14 @@ SEARCH_TOOLS = [
                     "query": {
                         "type": "string", 
                         "description": "The information to search for or the question to answer."
+                    },
+                    "history_text": {
+                        "type": "string",
+                        "description": "Previous conversation history for context (optional)."
                     }
                 },
                 "required": ["query"],
-                "additionalProperties": False
+                "additionalProperties": True
             }
         }
     }
@@ -225,6 +229,14 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
     if not query:
         return json.dumps({"status": "error", "message": "Query is required for web search."})
 
+    history_text = args.get("history_text", "")
+    context_str = ""
+    if history_text:
+        # Truncate if extremely long, though the agent will handle it
+        if len(history_text) > 4000:
+            history_text = "..." + history_text[-4000:]
+        context_str = "Below is the previous conversation for context:\n" + history_text + "\n\n"
+
     try:
         if status_callback:
             status_callback("Sub-agent starting web search: " + query)
@@ -242,6 +254,8 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
             LlmClient(config, ctx), max_tokens=max_tokens,
             status_callback=status_callback,
         )
+
+        instructions = "You are a research assistant. Use the conversation context provided below to resolve any ambiguity in the user's query."
         agent = ToolCallingAgent(
             tools=[
                 DuckDuckGoSearchTool(cache_path=cache_path, cache_max_mb=cache_max_mb),
@@ -249,9 +263,11 @@ def tool_web_research(model, ctx, args, status_callback=None, append_thinking_ca
             ],
             model=smol_model,
             max_steps=max_steps,
+            instructions=instructions,
         )
-        task = f"Please find the answer to this query by searching the web and reading pages if needed: {query}"
 
+        task = f"### CONVERSATION HISTORY:\n{history_text or 'None'}\n\n### CURRENT QUERY:\n{query}"
+        
         # Always use streaming mode so we can push status heartbeats between steps.
         # This keeps the UI drain loop active and LibreOffice responsive.
         final_ans = None

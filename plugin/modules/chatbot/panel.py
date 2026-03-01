@@ -585,6 +585,10 @@ class SendButtonListener(unohelper.Base, XActionListener):
         except Exception:
             show_thinking = False
 
+        history_text = ""
+        if self.response_control and self.response_control.getModel():
+            history_text = self.response_control.getModel().Text or ""
+        
         def run_search():
             try:
 
@@ -599,7 +603,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
                 result = execute_tool(
                     "web_research",
-                    {"query": query_text},
+                    {"query": query_text, "history_text": history_text},
                     model,
                     self.ctx,
                     status_callback=status_cb,
