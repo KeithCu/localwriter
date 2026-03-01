@@ -1,6 +1,7 @@
 name: calc
 title: Calc spreadsheet tools
 requires: [document, config]
+config_inline: doc
 
 config:
   max_rows_display:
