@@ -140,6 +140,7 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
   - The synthesized answer is streamed back into the response area as `AI (web): ...`, without modifying the document.
   - When unchecked (default), the sidebar behaves as standard Chat with Document; the main model may still call `web_research` autonomously via tool-calling when appropriate.
   - The sub-agent uses smolagents' JSON-in-text parsing for tool calls; if the model returns malformed or missing JSON for a tool call, LocalWriter now falls back to the last useful text the web agent produced instead of surfacing a low-level "no JSON blob" error to the user.
+  - **Web cache (disk)**: Search and webpage results from the smolagents tools (`DuckDuckGoSearchTool`, `VisitWebpageTool` in `plugin/contrib/smolagents/default_tools.py`) are cached on disk in a SQLite DB at `{user_config_dir}/localwriter_web_cache.db`. Cache is shared across processes (retry on lock). Total size is bounded by config `web_cache_max_mb` (default 50, clamp 1–500; 0 disables). On cache hit the entry is touched (LRU) so it is not evicted soon. Key normalization: search = collapse whitespace; page = URL strip. All cache logic lives in `default_tools.py`; `tool_web_research` in `document_tools.py` passes `cache_path` and `cache_max_mb` from config.
 
 ### Markdown tool-calling (current)
 
@@ -184,6 +185,15 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
 - Menu chat continues to use the active document as expected.
 
 **Result**: Each sidebar panel now operates independently on its associated document, preventing cross-contamination when multiple documents are open.
+
+---
+
+## 3e. Calc plugin refactor and tool framework migration
+
+- **Calc plugin modules** under `plugin/modules/calc` now mirror the core Calc helpers more closely (`core/calc_address_utils.py`, `core/calc_sheet_analyzer.py`, `core/calc_inspector.py`, `core/calc_error_detector.py`, `core/calc_manipulator.py`) with small, focused docstrings that explain only non-obvious behavior (UNO assumptions, fallbacks, and porting notes). Earlier AI-driven churn that rewrote docstrings and comments without changing behavior was reverted so diffs stay tight and readable.
+- **Behavioral changes preserved**: We keep the functional refactor that routes Calc tools through the plugin framework (`plugin.framework.tool_registry`, `ToolContext`) and the new modular tools (`plugin/modules/calc/cells.py`, `formulas.py`, `sheets.py`). `plugin/modules/calc/tools.py` is now a thin compatibility shim that builds `CALC_TOOLS` from the registry and forwards `execute_calc_tool` calls into the framework.
+- **Inspector / Analyzer / ErrorDetector**: Unused “extra analysis” helpers (`detect_data_regions`, `find_empty_cells`, `get_column_statistics`, `get_cell_precedents`, `get_cell_dependents`, `analyze_spreadsheet_structure`) were removed from the plugin copies after confirming they are not called from the new framework. Error explanations now derive precedents by parsing formulas directly, but legacy public entry points and result shapes (addresses, error codes, suggestions) remain compatible with tests and existing prompts.
+- **CalcBridge / Manipulator**: `CalcBridge` gained clearer error handling for non-spreadsheet documents and an explicit `get_active_sheet` contract, and `CellManipulator` keeps the newer style/number-format helpers and CSV import utilities while restoring concise, stable docstrings. Overall, Calc plugin diffs against git focus on real behavior changes (tool wiring, error/precedent handling, style application) rather than wording-only comment updates.
 
 ---
 
