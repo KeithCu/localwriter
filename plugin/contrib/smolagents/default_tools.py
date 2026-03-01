@@ -15,6 +15,12 @@ from .local_python_executor import (
 )
 from .tools import PipelineTool, Tool
 
+try:
+    from plugin.framework.logging import debug_log
+except Exception:
+    def debug_log(msg, context=None):  # noqa: ARG001
+        pass
+
 # ---------------------------------------------------------------------------
 # Disk cache for web_search and visit_webpage (SQLite, shared between processes)
 # ---------------------------------------------------------------------------
@@ -187,7 +193,9 @@ class DuckDuckGoSearchTool(Tool):
         if self._cache_path and self._cache_max_mb > 0 and key:
             cached = _web_cache_get(self._cache_path, "search", key)
             if cached is not None:
+                debug_log("web_cache: search hit: %s" % (key[:60] + "..." if len(key) > 60 else key), context="Chat")
                 return cached
+            debug_log("web_cache: search miss: %s" % (key[:60] + "..." if len(key) > 60 else key), context="Chat")
 
         import urllib.request
         import urllib.parse
@@ -290,7 +298,9 @@ class VisitWebpageTool(Tool):
         if self._cache_path and self._cache_max_mb > 0 and key:
             cached = _web_cache_get(self._cache_path, "page", key)
             if cached is not None:
+                debug_log("web_cache: page hit: %s" % (key[:60] + "..." if len(key) > 60 else key), context="Chat")
                 return cached
+            debug_log("web_cache: page miss: %s" % (key[:60] + "..." if len(key) > 60 else key), context="Chat")
 
         import urllib.request
         from html.parser import HTMLParser
