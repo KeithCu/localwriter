@@ -10,6 +10,7 @@ import plugin.modules.calc.cells as cells
 from plugin.modules.calc.cells import _parse_color
 import plugin.modules.calc.formulas as formulas
 import plugin.modules.calc.sheets as sheets
+from plugin.modules.ai.tools import WebResearchTool, GenerateImageTool, EditImageTool
 
 logger = logging.getLogger(__name__)
 
@@ -31,23 +32,31 @@ _tool_classes = [
     sheets.ListSheets,
     sheets.SwitchSheet,
     sheets.CreateSheet,
-    sheets.CreateChart
+    sheets.CreateChart,
+    WebResearchTool,
+    GenerateImageTool,
+    EditImageTool
 ]
 
 for cls in _tool_classes:
     _registry.register(cls())
 
 # Export the tools schema list
-CALC_TOOLS = _registry.get_openai_schemas(doc_type="calc", tier="core") + _registry.get_openai_schemas(doc_type="calc", tier="extended")
+CALC_TOOLS = _registry.get_openai_schemas(doc_type="calc", tier="core") + \
+             _registry.get_openai_schemas(doc_type="calc", tier="extended") + \
+             _registry.get_openai_schemas(doc_type="calc", tier="agent")
 
-def execute_calc_tool(tool_name, arguments, doc, ctx=None):
+def execute_calc_tool(tool_name, arguments, doc, ctx=None, status_callback=None, append_thinking_callback=None):
     """Execute a Calc tool by name. Returns JSON result string."""
-    # ToolContext expects (doc, ctx, doc_type, services, caller)
-    tctx = ToolContext(doc, ctx, "calc", {}, "chatbot")
+    tctx = ToolContext(
+        doc, ctx, "calc", {}, "chatbot",
+        status_callback=status_callback,
+        append_thinking_callback=append_thinking_callback
+    )
     
     try:
-        res = _registry.execute(tool_name, tctx, **arguments)
-        return json.dumps(res)
+        res = _registry.execute(tool_name, tctx, **(arguments or {}))
+        return json.dumps(res) if isinstance(res, dict) else res
     except Exception as e:
         logger.exception("execute_calc_tool failed")
         return json.dumps({"status": "error", "message": str(e)})

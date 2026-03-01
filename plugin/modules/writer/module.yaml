@@ -1,0 +1,14 @@
+name: writer
+title: Writer document tools (including navigation and search)
+requires: [document, config, format, ai, events]
+provides_services: [writer_bookmarks, writer_tree, writer_proximity, writer_index]
+
+config:
+  max_content_chars:
+    type: int
+    default: 50000
+    min: 1000
+    max: 500000
+    widget: number
+    label: Max Content Size
+    public: true

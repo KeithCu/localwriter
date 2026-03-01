@@ -1,17 +1,6 @@
 name: main
 title: LocalWriter global settings
-
+requires: []
 actions:
   about:
-    title: "About LocalWriter"
-
-menus:
-  - separator: true
-  - action: about
-
-# config:
-#   debug:
-#     type: boolean
-#     default: false
-#     widget: checkbox
-#     label: Debug Mode
+    title: About LocalWriter

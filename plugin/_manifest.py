@@ -1,6 +1,6 @@
 """Auto-generated module manifest. DO NOT EDIT."""
 
-VERSION = '1.7.2'
+VERSION = '1.7.3'
 
 MODULES = [
     {
@@ -54,335 +54,230 @@ MODULES = [
         "actions": [],
         "action_icons": {}
 },
-#     {
-#         "name": "ai",
-#         "title": "AI provider registry and model catalog",
-#         "requires": [
-#                 "config",
-#                 "events"
-#         ],
-#         "provides_services": [
-#                 "ai"
-#         ],
-#         "config": {
-#                 "default_text_instance": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "select",
-#                         "label": "Default Text AI",
-#                         "public": True,
-#                         "options_provider": "plugin.modules.ai.service:get_text_instance_options"
-#                 },
-#                 "default_image_instance": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "select",
-#                         "label": "Default Image AI",
-#                         "public": True,
-#                         "options_provider": "plugin.modules.ai.service:get_image_instance_options"
-#                 },
-#                 "custom_models": {
-#                         "type": "string",
-#                         "default": "[]",
-#                         "widget": "list_detail",
-#                         "inline": True,
-#                         "label": "Custom Models",
-#                         "helper": "Close Options to save; model lists refresh on reopen",
-#                         "name_field": "display_name",
-#                         "item_fields": {
-#                                 "id": {
-#                                         "type": "string",
-#                                         "label": "Model ID",
-#                                         "widget": "text",
-#                                         "default": ""
-#                                 },
-#                                 "display_name": {
-#                                         "type": "string",
-#                                         "label": "Display Name",
-#                                         "widget": "text",
-#                                         "default": ""
-#                                 },
-#                                 "capability": {
-#                                         "type": "string",
-#                                         "label": "Capabilities",
-#                                         "widget": "text",
-#                                         "default": "text",
-#                                         "helper": "Comma-separated: text, image, vision, tools"
-#                                 },
-#                                 "providers": {
-#                                         "type": "string",
-#                                         "label": "Providers",
-#                                         "widget": "text",
-#                                         "default": "",
-#                                         "helper": "Comma-separated: openai, openrouter, together, ollama (empty = all)"
-#                                 },
-#                                 "priority": {
-#                                         "type": "int",
-#                                         "label": "Priority",
-#                                         "widget": "number",
-#                                         "default": 5,
-#                                         "min": 0,
-#                                         "max": 10,
-#                                         "helper": "Higher = listed first in model dropdowns (0-10)"
-#                                 }
-#                         }
-#                 },
-#                 "models_file": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "file",
-#                         "label": "Models File (YAML)",
-#                         "helper": "Override or extend the built-in model catalog for all providers"
-#                 },
-#                 "openai_endpoint": {
-#                         "type": "string",
-#                         "default": "",
-#                         "label": "OpenAI Default Endpoint",
-#                         "placeholder": "https://api.openai.com/v1"
-#                 },
-#                 "openai_model": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "select",
-#                         "label": "OpenAI Default Model",
-#                         "options_provider": "plugin.modules.ai:get_openai_model_options"
-#                 },
-#                 "openai_instances": {
-#                         "type": "string",
-#                         "default": "[]",
-#                         "widget": "list_detail",
-#                         "inline": True,
-#                         "label": "OpenAI Instances",
-#                         "name_field": "name",
-#                         "item_fields": {
-#                                 "name": {
-#                                         "type": "string",
-#                                         "label": "Name"
-#                                 },
-#                                 "endpoint": {
-#                                         "type": "string",
-#                                         "label": "Endpoint"
-#                                 },
-#                                 "api_key": {
-#                                         "type": "string",
-#                                         "label": "API Key",
-#                                         "widget": "password"
-#                                 },
-#                                 "model": {
-#                                         "type": "string",
-#                                         "label": "Model",
-#                                         "widget": "select",
-#                                         "options_from": "openai_model"
-#                                 },
-#                                 "image": {
-#                                         "type": "boolean",
-#                                         "label": "Images",
-#                                         "widget": "checkbox"
-#                                 }
-#                         }
-#                 },
-#                 "ollama_endpoint": {
-#                         "type": "string",
-#                         "default": "http://localhost:11434",
-#                         "label": "Ollama Default URL"
-#                 },
-#                 "ollama_model": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "select",
-#                         "label": "Ollama Default Model",
-#                         "options_provider": "plugin.modules.ai:get_ollama_model_options"
-#                 },
-#                 "ollama_instances": {
-#                         "type": "string",
-#                         "default": "[]",
-#                         "widget": "list_detail",
-#                         "inline": True,
-#                         "label": "Ollama Instances",
-#                         "name_field": "name",
-#                         "item_fields": {
-#                                 "name": {
-#                                         "type": "string",
-#                                         "label": "Name"
-#                                 },
-#                                 "endpoint": {
-#                                         "type": "string",
-#                                         "label": "URL",
-#                                         "default": "http://localhost:11434"
-#                                 },
-#                                 "model": {
-#                                         "type": "string",
-#                                         "label": "Model",
-#                                         "widget": "select",
-#                                         "options_from": "ollama_model"
-#                                 }
-#                         }
-#                 },
-#                 "horde_api_key": {
-#                         "type": "string",
-#                         "default": "0000000000",
-#                         "widget": "password",
-#                         "label": "Horde API Key"
-#                 },
-#                 "horde_instances": {
-#                         "type": "string",
-#                         "default": "[]",
-#                         "widget": "list_detail",
-#                         "inline": True,
-#                         "label": "Horde Instances",
-#                         "name_field": "name",
-#                         "item_fields": {
-#                                 "name": {
-#                                         "type": "string",
-#                                         "label": "Name"
-#                                 },
-#                                 "api_key": {
-#                                         "type": "string",
-#                                         "label": "API Key",
-#                                         "widget": "password"
-#                                 },
-#                                 "model": {
-#                                         "type": "string",
-#                                         "label": "Model"
-#                                 }
-#                         }
-#                 },
-#                 "ai_temperature": {
-#                         "type": "float",
-#                         "default": 0.7,
-#                         "min": 0.0,
-#                         "max": 2.0,
-#                         "widget": "slider",
-#                         "label": "Temperature"
-#                 },
-#                 "ai_max_tokens": {
-#                         "type": "int",
-#                         "default": 4096,
-#                         "widget": "number",
-#                         "label": "Max Tokens"
-#                 }
-#         },
-#         "actions": [],
-#         "action_icons": {}
-# },
-# 
-#     {
-#         "name": "doc",
-#         "title": "Common tools and diagnostics",
-#         "requires": [
-#                 "document",
-#                 "config",
-#                 "events",
-#                 "ai"
-#         ],
-#         "provides_services": [],
-#         "config": {
-#                 "debug_enabled": {
-#                         "type": "boolean",
-#                         "default": False,
-#                         "widget": "checkbox",
-#                         "label": "Enable Debug Actions",
-#                         "helper": "Debug actions appear in menus but only execute when enabled",
-#                         "public": True
-#                 }
-#         },
-#         "actions": [
-#                 "debug_info",
-#                 "test_providers"
-#         ],
-#         "action_icons": {}
-# },
-# 
-#     {
-#         "name": "http",
-#         "title": "Built-in HTTP server",
-#         "requires": [
-#                 "config",
-#                 "events"
-#         ],
-#         "provides_services": [
-#                 "http_routes"
-#         ],
-#         "config": {
-#                 "enabled": {
-#                         "type": "boolean",
-#                         "default": True,
-#                         "widget": "checkbox",
-#                         "label": "Enable HTTP Server",
-#                         "public": True
-#                 },
-#                 "port": {
-#                         "type": "int",
-#                         "default": 8766,
-#                         "min": 1024,
-#                         "max": 65535,
-#                         "widget": "number",
-#                         "label": "Server Port",
-#                         "public": True
-#                 },
-#                 "host": {
-#                         "type": "string",
-#                         "default": "localhost",
-#                         "widget": "text",
-#                         "label": "Bind Address",
-#                         "public": True
-#                 },
-#                 "use_ssl": {
-#                         "type": "boolean",
-#                         "default": False,
-#                         "widget": "checkbox",
-#                         "label": "Enable HTTPS",
-#                         "public": True
-#                 },
-#                 "ssl_cert": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "file",
-#                         "label": "SSL Certificate",
-#                         "helper": "Optional. Leave empty to use auto-generated self-signed certificate.",
-#                         "file_filter": "PEM files (*.pem)|*.pem|All files (*.*)|*.*"
-#                 },
-#                 "ssl_key": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "file",
-#                         "label": "SSL Private Key",
-#                         "helper": "Optional. Leave empty to use auto-generated self-signed key.",
-#                         "file_filter": "PEM files (*.pem)|*.pem"
-#                 },
-#                 "mcp_enabled": {
-#                         "type": "boolean",
-#                         "default": True,
-#                         "widget": "checkbox",
-#                         "label": "Enable MCP Protocol",
-#                         "public": True,
-#                         "helper": "Expose MCP JSON-RPC routes on the same port"
-#                 }
-#         },
-#         "actions": [
-#                 "toggle_server",
-#                 "server_status"
-#         ],
-#         "action_icons": {
-#                 "toggle_server": "running",
-#                 "server_status": "stopped"
-#         }
-# },
-# 
-#     {
-#         "name": "draw",
-#         "title": "Draw and Impress tools",
-#         "requires": [
-#                 "document",
-#                 "config",
-#                 "ai"
-#         ],
-#         "provides_services": [],
-#         "config": {},
-#         "actions": [],
-#         "action_icons": {}
-# },
-# 
+    {
+        "name": "ai",
+        "title": "AI provider registry and model catalog",
+        "requires": [
+                "config",
+                "events"
+        ],
+        "provides_services": [
+                "ai"
+        ],
+        "config": {
+                "default_text_instance": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Default Text AI",
+                        "public": True,
+                        "options_provider": "plugin.modules.ai.service:get_text_instance_options"
+                },
+                "default_image_instance": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Default Image AI",
+                        "public": True,
+                        "options_provider": "plugin.modules.ai.service:get_image_instance_options"
+                },
+                "custom_models": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "Custom Models",
+                        "helper": "Close Options to save; model lists refresh on reopen",
+                        "name_field": "display_name",
+                        "item_fields": {
+                                "id": {
+                                        "type": "string",
+                                        "label": "Model ID",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "display_name": {
+                                        "type": "string",
+                                        "label": "Display Name",
+                                        "widget": "text",
+                                        "default": ""
+                                },
+                                "capability": {
+                                        "type": "string",
+                                        "label": "Capabilities",
+                                        "widget": "text",
+                                        "default": "text",
+                                        "helper": "Comma-separated: text, image, vision, tools"
+                                },
+                                "providers": {
+                                        "type": "string",
+                                        "label": "Providers",
+                                        "widget": "text",
+                                        "default": "",
+                                        "helper": "Comma-separated: openai, openrouter, together, ollama (empty = all)"
+                                },
+                                "priority": {
+                                        "type": "int",
+                                        "label": "Priority",
+                                        "widget": "number",
+                                        "default": 5,
+                                        "min": 0,
+                                        "max": 10,
+                                        "helper": "Higher = listed first in model dropdowns (0-10)"
+                                }
+                        }
+                },
+                "models_file": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "file",
+                        "label": "Models File (YAML)",
+                        "helper": "Override or extend the built-in model catalog for all providers"
+                },
+                "openai_endpoint": {
+                        "type": "string",
+                        "default": "",
+                        "label": "OpenAI Default Endpoint",
+                        "placeholder": "https://api.openai.com/v1"
+                },
+                "openai_model": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "OpenAI Default Model",
+                        "options_provider": "plugin.modules.ai:get_openai_model_options"
+                },
+                "openai_instances": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "OpenAI Instances",
+                        "name_field": "name",
+                        "item_fields": {
+                                "name": {
+                                        "type": "string",
+                                        "label": "Name"
+                                },
+                                "endpoint": {
+                                        "type": "string",
+                                        "label": "Endpoint"
+                                },
+                                "api_key": {
+                                        "type": "string",
+                                        "label": "API Key",
+                                        "widget": "password"
+                                },
+                                "model": {
+                                        "type": "string",
+                                        "label": "Model",
+                                        "widget": "select",
+                                        "options_from": "openai_model"
+                                },
+                                "image": {
+                                        "type": "boolean",
+                                        "label": "Images",
+                                        "widget": "checkbox"
+                                }
+                        }
+                },
+                "ollama_endpoint": {
+                        "type": "string",
+                        "default": "http://localhost:11434",
+                        "label": "Ollama Default URL"
+                },
+                "ollama_model": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Ollama Default Model",
+                        "options_provider": "plugin.modules.ai:get_ollama_model_options"
+                },
+                "ollama_instances": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "Ollama Instances",
+                        "name_field": "name",
+                        "item_fields": {
+                                "name": {
+                                        "type": "string",
+                                        "label": "Name"
+                                },
+                                "endpoint": {
+                                        "type": "string",
+                                        "label": "URL",
+                                        "default": "http://localhost:11434"
+                                },
+                                "model": {
+                                        "type": "string",
+                                        "label": "Model",
+                                        "widget": "select",
+                                        "options_from": "ollama_model"
+                                }
+                        }
+                },
+                "horde_api_key": {
+                        "type": "string",
+                        "default": "0000000000",
+                        "widget": "password",
+                        "label": "Horde API Key"
+                },
+                "horde_instances": {
+                        "type": "string",
+                        "default": "[]",
+                        "widget": "list_detail",
+                        "inline": True,
+                        "label": "Horde Instances",
+                        "name_field": "name",
+                        "item_fields": {
+                                "name": {
+                                        "type": "string",
+                                        "label": "Name"
+                                },
+                                "api_key": {
+                                        "type": "string",
+                                        "label": "API Key",
+                                        "widget": "password"
+                                },
+                                "model": {
+                                        "type": "string",
+                                        "label": "Model"
+                                }
+                        }
+                },
+                "ai_temperature": {
+                        "type": "float",
+                        "default": 0.7,
+                        "min": 0.0,
+                        "max": 2.0,
+                        "widget": "slider",
+                        "label": "Temperature"
+                },
+                "ai_max_tokens": {
+                        "type": "int",
+                        "default": 4096,
+                        "widget": "number",
+                        "label": "Max Tokens"
+                }
+        },
+        "actions": [],
+        "action_icons": {}
+},
+    {
+        "name": "draw",
+        "title": "Draw and Impress tools",
+        "requires": [
+                "document",
+                "config",
+                "ai"
+        ],
+        "provides_services": [],
+        "config": {},
+        "actions": [],
+        "action_icons": {}
+},
     {
         "name": "calc",
         "title": "Calc spreadsheet tools",
@@ -405,20 +300,6 @@ MODULES = [
         "actions": [],
         "action_icons": {}
 },
-#     {
-#         "name": "batch",
-#         "title": "Batch tool execution with variable chaining",
-#         "requires": [
-#                 "document",
-#                 "config",
-#                 "events"
-#         ],
-#         "provides_services": [],
-#         "config": {},
-#         "actions": [],
-#         "action_icons": {}
-# },
-# 
     {
         "name": "writer",
         "title": "Writer document tools (including navigation and search)",
@@ -585,59 +466,4 @@ MODULES = [
         ],
         "action_icons": {}
 },
-#     {
-#         "name": "tunnel",
-#         "title": "Tunnel providers for external MCP access",
-#         "requires": [
-#                 "config",
-#                 "events",
-#                 "http_routes"
-#         ],
-#         "provides_services": [
-#                 "tunnel_manager"
-#         ],
-#         "config": {
-#                 "auto_start": {
-#                         "type": "boolean",
-#                         "default": False,
-#                         "widget": "checkbox",
-#                         "label": "Auto Start Tunnel",
-#                         "public": True
-#                 },
-#                 "provider": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "select",
-#                         "label": "Tunnel Provider",
-#                         "options_provider": "plugin.modules.tunnel:get_provider_options"
-#                 },
-#                 "server": {
-#                         "type": "string",
-#                         "default": "bore.pub",
-#                         "label": "Bore Server",
-#                         "helper": "Relay server (default: bore.pub)"
-#                 },
-#                 "tunnel_name": {
-#                         "type": "string",
-#                         "default": "",
-#                         "label": "Cloudflare Tunnel Name",
-#                         "helper": "Optional: use a named tunnel instead of a quick tunnel"
-#                 },
-#                 "public_url": {
-#                         "type": "string",
-#                         "default": "",
-#                         "label": "Cloudflare Public URL",
-#                         "helper": "Required for named tunnels"
-#                 },
-#                 "authtoken": {
-#                         "type": "string",
-#                         "default": "",
-#                         "widget": "password",
-#                         "label": "Ngrok Authtoken"
-#                 }
-#         },
-#         "actions": [],
-#         "action_icons": {}
-# },
-# 
 ]

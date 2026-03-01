@@ -17,6 +17,7 @@ from plugin.modules.writer.comments import COMMENTS_TOOLS, tool_list_comments, t
 from plugin.modules.writer.content import CONTENT_TOOLS, tool_read_paragraphs, tool_insert_at_paragraph
 from plugin.modules.writer.tracking import TRACKING_TOOLS, tool_set_track_changes, tool_get_tracked_changes, tool_accept_all_changes, tool_reject_all_changes
 from plugin.modules.writer.tables import TABLES_TOOLS, tool_list_tables, tool_read_table, tool_write_table_cell
+from plugin.modules.ai.tools import WebResearchTool, GenerateImageTool, EditImageTool
 
 WRITER_OPS_TOOLS = OUTLINE_TOOLS + STATS_TOOLS + STYLES_TOOLS + COMMENTS_TOOLS + CONTENT_TOOLS + TRACKING_TOOLS + TABLES_TOOLS
 from plugin.modules.core.document import (
@@ -28,74 +29,7 @@ from plugin.modules.core.document import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Image tools
-# ---------------------------------------------------------------------------
-
-IMAGE_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "generate_image",
-            "description": "Generate an image from a text prompt and insert it into the document.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "prompt": {"type": "string", "description": "The visual description of the image to generate."},
-                    "width": {"type": "integer", "description": "Width in pixels (default 512)."},
-                    "height": {"type": "integer", "description": "Height in pixels (default 512)."},
-                    "provider": {"type": "string", "description": "Image provider: aihorde, or endpoint (use Settings endpoint URL for images)."}
-                },
-                "required": ["prompt"],
-                "additionalProperties": False
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "edit_image",
-            "description": "Edit the selected image using a text prompt (Img2Img). If no image is selected, it will fail.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "prompt": {"type": "string", "description": "The visual description of the desired image version."},
-                    "strength": {"type": "number", "description": "How much to change the image (0.0=none, 1.0=full). Default 0.6."},
-                    "provider": {"type": "string", "description": "Image provider: aihorde, or endpoint (use Settings endpoint URL for images)."}
-                },
-                "required": ["prompt"],
-                "additionalProperties": False
-            }
-        }
-    }
-]
-
-SEARCH_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "web_research",
-            "description": "Perform web research using an AI sub-agent which can understand natural language requests and questions to return a synthesized answer.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string", 
-                        "description": "The information to search for or the question to answer."
-                    },
-                    "history_text": {
-                        "type": "string",
-                        "description": "Previous conversation history for context (optional)."
-                    }
-                },
-                "required": ["query"],
-                "additionalProperties": True
-            }
-        }
-    }
-]
-
-WRITER_TOOLS = list(FORMAT_TOOLS) + WRITER_OPS_TOOLS + IMAGE_TOOLS + SEARCH_TOOLS
+WRITER_TOOLS = list(FORMAT_TOOLS) + WRITER_OPS_TOOLS
 
 
 # ---------------------------------------------------------------------------
@@ -346,11 +280,6 @@ TOOL_DISPATCH = {
     "list_tables": tool_list_tables,
     "read_table": tool_read_table,
     "write_table_cell": tool_write_table_cell,
-    # Images
-    "generate_image": tool_generate_image,
-    "edit_image": tool_edit_image,
-    # Search
-    "web_research": tool_web_research,
 }
 
 # Build schema map from existing OpenAI-style list (used by Writer registry wrappers).
@@ -399,6 +328,10 @@ def _writer_tool_class(name, dispatch_func):
 
 
 _writer_registry = ToolRegistry(services={})
+_writer_registry.register(WebResearchTool())
+_writer_registry.register(GenerateImageTool())
+_writer_registry.register(EditImageTool())
+
 for _name, _func in TOOL_DISPATCH.items():
     _writer_registry.register(_writer_tool_class(_name, _func)())
 

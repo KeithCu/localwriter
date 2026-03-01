@@ -466,7 +466,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 from plugin.modules.calc.tools import CALC_TOOLS, execute_calc_tool
                 active_tools = CALC_TOOLS
                 # Calc tools don't support status_callback yet, but we should handle the kwarg safely
-                execute_fn = lambda name, args, doc, ctx, status_callback=None: execute_calc_tool(name, args, doc)
+                execute_fn = lambda name, args, doc, ctx, status_callback=None, append_thinking_callback=None: \
+                    execute_calc_tool(name, args, doc, ctx, status_callback=status_callback, append_thinking_callback=append_thinking_callback)
                 debug_log("_do_send: calc_tools imported OK (%d tools)" % len(CALC_TOOLS), context="Chat")
             elif doc_is_draw:
                 debug_log("_do_send: importing draw_tools...", context="Chat")
