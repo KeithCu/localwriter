@@ -197,16 +197,30 @@ For detailed configuration examples, see [CONFIG_EXAMPLES.md](CONFIG_EXAMPLES.md
 ## Contributing
 
 ### Local Development
+
+**Prerequisites:** Python 3.8+, [uv](https://docs.astral.sh/uv/), PyYAML (`uv pip install pyyaml`), and LibreOffice with `unopkg` on your PATH. Run `make check-setup` to verify.
+
+Alternatively, use Docker to build with no local dependencies (see `make docker-build`).
+
 ```bash
 # Clone the repository
-git clone https://github.com/balisujohn/localwriter.git
+git clone https://github.com/KeithCu/localwriter.git
 cd localwriter
 
-# Build the extension package
-bash build.sh
+# Build the extension package (.oxt)
+make build
 
-# Register the extension
-unopkg add localwriter.oxt
+# Full dev cycle: build + reinstall + restart LibreOffice + show log
+make deploy
+
+# Or for fast iteration: symlink the project into LO extensions (no rebuild needed)
+make dev-deploy
+
+# Run tests
+make test
+
+# See all available targets
+make help
 ```
 
 ## License
