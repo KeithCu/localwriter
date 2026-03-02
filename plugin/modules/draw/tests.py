@@ -1,5 +1,5 @@
 import json
-from plugin.modules.core.draw_tools import execute_draw_tool, DRAW_TOOLS
+from plugin.modules.draw.tools import execute_draw_tool, DRAW_TOOLS
 from plugin.framework.logging import debug_log
 
 def run_draw_tests(ctx, model=None):

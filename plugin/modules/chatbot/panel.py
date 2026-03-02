@@ -471,7 +471,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 debug_log("_do_send: calc_tools imported OK (%d tools)" % len(CALC_TOOLS), context="Chat")
             elif doc_is_draw:
                 debug_log("_do_send: importing draw_tools...", context="Chat")
-                from plugin.modules.core.draw_tools import DRAW_TOOLS, execute_draw_tool
+                from plugin.modules.draw.tools import DRAW_TOOLS, execute_draw_tool
                 active_tools = DRAW_TOOLS
                 execute_fn = execute_draw_tool
                 debug_log("_do_send: draw_tools imported OK (%d tools)" % len(DRAW_TOOLS), context="Chat")

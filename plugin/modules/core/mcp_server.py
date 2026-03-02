@@ -72,7 +72,7 @@ def _get_tools_for_doc(doc, doc_type):
         from plugin.modules.calc.tools import CALC_TOOLS
         return CALC_TOOLS
     if doc_type == "draw":
-        from plugin.modules.core.draw_tools import DRAW_TOOLS
+        from plugin.modules.draw.tools import DRAW_TOOLS
         return DRAW_TOOLS
     from plugin.modules.core.document_tools import WRITER_TOOLS
     return WRITER_TOOLS
@@ -241,7 +241,7 @@ class MCPHandler(BaseHTTPRequestHandler):
 
         def _run():
             from plugin.modules.calc.bridge import CalcBridge
-            from plugin.modules.core.draw_bridge import DrawBridge
+            from plugin.modules.draw.bridge import DrawBridge
             doc, doc_type = _resolve_document(self.ctx, doc_url)
             if doc is None:
                 return json.dumps({"status": "error", "message": "No document found. Open a document or set X-Document-URL."})
@@ -249,7 +249,7 @@ class MCPHandler(BaseHTTPRequestHandler):
                 from plugin.modules.calc.tools import execute_calc_tool
                 return execute_calc_tool(tool_name, body, doc, self.ctx)
             if doc_type == "draw":
-                from plugin.modules.core.draw_tools import execute_draw_tool
+                from plugin.modules.draw.tools import execute_draw_tool
                 return execute_draw_tool(tool_name, body, doc, self.ctx, status_callback=None)
             from plugin.modules.core.document_tools import execute_tool
             return execute_tool(tool_name, body, doc, self.ctx)

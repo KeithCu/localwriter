@@ -280,7 +280,7 @@ def get_calc_context_for_chat(model, max_context=8000, ctx=None):
 def get_draw_context_for_chat(model, max_context=8000, ctx=None):
     """Get context summary for a Draw/Impress document. ctx: component context (unused, kept for signature compat)."""
     try:
-        from plugin.modules.core.draw_bridge import DrawBridge
+        from plugin.modules.draw.bridge import DrawBridge
         bridge = DrawBridge(model)
         pages = bridge.get_pages()
         active_page = bridge.get_active_page()

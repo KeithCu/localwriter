@@ -9,7 +9,7 @@ from plugin.modules.core.document import get_document_context_for_chat
 from plugin.framework.constants import get_chat_system_prompt_for_document
 from plugin.modules.core.document_tools import WRITER_TOOLS, execute_tool
 from plugin.modules.calc.tools import CALC_TOOLS, execute_calc_tool
-from plugin.modules.core.draw_tools import DRAW_TOOLS, execute_draw_tool
+from plugin.modules.draw.tools import DRAW_TOOLS, execute_draw_tool
 from plugin.modules.core.pricing import fetch_openrouter_pricing, calculate_cost
 
 class EvalRunner:

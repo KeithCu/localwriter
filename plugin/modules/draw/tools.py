@@ -3,7 +3,7 @@
 import json
 import logging
 from plugin.framework.logging import agent_log, debug_log
-from plugin.modules.core.draw_bridge import DrawBridge
+from plugin.modules.draw.bridge import DrawBridge
 
 logger = logging.getLogger(__name__)
 
