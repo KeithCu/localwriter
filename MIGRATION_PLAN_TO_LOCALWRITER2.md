@@ -34,7 +34,8 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
    - `plugin/chat_panel.py` moved via `git mv` to `plugin/modules/chatbot/panel_factory.py` (history preserved). Manifest and build script updated to register the new path.
    - ChatSession, SendButtonListener, StopButtonListener, and ClearButtonListener extracted into `plugin/modules/chatbot/panel.py`; `panel_factory.py` imports them and passes `ensure_path_fn=_ensure_extension_on_path` into the listener.
    - Extension-root path fix: when loaded from the unpacked .oxt, `panel_factory.py` adds the extension root (4 levels up from itself) to `sys.path` so `import plugin` resolves correctly.
-4. `AGENTS.md` and tests updated iteratively.
+4. **Draw Module:** ✅ (Completed) `draw_tools`, `draw_bridge`, and `draw_tests` moved from core to `plugin/modules/draw/` and imports updated.
+5. `AGENTS.md` and tests updated iteratively.
 
 ### Phase 5: Additional Core Services (Future Work)
 `localwriter2` separates LLM and web services into distinct modules.
