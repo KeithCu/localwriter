@@ -2,6 +2,8 @@
 localwriter.json
 
 # Build artifacts
+build/
+vendor/
 *.oxt
 *.pyc
 __pycache__/
