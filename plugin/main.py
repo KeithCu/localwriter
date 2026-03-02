@@ -32,191 +32,100 @@ from com.sun.star.beans import PropertyValue
 from com.sun.star.container import XNamed
 
 # ---------------------------------------------------------------------------
-# MCP Server (module-level state; UNO Timer for main-thread drain)
+# HTTP / MCP Server (Module wrapper)
 # ---------------------------------------------------------------------------
-# The timer is needed because MCP request work is queued and must be drained on
-# LibreOffice's main thread. We use a UNO Timer (not the sidebar's processEventsToIdle
-# pattern) because we need periodic ticks even when no user action is active.
+_http_module_instance = None
+_legacy_services_mock = None
 
-_mcp_server = None
-_mcp_timer_thread = None
-_mcp_timer_stop_event = None
+def _get_http_module(ctx):
+    global _http_module_instance, _legacy_services_mock
+    if _http_module_instance is None:
+        from plugin.modules.http import HttpModule
+        from plugin.framework.service_registry import ServiceRegistry
+        from plugin.framework.tool_registry import ToolRegistry
+        import os
+        
+        _legacy_services_mock = ServiceRegistry()
+        
+        # 1. Mock config service mapping old keys to new HttpModule expectations
+        class ConfigMock:
+            def __init__(self, ctx):
+                self.ctx = ctx
+            def proxy_for(self, name):
+                return self
+            def get(self, key, default=None):
+                from plugin.modules.core.config import get_config, as_bool
+                if key == "mcp_enabled": return as_bool(get_config(self.ctx, "mcp_enabled", False))
+                if key == "enabled": return True
+                if key == "port": return int(get_config(self.ctx, "mcp_port", 8765))
+                if key == "host": return "localhost"
+                if key == "use_ssl": return False
+                return default
+        _legacy_services_mock.register_instance("config", ConfigMock(ctx))
 
+        # 2. Tool Registry (needed for MCP to resolve and call tools)
+        registry = ToolRegistry(_legacy_services_mock)
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        registry.discover(os.path.join(plugin_dir, "modules", "writer", "tools"), "plugin.modules.writer.tools")
+        registry.discover(os.path.join(plugin_dir, "modules", "calc", "tools"), "plugin.modules.calc.tools")
+        registry.discover(os.path.join(plugin_dir, "modules", "draw", "tools"), "plugin.modules.draw.tools")
+        registry.discover(os.path.join(plugin_dir, "modules", "doc", "tools"), "plugin.modules.doc.tools")
+        _legacy_services_mock.register_instance("tools", registry)
+        
+        # 3. Document Service (needed to detect doc type for MCP schemas)
+        from plugin.modules.core.document import is_writer, is_calc, is_draw
+        class DocumentServiceMock:
+            def get_active_document(self):
+                try:
+                    smgr = ctx.getServiceManager()
+                    desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+                    return desktop.getCurrentComponent()
+                except Exception:
+                    return None
+            def detect_doc_type(self, doc):
+                if is_calc(doc): return "calc"
+                if is_draw(doc): return "draw"
+                return "writer"
+        _legacy_services_mock.register_instance("document", DocumentServiceMock())
 
-def _start_mcp_timer(ctx):
-    """Start Python background thread that periodically dispatches a drain command
-    to the main thread. We use dispatch instead of a UNO Timer because UNO Timers
-    fail to instantiate in the system Python environment (missing 'com' package).
-    """
-    global _mcp_timer_thread, _mcp_timer_stop_event
-    from plugin.framework.logging import debug_log
-    import threading
-    import time
-
-    if _mcp_timer_thread and _mcp_timer_thread.is_alive():
-        return
-
-    _mcp_timer_stop_event = threading.Event()
-
-    def timer_loop():
-        try:
-            smgr = ctx.getServiceManager()
-            async_cb = smgr.createInstanceWithContext("com.sun.star.awt.AsyncCallback", ctx)
-            
-            from com.sun.star.awt import XCallback
-            import unohelper
-            
-            class _MCPDrainCallback(unohelper.Base, XCallback):
-                def notify(self, data):
-                    try:
-                        from plugin.modules.core.mcp_thread import drain_mcp_queue
-                        drain_mcp_queue()
-                    except Exception as e:
-                        debug_log("MCP drain failed: %s" % e, context="MCP")
-            
-            callback = _MCPDrainCallback()
-            
-        except Exception as e:
-            debug_log("MCP Timer thread failed to initialize AsyncCallback or XCallback: %s" % e, context="MCP")
-            return
-
-        while not _mcp_timer_stop_event.is_set():
-            time.sleep(0.1) # 100ms
-            if _mcp_timer_stop_event.is_set():
-                break
-            try:
-                async_cb.addCallback(callback, None)
-            except Exception as e:
-                debug_log("MCP async_cb error: %s" % str(e), context="MCP")
-
-    _mcp_timer_thread = threading.Thread(target=timer_loop, daemon=True)
-    _mcp_timer_thread.start()
-    debug_log("MCP Timer thread started (drain every 100ms via Dispatch)", context="MCP")
-
-
-def try_ensure_mcp_timer(ctx):
-    """Start the MCP drain timer if the server is running but the timer is not.
-    Called from the sidebar when the panel is created.
-    If config has mcp_enabled but the server was not started this session (e.g. after
-    restart), start the server first so the timer can run."""
-    global _mcp_server, _mcp_timer_thread
-    from plugin.framework.logging import debug_log
-    if _mcp_server is None:
-        if as_bool(get_config(ctx, "mcp_enabled", False)):
-            debug_log("MCP: config enabled but server not running, starting server from sidebar", context="MCP")
-            _start_mcp_server(ctx)
-        if _mcp_server is None:
-            debug_log("MCP: server not running, skipping timer start", context="MCP")
-            return
-    if _mcp_timer_thread is not None and _mcp_timer_thread.is_alive():
-        debug_log("MCP: timer already running", context="MCP")
-        return
-    debug_log("MCP: starting drain timer from sidebar", context="MCP")
-    _start_mcp_timer(ctx)
-
-
-def _stop_mcp_timer():
-    global _mcp_timer_stop_event
-    try:
-        if _mcp_timer_stop_event:
-            _mcp_timer_stop_event.set()
-    except Exception:
-        pass
+        # Initialize HttpModule
+        _http_module_instance = HttpModule()
+        _http_module_instance.name = "http"
+        _http_module_instance.initialize(_legacy_services_mock)
+    return _http_module_instance
 
 
 def _start_mcp_server(ctx):
-    """Start MCP HTTP server and drain timer if enabled in config."""
-    global _mcp_server
-    from plugin.modules.core.config import get_config
-    from plugin.modules.core.mcp_server import MCPHttpServer, _kill_zombies_on_port, _probe_health
-    from plugin.framework.logging import debug_log
+    """Start HTTP/MCP server if enabled."""
+    from plugin.modules.core.config import get_config, as_bool
     if not as_bool(get_config(ctx, "mcp_enabled", False)):
         return
-    if _mcp_server is not None:
-        return
-    port = int(get_config(ctx, "mcp_port", 8765))
-    if port <= 0 or port > 65535:
-        port = 8765
-    _kill_zombies_on_port("127.0.0.1", port)
-    try:
-        _mcp_server = MCPHttpServer(ctx, port=port)
-        _mcp_server.start()
-        # Timer is started from the sidebar (try_ensure_mcp_timer) where 'com' is available
-    except OSError as e:
-        if getattr(e, "errno", None) == 98 or "Address already in use" in str(e):
-            if _probe_health("127.0.0.1", port):
-                debug_log("MCP server already running on port %s (e.g. from sidebar), not starting again" % port, context="MCP")
-                _show_mcp_already_running(ctx, port)
-                return
-        _mcp_server = None
-        debug_log("MCP server start failed: %s" % e, context="MCP")
-    except Exception as e:
-        _mcp_server = None
-        debug_log("MCP server start failed: %s" % e, context="MCP")
+    mod = _get_http_module(ctx)
+    if not mod._server or not mod._server.is_running():
+        mod.start_background(_legacy_services_mock)
 
 
 def _stop_mcp_server():
-    global _mcp_server
-    _stop_mcp_timer()
-    try:
-        if _mcp_server is not None:
-            _mcp_server.stop()
-            _mcp_server = None
-    except Exception:
-        _mcp_server = None
+    global _http_module_instance
+    if _http_module_instance:
+        _http_module_instance.shutdown()
+        _http_module_instance = None
 
 
 def _toggle_mcp_server(ctx):
-    """Start server if stopped, stop if running."""
-    global _mcp_server
-    if _mcp_server is not None:
-        _stop_mcp_server()
-    else:
-        _start_mcp_server(ctx)
-
-
-def _show_mcp_already_running(ctx, port):
-    """Tell user the server is already running (e.g. started by the sidebar)."""
-    try:
-        smgr = ctx.getServiceManager()
-        desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-        frame = desktop.getCurrentFrame()
-        if frame and frame.ActiveFrame:
-            frame = frame.ActiveFrame
-        window_peer = frame.getContainerWindow() if frame else None
-        if not window_peer:
-            return
-        toolkit = smgr.createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
-        msg = "MCP server is already running on port %s (e.g. started by the sidebar).\n\nUse 'MCP Server Status' to confirm." % port
-        box = toolkit.createMessageBox(window_peer, 0, BUTTONS_OK, "MCP Server", msg)
-        box.execute()
-    except Exception:
-        pass
+    mod = _get_http_module(ctx)
+    mod._action_toggle_server()
 
 
 def _do_mcp_status(ctx):
-    """Show a small status dialog: running/stopped, port, health check."""
-    global _mcp_server
-    from plugin.modules.core.config import get_config
-    from plugin.modules.core.mcp_server import _probe_health
-    smgr = ctx.getServiceManager()
-    desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-    frame = desktop.getCurrentFrame()
-    if frame and frame.ActiveFrame:
-        frame = frame.ActiveFrame
-    window_peer = frame.getContainerWindow() if frame else None
-    if not window_peer:
-        return
-    toolkit = smgr.createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
-    port = int(get_config(ctx, "mcp_port", 8765))
-    ok = _probe_health("127.0.0.1", port)
-    # Show RUNNING if we have a handle or if the port responds (e.g. server started by sidebar)
-    status = "RUNNING" if (_mcp_server is not None or ok) else "STOPPED"
-    url = "http://localhost:%s" % port
-    health = "OK" if ok else ("FAIL" if _mcp_server else "N/A")
-    msg = "MCP Server: %s\nPort: %s\nURL: %s\nHealth: %s" % (status, port, url, health)
-    box = toolkit.createMessageBox(window_peer, 0, BUTTONS_OK, "MCP Server Status", msg)
-    box.execute()
+    mod = _get_http_module(ctx)
+    mod._action_server_status()
+
+
+def try_ensure_mcp_timer(ctx):
+    """Legacy entry point from sidebar to ensure server is running.
+    The new framework main_thread executes drains natively without timers."""
+    _start_mcp_server(ctx)
 
 
 # The MainJob is a UNO component derived from unohelper.Base class
@@ -748,10 +657,10 @@ class MainJob(unohelper.Base, XJobExecutor):
         if args == "settings" and (not model or (not is_writer(model) and not is_calc(model) and not is_draw(model))):
             agent_log("main.py:trigger", "settings requested but no compatible document", data={"args": str(args)}, hypothesis_id="H2")
 
-        if args == "ToggleMCPServer":
+        if args == "ToggleMCPServer" or args == "plugin.http:toggle_server":
             _toggle_mcp_server(self.ctx)
             return
-        if args == "MCPStatus":
+        if args == "MCPStatus" or args == "plugin.http:server_status":
             _do_mcp_status(self.ctx)
             return
         if args == "TestTypes":
