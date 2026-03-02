@@ -37,10 +37,10 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
 4. **Draw Module:** ✅ (Completed) `draw_tools`, `draw_bridge`, and `draw_tests` moved from core to `plugin/modules/draw/` and imports updated.
 5. `AGENTS.md` and tests updated iteratively.
 
-### Phase 5: Additional Core Services (Future Work)
+### Phase 5: Additional Core Services
 `localwriter2` separates LLM and web services into distinct modules.
 1. **AI Module:** Port over the `ai` module (`plugin/modules/ai/`) and register it properly in `_manifest.py`.
-2. **HTTP Module:** Port over the internal web server and MCP routes (`plugin/modules/http/`).
+2. **HTTP Module:** ✅ (Completed) Ported the internal web server and MCP routes (`plugin/modules/http/`).
 3. Update `config.py` and remove legacy hardcoded settings in favor of the new modular configuration system.
 
 ## Verification Plan
@@ -56,12 +56,13 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
 
 ## What to work on later (advised follow-ups)
 
-- **Phase 3 remaining (optional):** Minor alignment files like `panel_layout.py`, `config_schema.py`, `http_server.py`, and `http_routes.py` remain in `localwriter2` and could be ported if the higher-level HTTP/UI services are migrated. 
+### Completed: EventBus Reconciliation ✅
+`localwriter` now exclusively uses the robust `plugin/framework/event_bus.py`. The legacy `plugin/modules/core/tool_bus.py` was successfully migrated and removed.
 
-- **Writer tool layout (optional):** To make the repo “look” more like localwriter2, you can refactor Writer tools from a single block in `document_tools.py` into one module per domain (e.g. `plugin/modules/writer/format_tools.py`, `outline_tools.py`, …), each defining `ToolBase` subclasses whose `execute()` still delegates to the existing implementations. Same behavior, but file layout matches localwriter2.
+### Recommended Next Step (Simple, Robust, Incremental)
+**Writer tool layout (purely organizational):** Refactor Writer tools from a single block in `document_tools.py` into one module per domain (e.g. `plugin/modules/writer/format_tools.py`, `outline_tools.py`, ...) to match localwriter2. This involves zero logic changes, just breaking a large file into smaller, focused files.
 
-- **Writer tools with logic in ToolBase (optional):** Later you can replace the thin Writer wrappers with “real” ToolBase classes that contain the logic (or call a document/paragraph service) and use `ctx.services`, so Writer tools align with localwriter2’s style. That implies introducing a document service (and optionally writer_index, writer_tree) and wiring it into `ToolContext.services` when building the context for Writer.
-
-- **EventBus reconciliation (optional):** Reconcile the two `EventBus` implementations. Currently, `plugin/modules/core/tool_bus.py` uses a simple broadcast list, while the new `plugin/framework/event_bus.py` supports event-keyed subscriptions and weak references. In the future, `tool_bus.py` can be refactored to use the framework version.
-
-- **Phase 5:** Port the AI module (`plugin/modules/ai/`), HTTP/MCP module (`plugin/modules/http/`), and move config toward the new modular/schema-based system when you are ready to reduce divergence from localwriter2.
+### Other Follow-ups 
+- **Writer tools with logic in ToolBase:** Replace the thin Writer wrappers with "real" `ToolBase` classes that contain the logic and use `ctx.services` (requires introducing a document service).
+- **Phase 5 (AI Module):** Port the AI module (`plugin/modules/ai/`). This may be slightly more complex due to recent AI tool restorations, but it is necessary for full architectural alignment.
+- **Config Migration:** Move `config.py` toward the new schema-based system to fully decouple settings.

@@ -112,8 +112,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         # Subscribe to MCP/tool bus events
         try:
-            from plugin.modules.core.tool_bus import tool_bus
-            tool_bus.subscribe(self._on_mcp_event)
+            from plugin.framework.event_bus import global_event_bus
+            global_event_bus.subscribe("mcp:request", self._on_mcp_request)
+            global_event_bus.subscribe("mcp:result", self._on_mcp_result)
         except Exception as e:
             debug_log("MCP subscribe error: %s" % e, context="Chat")
 
@@ -153,44 +154,56 @@ class SendButtonListener(unohelper.Base, XActionListener):
         except Exception:
             pass
 
-    def _on_mcp_event(self, event_type, data):
-        """Handle MCP events from the bus (background thread)."""
-        from plugin.modules.core.mcp_thread import post_to_main_thread
+    def _on_mcp_request(self, event_name, tool="", args=None, method=None, **kwargs):
+        """Handle MCP request events from the bus (background thread)."""
+        from plugin.framework.main_thread import execute_on_main_thread
         from plugin.modules.core.config import get_config
 
-        # Default to show if key is missing
         if not get_config(self.ctx, "show_mcp_activity", True):
             return
 
         def _update_ui():
             try:
-                if event_type == "request":
-                    tool = data.get("tool", "")
-                    args = data.get("args", {})
+                args_dict = args or {}
+                arg_vals = []
+                if isinstance(args_dict, dict):
+                    for v in args_dict.values():
+                        s = str(v)
+                        if len(s) > 10:
+                            s = s[:10]
+                        arg_vals.append(s)
 
-                    arg_vals = []
-                    if isinstance(args, dict):
-                        for v in args.values():
-                            s = str(v)
-                            if len(s) > 10:
-                                s = s[:10]
-                            arg_vals.append(s)
-
-                    args_str = " (%s)" % ", ".join(arg_vals) if arg_vals else ""
-                    msg = "\n[MCP Request] Tool: %s%s\n" % (tool, args_str) if tool else "\n[MCP Request] %s\n" % data.get("method", "GET")
-                    self._append_response(msg)
-                elif event_type == "result":
-                    tool = data.get("tool", "")
-                    res = data.get("result", "")
-                    msg = "[MCP Result] %s: %s\n" % (tool, res[:100])
-                    self._append_response(msg)
+                args_str = " (%s)" % ", ".join(arg_vals) if arg_vals else ""
+                method_str = method or "GET"
+                msg = "\n[MCP Request] Tool: %s%s\n" % (tool, args_str) if tool else "\n[MCP Request] %s\n" % method_str
+                self._append_response(msg)
             except Exception as e:
-                debug_log("_on_mcp_event UI update error: %s" % e, context="Chat")
+                debug_log("_on_mcp_request UI update error: %s" % e, context="Chat")
 
         try:
-            post_to_main_thread(_update_ui)
+            execute_on_main_thread(_update_ui, self.ctx)
         except Exception as e:
-            debug_log("_on_mcp_event post error: %s" % e, context="Chat")
+            debug_log("_on_mcp_request post error: %s" % e, context="Chat")
+
+    def _on_mcp_result(self, event_name, tool="", result_snippet="", **kwargs):
+        """Handle MCP result events from the bus (background thread)."""
+        from plugin.framework.main_thread import execute_on_main_thread
+        from plugin.modules.core.config import get_config
+
+        if not get_config(self.ctx, "show_mcp_activity", True):
+            return
+
+        def _update_ui():
+            try:
+                msg = "[MCP Result] %s: %s\n" % (tool, result_snippet[:100])
+                self._append_response(msg)
+            except Exception as e:
+                debug_log("_on_mcp_result UI update error: %s" % e, context="Chat")
+
+        try:
+            execute_on_main_thread(_update_ui, self.ctx)
+        except Exception as e:
+            debug_log("_on_mcp_result post error: %s" % e, context="Chat")
 
     def _get_document_model(self):
         """Get the Writer document model."""
@@ -1042,8 +1055,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
     def disposing(self, evt):
         try:
-            from plugin.modules.core.tool_bus import tool_bus
-            tool_bus.unsubscribe(self._on_mcp_event)
+            from plugin.framework.event_bus import global_event_bus
+            global_event_bus.unsubscribe("mcp:request", self._on_mcp_request)
+            global_event_bus.unsubscribe("mcp:result", self._on_mcp_result)
         except Exception:
             pass
 
