@@ -98,54 +98,39 @@ class GetTrackedChanges(ToolBase):
         }
 
 
-class AcceptAllChanges(ToolBase):
-    """Accept all tracked changes in the document."""
+class ManageTrackedChanges(ToolBase):
+    """Accept or reject all tracked changes in the document."""
 
-    name = "accept_all_changes"
+    name = "manage_tracked_changes"
     intent = "review"
-    description = "Accept all tracked changes in the document."
+    description = "Accept or reject all tracked changes in the document."
     parameters = {
         "type": "object",
-        "properties": {},
-        "required": [],
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["accept_all", "reject_all"],
+                "description": "Action to perform: 'accept_all' or 'reject_all'.",
+            },
+        },
+        "required": ["action"],
     }
     doc_types = ["writer"]
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
-        # UNO dispatcher is the reliable way to accept all redlines.
+        action = kwargs.get("action")
+        if action not in ("accept_all", "reject_all"):
+            return {"status": "error", "message": "Invalid action: %s" % action}
+
         smgr = ctx.ctx.ServiceManager
         dispatcher = smgr.createInstanceWithContext(
             "com.sun.star.frame.DispatchHelper", ctx.ctx
         )
         frame = ctx.doc.getCurrentController().getFrame()
-        dispatcher.executeDispatch(
-            frame, ".uno:AcceptAllTrackedChanges", "", 0, ()
-        )
-        return {"status": "ok", "message": "All tracked changes accepted."}
-
-
-class RejectAllChanges(ToolBase):
-    """Reject all tracked changes in the document."""
-
-    name = "reject_all_changes"
-    intent = "review"
-    description = "Reject all tracked changes in the document."
-    parameters = {
-        "type": "object",
-        "properties": {},
-        "required": [],
-    }
-    doc_types = ["writer"]
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        smgr = ctx.ctx.ServiceManager
-        dispatcher = smgr.createInstanceWithContext(
-            "com.sun.star.frame.DispatchHelper", ctx.ctx
-        )
-        frame = ctx.doc.getCurrentController().getFrame()
-        dispatcher.executeDispatch(
-            frame, ".uno:RejectAllTrackedChanges", "", 0, ()
-        )
-        return {"status": "ok", "message": "All tracked changes rejected."}
+        
+        uno_cmd = ".uno:AcceptAllTrackedChanges" if action == "accept_all" else ".uno:RejectAllTrackedChanges"
+        dispatcher.executeDispatch(frame, uno_cmd, "", 0, ())
+        
+        msg = "All tracked changes accepted." if action == "accept_all" else "All tracked changes rejected."
+        return {"status": "ok", "message": msg}

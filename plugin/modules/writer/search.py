@@ -41,6 +41,13 @@ class SearchInDocument(ToolBase):
                     "(default: 1)."
                 ),
             },
+            "return_offsets": {
+                "type": "boolean",
+                "description": (
+                    "If true, returns {start, end, text} character offsets "
+                    "instead of paragraph context. (Regex not supported)."
+                ),
+            },
         },
         "required": ["pattern"],
     }
@@ -58,6 +65,15 @@ class SearchInDocument(ToolBase):
         case_sensitive = kwargs.get("case_sensitive", False)
         max_results = kwargs.get("max_results", 20)
         context_paragraphs = kwargs.get("context_paragraphs", 1)
+        return_offsets = kwargs.get("return_offsets", False)
+
+        if return_offsets:
+            from plugin.modules.writer import format_support
+            ranges = format_support.find_text_ranges(
+                ctx.doc, ctx.ctx, pattern,
+                start=0, limit=max_results, case_sensitive=case_sensitive,
+            )
+            return {"status": "ok", "ranges": ranges}
 
         doc = ctx.doc
         doc_svc = ctx.services.document
