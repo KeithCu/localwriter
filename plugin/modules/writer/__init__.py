@@ -10,10 +10,10 @@ class WriterModule(ModuleBase):
         self.services = services
 
         # Initialize core Writer services (merged from writer_nav and writer_index)
-        from .services.bookmarks import BookmarkService
-        from .services.tree import TreeService
-        from .services.proximity import ProximityService
-        from .services.index import IndexService
+        from .bookmarks import BookmarkService
+        from .tree import TreeService
+        from .proximity import ProximityService
+        from .index import IndexService
 
         doc_svc = services.document
         events = services.events

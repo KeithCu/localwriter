@@ -191,7 +191,7 @@ class IndexService:
             return cached
         try:
             # Add bundled snowballstemmer to path if needed
-            lib_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
+            lib_dir = os.path.join(os.path.dirname(__file__), "..", "..", "lib")
             lib_dir = os.path.normpath(lib_dir)
             if lib_dir not in sys.path:
                 sys.path.insert(0, lib_dir)
