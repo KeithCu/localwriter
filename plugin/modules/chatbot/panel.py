@@ -495,7 +495,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 debug_log("_do_send: loading writer schema...", context="Chat")
                 active_tools = get_tools().get_openai_schemas(doc_type="writer")
 
-            def execute_fn(name, args, doc, ctx, status_callback=None, append_thinking_callback=None):
+            def execute_fn(name, args, doc, ctx, status_callback=None, append_thinking_callback=None, stop_checker=None):
                 import json
                 from plugin.framework.tool_context import ToolContext
                 doc_type = "calc" if doc_is_calc else "draw" if doc_is_draw else "writer"
@@ -506,7 +506,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     services=get_tools()._services,
                     caller="chat",
                     status_callback=status_callback,
-                    append_thinking_callback=append_thinking_callback
+                    append_thinking_callback=append_thinking_callback,
+                    stop_checker=stop_checker
                 )
                 try:
                     res = get_tools().execute(name, tctx, **args)
@@ -643,7 +644,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     services=get_tools()._services,
                     caller="chat",
                     status_callback=status_cb,
-                    append_thinking_callback=thinking_cb
+                    append_thinking_callback=thinking_cb,
+                    stop_checker=lambda: self.stop_requested
                 )
 
                 import json
@@ -957,9 +959,11 @@ class SendButtonListener(unohelper.Base, XActionListener):
                                 if supports_status:
                                     res = execute_tool_fn(func_name, func_args, model, self.ctx,
                                                           status_callback=tool_status_callback,
-                                                          append_thinking_callback=tool_thinking_callback)
+                                                          append_thinking_callback=tool_thinking_callback,
+                                                          stop_checker=lambda: self.stop_requested)
                                 else:
-                                    res = execute_tool_fn(func_name, func_args, model, self.ctx)
+                                    res = execute_tool_fn(func_name, func_args, model, self.ctx,
+                                                         stop_checker=lambda: self.stop_requested)
                                 q.put(("tool_done", call_id, func_name, func_args_str, res))
                             except Exception as e:
                                 q.put(("tool_done", call_id, func_name, func_args_str, json.dumps({"status": "error", "message": str(e)})))

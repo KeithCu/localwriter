@@ -34,6 +34,7 @@ class WebResearchTool(ToolBase):
 
         status_callback = getattr(ctx, "status_callback", None)
         append_thinking_callback = getattr(ctx, "append_thinking_callback", None)
+        stop_checker = getattr(ctx, "stop_checker", None)
 
         if history_text:
             # Truncate if extremely long, though the agent will handle it
@@ -73,6 +74,8 @@ class WebResearchTool(ToolBase):
             
             final_ans = None
             for step in agent.run(task, stream=True):
+                if stop_checker and stop_checker():
+                    return {"status": "error", "message": "Web search stopped by user."}
                 if isinstance(step, ToolCall):
                     status_msg = ""
                     if step.name == "web_search":
