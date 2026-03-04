@@ -14,9 +14,8 @@ class ChatbotModule(ModuleBase):
         self._services = services
         self._routes_registered = False
 
-        # Create the tool adapter for routing chat tool calls
-        from plugin.modules.chatbot.panel import ChatToolAdapter
-        self._adapter = ChatToolAdapter(services.tools, services)
+        # Chat tool routing is now handled natively by main.py's get_tools() instead of ChatToolAdapter
+        self._adapter = None
 
         # Register API routes if enabled
         cfg = services.config.proxy_for(self.name)

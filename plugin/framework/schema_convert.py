@@ -11,7 +11,7 @@ def to_openai_schema(tool):
         {
             "type": "function",
             "function": {
-                "name": "get_document_outline",
+                "name": "get_document_tree",
                 "description": "...",
                 "parameters": { ... JSON Schema ... }
             }

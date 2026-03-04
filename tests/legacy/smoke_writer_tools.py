@@ -1,37 +1,43 @@
-import json
+"""Smoke tests for writer tools: registry has expected tools and schemas are valid."""
+
 import unittest
-from plugin.modules.core.document_tools import TOOL_DISPATCH
-from plugin.modules.writer.ops import WRITER_OPS_TOOLS
+from plugin.main import get_tools
+
 
 class TestWriterToolsSmoke(unittest.TestCase):
     def test_registration(self):
-        # Tools we added
-        new_tools = [
-            "get_document_outline",
-            "get_heading_content",
-            "read_paragraphs",
-            "insert_at_paragraph",
-            "get_document_stats"
-        ]
-        for tool in new_tools:
-            self.assertIn(tool, TOOL_DISPATCH, f"Tool {tool} not registered in TOOL_DISPATCH")
-            
+        registry = get_tools()
+        writer_tools = {t.name for t in registry.tools_for_doc_type("writer")}
+        # Core / navigation
+        self.assertIn("get_document_tree", writer_tools)
+        self.assertIn("get_heading_children", writer_tools)
+        # Content
+        self.assertIn("read_paragraphs", writer_tools)
+        self.assertIn("insert_at_paragraph", writer_tools)
+        self.assertIn("get_document_stats", writer_tools)
+        self.assertIn("modify_paragraph", writer_tools)
+        # Workflow (merged from scan_tasks, get_workflow_status, set_workflow_status, check_stop_conditions)
+        self.assertIn("workflow", writer_tools)
+        # Removed tools no longer present
+        self.assertNotIn("get_document_outline", writer_tools)
+        self.assertNotIn("get_heading_content", writer_tools)
+        self.assertNotIn("set_paragraph_text", writer_tools)
+        self.assertNotIn("set_paragraph_style", writer_tools)
+        self.assertNotIn("scan_tasks", writer_tools)
+        self.assertNotIn("get_workflow_status", writer_tools)
+        self.assertNotIn("set_workflow_status", writer_tools)
+        self.assertNotIn("check_stop_conditions", writer_tools)
+
     def test_schemas(self):
-        # Check that schemas are valid JSON-like structures
-        new_tool_names = [
-            "get_document_outline",
-            "get_heading_content",
-            "read_paragraphs",
-            "get_document_stats"
-        ]
-        found = 0
-        for tool_def in WRITER_OPS_TOOLS:
-            name = tool_def["function"]["name"]
-            if name in new_tool_names:
-                self.assertIn("description", tool_def["function"])
-                self.assertIn("parameters", tool_def["function"])
-                found += 1
-        # self.assertEqual(found, len(new_tool_names)) # Might be more if I didn't filter correctly
+        registry = get_tools()
+        schemas = registry.get_openai_schemas(doc_type="writer")
+        names = {s["function"]["name"] for s in schemas}
+        for name in ("get_document_tree", "get_heading_children", "read_paragraphs", "get_document_stats", "modify_paragraph", "workflow"):
+            self.assertIn(name, names, f"Schema missing for {name}")
+        for s in schemas:
+            self.assertIn("description", s["function"])
+            self.assertIn("parameters", s["function"])
+
 
 if __name__ == "__main__":
     unittest.main()

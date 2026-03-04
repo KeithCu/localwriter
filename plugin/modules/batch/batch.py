@@ -236,9 +236,9 @@ class ExecuteBatch(ToolBase):
 
                 # Check stop conditions between operations
                 if (check_conditions and i < len(operations) - 1
-                        and tool_reg.get("check_stop_conditions")):
+                        and tool_reg.get("workflow")):
                     cond = tool_reg.execute(
-                        "check_stop_conditions", ctx)
+                        "workflow", ctx, action="check_stop")
                     if (isinstance(cond, dict)
                             and cond.get("should_stop")):
                         stopped = True

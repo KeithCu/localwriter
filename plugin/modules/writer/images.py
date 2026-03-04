@@ -1,4 +1,12 @@
-"""Writer image generation and editing tools."""
+"""Writer image generation and editing tools.
+
+Alternative (not implemented): consolidate the document image tools
+(ListImages, GetImageInfo, SetImageProperties, DownloadImage, InsertImage,
+DeleteImage, ReplaceImage) into a single manage_image tool with
+action: list | info | set_properties | download | insert | delete | replace
+and action-specific parameters. Would reduce 7 tools to 1 but yield a
+larger single schema.
+"""
 
 import logging
 import hashlib

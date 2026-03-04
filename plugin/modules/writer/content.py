@@ -412,17 +412,19 @@ class InsertAtParagraph(ToolBase):
 
 
 # ------------------------------------------------------------------
-# SetParagraphText
+# ModifyParagraph
 # ------------------------------------------------------------------
 
-class SetParagraphText(ToolBase):
-    """Replace the entire text of a paragraph, preserving its style."""
+class ModifyParagraph(ToolBase):
+    """Change paragraph text and/or style. Provide at least one of text or style."""
 
-    name = "set_paragraph_text"
+    name = "modify_paragraph"
+    intent = "edit"
     description = (
-        "Replace the entire text of a paragraph (preserves style). "
-        "Returns paragraph_index and bookmark (if heading) for stable "
-        "addressing."
+        "Modify a paragraph: set its text (preserves style), its style "
+        "(e.g. 'Heading 1', 'Text Body', 'List Bullet'), or both. "
+        "Provide at least one of text or style. Returns paragraph_index and "
+        "bookmark (if heading) for stable addressing."
     )
     parameters = {
         "type": "object",
@@ -440,17 +442,26 @@ class SetParagraphText(ToolBase):
             },
             "text": {
                 "type": "string",
-                "description": "New text content for the paragraph.",
+                "description": "New text content for the paragraph (optional).",
+            },
+            "style": {
+                "type": "string",
+                "description": "Paragraph style to apply, e.g. 'Heading 1', 'Text Body' (optional).",
             },
         },
-        "required": ["text"],
+        "required": [],
     }
     doc_types = ["writer"]
     tier = "core"
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
-        text = kwargs.get("text", "")
+        text = kwargs.get("text")
+        style = kwargs.get("style")
+        if text is None and style is None:
+            return {"status": "error",
+                    "message": "Provide at least one of text or style."}
+
         para_index = _resolve_para_index(ctx, kwargs)
         if para_index is None:
             return {"status": "error",
@@ -462,86 +473,20 @@ class SetParagraphText(ToolBase):
             return {"status": "error",
                     "message": "Paragraph %d not found." % para_index}
 
-        old_text = target.getString()
-        target.setString(text)
+        result = {"status": "ok", "paragraph_index": para_index}
 
-        result = {
-            "status": "ok",
-            "paragraph_index": para_index,
-            "old_length": len(old_text),
-            "new_length": len(text),
-        }
+        if text is not None:
+            old_text = target.getString()
+            target.setString(text)
+            result["old_length"] = len(old_text)
+            result["new_length"] = len(text)
 
-        # Include bookmark if available (for heading paragraphs)
-        bm_svc = ctx.services.get("writer_bookmarks")
-        if bm_svc:
-            bm_map = bm_svc.get_mcp_bookmark_map(ctx.doc)
-            if para_index in bm_map:
-                result["bookmark"] = bm_map[para_index]
-
-        return result
-
-
-# ------------------------------------------------------------------
-# SetParagraphStyle
-# ------------------------------------------------------------------
-
-class SetParagraphStyle(ToolBase):
-    """Change the paragraph style of a paragraph."""
-
-    name = "set_paragraph_style"
-    intent = "edit"
-    description = (
-        "Set the paragraph style (e.g. 'Heading 1', 'Text Body', "
-        "'List Bullet')."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "locator": {
-                "type": "string",
-                "description": (
-                    "Locator: 'paragraph:N', 'bookmark:_mcp_x', "
-                    "'heading_text:Title', etc."
-                ),
-            },
-            "paragraph_index": {
-                "type": "integer",
-                "description": "Target paragraph index (0-based).",
-            },
-            "style": {
-                "type": "string",
-                "description": "Name of the paragraph style to apply.",
-            },
-        },
-        "required": ["style"],
-    }
-    doc_types = ["writer"]
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        style = kwargs.get("style", "")
-        para_index = _resolve_para_index(ctx, kwargs)
-        if para_index is None:
-            return {"status": "error",
-                    "message": "Provide locator or paragraph_index."}
-
-        doc_svc = ctx.services.document
-        target, _ = doc_svc.find_paragraph_element(ctx.doc, para_index)
-        if target is None:
-            return {"status": "error",
-                    "message": "Paragraph %d not found." % para_index}
-
-        resolved_style = _resolve_style_name(ctx.doc, style)
-        old_style = target.getPropertyValue("ParaStyleName")
-        target.setPropertyValue("ParaStyleName", resolved_style)
-
-        result = {
-            "status": "ok",
-            "paragraph_index": para_index,
-            "old_style": old_style,
-            "new_style": resolved_style,
-        }
+        if style is not None:
+            resolved_style = _resolve_style_name(ctx.doc, style)
+            old_style = target.getPropertyValue("ParaStyleName")
+            target.setPropertyValue("ParaStyleName", resolved_style)
+            result["old_style"] = old_style
+            result["new_style"] = resolved_style
 
         bm_svc = ctx.services.get("writer_bookmarks")
         if bm_svc:

@@ -320,70 +320,86 @@ class ResolveComment(ToolBase):
         }
 
 
-class ScanTasks(ToolBase):
-    """Scan comments for actionable task prefixes."""
+_WORKFLOW_TASK_PREFIXES = ("TODO-AI", "FIX", "QUESTION", "VALIDATION", "NOTE")
 
-    name = "scan_tasks"
+
+class Workflow(ToolBase):
+    """Single tool for workflow/task operations: scan tasks, get/set status, check stop conditions."""
+
+    name = "workflow"
     intent = "review"
     description = (
-        "Scan comments for actionable task prefixes: TODO-AI, FIX, "
-        "QUESTION, VALIDATION, NOTE. Returns unresolved tasks with locators."
+        "Workflow and task operations. action: scan_tasks (find TODO-AI, FIX, etc. in comments), "
+        "get_status (read MCP-WORKFLOW dashboard), set_status (write key: value lines), "
+        "check_stop (detect STOP/CANCEL comments or workflow stop/pause)."
     )
     parameters = {
         "type": "object",
         "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["scan_tasks", "get_status", "set_status", "check_stop"],
+                "description": "Operation to perform.",
+            },
             "unresolved_only": {
                 "type": "boolean",
-                "description": "Only return unresolved tasks. Default: true.",
+                "description": "For scan_tasks: only unresolved tasks (default true).",
             },
             "prefix_filter": {
                 "type": "string",
-                "description": "Filter by a specific task prefix.",
                 "enum": ["TODO-AI", "FIX", "QUESTION", "VALIDATION", "NOTE"],
+                "description": "For scan_tasks: filter by task prefix.",
+            },
+            "content": {
+                "type": "string",
+                "description": "For set_status: workflow status as key: value lines.",
             },
         },
-        "required": [],
+        "required": ["action"],
     }
     doc_types = ["writer"]
-
-    _TASK_PREFIXES = ("TODO-AI", "FIX", "QUESTION", "VALIDATION", "NOTE")
+    is_mutation = True  # set_status mutates
 
     def execute(self, ctx, **kwargs):
+        action = kwargs.get("action")
+        if action not in ("scan_tasks", "get_status", "set_status", "check_stop"):
+            return {"status": "error", "message": "Invalid action: %s" % action}
+
+        if action == "scan_tasks":
+            return self._scan_tasks(ctx, kwargs)
+        if action == "get_status":
+            return self._get_status(ctx)
+        if action == "set_status":
+            return self._set_status(ctx, kwargs)
+        return self._check_stop(ctx)
+
+    def _scan_tasks(self, ctx, kwargs):
         unresolved_only = kwargs.get("unresolved_only", True)
         prefix_filter = kwargs.get("prefix_filter", None)
-
         doc = ctx.doc
         doc_svc = ctx.services.document
         para_ranges = doc_svc.get_paragraph_ranges(doc)
         text_obj = doc.getText()
-
         fields = doc.getTextFields()
         enum = fields.createEnumeration()
         tasks = []
-
         while enum.hasMoreElements():
             field = enum.nextElement()
-            if not field.supportsService(
-                "com.sun.star.text.textfield.Annotation"
-            ):
+            if not field.supportsService("com.sun.star.text.textfield.Annotation"):
                 continue
-
             try:
                 content = field.getPropertyValue("Content")
             except Exception:
                 continue
-
             matched_prefix = None
-            for prefix in self._TASK_PREFIXES:
+            for prefix in _WORKFLOW_TASK_PREFIXES:
                 if content.startswith(prefix):
                     matched_prefix = prefix
                     break
             if matched_prefix is None:
                 continue
-
             if prefix_filter and matched_prefix != prefix_filter:
                 continue
-
             if unresolved_only:
                 try:
                     resolved = field.getPropertyValue("Resolved")
@@ -391,40 +407,18 @@ class ScanTasks(ToolBase):
                     resolved = False
                 if resolved:
                     continue
-
             entry = _read_annotation(field, para_ranges, text_obj)
             entry["prefix"] = matched_prefix
             tasks.append(entry)
-
         return {"status": "ok", "tasks": tasks, "count": len(tasks)}
 
-
-class GetWorkflowStatus(ToolBase):
-    """Read the master workflow dashboard comment."""
-
-    name = "get_workflow_status"
-    intent = "review"
-    description = (
-        "Read the master workflow dashboard comment "
-        "(author: MCP-WORKFLOW). Returns key-value pairs."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {},
-        "required": [],
-    }
-    doc_types = ["writer"]
-
-    def execute(self, ctx, **kwargs):
+    def _get_status(self, ctx):
         doc = ctx.doc
         fields = doc.getTextFields()
         enum = fields.createEnumeration()
-
         while enum.hasMoreElements():
             field = enum.nextElement()
-            if not field.supportsService(
-                "com.sun.star.text.textfield.Annotation"
-            ):
+            if not field.supportsService("com.sun.star.text.textfield.Annotation"):
                 continue
             try:
                 author = field.getPropertyValue("Author")
@@ -432,61 +426,30 @@ class GetWorkflowStatus(ToolBase):
                 continue
             if author != "MCP-WORKFLOW":
                 continue
-
             try:
                 content = field.getPropertyValue("Content")
             except Exception:
                 content = ""
-
             workflow = {}
             for line in content.splitlines():
                 if ":" in line:
                     key, _, value = line.partition(":")
                     workflow[key.strip()] = value.strip()
-
             return {"status": "ok", "workflow": workflow}
-
         return {"status": "ok", "workflow": None}
 
-
-class SetWorkflowStatus(ToolBase):
-    """Create or update the master workflow dashboard comment."""
-
-    name = "set_workflow_status"
-    intent = "review"
-    description = (
-        "Create or update the master workflow dashboard comment. "
-        "Content should be key: value lines."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "content": {
-                "type": "string",
-                "description": "Workflow status as key: value lines.",
-            },
-        },
-        "required": ["content"],
-    }
-    doc_types = ["writer"]
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
+    def _set_status(self, ctx, kwargs):
         content = kwargs.get("content", "")
         if not content:
-            return {"status": "error", "message": "content is required."}
-
+            return {"status": "error", "message": "content is required for set_status."}
         doc = ctx.doc
         doc_text = doc.getText()
         fields = doc.getTextFields()
         enum = fields.createEnumeration()
-
         existing = None
         while enum.hasMoreElements():
             field = enum.nextElement()
-            if not field.supportsService(
-                "com.sun.star.text.textfield.Annotation"
-            ):
+            if not field.supportsService("com.sun.star.text.textfield.Annotation"):
                 continue
             try:
                 author = field.getPropertyValue("Author")
@@ -495,72 +458,41 @@ class SetWorkflowStatus(ToolBase):
             if author == "MCP-WORKFLOW":
                 existing = field
                 break
-
         if existing is not None:
             existing.setPropertyValue("Content", content)
         else:
-            annotation = doc.createInstance(
-                "com.sun.star.text.textfield.Annotation"
-            )
+            annotation = doc.createInstance("com.sun.star.text.textfield.Annotation")
             annotation.setPropertyValue("Author", "MCP-WORKFLOW")
             annotation.setPropertyValue("Content", content)
             cursor = doc_text.createTextCursor()
             cursor.gotoStart(False)
             doc_text.insertTextContent(cursor, annotation, False)
-
         return {"status": "ok", "message": "Workflow status updated."}
 
-
-class CheckStopConditions(ToolBase):
-    """Check for stop/cancel signals in comments."""
-
-    name = "check_stop_conditions"
-    intent = "review"
-    description = (
-        "Check for stop signals: unresolved comments starting with "
-        "STOP or CANCEL, or workflow status containing 'stop' or 'pause'. "
-        "Use between batch operations to respect human intervention."
-    )
-    parameters = {"type": "object", "properties": {}, "required": []}
-    doc_types = ["writer"]
-
-    def execute(self, ctx, **kwargs):
+    def _check_stop(self, ctx):
         doc = ctx.doc
         fields = doc.getTextFields()
         enum = fields.createEnumeration()
-
         stop_signals = []
         workflow_stop = False
-
         while enum.hasMoreElements():
             field = enum.nextElement()
-            if not field.supportsService(
-                "com.sun.star.text.textfield.Annotation"
-            ):
+            if not field.supportsService("com.sun.star.text.textfield.Annotation"):
                 continue
-
             try:
                 content = field.getPropertyValue("Content")
                 author = field.getPropertyValue("Author")
                 resolved = field.getPropertyValue("Resolved")
             except Exception:
                 continue
-
-            # Check workflow dashboard for stop/pause
             if author == "MCP-WORKFLOW" and content:
                 lower = content.lower()
                 if "stop" in lower or "pause" in lower:
                     workflow_stop = True
-
-            # Check for STOP/CANCEL comments
             if not resolved and content:
                 upper = content.strip().upper()
                 if upper.startswith("STOP") or upper.startswith("CANCEL"):
-                    stop_signals.append({
-                        "author": author,
-                        "content": content[:100],
-                    })
-
+                    stop_signals.append({"author": author, "content": content[:100]})
         should_stop = bool(stop_signals) or workflow_stop
         return {
             "status": "ok",

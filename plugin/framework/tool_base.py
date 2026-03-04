@@ -13,7 +13,7 @@ class ToolBase(ABC):
     implement ``execute``.
 
     Attributes:
-        name:        Unique tool identifier (e.g. "get_document_outline").
+        name:        Unique tool identifier (e.g. "get_document_tree").
         description: Human-readable description shown to LLMs.
         parameters:  JSON Schema dict (MCP ``inputSchema`` format).
         doc_types:   List of supported doc types (["writer"], ["calc"],
