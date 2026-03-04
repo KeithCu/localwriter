@@ -140,27 +140,30 @@ def bootstrap(ctx=None):
             if os.path.isdir(tools_dir):
                 _tools.discover(tools_dir, "plugin.modules.%s.tools" % dir_name)
 
-            # Manual init for HTTP/AI that require it for MCP/smolagents
-            if name == "http":
-                try:
-                    from plugin.modules.http import HttpModule
-                    mod = HttpModule()
-                    mod.name = "http"
+            # Dynamic ModuleBase initialization
+            try:
+                import importlib
+                import inspect
+                
+                mod_pkg = importlib.import_module("plugin.modules.%s" % dir_name)
+                module_class = None
+                
+                # Look for a class subclassing ModuleBase by checking MRO names (avoids LO sys.path duplicate issues)
+                for attr_name in dir(mod_pkg):
+                    attr = getattr(mod_pkg, attr_name)
+                    if inspect.isclass(attr) and attr.__name__ != "ModuleBase":
+                        if any(b.__name__ == "ModuleBase" for b in attr.__mro__):
+                            module_class = attr
+                            break
+                        
+                if module_class:
+                    mod = module_class()
+                    mod.name = name
                     mod.initialize(_services)
                     _modules.append(mod)
-                except Exception as e:
-                    import logging
-                    logging.getLogger("localwriter").exception("Failed to init http module")
-            
-            if name == "ai":
-                try:
-                    from plugin.modules.ai import AiModule
-                    mod = AiModule()
-                    mod.name = "ai"
-                    mod.initialize(_services)
-                    _modules.append(mod)
-                except Exception:
-                    pass
+            except Exception as e:
+                import logging
+                logging.getLogger("localwriter").exception("Failed to load module %s: %s", name, e)
 
         # Wire event bus into config service
         events_svc = _services.get("events")
