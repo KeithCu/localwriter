@@ -13,6 +13,8 @@ This document summarizes the current state of the two trees. You have successful
 | **Writer Tools** | ✅ Advanced (fully ported) | ✅ Advanced (navigation, tree, search) |
 | **Calc Tools** | ✅ Full support | ⚠️ Partial / Refactored |
 | **Evaluation** | ✅ Eval Runner + Dashboard | ❌ Missing |
+| **Batch Tools** | ✅ Variable chaining | ✅ Batch tool exec |
+| **Tunnels** | ✅ Bore, Cloudflare, Ngrok | ✅ Provider framework |
 | **Pricing** | ✅ Pricing module | ❌ Missing |
 
 ## 2. Infrastructure & Architecture
@@ -46,12 +48,13 @@ The core framework files have been ported to `plugin/framework/`, providing a ro
 
 **Refactoring Note**: `plugin/modules/core/mcp_thread.py` has been updated to delegate its UNO execution logic to the new `main_thread.py` helper, consolidating the safe execution pattern.
 
-### B. Feature Migration (Modularization)
-Your new features should be converted into "localwriter2-style" modules:
+### B. Feature Migration (Modularization) ✅
+Your new features have been converted into "localwriter2-style" modules:
 - **MCP**: Move to `plugin/modules/http/` or `plugin/modules/mcp/`.
 - **Image/AI**: Move `image_tools.py` and vendors into a formal `ai` module.
 - **Draw**: Move `draw_tools.py` and its tests into `plugin/modules/draw/`.
-- **Settings**: Move the complex `settings_box` logic into a service or core module.
+- **Batch/Tunnel**: ✅ Ported from `localwriter2`.
+- **Options**: ✅ `options_handler.py` ported to manage all module settings.
 
 ### C. Writer Enhancements ✅ (Completed)
 The `plugin/modules/writer/` directory has been completely unified with `localwriter2`, replacing legacy registry wrappers with fully isolated `ToolBase` subclasses and importing the advanced `services/` (navigation, structural, tree, bookmarks).

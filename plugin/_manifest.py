@@ -301,6 +301,19 @@ MODULES = [
         "action_icons": {}
 },
     {
+        "name": "batch",
+        "title": "Batch tool execution with variable chaining",
+        "requires": [
+                "document",
+                "config",
+                "events"
+        ],
+        "provides_services": [],
+        "config": {},
+        "actions": [],
+        "action_icons": {}
+},
+    {
         "name": "writer",
         "title": "Writer document tools (including navigation and search)",
         "requires": [
@@ -464,6 +477,60 @@ MODULES = [
                 "extend_selection",
                 "edit_selection"
         ],
+        "action_icons": {}
+},
+    {
+        "name": "tunnel",
+        "title": "Tunnel providers for external MCP access",
+        "requires": [
+                "config",
+                "events",
+                "http_routes"
+        ],
+        "provides_services": [
+                "tunnel_manager"
+        ],
+        "config": {
+                "auto_start": {
+                        "type": "boolean",
+                        "default": False,
+                        "widget": "checkbox",
+                        "label": "Auto Start Tunnel",
+                        "public": True
+                },
+                "provider": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "Tunnel Provider",
+                        "options_provider": "plugin.modules.tunnel:get_provider_options"
+                },
+                "server": {
+                        "type": "string",
+                        "default": "bore.pub",
+                        "label": "Bore Server",
+                        "helper": "Relay server (default: bore.pub)"
+                },
+                "tunnel_name": {
+                        "type": "string",
+                        "default": "",
+                        "label": "Cloudflare Tunnel Name",
+                        "helper": "Optional: use a named tunnel instead of a quick tunnel"
+                },
+                "public_url": {
+                        "type": "string",
+                        "default": "",
+                        "label": "Cloudflare Public URL",
+                        "helper": "Required for named tunnels"
+                },
+                "authtoken": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "password",
+                        "label": "Ngrok Authtoken"
+                }
+        },
+        "actions": [],
         "action_icons": {}
 },
 ]

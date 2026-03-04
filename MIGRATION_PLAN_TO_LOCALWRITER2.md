@@ -37,11 +37,14 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
 4. **Draw Module:** ✅ (Completed) `draw_tools`, `draw_bridge`, and `draw_tests` moved from core to `plugin/modules/draw/` and imports updated.
 5. `AGENTS.md` and tests updated iteratively.
 
-### Phase 5: Additional Core Services
-`localwriter2` separates LLM and web services into distinct modules.
+### Phase 5: Additional Core Services ✅ (Completed)
+`localwriter2` separates LLM and web services into distinct modules and introduces new processing capabilities.
 1. **AI Module:** Port over the `ai` module (`plugin/modules/ai/`) and register it properly in `_manifest.py`.
 2. **HTTP Module:** ✅ (Completed) Ported the internal web server and MCP routes (`plugin/modules/http/`).
-3. Update `config.py` and remove legacy hardcoded settings in favor of the new modular configuration system.
+3. **Batch & Tunnel Modules:** ✅ (Completed) Ported `plugin/modules/batch/` and `plugin/modules/tunnel/`.
+4. **Options Framework:** ✅ (Completed) Ported `plugin/options_handler.py`.
+5. **Service Granularity:** ✅ (Completed) Aligned split core services (`events.py`, `format.py`).
+6. Update `config.py` and remove legacy hardcoded settings in favor of the new modular configuration system.
 
 ## Verification Plan
 
@@ -72,4 +75,5 @@ Mocks in `main.py` (`ConfigMock` and `DocumentServiceMock`) were removed. `local
 Replaced the thin Writer wrappers with "real" `ToolBase` classes and advanced implementations ported directly from `localwriter2` that leverage `ctx.services`.
 
 ### Other Follow-ups 
+- **Framework Testing Suite:** Port the comprehensive unit tests from `localwriter2/tests/` (e.g., `test_config_service.py`, `test_event_bus.py`, etc.) to ensure framework stability.
 - **Config Migration:** Move `config.py` toward the new schema-based system to fully decouple settings.
