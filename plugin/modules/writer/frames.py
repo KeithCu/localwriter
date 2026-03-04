@@ -1,0 +1,275 @@
+"""Writer text frame management tools."""
+
+import logging
+
+from plugin.framework.tool_base import ToolBase
+
+log = logging.getLogger("localwriter.writer")
+
+
+# ------------------------------------------------------------------
+# ListTextFrames
+# ------------------------------------------------------------------
+
+class ListTextFrames(ToolBase):
+    """List all text frames in the document."""
+
+    name = "list_text_frames"
+    intent = "edit"
+    description = "List all text frames in the document."
+    parameters = {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+    doc_types = ["writer"]
+
+    def execute(self, ctx, **kwargs):
+        doc = ctx.doc
+        if not hasattr(doc, "getTextFrames"):
+            return {"status": "error", "message": "Document does not support text frames."}
+
+        text_frames = doc.getTextFrames()
+        frames = []
+        for name in text_frames.getElementNames():
+            try:
+                frame = text_frames.getByName(name)
+                size = frame.getPropertyValue("Size")
+
+                # Text content preview (first 200 chars)
+                content_preview = ""
+                try:
+                    frame_text = frame.getText()
+                    cursor = frame_text.createTextCursor()
+                    cursor.gotoStart(False)
+                    cursor.gotoEnd(True)
+                    full_text = cursor.getString()
+                    if len(full_text) > 200:
+                        content_preview = full_text[:200] + "..."
+                    else:
+                        content_preview = full_text
+                except Exception:
+                    pass
+
+                frames.append({
+                    "name": name,
+                    "width_mm": size.Width / 100.0,
+                    "height_mm": size.Height / 100.0,
+                    "width_100mm": size.Width,
+                    "height_100mm": size.Height,
+                    "content_preview": content_preview,
+                })
+            except Exception as e:
+                log.debug("list_text_frames: skip '%s': %s", name, e)
+
+        return {"status": "ok", "frames": frames, "count": len(frames)}
+
+
+# ------------------------------------------------------------------
+# GetTextFrameInfo
+# ------------------------------------------------------------------
+
+class GetTextFrameInfo(ToolBase):
+    """Get detailed info about a text frame."""
+
+    name = "get_text_frame_info"
+    intent = "edit"
+    description = "Get detailed info about a text frame."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "frame_name": {
+                "type": "string",
+                "description": "Name of the text frame (from list_text_frames).",
+            },
+        },
+        "required": ["frame_name"],
+    }
+    doc_types = ["writer"]
+
+    def execute(self, ctx, **kwargs):
+        frame_name = kwargs.get("frame_name", "")
+        if not frame_name:
+            return {"status": "error", "message": "frame_name is required."}
+
+        doc = ctx.doc
+        text_frames = doc.getTextFrames()
+        if not text_frames.hasByName(frame_name):
+            available = list(text_frames.getElementNames())
+            return {
+                "status": "error",
+                "message": "Text frame '%s' not found." % frame_name,
+                "available": available,
+            }
+
+        frame = text_frames.getByName(frame_name)
+        size = frame.getPropertyValue("Size")
+
+        # Anchor type
+        anchor_type = None
+        try:
+            anchor_type = int(frame.getPropertyValue("AnchorType").value)
+        except Exception:
+            try:
+                anchor_type = int(frame.getPropertyValue("AnchorType"))
+            except Exception:
+                pass
+
+        # Orientation
+        hori_orient = None
+        vert_orient = None
+        try:
+            hori_orient = int(frame.getPropertyValue("HoriOrient"))
+        except Exception:
+            pass
+        try:
+            vert_orient = int(frame.getPropertyValue("VertOrient"))
+        except Exception:
+            pass
+
+        # Full text content
+        content = ""
+        try:
+            frame_text = frame.getText()
+            cursor = frame_text.createTextCursor()
+            cursor.gotoStart(False)
+            cursor.gotoEnd(True)
+            content = cursor.getString()
+        except Exception:
+            pass
+
+        # Paragraph index via anchor
+        paragraph_index = -1
+        try:
+            anchor = frame.getAnchor()
+            doc_svc = ctx.services.document
+            para_ranges = doc_svc.get_paragraph_ranges(doc)
+            text_obj = doc.getText()
+            paragraph_index = doc_svc.find_paragraph_for_range(
+                anchor, para_ranges, text_obj
+            )
+        except Exception:
+            pass
+
+        return {
+            "status": "ok",
+            "frame_name": frame_name,
+            "width_mm": size.Width / 100.0,
+            "height_mm": size.Height / 100.0,
+            "width_100mm": size.Width,
+            "height_100mm": size.Height,
+            "anchor_type": anchor_type,
+            "hori_orient": hori_orient,
+            "vert_orient": vert_orient,
+            "content": content,
+            "paragraph_index": paragraph_index,
+        }
+
+
+# ------------------------------------------------------------------
+# SetTextFrameProperties
+# ------------------------------------------------------------------
+
+class SetTextFrameProperties(ToolBase):
+    """Resize or reposition a text frame."""
+
+    name = "set_text_frame_properties"
+    intent = "edit"
+    description = "Resize or reposition a text frame."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "frame_name": {
+                "type": "string",
+                "description": "Name of the text frame (from list_text_frames).",
+            },
+            "width_mm": {
+                "type": "number",
+                "description": "New width in millimetres.",
+            },
+            "height_mm": {
+                "type": "number",
+                "description": "New height in millimetres.",
+            },
+            "anchor_type": {
+                "type": "integer",
+                "description": (
+                    "Anchor type: 0=AT_PARAGRAPH, 1=AS_CHARACTER, "
+                    "2=AT_PAGE, 3=AT_FRAME, 4=AT_CHARACTER."
+                ),
+            },
+            "hori_orient": {
+                "type": "integer",
+                "description": "Horizontal orientation constant.",
+            },
+            "vert_orient": {
+                "type": "integer",
+                "description": "Vertical orientation constant.",
+            },
+        },
+        "required": ["frame_name"],
+    }
+    doc_types = ["writer"]
+    is_mutation = True
+
+    def execute(self, ctx, **kwargs):
+        frame_name = kwargs.get("frame_name", "")
+        if not frame_name:
+            return {"status": "error", "message": "frame_name is required."}
+
+        doc = ctx.doc
+        text_frames = doc.getTextFrames()
+        if not text_frames.hasByName(frame_name):
+            return {
+                "status": "error",
+                "message": "Text frame '%s' not found." % frame_name,
+            }
+
+        frame = text_frames.getByName(frame_name)
+        updated = []
+
+        # Size
+        width_mm = kwargs.get("width_mm")
+        height_mm = kwargs.get("height_mm")
+        if width_mm is not None or height_mm is not None:
+            from com.sun.star.awt import Size
+            current = frame.getPropertyValue("Size")
+            new_size = Size()
+            new_size.Width = int(width_mm * 100) if width_mm is not None else current.Width
+            new_size.Height = int(height_mm * 100) if height_mm is not None else current.Height
+            frame.setPropertyValue("Size", new_size)
+            updated.append("size")
+
+        # Anchor type
+        anchor_type = kwargs.get("anchor_type")
+        if anchor_type is not None:
+            from com.sun.star.text.TextContentAnchorType import (
+                AT_PARAGRAPH, AS_CHARACTER, AT_PAGE, AT_FRAME, AT_CHARACTER,
+            )
+            anchor_map = {
+                0: AT_PARAGRAPH,
+                1: AS_CHARACTER,
+                2: AT_PAGE,
+                3: AT_FRAME,
+                4: AT_CHARACTER,
+            }
+            if anchor_type in anchor_map:
+                frame.setPropertyValue("AnchorType", anchor_map[anchor_type])
+                updated.append("anchor_type")
+
+        # Orientation
+        hori_orient = kwargs.get("hori_orient")
+        if hori_orient is not None:
+            frame.setPropertyValue("HoriOrient", hori_orient)
+            updated.append("hori_orient")
+
+        vert_orient = kwargs.get("vert_orient")
+        if vert_orient is not None:
+            frame.setPropertyValue("VertOrient", vert_orient)
+            updated.append("vert_orient")
+
+        return {
+            "status": "ok",
+            "frame_name": frame_name,
+            "updated": updated,
+        }

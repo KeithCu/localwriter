@@ -31,7 +31,7 @@ def collect_tools():
     tools = []
     # Scan tool packages
     packages = [
-        "plugin.modules.writer.tools",
+        "plugin.modules.writer",
         "plugin.modules.common.tools",
         "plugin.modules.batch.tools",
         "plugin.modules.calc.tools",

@@ -10,7 +10,7 @@ This document summarizes the current state of the two trees. You have successful
 | **Image Tools** | ✅ AI Horde + Endpoint (Horde async) | ❌ Missing |
 | **Draw Tools** | ✅ Full support (shapes, slides) | ❌ Missing |
 | **smolagents** | ✅ Web Research (DuckDuckGo, Visit) | ❌ Missing |
-| **Writer Tools** | ⚠️ Basic set + registry wrappers | ✅ Advanced (navigation, tree, search) |
+| **Writer Tools** | ✅ Advanced (fully ported) | ✅ Advanced (navigation, tree, search) |
 | **Calc Tools** | ✅ Full support | ⚠️ Partial / Refactored |
 | **Evaluation** | ✅ Eval Runner + Dashboard | ❌ Missing |
 | **Pricing** | ✅ Pricing module | ❌ Missing |
@@ -53,12 +53,8 @@ Your new features should be converted into "localwriter2-style" modules:
 - **Draw**: Move `draw_tools.py` and its tests into `plugin/modules/draw/`.
 - **Settings**: Move the complex `settings_box` logic into a service or core module.
 
-### C. Writer Enhancements
-`localwriter2` has several Writer-specific files that have more advanced logic than your current `writer_ops.py`:
-- `modules/writer/navigation.py`: Smart navigation.
-- `modules/writer/structural.py`: Structural editing.
-- `modules/writer/tree.py`: Document tree representation.
-- `modules/writer/bookmarks.py`: Bookmark management.
+### C. Writer Enhancements ✅ (Completed)
+The `plugin/modules/writer/` directory has been completely unified with `localwriter2`, replacing legacy registry wrappers with fully isolated `ToolBase` subclasses and importing the advanced `services/` (navigation, structural, tree, bookmarks).
 
 ### D. Startup Philosophy
 - **Protocol Handler**: Migrate your menu dispatches in `Addons.xcu` to use the `org.extension.localwriter:module.action` protocol handled by the new `DispatchHandler`. This enables dynamic menu text and icons (e.g., "Stop AI" vs "Send").

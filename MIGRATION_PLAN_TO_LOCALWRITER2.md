@@ -28,7 +28,7 @@ The current `localwriter` uses a simple `build.sh` script, while `localwriter2` 
 
 ### Phase 4: Module Reorganization ✅ (Completed)
 `localwriter2` heavily refactors logic out of core and into specific modules under `plugin/modules/writer/`, `plugin/modules/calc/`, `plugin/modules/chatbot/`, etc.
-1. **Writer Module:** ✅ (Completed) Split `ops.py` into smaller focused files (`outline.py`, `tables.py`, etc.) and updated imports.
+1. **Writer Module:** ✅ (Completed) Fully unified with `localwriter2` by migrating to isolated `ToolBase` subclasses, deprecating the `tools/` wrapper directory, and porting advanced Writer services (`bookmarks`, `tree`, `navigation`).
 2. **Calc Module:** ✅ (Completed) Missing directories created; tool implementations moved from core to `plugin/modules/calc/` (by another agent).
 3. **Chatbot Module:** ✅ (Completed) UI and chat-specific logic moved out of core:
    - `plugin/chat_panel.py` moved via `git mv` to `plugin/modules/chatbot/panel_factory.py` (history preserved). Manifest and build script updated to register the new path.
@@ -68,6 +68,8 @@ Mocks in `main.py` (`ConfigMock` and `DocumentServiceMock`) were removed. `local
 ### Recommended Next Step (AI Module Porting)
 **Phase 5 (AI Module):** Port the AI module (`plugin/modules/ai/`). This may be slightly more complex due to recent AI tool restorations, but it is necessary for full architectural alignment to complete the migration to the localwriter2 module structure.
 
+### Completed: Writer tools with logic in ToolBase ✅
+Replaced the thin Writer wrappers with "real" `ToolBase` classes and advanced implementations ported directly from `localwriter2` that leverage `ctx.services`.
+
 ### Other Follow-ups 
-- **Writer tools with logic in ToolBase:** Replace the thin Writer wrappers with "real" `ToolBase` classes that contain the logic and use `ctx.services` (now possible thanks to `DocumentService`).
 - **Config Migration:** Move `config.py` toward the new schema-based system to fully decouple settings.
