@@ -1,5 +1,6 @@
 """Legacy UI functions for settings, input, and Eval Dashboard."""
 from plugin.framework.dialogs import load_framework_dialog, msgbox
+from plugin.framework.uno_helpers import TabListener, get_optional, is_checkbox_control, get_checkbox_state, set_checkbox_state
 from plugin.modules.core.services.config import get_config, set_config, get_current_endpoint, populate_combobox_with_lru
 import uno
 
@@ -34,7 +35,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
 def settings_box(ctx, title="", x=None, y=None):
     from plugin.framework.settings_dialog import get_settings_field_specs, apply_settings_result
     from plugin.modules.core.services.config import get_image_model, set_image_model, populate_image_model_selector, endpoint_from_selector_text, get_api_key_for_endpoint, populate_endpoint_selector, as_bool
-    from plugin.framework.uno_helpers import is_checkbox_control, set_checkbox_state, get_checkbox_state
+
     from plugin.framework.logging import agent_log
     import unohelper
     from com.sun.star.awt import XActionListener, XItemListener
@@ -52,15 +53,6 @@ def settings_box(ctx, title="", x=None, y=None):
         error_msg = getattr(e, "Message", str(e))
         agent_log("legacy_ui:settings_box", "createDialog failed", data={"url": dialog_url, "error": error_msg}, hypothesis_id="H5")
         raise Exception(f"Could not create dialog from {dialog_url}: {error_msg}")
-
-    class TabListener(unohelper.Base, XActionListener):
-        def __init__(self, dialog, page):
-            self._dlg = dialog
-            self._page = page
-        def actionPerformed(self, ev):
-            self._dlg.getModel().Step = self._page
-        def disposing(self, ev):
-            pass
 
     dlg.getControl("btn_tab_chat").addActionListener(TabListener(dlg, 1))
     dlg.getControl("btn_tab_image").addActionListener(TabListener(dlg, 2))
