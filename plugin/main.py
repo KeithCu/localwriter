@@ -132,6 +132,9 @@ def bootstrap(ctx=None):
             dir_name = name.replace(".", "_")
             module_dir = os.path.join(os.path.dirname(__file__), "modules", dir_name)
             
+            if not os.path.isdir(module_dir):
+                continue
+                
             # Tools may be in module root (like localwriter2 draw/calc)
             _tools.discover(module_dir, "plugin.modules.%s" % dir_name)
             
@@ -163,7 +166,7 @@ def bootstrap(ctx=None):
                     _modules.append(mod)
             except Exception as e:
                 import logging
-                logging.getLogger("localwriter").exception("Failed to load module %s: %s", name, e)
+                logging.getLogger("localwriter").warning("Failed to load module %s: %s", name, e)
 
         # Wire event bus into config service
         events_svc = _services.get("events")
