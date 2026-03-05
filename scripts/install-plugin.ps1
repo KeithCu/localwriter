@@ -258,15 +258,6 @@ function Install-ToCache {
         }
     }
 
-    # Generated XCS/XCU
-    $genRegistry = Join-Path $ProjectRoot "build\generated\registry"
-    if (Test-Path $genRegistry) {
-        $regDst = Join-Path $extDir "registry"
-        Copy-Item -Path "$genRegistry\*" -Destination $regDst -Force
-        Write-Host "    generated registry/ synced"
-        $deployed++
-    }
-
     # Clean __pycache__
     Get-ChildItem -Path $extDir -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue |
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue

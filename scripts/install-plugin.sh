@@ -265,12 +265,6 @@ install_to_cache() {
         fi
     done
 
-    # Generated XCS/XCU
-    if [ -d "$PROJECT_ROOT/build/generated/registry" ]; then
-        rsync -av "$PROJECT_ROOT/build/generated/registry/" "$ext_dir/registry/"
-        echo "    generated registry/ synced"
-        deployed=$((deployed + 1))
-    fi
 
     # Clean __pycache__
     find "$ext_dir" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

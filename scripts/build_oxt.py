@@ -76,7 +76,6 @@ EXCLUDE_PATTERNS = (
 
 # Generated files (XCS/XCU, XDL dialogs)
 GENERATED_INCLUDES = [
-    "build/generated/registry/",
     "build/generated/dialogs/",
     "build/generated/Addons.xcu",
     "build/generated/Accelerators.xcu",

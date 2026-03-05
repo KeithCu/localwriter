@@ -169,35 +169,6 @@ def generate_manifest_py(modules, output_path):
     print("  Generated %s (%d modules)" % (output_path, len(modules)))
 
 
-def generate_xcs_xcu(modules, output_dir):
-    """Generate XCS/XCU files for modules with config."""
-    from plugin.framework.config_schema import generate_xcs, generate_xcu
-
-    os.makedirs(output_dir, exist_ok=True)
-    count = 0
-
-    for m in modules:
-        config = m.get("config", {})
-        if not config:
-            continue
-
-        name = m["name"]
-        safe = name.replace(".", "_")
-
-        xcs_path = os.path.join(output_dir, "%s.xcs" % safe)
-        with open(xcs_path, "w") as f:
-            f.write(generate_xcs(name, config))
-
-        xcu_path = os.path.join(output_dir, "%s.xcu" % safe)
-        with open(xcu_path, "w") as f:
-            f.write(generate_xcu(name, config))
-
-        count += 1
-
-    if count:
-        print("  Generated %d XCS/XCU pairs in %s" % (count, output_dir))
-
-
 # ── XDL Generation (using xml.etree.ElementTree) ─────────────────────
 
 import xml.etree.ElementTree as ET
@@ -1493,17 +1464,6 @@ def generate_manifest_xml(modules, output_path):
         ('application/vnd.sun.star.configuration-data', 'registry/org/openoffice/Office/UI/Sidebar.xcu'),
         ('application/vnd.sun.star.configuration-data', 'registry/org/openoffice/Office/UI/Factories.xcu'),
     ]
-    # Dynamic XCS/XCU entries for modules with config
-    for m in modules:
-        if not m.get("config"):
-            continue
-        safe = m["name"].replace(".", "_")
-        entries.append(
-            ('application/vnd.sun.star.configuration-schema',
-             'registry/%s.xcs' % safe))
-        entries.append(
-            ('application/vnd.sun.star.configuration-data',
-             'registry/%s.xcu' % safe))
 
     # Build XML tree
     def _mf(tag):
@@ -1603,10 +1563,6 @@ def main():
     # 2. _manifest.py
     manifest_path = os.path.join(PROJECT_ROOT, "plugin", "_manifest.py")
     generate_manifest_py(sorted_modules, manifest_path)
-
-    # 3. XCS/XCU
-    registry_dir = os.path.join(build_dir, "registry")
-    generate_xcs_xcu(sorted_modules, registry_dir)
 
     # 4. XDL dialog pages
     dialogs_dir = os.path.join(build_dir, "dialogs")
