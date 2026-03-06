@@ -548,3 +548,47 @@ class DocumentService(ServiceBase):
     def get_full_text(self, doc, max_chars=8000): return get_full_document_text(doc, max_chars)
     def get_document_context_for_chat(self, doc, max_context=8000, include_end=True, include_selection=True):
         return get_document_context_for_chat(doc, max_context, include_end, include_selection, get_ctx())
+
+    def get_page_for_paragraph(self, model, para_index):
+        """Return page number for a paragraph by index.
+
+        Uses lockControllers + cursor save/restore to prevent visible viewport jumping.
+        """
+        try:
+            text = model.getText()
+            controller = model.getCurrentController()
+            vc = controller.getViewCursor()
+            saved = text.createTextCursorByRange(vc.getStart())
+            model.lockControllers()
+            try:
+                cursor = text.createTextCursor()
+                cursor.gotoStart(False)
+                for _ in range(para_index):
+                    if not cursor.gotoNextParagraph(False):
+                        break
+                vc.gotoRange(cursor, False)
+                page = vc.getPage()
+            finally:
+                vc.gotoRange(saved, False)
+                model.unlockControllers()
+            return page
+        except Exception:
+            return 1
+
+    def get_page_count(self, model):
+        """Return page count of a Writer document."""
+        try:
+            text = model.getText()
+            controller = model.getCurrentController()
+            vc = controller.getViewCursor()
+            saved = text.createTextCursorByRange(vc.getStart())
+            model.lockControllers()
+            try:
+                vc.jumpToLastPage()
+                count = vc.getPage()
+            finally:
+                vc.gotoRange(saved, False)
+                model.unlockControllers()
+            return count
+        except Exception:
+            return 0

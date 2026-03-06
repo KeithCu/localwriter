@@ -61,6 +61,53 @@ MODULES = [
         "action_icons": {}
 },
     {
+        "name": "launcher",
+        "title": "AI CLI Launcher",
+        "requires": [
+                "config",
+                "events"
+        ],
+        "provides_services": [
+                "launcher_manager"
+        ],
+        "config": {
+                "provider": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "select",
+                        "label": "AI CLI Provider",
+                        "options_provider": "plugin.modules.launcher:get_provider_options"
+                },
+                "cli_status": {
+                        "widget": "check",
+                        "label": "CLI Status",
+                        "check_provider": "plugin.modules.launcher:check_cli_installed"
+                },
+                "auto_config": {
+                        "type": "boolean",
+                        "default": True,
+                        "widget": "checkbox",
+                        "label": "Auto-configure MCP",
+                        "helper": "Generate a temporary config file pointing the CLI to LocalWriter's MCP server.",
+                        "public": True
+                },
+                "terminal": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "text",
+                        "label": "Terminal Emulator",
+                        "helper": "Terminal to use (e.g. xterm, gnome-terminal, konsole). Empty = auto-detect.",
+                        "public": True
+                }
+        },
+        "actions": [
+                "launch_cli"
+        ],
+        "action_icons": {
+                "launch_cli": "cli"
+        }
+},
+    {
         "name": "ai",
         "title": "AI provider registry and model catalog",
         "requires": [
@@ -84,6 +131,92 @@ MODULES = [
         ],
         "provides_services": [],
         "config": {},
+        "actions": [],
+        "action_icons": {}
+},
+    {
+        "name": "launcher.opencode",
+        "title": "OpenCode CLI provider",
+        "requires": [
+                "launcher_manager"
+        ],
+        "provides_services": [],
+        "config": {
+                "cwd": {
+                        "type": "string",
+                        "default": "",
+                        "default_provider": "plugin.modules.launcher_opencode:get_default_cwd",
+                        "widget": "folder",
+                        "label": "Working Directory",
+                        "helper": "Directory to launch OpenCode in. Clear to restore default."
+                },
+                "args": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "text",
+                        "label": "Extra Arguments",
+                        "helper": "Additional CLI arguments. Placeholders: {mcp_url}, {port}, {host}."
+                },
+                "handle_config": {
+                        "type": "boolean",
+                        "default": True,
+                        "widget": "checkbox",
+                        "label": "Handle Ollama Config",
+                        "helper": "Inject Ollama provider settings into opencode.json. Uncheck to manage config yourself."
+                },
+                "ollama_url": {
+                        "type": "string",
+                        "default": "http://localhost:11434/v1",
+                        "widget": "text",
+                        "label": "Ollama URL",
+                        "helper": "Ollama API endpoint."
+                },
+                "ollama_model": {
+                        "type": "string",
+                        "default": "qwen3:8b",
+                        "widget": "select",
+                        "options_provider": "plugin.modules.launcher_opencode:get_ollama_models",
+                        "label": "Ollama Model",
+                        "helper": "Select an installed model. Custom values are preserved if typed in config."
+                },
+                "install": {
+                        "widget": "button",
+                        "label": "Install OpenCode",
+                        "action": "plugin.modules.launcher_opencode:on_install"
+                }
+        },
+        "actions": [],
+        "action_icons": {}
+},
+    {
+        "name": "launcher.claude",
+        "title": "Claude Code CLI provider",
+        "requires": [
+                "launcher_manager"
+        ],
+        "provides_services": [],
+        "config": {
+                "cwd": {
+                        "type": "string",
+                        "default": "",
+                        "default_provider": "plugin.modules.launcher_claude:get_default_cwd",
+                        "widget": "folder",
+                        "label": "Working Directory",
+                        "helper": "Directory to launch Claude Code in. Clear to restore default."
+                },
+                "args": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "text",
+                        "label": "Extra Arguments",
+                        "helper": "Additional CLI arguments. Placeholders: {mcp_url}, {port}, {host}."
+                },
+                "install": {
+                        "widget": "button",
+                        "label": "Install Claude Code",
+                        "action": "plugin.modules.launcher_claude:on_install"
+                }
+        },
         "actions": [],
         "action_icons": {}
 },
@@ -286,6 +419,38 @@ MODULES = [
                 "extend_selection",
                 "edit_selection"
         ],
+        "action_icons": {}
+},
+    {
+        "name": "launcher.gemini",
+        "title": "Gemini CLI provider",
+        "requires": [
+                "launcher_manager"
+        ],
+        "provides_services": [],
+        "config": {
+                "cwd": {
+                        "type": "string",
+                        "default": "",
+                        "default_provider": "plugin.modules.launcher_gemini:get_default_cwd",
+                        "widget": "folder",
+                        "label": "Working Directory",
+                        "helper": "Directory to launch Gemini CLI in. Clear to restore default."
+                },
+                "args": {
+                        "type": "string",
+                        "default": "",
+                        "widget": "text",
+                        "label": "Extra Arguments",
+                        "helper": "Additional CLI arguments. Placeholders: {mcp_url}, {port}, {host}."
+                },
+                "install": {
+                        "widget": "button",
+                        "label": "Install Gemini CLI",
+                        "action": "plugin.modules.launcher_gemini:on_install"
+                }
+        },
+        "actions": [],
         "action_icons": {}
 },
     {

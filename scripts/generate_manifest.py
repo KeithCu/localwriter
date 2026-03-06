@@ -91,6 +91,11 @@ def topo_sort(modules):
     return order
 
 
+def _pretty_name(name):
+    """Convert dotted or underscored name to title case with spaces."""
+    return name.replace(".", " ").replace("_", " ").title()
+
+
 def _json_to_python(text):
     """Convert JSON literals to Python literals (true->True, false->False, null->None)."""
     # Only replace JSON keywords when they appear as values, not inside strings
@@ -1269,12 +1274,12 @@ def generate_accelerators_xcu(modules, output_path):
 
 
 
-def generate_settings_dialog_tabs(modules, xdl_path):
-    """Auto-generate tabs and pages for SettingsDialog.xdl."""
-    if not os.path.exists(xdl_path):
+def generate_settings_dialog_tabs(modules, tpl_path, output_path):
+    """Auto-generate tabs and pages for SettingsDialog.xdl using a template."""
+    if not os.path.exists(tpl_path):
         return
 
-    with open(xdl_path, "r", encoding="utf-8") as f:
+    with open(tpl_path, "r", encoding="utf-8") as f:
         content = f.read()
 
     tab_marker = "<!-- AUTO_GENERATED_TABS -->"
@@ -1397,7 +1402,18 @@ def generate_settings_dialog_tabs(modules, xdl_path):
         y = add_fields(name.replace(".", "_"), config, y)
         if children:
             for child_m, child_cfg in children:
-                y += 6 # Gap for new section
+                # Add gap and separator line with label
+                y += 2
+                sep_label = child_m.get("title", _pretty_name(child_m["name"]))
+                ET.SubElement(board, _dlg("fixedline"), {
+                    _dlg("id"): f"sep_{child_m['name'].replace('.', '_')}",
+                    _dlg("left"): "8",
+                    _dlg("top"): str(y),
+                    _dlg("width"): "424",
+                    _dlg("height"): "8",
+                    _dlg("value"): sep_label,
+                })
+                y += 10
                 y = add_fields(child_m["name"].replace(".", "_"), child_cfg, y)
         
         # Add dlg:page to all elements in this page
@@ -1440,9 +1456,10 @@ def generate_settings_dialog_tabs(modules, xdl_path):
 
     new_content = before_tabs + tab_marker + "\n" + "\n".join(tabs) + "\n\n  " + middle + page_marker + "\n" + "\n".join(pages) + "\n\n  " + rest2
 
-    with open(xdl_path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(new_content)
-    print(f"  Injected {len(tabs)} tabs into {os.path.basename(xdl_path)}")
+    print(f"  Injected {len(tabs)} tabs into {os.path.basename(output_path)}")
 
 
 def generate_manifest_xml(modules, output_path):
@@ -1577,7 +1594,11 @@ def main():
     generate_manifest_xml(sorted_modules, manifest_xml_path)
 
     # 7. SettingsDialog Tabs
-    generate_settings_dialog_tabs(sorted_modules, os.path.join(PROJECT_ROOT, "extension", "LocalWriterDialogs", "SettingsDialog.xdl"))
+    generate_settings_dialog_tabs(
+        sorted_modules,
+        os.path.join(PROJECT_ROOT, "extension", "LocalWriterDialogs", "SettingsDialog.xdl.tpl"),
+        os.path.join(PROJECT_ROOT, "build", "generated", "LocalWriterDialogs", "SettingsDialog.xdl")
+    )
 
     # 8. Patch version
     patch_description_xml(os.path.join(PROJECT_ROOT, "extension"))

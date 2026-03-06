@@ -69,14 +69,15 @@ EXCLUDE_PATTERNS = (
     "__pycache__",
     ".pyc",
     ".pyo",
-    "module.yaml",
     "tests/",
     "test_",
+    ".tpl",
 )
 
 # Generated files (XCS/XCU, XDL dialogs)
 GENERATED_INCLUDES = [
     "build/generated/dialogs/",
+    "build/generated/LocalWriterDialogs/",
     "build/generated/Addons.xcu",
     "build/generated/Accelerators.xcu",
 ]
