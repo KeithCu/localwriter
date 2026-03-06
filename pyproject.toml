@@ -22,3 +22,8 @@ testpaths = ["tests"]
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=5.0.0",
+]
