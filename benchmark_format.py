@@ -1,57 +1,72 @@
 import time
-import unittest
+import sys
 from unittest.mock import MagicMock
+
+# Mock UNO constants
+com = MagicMock()
+sys.modules['com'] = com
+sys.modules['com.sun'] = com.sun
+sys.modules['com.sun.star'] = com.sun.star
+
 from plugin.modules.calc.manipulator import CellManipulator
 
+class MockCell:
+    def setPropertyValue(self, name, value):
+        pass
+
+class MockCellRange:
+    def setPropertyValue(self, name, value):
+        pass
+
+class MockSheet:
+    def getCellByPosition(self, col, row):
+        return MockCell()
+
+class MockFormats:
+    def queryKey(self, f, l, b): return -1
+    def addNew(self, f, l): return 123
+
+class MockDoc:
+    def getNumberFormats(self):
+        return MockFormats()
+    def getPropertyValue(self, name):
+        return "en-US"
+
 class MockBridge:
-    def __init__(self):
-        self.doc = MagicMock()
-        self.sheet = MagicMock()
-        self.cell_range = MagicMock()
-
-        # Mock formats
-        self.formats = MagicMock()
-        self.formats.queryKey.return_value = -1
-        self.formats.addNew.return_value = 42
-        self.doc.getNumberFormats.return_value = self.formats
-        self.doc.getPropertyValue.return_value = "en_US"
-
-        # Track cells to simulate overhead
-        self.cells = {}
-
     def get_active_sheet(self):
-        return self.sheet
-
+        return MockSheet()
     def get_active_document(self):
-        return self.doc
-
+        return MockDoc()
     def parse_range_string(self, range_str):
-        # Assume A1:CV100 -> cols 0 to 99, rows 0 to 99
-        return (0, 0), (99, 99)
-
+        # Let's say A1:Z1000 -> (0, 0) to (25, 999) -> 26 * 1000 = 26000 cells
+        return (0, 0), (25, 999)
     def get_cell_range(self, sheet, range_str):
-        return self.cell_range
+        return MockCellRange()
 
-# Create mock bridge and inject
 bridge = MockBridge()
-
-def mock_get_cell(col, row):
-    # Simulate a small delay for API call
-    # time.sleep(0.00001)
-    if (col, row) not in bridge.cells:
-        cell = MagicMock()
-        bridge.cells[(col, row)] = cell
-    return bridge.cells[(col, row)]
-
-bridge.sheet.getCellByPosition.side_effect = mock_get_cell
-
 manipulator = CellManipulator(bridge)
 
-print("Starting benchmark...")
 start_time = time.time()
-manipulator._set_range_number_format("A1:CV100", "#,##0.00")
+manipulator._set_range_number_format("A1:Z1000", "#,##0.00")
 end_time = time.time()
 
-print(f"Time taken: {end_time - start_time:.4f} seconds")
-print(f"getCellByPosition called {bridge.sheet.getCellByPosition.call_count} times")
-print(f"setPropertyValue called on cells: {sum(c.setPropertyValue.call_count for c in bridge.cells.values())} times")
+print(f"Time taken for old approach: {end_time - start_time:.6f} seconds")
+
+def optimized_set_range_number_format(self, range_str: str, format_str: str):
+    sheet = self.bridge.get_active_sheet()
+    cell_range = self.bridge.get_cell_range(sheet, range_str)
+    doc = self.bridge.get_active_document()
+    formats = doc.getNumberFormats()
+    locale = doc.getPropertyValue("CharLocale")
+    format_id = formats.queryKey(format_str, locale, False)
+    if format_id == -1:
+        format_id = formats.addNew(format_str, locale)
+    cell_range.setPropertyValue("NumberFormat", format_id)
+
+CellManipulator._set_range_number_format = optimized_set_range_number_format
+
+start_time = time.time()
+manipulator._set_range_number_format("A1:Z1000", "#,##0.00")
+end_time = time.time()
+
+print(f"Time taken for new approach: {end_time - start_time:.6f} seconds")

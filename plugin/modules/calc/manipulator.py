@@ -8,7 +8,6 @@ import csv
 import io
 import json
 import logging
-import re
 
 from plugin.modules.calc.address_utils import parse_address
 
