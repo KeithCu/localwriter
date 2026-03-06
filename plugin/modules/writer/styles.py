@@ -53,17 +53,18 @@ class ListStyles(ToolBase):
     def execute(self, ctx, **kwargs):
         family = kwargs.get("family", "ParagraphStyles")
         doc = ctx.doc
-        families = doc.getStyleFamilies()
 
-        if not families.hasByName(family):
-            available = list(families.getElementNames())
-            return {
-                "status": "error",
-                "message": "Unknown style family: %s" % family,
-                "available_families": available,
-            }
+        style_family = self.get_item(
+            doc, "getStyleFamilies", family,
+            missing_msg="Document does not support style families.",
+            not_found_msg="Unknown style family: %s" % family
+        )
+        if isinstance(style_family, dict):
+            # To match old behavior returning available_families instead of available
+            if "available" in style_family:
+                style_family["available_families"] = style_family.pop("available")
+            return style_family
 
-        style_family = families.getByName(family)
         styles = []
         for name in style_family.getElementNames():
             style = style_family.getByName(name)
@@ -120,14 +121,14 @@ class GetStyleInfo(ToolBase):
             return {"status": "error", "message": "style_name is required."}
 
         doc = ctx.doc
-        families = doc.getStyleFamilies()
-        if not families.hasByName(family):
-            return {
-                "status": "error",
-                "message": "Unknown style family: %s" % family,
-            }
+        style_family = self.get_item(
+            doc, "getStyleFamilies", family,
+            missing_msg="Document does not support style families.",
+            not_found_msg="Unknown style family: %s" % family
+        )
+        if isinstance(style_family, dict):
+            return style_family
 
-        style_family = families.getByName(family)
         if not style_family.hasByName(style_name):
             return {
                 "status": "error",

@@ -72,3 +72,47 @@ class ToolBase(ABC):
         Returns:
             dict with at least ``{"status": "ok"|"error", ...}``.
         """
+
+    def get_collection(self, doc, getter_name, missing_msg=None):
+        """Helper to safely fetch a named collection from a document.
+
+        Args:
+            doc: UNO document object.
+            getter_name: Method name to call (e.g., "getGraphicObjects").
+            missing_msg: Error message if the document lacks the getter.
+
+        Returns:
+            The UNO collection object, or a dict with {"status": "error", "message": ...}
+        """
+        if not hasattr(doc, getter_name):
+            msg = missing_msg or f"Document does not support {getter_name}."
+            return {"status": "error", "message": msg}
+        return getattr(doc, getter_name)()
+
+    def get_item(self, doc, getter_name, item_name, missing_msg=None, not_found_msg=None):
+        """Helper to fetch a specific item from a document's collection.
+
+        Args:
+            doc: UNO document object.
+            getter_name: Method name to call (e.g., "getTextFrames").
+            item_name: Name of the item to retrieve.
+            missing_msg: Error message if the collection getter is missing.
+            not_found_msg: Error message if the item doesn't exist.
+
+        Returns:
+            The UNO item object, or a dict with {"status": "error", "message": ..., "available": [...]}
+        """
+        collection = self.get_collection(doc, getter_name, missing_msg)
+        if isinstance(collection, dict):
+            return collection
+
+        if not collection.hasByName(item_name):
+            available = list(collection.getElementNames())
+            msg = not_found_msg or f"Item '{item_name}' not found."
+            return {
+                "status": "error",
+                "message": msg,
+                "available": available,
+            }
+
+        return collection.getByName(item_name)

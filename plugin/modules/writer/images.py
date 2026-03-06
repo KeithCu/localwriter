@@ -158,14 +158,14 @@ class ListImages(ToolBase):
 
     def execute(self, ctx, **kwargs):
         doc = ctx.doc
-        if not hasattr(doc, "getGraphicObjects"):
-            return {"status": "error", "message": "Document does not support graphic objects."}
+        graphics = self.get_collection(doc, "getGraphicObjects", "Document does not support graphic objects.")
+        if isinstance(graphics, dict):
+            return graphics
 
         doc_svc = ctx.services.document
         para_ranges = doc_svc.get_paragraph_ranges(doc)
         text_obj = doc.getText()
 
-        graphics = doc.getGraphicObjects()
         images = []
         for name in graphics.getElementNames():
             try:
@@ -251,17 +251,14 @@ class GetImageInfo(ToolBase):
         if not image_name:
             return {"status": "error", "message": "image_name is required."}
 
-        doc = ctx.doc
-        graphics = doc.getGraphicObjects()
-        if not graphics.hasByName(image_name):
-            available = list(graphics.getElementNames())
-            return {
-                "status": "error",
-                "message": "Image '%s' not found." % image_name,
-                "available": available,
-            }
+        graphic = self.get_item(
+            ctx.doc, "getGraphicObjects", image_name,
+            missing_msg="Document does not support graphic objects.",
+            not_found_msg="Image '%s' not found." % image_name
+        )
+        if isinstance(graphic, dict):
+            return graphic
 
-        graphic = graphics.getByName(image_name)
         size = graphic.getPropertyValue("Size")
 
         # Graphic URL — try the modern property first, then legacy.
@@ -401,15 +398,14 @@ class SetImageProperties(ToolBase):
         if not image_name:
             return {"status": "error", "message": "image_name is required."}
 
-        doc = ctx.doc
-        graphics = doc.getGraphicObjects()
-        if not graphics.hasByName(image_name):
-            return {
-                "status": "error",
-                "message": "Image '%s' not found." % image_name,
-            }
+        graphic = self.get_item(
+            ctx.doc, "getGraphicObjects", image_name,
+            missing_msg="Document does not support graphic objects.",
+            not_found_msg="Image '%s' not found." % image_name
+        )
+        if isinstance(graphic, dict):
+            return graphic
 
-        graphic = graphics.getByName(image_name)
         updated = []
 
         # Size
@@ -678,17 +674,13 @@ class DeleteImage(ToolBase):
         if not image_name:
             return {"status": "error", "message": "image_name is required."}
 
-        doc = ctx.doc
-        graphics = doc.getGraphicObjects()
-        if not graphics.hasByName(image_name):
-            available = list(graphics.getElementNames())
-            return {
-                "status": "error",
-                "message": "Image '%s' not found." % image_name,
-                "available": available,
-            }
-
-        graphic = graphics.getByName(image_name)
+        graphic = self.get_item(
+            ctx.doc, "getGraphicObjects", image_name,
+            missing_msg="Document does not support graphic objects.",
+            not_found_msg="Image '%s' not found." % image_name
+        )
+        if isinstance(graphic, dict):
+            return graphic
 
         try:
             anchor = graphic.getAnchor()
@@ -747,15 +739,13 @@ class ReplaceImage(ToolBase):
         if not new_image_path:
             return {"status": "error", "message": "new_image_path is required."}
 
-        doc = ctx.doc
-        graphics = doc.getGraphicObjects()
-        if not graphics.hasByName(image_name):
-            available = list(graphics.getElementNames())
-            return {
-                "status": "error",
-                "message": "Image '%s' not found." % image_name,
-                "available": available,
-            }
+        graphic = self.get_item(
+            ctx.doc, "getGraphicObjects", image_name,
+            missing_msg="Document does not support graphic objects.",
+            not_found_msg="Image '%s' not found." % image_name
+        )
+        if isinstance(graphic, dict):
+            return graphic
 
         # Auto-download URLs
         if new_image_path.startswith("http://") or new_image_path.startswith("https://"):
@@ -771,8 +761,6 @@ class ReplaceImage(ToolBase):
             }
 
         file_url = uno.systemPathToFileUrl(os.path.abspath(new_image_path))
-
-        graphic = graphics.getByName(image_name)
 
         try:
             graphic.setPropertyValue("GraphicURL", file_url)
