@@ -388,7 +388,7 @@ class LauncherModule(ModuleBase):
     def _get_mcp_url(self):
         """Build the MCP base URL from HTTP config."""
         http_cfg = self._services.config.proxy_for("http")
-        port = http_cfg.get("port") or 8765
+        port = http_cfg.get("port") or http_cfg.get("mcp_port") or 8765
         host = http_cfg.get("host") or "localhost"
         scheme = "https" if http_cfg.get("use_ssl") else "http"
         return "%s://%s:%s" % (scheme, host, port), host, port

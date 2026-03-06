@@ -97,7 +97,7 @@ class ApplyDocumentContent(ToolBase):
         "properties": {
             "content": {
                 "type": "string",
-                "description": "The new content (Markdown or HTML).",
+                "description": "The new content (HTML or plain text).",
             },
             "target": {
                 "type": "string",

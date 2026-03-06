@@ -408,6 +408,17 @@ MODULES = [
         "action_icons": {}
 },
     {
+        "name": "launcher.hermes",
+        "title": "Hermes Agent CLI provider",
+        "requires": [
+                "launcher_manager"
+        ],
+        "provides_services": [],
+        "config": {},
+        "actions": [],
+        "action_icons": {}
+},
+    {
         "name": "launcher.gemini",
         "title": "Gemini CLI provider",
         "requires": [
