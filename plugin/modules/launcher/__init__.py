@@ -175,18 +175,36 @@ def get_global_instructions_default(services):
 
 def on_install_active_provider():
     """Action handler for the unified Install button."""
+    import webbrowser
     from plugin.main import get_services
+    from plugin.framework.dialogs import msgbox
+    from plugin.framework.uno_context import get_ctx
+
     services = get_services()
     if not services:
         return
+
     cfg = services.config.proxy_for("launcher")
     name = cfg.get("provider")
-    if name:
-        run_install_for_provider(name)
-    else:
-        from plugin.framework.dialogs import msgbox
-        from plugin.framework.uno_context import get_ctx
+
+    if not name:
         msgbox(get_ctx(), "LocalWriter", "Please select a provider first.")
+        return
+
+    provider = services.launcher_manager.get_provider(name)
+    if provider is None:
+        msgbox(get_ctx(), "LocalWriter", "CLI provider '%s' not found." % name)
+        return
+
+    install_url = getattr(provider, "install_url", None)
+    if install_url:
+        try:
+            webbrowser.open(install_url)
+        except Exception:
+            log.exception("Failed to open install URL: %s", install_url)
+            msgbox(get_ctx(), "LocalWriter", "Failed to open install URL.")
+    else:
+        msgbox(get_ctx(), "LocalWriter", "No install URL available for provider '%s'." % name)
 
 
 def _find_terminal(configured):
