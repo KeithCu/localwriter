@@ -112,13 +112,4 @@ def get_text_cursor_at_range(model, start, end):
         return None
 
 
-def _doc_length(model):
-    """Return total character length of the document body text."""
-    try:
-        text = model.getText()
-        cursor = text.createTextCursor()
-        cursor.gotoStart(False)
-        cursor.gotoEnd(True)
-        return len(cursor.getString())
-    except Exception:
-        return 0
+from plugin.modules.core.services.document import get_document_length as _doc_length

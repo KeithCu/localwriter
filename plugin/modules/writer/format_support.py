@@ -14,13 +14,7 @@ import tempfile
 log = logging.getLogger("localwriter.writer")
 
 
-def _doc_text_length(doc):
-    """Return the total character length of the document."""
-    text = doc.getText()
-    cursor = text.createTextCursor()
-    cursor.gotoStart(False)
-    cursor.gotoEnd(True)
-    return len(cursor.getString())
+from plugin.modules.core.services.document import get_document_length as _doc_text_length
 
 
 # ---------------------------------------------------------------------------

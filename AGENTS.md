@@ -13,7 +13,7 @@
 
 - **Extend Selection** (Ctrl+Q): Model continues the selected text
 - **Edit Selection** (Ctrl+E): User enters instructions; model rewrites the selection
-- **Chat with Document** (Writer, Calc, and Draw): (a) **Sidebar panel**: LocalWriter deck in the right sidebar, multi-turn chat with tool-calling that edits the document; (b) **Menu item** (fallback): Opens input dialog, appends response to end of document (Writer) or to "AI Response" sheet (Calc/Draw)
+- **Chat with Document** (Writer, Calc, and Draw): (a) **Sidebar panel**: LocalWriter deck in the right sidebar, multi-turn chat with tool-calling that edits the document; (b) **Persistent History**: Conversations are saved to a local SQLite database and restored automatically using document metadata for robust session tracking; (c) **Menu item** (fallback): Opens input dialog, appends response to end of document (Writer) or to "AI Response" sheet (Calc/Draw)
 - **Settings**: Configure endpoint, model, API key, temperature, request timeout, image generation settings (provider, API keys, dimensions), etc.
 - **Image Generation & Editing**: Multimodal capabilities via `generate_image` (create and insert) and `edit_image` (Img2Img on selected object) tools.
 - **Calc** `=PROMPT()`: Cell formula that calls the model
@@ -149,6 +149,11 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
 - **Chat** uses `get_chat_system_prompt_for_document(model, additional_instructions)` in `plugin/framework/constants.py` so the correct prompt is chosen by document type: **Writer** → `DEFAULT_CHAT_SYSTEM_PROMPT` + additional_instructions (get_markdown/apply_markdown, presume document editing, translate/proofread, no preamble); **Calc** → `DEFAULT_CALC_CHAT_SYSTEM_PROMPT` + additional_instructions (semicolon formula syntax, 4-step workflow: understand → get state → use tools → short confirmation; tools grouped READ / WRITE & FORMAT / SHEET MANAGEMENT / CHART / ERRORS). Used by both sidebar and menu Chat.
 - **Reasoning tokens**: `plugin/main.py` sends `reasoning: { effort: 'minimal' }` on all chat requests.
 - **Thinking display**: Reasoning tokens are shown in the response area as `[Thinking] ... /thinking`. When thinking ends we append a newline after ` /thinking` so the following response text starts on a new line.
+- **Persistent Chat History**: Logic in `plugin/modules/core/services/history_db.py`. Uses a polyfill strategy: SQLAlchemy if available, fallback to native `sqlite3`.
+    - **Schema**: Simple `message_store` table compatible with LangChain's SQL history JSON format.
+    - **Database Path**: Stored in LibreOffice user config directory (`localwriter_history.db`).
+    - **Robust Session IDs**: Instead of document URLs (which break on rename), we store a `LocalWriterSessionID` in the document's **`UserDefinedProperties`** via `getDocumentProperties()`. If missing, we generate one (hash or UUID) and persist it to the file. This ensures history remains linked even if the file is moved or renamed.
+    - **Save-As Awareness**: History logic handles "Save As" by either branching the history (generating a new ID) or inheriting it, depending on the implementation.
 
 See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for implementation details.
 
@@ -462,7 +467,8 @@ Restart LibreOffice after install/update. Test: menu **LocalWriter → Settings*
 - **Predictive Typing**: Trigram-based "ghost text" for real-time drafting assist.
 - **Reliability Foundations**: Robust timeouts, clear error prompts, and rollback safety.
 - **Suite Completeness**: Finalizing Draw and Impress slide/shape toolsets.
-- **Offline First**: Optimized local performance for privacy and speed.
+- **Offline First**: Continued focus on performance with the fastest local models (Ollama, etc.) to ensure privacy and speed without cloud dependencies.
+- **Hybrid Orchestrator / Handover**: Future capability to "hand over" complex tasks from the sidebar to high-power external CLI agents (like `claude-code`) using the built-in MCP server.
 
 Image generation and AI Horde integration are **complete** (generate_image, edit_image, AI Horde + endpoint providers, Image Settings tab with shared vs Horde-only sections).
 

@@ -9,6 +9,8 @@ remain in panel_factory.py.
 import json
 import queue
 import threading
+import hashlib
+import os
 
 import uno
 import unohelper
@@ -17,6 +19,7 @@ from com.sun.star.awt import XActionListener
 from plugin.framework.logging import agent_log, debug_log, update_activity_state
 from plugin.framework.uno_helpers import get_checkbox_state
 from plugin.modules.core.async_stream import run_stream_completion_async, run_stream_drain_loop
+from plugin.modules.core.services.history_db import get_chat_history
 
 # Default max tool rounds when not in config (get_api_config supplies chat_max_tool_rounds)
 DEFAULT_MAX_TOOL_ROUNDS = 5
@@ -29,13 +32,28 @@ DEFAULT_MAX_TOOL_ROUNDS = 5
 class ChatSession:
     """Maintains the message history for one sidebar chat session."""
 
-    def __init__(self, system_prompt=None):
+    def __init__(self, system_prompt=None, session_id=None):
+        self.session_id = session_id
+        self.db = None
         self.messages = []
-        if system_prompt:
+        
+        if session_id:
+            try:
+                self.db = get_chat_history(session_id)
+                self.messages = self.db.get_messages()
+            except Exception as e:
+                debug_log("ChatSession history load error: %s" % e, context="Chat")
+
+        # If no history, or system prompt forced
+        if not self.messages and system_prompt:
             self.messages.append({"role": "system", "content": system_prompt})
+            if self.db:
+                self.db.add_message("system", system_prompt)
 
     def add_user_message(self, content):
         self.messages.append({"role": "user", "content": content})
+        if self.db:
+            self.db.add_message("user", content)
 
     def add_assistant_message(self, content=None, tool_calls=None):
         msg = {"role": "assistant"}
@@ -46,6 +64,9 @@ class ChatSession:
         if tool_calls:
             msg["tool_calls"] = tool_calls
         self.messages.append(msg)
+        if self.db:
+            # Only persist the text content to history; tool calls are ephemeral.
+            self.db.add_message("assistant", content)
 
     def add_tool_result(self, tool_call_id, content):
         self.messages.append({
@@ -53,6 +74,8 @@ class ChatSession:
             "tool_call_id": tool_call_id,
             "content": content,
         })
+        # Note: We do NOT persist tool results to history_db. 
+        # This keeps the persistent history clean of tool formatting requirements.
 
     def update_document_context(self, doc_text):
         """Update or insert the document context as a system message.
@@ -77,8 +100,12 @@ class ChatSession:
                 system = msg
                 break
         self.messages = []
+        if self.db:
+            self.db.clear()
         if system:
             self.messages.append(system)
+            if self.db:
+                self.db.add_message("system", system["content"])
 
 
 # ---------------------------------------------------------------------------

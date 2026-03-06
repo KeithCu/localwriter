@@ -12,6 +12,8 @@ Unlike proprietary office suites that lock you into a single cloud provider and 
 ### 2. Chat with Document (Writer, Calc, and Draw)
 The main way to interact with your document. While you can ask it anything, **its primary job is to edit your document**, not just answer questions.
 *   **Sidebar Panel**: A dedicated deck in the right sidebar for multi-turn chat. It supports tool-calling to read and edit the document directly.
+*   **Persistent Chat History**: Previous conversations are automatically saved and restored when you reopen a document. History is stored in a local SQLite database in the user config directory.
+*   **Robust Session Tracking**: Chat history is linked directly to the document using an internal metadata ID (saved in the file). This means your conversation follows the document even if you rename it or move it to a different folder.
 *   **Menu Item**: A fallback option that opens an input dialog and appends responses to the document.
 *   **Performance**: Features built-in connection management with persistent HTTPS connections for fast response times.
 *   **Undo Integration**: AI edits are grouped so you can revert an entire AI turn with a single `Ctrl+Z`.
@@ -69,6 +71,7 @@ LocalWriter isn't just a wrapper; it's built for performance and deep integratio
 *   **High-Throughput Performance (200+ tps)**: Optimized for speed, the system can easily handle 200 tokens per second with zero UI stutter.
 *   **Native Formatting Persistence**: For structured content (Markdown/HTML), LocalWriter injects AI-generated text using the import path, preserving native LibreOffice styles. For plain-text replacements (e.g. typo fixes), we preserve your existing per-character formatting so highlights, bold, and colors stay intact.
 *   **Isolated Task Contexts**: Each open document in LibreOffice gets its own independent AI sidebar. The AI stays aware of the specific document it's attached to, preventing "cross-talk" when working on multiple projects.
+*   **Hybrid AI Orchestrator Model**: LocalWriter is moving towards a "hybrid orchestrator" architecture. While it has an embedded chat sidebar for direct document interaction, it also exposes its entire toolset (Writer, Calc, Draw) via an opt-in **MCP Server**. This allows you to delegate complex, system-wide coding or research tasks to specialized external agents (like `claude-code`) while maintaining the document as the single source of truth.
 *   **Expanded Writer Tool Set**: The sidebar exposes a rich set of Writer operations:
     *   **Styles**: The AI can discover paragraph and character style names (including localized names) before applying them, ensuring it uses styles that actually exist.
     *   **Comments**: The AI can read, add, and remove inline comments, enabling full review workflows.

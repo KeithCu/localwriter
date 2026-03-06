@@ -85,3 +85,35 @@ class TabListener(unohelper.Base, XActionListener):
     def disposing(self, ev):
         """Required by XActionListener interface."""
         pass
+
+
+def get_document_property(model, name, default=None):
+    """Get a custom document property from the model."""
+    try:
+        if hasattr(model, "getDocumentProperties"):
+            props = model.getDocumentProperties().UserDefinedProperties
+            if props.hasByName(name):
+                return props.getPropertyValue(name)
+    except Exception:
+        pass
+    return default
+
+
+def set_document_property(model, name, value):
+    """Set a custom document property in the model."""
+    try:
+        if hasattr(model, "getDocumentProperties"):
+            props = model.getDocumentProperties().UserDefinedProperties
+            if not props.hasByName(name):
+                # Using a fixed type (string) for session IDs
+                from com.sun.star.beans.PropertyAttribute import REMOVABLE
+                props.addProperty(name, REMOVABLE, str(value))
+            else:
+                props.setPropertyValue(name, str(value))
+    except Exception as e:
+        # Fallback to debug log if available, but avoid circular imports
+        try:
+            from plugin.framework.logging import debug_log
+            debug_log("set_document_property error: %s" % e, context="Chat")
+        except Exception:
+            pass

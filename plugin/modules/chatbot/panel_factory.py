@@ -8,6 +8,8 @@ import json
 import queue
 import threading
 import weakref
+import hashlib
+import uuid
 import uno
 import unohelper
 
@@ -542,8 +544,31 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             debug_log(traceback.format_exc(), context="Chat")
             system_prompt = DEFAULT_SYSTEM_PROMPT_FALLBACK
 
+        # Generate session_id from document metadata for persistent history
+        # robustness: renames/moves won't break history if ID is in the doc.
+        from plugin.framework.uno_helpers import get_document_property, set_document_property
+        session_id = get_document_property(model, "LocalWriterSessionID")
+        
+        if not session_id:
+            debug_log("No session ID in document, generating new one", context="Chat")
+            if model and hasattr(model, "getURL"):
+                url = model.getURL()
+                if url:
+                    session_id = hashlib.sha256(url.encode('utf-8')).hexdigest()
+            
+            if not session_id:
+                session_id = str(uuid.uuid4())
+            
+            # Persist it back to the document if possible
+            if model:
+                set_document_property(model, "LocalWriterSessionID", session_id)
+                # Try to save the document to persist the property immediately?
+                # No, that might be too intrusive. The user will save it eventually.
+        
+        debug_log("Using Session ID: %s" % session_id, context="Chat")
+        
         # Create session
-        self.session = ChatSession(system_prompt)
+        self.session = ChatSession(system_prompt, session_id=session_id)
 
         # Wire Send button
         try:
@@ -583,14 +608,33 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         except Exception as e:
             _show_init_error("Send/Stop button: %s" % e)
 
-        # Show ready message
+        # Show ready message and loaded history
         try:
             if response_ctrl and response_ctrl.getModel():
                 from plugin.framework.constants import get_greeting_for_document
                 greeting = get_greeting_for_document(model)
-                response_ctrl.getModel().Text = "%s\n" % greeting
-        except Exception:
-            pass
+                text = "%s\n" % greeting
+                
+                # Append loaded history (skipping system context if desired, or showing all)
+                for msg in self.session.messages:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        text += "\nUser: %s\n" % content
+                    elif role == "assistant":
+                        text += "\nAssistant: %s" % (content or "")
+                        if msg.get("tool_calls"):
+                            text += " [Thinking...]"
+                        text += "\n"
+                    # We skip system messages to keep the UI clean
+                
+                response_ctrl.getModel().Text = text
+                # Scroll to bottom
+                if hasattr(response_ctrl, "setSelection"):
+                    length = len(text)
+                    response_ctrl.setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", length, length))
+        except Exception as e:
+            debug_log("Rendering history error: %s" % e, context="Chat")
 
         # Wire Clear button (may not exist in older XDL)
         try:

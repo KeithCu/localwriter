@@ -546,6 +546,7 @@ class DocumentService(ServiceBase):
     def is_calc(self, doc): return is_calc(doc)
     def is_draw(self, doc): return is_draw(doc)
     def get_full_text(self, doc, max_chars=8000): return get_full_document_text(doc, max_chars)
+    def get_document_length(self, doc): return get_document_length(doc)
     def get_document_context_for_chat(self, doc, max_context=8000, include_end=True, include_selection=True):
         return get_document_context_for_chat(doc, max_context, include_end, include_selection, get_ctx())
 
