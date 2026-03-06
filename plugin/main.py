@@ -455,14 +455,11 @@ def _get_http_module(ctx=None):
     return None
 
 def _start_mcp_server(ctx):
-    """Start HTTP/MCP server if enabled."""
+    """Ensure HTTP/MCP server is loaded. Start happens natively in module lifecycle."""
     from plugin.modules.core.services.config import get_config, as_bool
     if not as_bool(get_config(ctx, "mcp_enabled", False)):
         return
     bootstrap(ctx)
-    mod = _get_http_module(ctx)
-    if mod and (not mod._server or not mod._server.is_running()):
-        mod.start_background(_services)
 
 def _stop_mcp_server():
     mod = _get_http_module()

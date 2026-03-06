@@ -61,6 +61,8 @@ def get_settings_field_specs(ctx):
                         debug_log(f"Failed to resolve options_provider: {provider_path}", context="Settings")
 
                 schema_type = schema.get("type", "string")
+                if schema_type == "boolean":
+                    schema_type = "bool"
                 if schema_type in ("bool", "int", "float"):
                     field["type"] = schema_type
                     if schema_type == "bool":
