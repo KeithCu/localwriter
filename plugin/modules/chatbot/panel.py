@@ -1109,15 +1109,17 @@ class StopButtonListener(unohelper.Base, XActionListener):
 class ClearButtonListener(unohelper.Base, XActionListener):
     """Listener for the Clear button - resets conversation history."""
 
-    def __init__(self, session, response_control, status_control):
+    def __init__(self, session, response_control, status_control, greeting=""):
         self.session = session
         self.response_control = response_control
         self.status_control = status_control
+        self.greeting = greeting
 
     def actionPerformed(self, evt):
         self.session.clear()
         if self.response_control and self.response_control.getModel():
-            self.response_control.getModel().Text = ""
+            text = self.greeting + "\n" if self.greeting else ""
+            self.response_control.getModel().Text = text
         if self.status_control:
             self.status_control.setText("")
 

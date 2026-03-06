@@ -640,8 +640,10 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         try:
             clear_btn = root_window.getControl("clear")
             if clear_btn:
+                from plugin.framework.constants import get_greeting_for_document
+                greeting = get_greeting_for_document(model)
                 clear_btn.addActionListener(ClearButtonListener(
-                    self.session, response_ctrl, status_ctrl))
+                    self.session, response_ctrl, status_ctrl, greeting=greeting))
                 debug_log("Clear button wired", context="Chat")
         except Exception:
             pass
