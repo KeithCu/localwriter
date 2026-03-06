@@ -133,6 +133,80 @@ def debug_log(msg, context=None):
         pass
 
 
+def format_tool_call_for_display(tool, args, method=None):
+    """Format an MCP tool call or generic method call for UI display, summarizing long arguments."""
+    try:
+        if tool:
+            args_dict = args or {}
+            arg_vals = []
+            if isinstance(args_dict, dict):
+                for k, v in args_dict.items():
+                    val_str = repr(v)
+                    if len(val_str) > 100:
+                        if isinstance(v, str):
+                            val_str = repr(v[:100] + "...")
+                        else:
+                            val_str = val_str[:100] + "..."
+                    arg_vals.append(f"{k}={val_str}")
+            args_str = ", ".join(arg_vals)
+            return f"{tool}({args_str})"
+        else:
+            return method or "GET"
+    except Exception as e:
+        return f"{tool or method} (format error: {e})"
+
+
+def format_tool_result_for_display(tool, result, args=None):
+    """Format an MCP tool result for UI display, extracting inner text/messages and summarizing length."""
+    try:
+        import json
+        res_str = str(result)
+        try:
+            res_dict = json.loads(result) if isinstance(result, str) else result
+            if isinstance(res_dict, dict) and "content" in res_dict and isinstance(res_dict["content"], list):
+                parts = []
+                for item in res_dict["content"]:
+                    if item.get("type") == "text":
+                        parts.append(item.get("text", ""))
+                if parts:
+                    res_str = " ".join(parts)
+                    try:
+                        inner_dict = json.loads(res_str)
+                        if isinstance(inner_dict, dict) and "message" in inner_dict:
+                            res_str = inner_dict["message"]
+                    except:
+                        pass
+        except:
+            pass
+
+        val_repr = repr(res_str)
+        if len(val_repr) > 150:
+            if isinstance(res_str, str):
+                val_repr = repr(res_str[:150] + "...")
+            else:
+                val_repr = val_repr[:150] + "..."
+                
+        args_str = ""
+        if args:
+            args_dict = args if isinstance(args, dict) else {}
+            arg_vals = []
+            for k, v in args_dict.items():
+                v_str = repr(v)
+                if len(v_str) > 100:
+                    if isinstance(v, str):
+                        v_str = repr(v[:100] + "...")
+                    else:
+                        v_str = v_str[:100] + "..."
+                arg_vals.append(f"{k}={v_str}")
+            args_str = ", ".join(arg_vals)
+            
+        if args_str:
+            return f"{tool}({args_str}) -> {val_repr}"
+        return f"{tool}() -> {val_repr}"
+    except Exception as e:
+        return f"{tool}() -> (format error: {e})"
+
+
 def agent_log(location, message, data=None, hypothesis_id=None, run_id=None):
     """Write one NDJSON line to agent log if enable_agent_log is True. Uses global path."""
     if not _enable_agent_log:

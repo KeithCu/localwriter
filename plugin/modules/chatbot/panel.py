@@ -138,10 +138,15 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self.client = None
         # Subscribe to MCP/tool bus events
         try:
-            from plugin.framework.event_bus import global_event_bus
-            global_event_bus.subscribe("mcp:request", self._on_mcp_request)
-            global_event_bus.subscribe("mcp:result", self._on_mcp_result)
+            from plugin.main import get_tools
+            event_bus = getattr(get_tools()._services, "events", None)
+            if event_bus:
+                event_bus.subscribe("mcp:request", self._on_mcp_request)
+                event_bus.subscribe("mcp:result", self._on_mcp_result)
+                from plugin.framework.logging import debug_log
+                debug_log(f"*** SendButtonListener subscribed to MCP events on services.events (id={id(event_bus)}) ***", context="Chat")
         except Exception as e:
+            from plugin.framework.logging import debug_log
             debug_log("MCP subscribe error: %s" % e, context="Chat")
 
     def set_session(self, session):
@@ -185,55 +190,33 @@ class SendButtonListener(unohelper.Base, XActionListener):
         except Exception:
             pass
 
-    def _on_mcp_request(self, event_name, tool="", args=None, method=None, **kwargs):
+    def _on_mcp_request(self, tool="", args=None, method=None, **kwargs):
         """Handle MCP request events from the bus (background thread)."""
-        from plugin.framework.main_thread import execute_on_main_thread
-        from plugin.modules.core.services.config import get_config
-
-        if not get_config(self.ctx, "show_mcp_activity", True):
-            return
-
-        def _update_ui():
-            try:
-                args_dict = args or {}
-                arg_vals = []
-                if isinstance(args_dict, dict):
-                    for v in args_dict.values():
-                        s = str(v)
-                        if len(s) > 10:
-                            s = s[:10]
-                        arg_vals.append(s)
-
-                args_str = " (%s)" % ", ".join(arg_vals) if arg_vals else ""
-                method_str = method or "GET"
-                msg = "\n[MCP Request] Tool: %s%s\n" % (tool, args_str) if tool else "\n[MCP Request] %s\n" % method_str
-                self._append_response(msg)
-            except Exception as e:
-                debug_log("_on_mcp_request UI update error: %s" % e, context="Chat")
-
         try:
-            execute_on_main_thread(_update_ui, self.ctx)
+            from plugin.framework.logging import format_tool_call_for_display, debug_log
+            fmt_str = format_tool_call_for_display(tool, args, method)
+            debug_log(f"MCP Request (hidden from UI): {fmt_str}", context="Chat")
         except Exception as e:
-            debug_log("_on_mcp_request post error: %s" % e, context="Chat")
+            from plugin.framework.logging import debug_log
+            debug_log("_on_mcp_request error: %s" % e, context="Chat")
 
-    def _on_mcp_result(self, event_name, tool="", result_snippet="", **kwargs):
+    def _on_mcp_result(self, tool="", result_snippet="", **kwargs):
         """Handle MCP result events from the bus (background thread)."""
         from plugin.framework.main_thread import execute_on_main_thread
-        from plugin.modules.core.services.config import get_config
-
-        if not get_config(self.ctx, "show_mcp_activity", True):
-            return
 
         def _update_ui():
             try:
-                msg = "[MCP Result] %s: %s\n" % (tool, result_snippet[:100])
-                self._append_response(msg)
+                from plugin.framework.logging import format_tool_result_for_display
+                fmt_str = format_tool_result_for_display(tool, result_snippet, args=kwargs.get("args"))
+                self._append_response(f"[MCP Result] {fmt_str}\n")
             except Exception as e:
+                from plugin.framework.logging import debug_log
                 debug_log("_on_mcp_result UI update error: %s" % e, context="Chat")
 
         try:
-            execute_on_main_thread(_update_ui, self.ctx)
+            execute_on_main_thread(_update_ui)
         except Exception as e:
+            from plugin.framework.logging import debug_log
             debug_log("_on_mcp_result post error: %s" % e, context="Chat")
 
     def _get_document_model(self):
@@ -879,6 +862,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 call_id = tc.get("id", "")
 
                 self._set_status("Running: %s" % func_name)
+                self._append_response("[Running tool: %s...]\n" % func_name)
                 update_activity_state("tool_execute", round_num=round_num, tool_name=func_name)
 
                 try:

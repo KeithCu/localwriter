@@ -101,8 +101,8 @@ def bootstrap(ctx=None):
         # 2. Document Service (Loaded from core module)
 
         # 3. Events Service
-        from plugin.framework.event_bus import EventBus
-        _services.register_instance("events", EventBus())
+        from plugin.framework.event_bus import get_event_bus
+        _services.register_instance("events", get_event_bus())
 
         # 4. Tool Registry
         _tools = ToolRegistry(_services)

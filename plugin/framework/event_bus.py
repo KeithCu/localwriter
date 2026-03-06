@@ -74,8 +74,8 @@ class EventBus:
                 continue
             try:
                 resolved(**data)
-            except Exception:
-                log.exception("Error in event handler for %s", event)
+            except Exception as e:
+                log.exception(f"Error in event handler {resolved} for {event}: {e}")
 
         # Clean up dead weakrefs
         if dead:
@@ -96,4 +96,11 @@ class EventBus:
             ]
 
 
-global_event_bus = EventBus()
+def get_event_bus():
+    """Return the true singleton EventBus across all LO import contexts."""
+    import sys
+    if not hasattr(sys, '_localwriter_event_bus'):
+        sys._localwriter_event_bus = EventBus()
+    return sys._localwriter_event_bus
+
+global_event_bus = get_event_bus()
