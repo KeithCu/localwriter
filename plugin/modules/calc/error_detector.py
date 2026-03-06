@@ -10,9 +10,11 @@ from plugin.modules.calc.address_utils import parse_address
 
 try:
     from com.sun.star.table.CellContentType import EMPTY, VALUE, TEXT, FORMULA
+    from com.sun.star.sheet.FormulaResult import ERROR as RESULT_ERROR
     UNO_AVAILABLE = True
 except ImportError:
     EMPTY, VALUE, TEXT, FORMULA = 0, 1, 2, 3
+    RESULT_ERROR = 4
     UNO_AVAILABLE = False
 
 logger = logging.getLogger("localwriter.calc")
@@ -186,20 +188,28 @@ class ErrorDetector:
                 end_row = addr.EndRow
 
             errors = []
-            for row in range(start_row, end_row + 1):
-                for col in range(start_col, end_col + 1):
-                    cell = sheet.getCellByPosition(col, row)
-                    if cell.getType() != FORMULA:
-                        continue
-                    error_info = self.get_error_type(cell)
-                    if error_info:
-                        col_str = self.bridge._index_to_column(col)
-                        address = f"{col_str}{row + 1}"
-                        errors.append({
-                            "address": address,
-                            "formula": cell.getFormula(),
-                            "error": error_info,
-                        })
+            cell_range = sheet.getCellRangeByPosition(
+                start_col, start_row, end_col, end_row
+            )
+            formula_cells = cell_range.queryFormulaCells(RESULT_ERROR)
+
+            if formula_cells:
+                # getCells() returns a collection of cells. We can iterate over them.
+                cells_collection = formula_cells.getCells()
+                if cells_collection:
+                    enum = cells_collection.createEnumeration()
+                    while enum.hasMoreElements():
+                        cell = enum.nextElement()
+                        error_info = self.get_error_type(cell)
+                        if error_info:
+                            addr = cell.getCellAddress()
+                            col_str = self.bridge._index_to_column(addr.Column)
+                            address = f"{col_str}{addr.Row + 1}"
+                            errors.append({
+                                "address": address,
+                                "formula": cell.getFormula(),
+                                "error": error_info,
+                            })
 
             logger.info(
                 "%d errors detected (range: %s).",
