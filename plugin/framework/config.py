@@ -344,7 +344,8 @@ def get_stt_model(ctx):
     """Return the configured STT model."""
     from plugin.contrib.default_models import get_provider_defaults
     current_endpoint = get_current_endpoint(ctx)
-    defaults = get_provider_defaults(current_endpoint)
+    provider = get_provider_from_endpoint(current_endpoint)
+    defaults = get_provider_defaults(provider)
     default_stt = defaults.get("stt_model", "")
     return str(get_config(ctx, "stt_model", default_stt)).strip()
 

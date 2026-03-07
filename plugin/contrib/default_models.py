@@ -35,6 +35,7 @@ def get_provider_defaults(provider):
     defaults = {
         "together": {"stt_model": "openai/whisper-large-v3"},
         "openrouter": {"stt_model": "google/gemini-3.1-flash-lite-preview"},
+        "mistral": {"stt_model": "voxtral-mini-2602"},
     }
     return defaults.get(provider, {})
 
@@ -287,5 +288,13 @@ DEFAULT_MODELS = [
             "openrouter": "openai/whisper-large-v3"
         },
         "id": "openai/whisper-large-v3",
+    },
+    {
+        "display_name": "Voxtral Mini",
+        "capability": "audio",
+        "priority": 10,
+        "notes": "Native audio model for Mistral",
+        "ids": {"mistral": "voxtral-mini-2602"},
+        "id": "voxtral-mini-2602",
     },
 ]
