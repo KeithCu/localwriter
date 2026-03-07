@@ -501,6 +501,7 @@ def get_api_config(ctx):
         or "open-webui" in endpoint.lower()
         or "openwebui" in endpoint.lower()
     )
+    is_openrouter = "openrouter.ai" in endpoint.lower()
     api_key = get_api_key_for_endpoint(ctx, endpoint)
 
     api_config = {
@@ -508,7 +509,7 @@ def get_api_config(ctx):
         "api_key": api_key,
         "model": get_text_model(ctx),
         "is_openwebui": is_openwebui,
-        "is_openrouter": "openrouter.ai" in endpoint.lower(),
+        "is_openrouter": is_openrouter,
         "seed": get_config(ctx, "seed", ""),
         "request_timeout": _safe_int(get_config(ctx, "request_timeout", 120), 120),
         "chat_max_tool_rounds": _safe_int(get_config(ctx, "chat_max_tool_rounds", 5), 5),
