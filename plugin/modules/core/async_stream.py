@@ -163,7 +163,6 @@ def run_stream_completion_async(
     prompt,
     system_prompt,
     max_tokens,
-    api_type,
     apply_chunk_fn,
     on_done_fn,
     on_error_fn,
@@ -171,7 +170,7 @@ def run_stream_completion_async(
     stop_checker=None,
 ):
     """
-    High-level helper for simple non-tool streams.
+    High-level helper for simple non-tool streams (always chat completions).
     """
     q = queue.Queue()
     job_done = [False]
@@ -182,7 +181,6 @@ def run_stream_completion_async(
                 prompt,
                 system_prompt,
                 max_tokens,
-                api_type,
                 append_callback=lambda t: q.put(("chunk", t)),
                 append_thinking_callback=lambda t: q.put(("thinking", t)),
                 status_callback=lambda t: q.put(("status", t)),
@@ -228,7 +226,6 @@ def run_stream_async(
     on_done_fn=None,
     on_error_fn=None,
     max_tokens=None,
-    api_type="chat",
     stop_checker=None,
 ):
     """
@@ -242,21 +239,18 @@ def run_stream_async(
             if tools:
                 client.stream_request_with_tools(
                     messages,
-                    tools,
-                    max_tokens,
+                    max_tokens or 512,
+                    tools=tools,
                     append_callback=lambda t: q.put(("chunk", t)),
                     append_thinking_callback=lambda t: q.put(("thinking", t)),
-                    status_callback=lambda t: q.put(("status", t)),
                     stop_checker=stop_checker,
                 )
             else:
-                client.stream_request(
+                client.stream_chat_response(
                     messages,
-                    max_tokens,
-                    api_type,
+                    max_tokens or 512,
                     append_callback=lambda t: q.put(("chunk", t)),
                     append_thinking_callback=lambda t: q.put(("thinking", t)),
-                    status_callback=lambda t: q.put(("status", t)),
                     stop_checker=stop_checker,
                 )
             if stop_checker and stop_checker():

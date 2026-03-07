@@ -26,12 +26,9 @@
   <dlg:text dlg:id="label_api_key" dlg:page="1" dlg:left="8" dlg:top="74" dlg:width="150" dlg:height="10" dlg:value="API Key:" dlg:align="left"/>
   <dlg:textfield dlg:id="api_key" dlg:page="1" dlg:left="165" dlg:top="72" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
 
-  <!-- Row 5: API Type + Temperature + OpenAI Compatible checkbox -->
-  <dlg:text dlg:id="label_api_type" dlg:page="1" dlg:left="8" dlg:top="90" dlg:width="50" dlg:height="10" dlg:value="API Type:" dlg:align="left"/>
-  <dlg:textfield dlg:id="api_type" dlg:page="1" dlg:left="60" dlg:top="88" dlg:width="70" dlg:height="14" dlg:tabstop="true" dlg:value="completions"/>
-  <dlg:text dlg:id="label_temperature" dlg:page="1" dlg:left="140" dlg:top="90" dlg:width="58" dlg:height="10" dlg:value="Temperature:" dlg:align="left"/>
-  <dlg:textfield dlg:id="temperature" dlg:page="1" dlg:left="200" dlg:top="88" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="0.5"/>
-  <dlg:checkbox dlg:id="openai_compatibility" dlg:page="1" dlg:left="265" dlg:top="88" dlg:width="165" dlg:height="10" dlg:value="OpenAI Compatible" dlg:checked="true"/>
+  <!-- Row 5: Temperature -->
+  <dlg:text dlg:id="label_temperature" dlg:page="1" dlg:left="8" dlg:top="90" dlg:width="58" dlg:height="10" dlg:value="Temperature:" dlg:align="left"/>
+  <dlg:textfield dlg:id="temperature" dlg:page="1" dlg:left="68" dlg:top="88" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="0.5"/>
 
   <!-- Row 6: Max Tokens + Context Len -->
   <dlg:text dlg:id="label_chat_max_tokens" dlg:page="1" dlg:left="8" dlg:top="106" dlg:width="58" dlg:height="10" dlg:value="Max Tokens:" dlg:align="left"/>
@@ -65,23 +62,26 @@
   <dlg:text dlg:id="label_image_translate_from" dlg:page="2" dlg:left="8" dlg:top="76" dlg:width="150" dlg:height="10" dlg:value="Translate from (e.g. es):" dlg:align="left"/>
   <dlg:textfield dlg:id="image_translate_from" dlg:page="2" dlg:left="165" dlg:top="74" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
 
+  <dlg:text dlg:id="label_seed" dlg:page="2" dlg:left="8" dlg:top="92" dlg:width="150" dlg:height="10" dlg:value="Seed (for reproducibility):" dlg:align="left"/>
+  <dlg:textfield dlg:id="seed" dlg:page="2" dlg:left="165" dlg:top="90" dlg:width="120" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+
   <!-- Visual separator line (no label so line is visible), then label and section below -->
-  <dlg:fixedline dlg:id="fixedline_horde" dlg:page="2" dlg:left="8" dlg:top="92" dlg:width="424" dlg:height="6" dlg:value=""/>
-  <dlg:checkbox dlg:id="use_aihorde" dlg:page="2" dlg:left="8" dlg:top="100" dlg:width="250" dlg:height="10" dlg:value="Use AI Horde for Image Generation" dlg:checked="false"/>
+  <dlg:fixedline dlg:id="fixedline_horde" dlg:page="2" dlg:left="8" dlg:top="108" dlg:width="424" dlg:height="6" dlg:value=""/>
+  <dlg:checkbox dlg:id="use_aihorde" dlg:page="2" dlg:left="8" dlg:top="116" dlg:width="250" dlg:height="10" dlg:value="Use AI Horde for Image Generation" dlg:checked="false"/>
 
   <!-- Section 2: AI Horde only -->
-  <dlg:text dlg:id="label_aihorde_api_key" dlg:page="2" dlg:left="8" dlg:top="116" dlg:width="150" dlg:height="10" dlg:value="AI Horde API Key:" dlg:align="left"/>
-  <dlg:textfield dlg:id="aihorde_api_key" dlg:page="2" dlg:left="165" dlg:top="114" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
+  <dlg:text dlg:id="label_aihorde_api_key" dlg:page="2" dlg:left="8" dlg:top="132" dlg:width="150" dlg:height="10" dlg:value="AI Horde API Key:" dlg:align="left"/>
+  <dlg:textfield dlg:id="aihorde_api_key" dlg:page="2" dlg:left="165" dlg:top="130" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
 
-  <dlg:text dlg:id="label_image_cfg_scale" dlg:page="2" dlg:left="8" dlg:top="132" dlg:width="60" dlg:height="10" dlg:value="CFG Scale:" dlg:align="left"/>
-  <dlg:textfield dlg:id="image_cfg_scale" dlg:page="2" dlg:left="70" dlg:top="130" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="7.5"/>
-  <dlg:text dlg:id="label_image_steps" dlg:page="2" dlg:left="130" dlg:top="132" dlg:width="50" dlg:height="10" dlg:value="Steps:" dlg:align="left"/>
-  <dlg:textfield dlg:id="image_steps" dlg:page="2" dlg:left="182" dlg:top="130" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="30"/>
-  <dlg:text dlg:id="label_image_max_wait" dlg:page="2" dlg:left="242" dlg:top="132" dlg:width="60" dlg:height="10" dlg:value="Max Wait (s):" dlg:align="left"/>
-  <dlg:textfield dlg:id="image_max_wait" dlg:page="2" dlg:left="304" dlg:top="130" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:value="5"/>
+  <dlg:text dlg:id="label_image_cfg_scale" dlg:page="2" dlg:left="8" dlg:top="148" dlg:width="60" dlg:height="10" dlg:value="CFG Scale:" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_cfg_scale" dlg:page="2" dlg:left="70" dlg:top="146" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="7.5"/>
+  <dlg:text dlg:id="label_image_steps" dlg:page="2" dlg:left="130" dlg:top="148" dlg:width="50" dlg:height="10" dlg:value="Steps:" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_steps" dlg:page="2" dlg:left="182" dlg:top="146" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="30"/>
+  <dlg:text dlg:id="label_image_max_wait" dlg:page="2" dlg:left="242" dlg:top="148" dlg:width="60" dlg:height="10" dlg:value="Max Wait (s):" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_max_wait" dlg:page="2" dlg:left="304" dlg:top="146" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:value="5"/>
 
-  <dlg:checkbox dlg:id="image_nsfw" dlg:page="2" dlg:left="8" dlg:top="150" dlg:width="100" dlg:height="10" dlg:value="Allow NSFW" dlg:checked="false"/>
-  <dlg:checkbox dlg:id="image_censor_nsfw" dlg:page="2" dlg:left="120" dlg:top="150" dlg:width="100" dlg:height="10" dlg:value="Censor NSFW" dlg:checked="true"/>
+  <dlg:checkbox dlg:id="image_nsfw" dlg:page="2" dlg:left="8" dlg:top="166" dlg:width="100" dlg:height="10" dlg:value="Allow NSFW" dlg:checked="false"/>
+  <dlg:checkbox dlg:id="image_censor_nsfw" dlg:page="2" dlg:left="120" dlg:top="166" dlg:width="100" dlg:height="10" dlg:value="Censor NSFW" dlg:checked="true"/>
 
   <!-- AUTO_GENERATED_PAGES -->
 

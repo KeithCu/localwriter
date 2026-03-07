@@ -517,10 +517,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         max_context = int(get_config(self.ctx, "chat_context_length", 8000))
         max_tokens = int(get_config(self.ctx, "chat_max_tokens", 16384))
-        api_type = str(get_config(self.ctx, "api_type", "chat")).lower()
-        debug_log("_do_send: config loaded: api_type=%s, max_tokens=%d, max_context=%d" % (api_type, max_tokens, max_context), context="Chat")
+        debug_log("_do_send: config loaded: max_tokens=%d, max_context=%d" % (max_tokens, max_context), context="Chat")
 
-        use_tools = (api_type == "chat")
+        use_tools = True
 
         api_config = get_api_config(self.ctx)
         ok, err_msg = validate_api_config(api_config)
@@ -554,14 +553,11 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self._append_response("\n[Using chat model.]\n")
         debug_log("_do_send: using chat model", context="Chat")
 
-        self._set_status("Connecting to AI (api_type=%s, tools=%s)..." % (api_type, use_tools))
+        self._set_status("Connecting to AI (tools=%s)..." % use_tools)
         debug_log("_do_send: calling AI, use_tools=%s, messages=%d" % (use_tools, len(self.session.messages)), context="Chat")
-        
-        if use_tools:
-            max_tool_rounds = api_config.get("chat_max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS)
-            self._start_tool_calling_async(client, model, max_tokens, active_tools, execute_fn, max_tool_rounds)
-        else:
-            self._start_simple_stream_async(client, max_tokens, api_type)
+
+        max_tool_rounds = api_config.get("chat_max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS)
+        self._start_tool_calling_async(client, model, max_tokens, active_tools, execute_fn, max_tool_rounds)
 
         debug_log("=== _do_send END (async started) ===", context="Chat")
 
@@ -973,9 +969,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
             show_search_thinking=show_search_thinking,
         )
 
-    def _start_simple_stream_async(self, client, max_tokens, api_type):
+    def _start_simple_stream_async(self, client, max_tokens):
         """Start simple streaming (no tools) via async helper; returns immediately."""
-        debug_log("=== Simple stream START (api_type=%s) ===" % api_type, context="Chat")
+        debug_log("=== Simple stream START ===", context="Chat")
         self._set_status("Thinking...")
         self._append_response("\nAI: ")
 
@@ -1017,7 +1013,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._set_status("Error")
 
         run_stream_completion_async(
-            self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+            self.ctx, client, prompt, system_prompt, max_tokens,
             apply_chunk, on_done, on_error, on_status_fn=self._set_status,
             stop_checker=lambda: self.stop_requested,
         )

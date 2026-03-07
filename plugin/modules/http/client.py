@@ -202,13 +202,6 @@ def _normalize_message_content(raw):
     return str(raw)
 
 
-def _is_openai_compatible(config):
-    endpoint = config.get("endpoint", "")
-    return config.get("openai_compatibility", True) or (
-        "api.openai.com" in endpoint.lower()
-    )
-
-
 def _normalize_delta(delta):
     """Normalize delta for Mistral/Azure compat before accumulate_delta.
     LiteLLM: streaming_handler.py ~L847 (role), ~L853 (type), ~L820 (arguments).
@@ -302,8 +295,8 @@ class LlmClient:
     def _timeout(self):
         return self.config.get("request_timeout", 120)
 
-    def make_api_request(self, prompt, system_prompt="", max_tokens=70, api_type=None):
-        """Build a streaming completion/chat request."""
+    def make_api_request(self, prompt, system_prompt="", max_tokens=70):
+        """Build a streaming chat completions request (always chat, no completions path)."""
         try:
             max_tokens = int(max_tokens)
         except (TypeError, ValueError):
@@ -311,63 +304,29 @@ class LlmClient:
 
         endpoint = self._endpoint()
         api_path = self._api_path()
-        if api_type is None:
-            api_type = self.config.get("api_type", "chat")
-        api_type = "chat" if api_type == "chat" else "completions"
+        url = endpoint + api_path + "/chat/completions"
         model = self.config.get("model", "")
         temperature = self.config.get("temperature", 0.5)
-        seed_val = self.config.get("seed", "")
 
         init_logging(self.ctx)
         debug_log("=== API Request Debug ===", context="API")
         debug_log("Endpoint: %s" % endpoint, context="API")
-        debug_log("API Type: %s" % api_type, context="API")
         debug_log("Model: %s" % model, context="API")
         debug_log("Max Tokens: %s" % max_tokens, context="API")
 
-        if api_type == "chat":
-            url = endpoint + api_path + "/chat/completions"
-            messages = []
-            if system_prompt:
-                today = datetime.date.today().strftime("%A, %Y-%m-%d")
-                full_system_prompt = f"Today's date is {today}.\n\n{system_prompt}"
-                messages.append({"role": "system", "content": full_system_prompt})
-            messages.append({"role": "user", "content": prompt})
-            data = {
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "top_p": 0.9,
-                "stream": True,
-            }
-        else:
-            url = endpoint + api_path + "/completions"
-            full_prompt = prompt
-            if system_prompt:
-                today = datetime.date.today().strftime("%A, %Y-%m-%d")
-                full_prompt = (
-                    "SYSTEM PROMPT\nToday's date is %s.\n\n%s\nEND SYSTEM PROMPT\n%s"
-                    % (today, system_prompt, prompt)
-                )
-            else:
-                today = datetime.date.today().strftime("%A, %Y-%m-%d")
-                full_prompt = (
-                    "SYSTEM PROMPT\nToday's date is %s.\nEND SYSTEM PROMPT\n%s"
-                    % (today, prompt)
-                )
-            data = {
-                "prompt": full_prompt,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "top_p": 0.9,
-                "stream": True,
-            }
-            if not _is_openai_compatible(self.config) or seed_val:
-                try:
-                    data["seed"] = int(seed_val) if seed_val else 10
-                except (TypeError, ValueError):
-                    data["seed"] = 10
-
+        messages = []
+        if system_prompt:
+            today = datetime.date.today().strftime("%A, %Y-%m-%d")
+            full_system_prompt = f"Today's date is {today}.\n\n{system_prompt}"
+            messages.append({"role": "system", "content": full_system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        data = {
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": 0.9,
+            "stream": True,
+        }
         if model:
             data["model"] = model
 
@@ -376,12 +335,12 @@ class LlmClient:
         path = parsed.path
         if parsed.query:
             path += "?" + parsed.query
-            
+
         debug_log("Request data: %s" % json.dumps(data, indent=2), context="API")
         return "POST", path, json_data, self._headers()
 
-    def extract_content_from_response(self, chunk, api_type="completions"):
-        """Extract text content and optional thinking from API response chunk."""
+    def extract_content_from_response(self, chunk):
+        """Extract text content and optional thinking from chat completions response chunk."""
         choices = chunk.get("choices", [])
         choice = choices[0] if choices else {}
         delta = choice.get("delta", {})
@@ -395,11 +354,7 @@ class LlmClient:
                     finish_reason = c.get("finish_reason")
                     break
 
-        if api_type == "chat":
-            content = (delta.get("content") or "") if delta else ""
-        else:
-            content = (choice.get("text") or "") if choice else ""
-
+        content = (delta.get("content") or "") if delta else ""
         thinking = _extract_thinking_from_delta(chunk)
 
         return content, finish_reason, thinking, delta
@@ -503,19 +458,17 @@ class LlmClient:
         prompt,
         system_prompt,
         max_tokens,
-        api_type,
         append_callback,
         append_thinking_callback=None,
         stop_checker=None,
         status_callback=None,
     ):
-        """Stream a completion/chat response via callbacks."""
+        """Stream a chat completions response via callbacks."""
         method, path, body, headers = self.make_api_request(
-            prompt, system_prompt, max_tokens, api_type=api_type
+            prompt, system_prompt, max_tokens
         )
         self.stream_request(
             method, path, body, headers,
-            api_type,
             append_callback,
             append_thinking_callback,
             stop_checker=stop_checker,
@@ -527,7 +480,6 @@ class LlmClient:
         path,
         body,
         headers,
-        api_type,
         on_content,
         on_thinking=None,
         on_delta=None,
@@ -610,7 +562,7 @@ class LlmClient:
                         continue
 
                     content, finish_reason, thinking, delta = (
-                        self.extract_content_from_response(chunk, api_type)
+                        self.extract_content_from_response(chunk)
                     )
 
                     # LiteLLM: streaming_handler.py ~L736 "finish_reason: error, no content string given"
@@ -657,7 +609,7 @@ class LlmClient:
             if _retry:
                 debug_log("Retrying streaming request once on fresh connection", context="API")
                 return self._run_streaming_loop(
-                    method, path, body, headers, api_type,
+                    method, path, body, headers,
                     on_content=on_content,
                     on_thinking=on_thinking,
                     on_delta=on_delta,
@@ -680,18 +632,16 @@ class LlmClient:
         path,
         body,
         headers,
-        api_type,
         append_callback,
         append_thinking_callback=None,
         stop_checker=None,
     ):
-        """Stream a completion/chat response and append chunks via callbacks."""
+        """Stream a chat response and append chunks via callbacks."""
         self._run_streaming_loop(
             method,
             path,
             body,
             headers,
-            api_type,
             on_content=append_callback,
             on_thinking=append_thinking_callback,
             stop_checker=stop_checker,
@@ -711,7 +661,6 @@ class LlmClient:
         )
         self.stream_request(
             method, path, body, headers,
-            "chat",
             append_callback,
             append_thinking_callback,
             stop_checker=stop_checker,
@@ -800,7 +749,6 @@ class LlmClient:
                 path,
                 body,
                 headers,
-                "chat",
                 on_content=append_callback,
                 on_thinking=append_thinking_callback,
                 on_delta=lambda d: accumulate_delta(message_snapshot, d),

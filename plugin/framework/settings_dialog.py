@@ -4,19 +4,13 @@ def get_settings_field_specs(ctx):
     """Return field specs for Settings dialog (single source for dialog and apply keys)."""
     from plugin.framework.logging import debug_log
     debug_log("get_settings_field_specs entry", context="Settings")
-    openai_compatibility_value = "true" if as_bool(get_config(ctx, "openai_compatibility", True)) else "false"
-    is_openwebui_value = "true" if as_bool(get_config(ctx, "is_openwebui", False)) else "false"
     current_endpoint_for_specs = get_current_endpoint(ctx)
     field_specs = [
         {"name": "endpoint", "value": str(get_config(ctx, "endpoint", "http://127.0.0.1:5000"))},
         {"name": "text_model", "value": str(get_config(ctx, "text_model", "") or get_config(ctx, "model", ""))},
         {"name": "image_model", "value": str(get_image_model(ctx))},
         {"name": "api_key", "value": str(get_api_key_for_endpoint(ctx, current_endpoint_for_specs))},
-        {"name": "api_type", "value": str(get_config(ctx, "api_type", "chat"))},
-        {"name": "is_openwebui", "value": is_openwebui_value, "type": "bool"},
-        {"name": "openai_compatibility", "value": openai_compatibility_value, "type": "bool"},
         {"name": "temperature", "value": str(get_config(ctx, "temperature", "0.5")), "type": "float"},
-        {"name": "seed", "value": str(get_config(ctx, "seed", ""))},
         {"name": "use_aihorde", "value": "true" if get_config(ctx, "image_provider", "aihorde") == "aihorde" else "false", "type": "bool"},
         {"name": "aihorde_api_key", "value": str(get_config(ctx, "aihorde_api_key", ""))},
         {"name": "image_base_size", "value": str(get_config(ctx, "image_base_size", "512")), "type": "int"},
@@ -30,6 +24,7 @@ def get_settings_field_specs(ctx):
         {"name": "image_insert_frame", "value": "true" if as_bool(get_config(ctx, "image_insert_frame", False)) else "false", "type": "bool"},
         {"name": "image_translate_prompt", "value": "true" if as_bool(get_config(ctx, "image_translate_prompt", True)) else "false", "type": "bool"},
         {"name": "image_translate_from", "value": str(get_config(ctx, "image_translate_from", ""))},
+        {"name": "seed", "value": str(get_config(ctx, "seed", ""))},
         {"name": "show_search_thinking", "value": "true" if as_bool(get_config(ctx, "show_search_thinking", False)) else "false", "type": "bool"},
     ]
 
@@ -78,7 +73,7 @@ def apply_settings_result(ctx, result):
     """Apply settings dialog result to config. Shared by Writer and Calc."""
     from plugin.modules.core.services.config import update_lru_history
     # Keys to set directly from result; derived from dialog field specs (exclude specially handled ones)
-    _apply_skip = ("endpoint", "api_key", "use_aihorde", "api_type")
+    _apply_skip = ("endpoint", "api_key", "use_aihorde")
     apply_keys = [f["name"] for f in get_settings_field_specs(ctx) if f["name"] not in _apply_skip]
 
     # Resolve endpoint first so LRU updates use the endpoint being saved
@@ -87,7 +82,7 @@ def apply_settings_result(ctx, result):
         set_config(ctx, "endpoint", effective_endpoint)
     current_endpoint = effective_endpoint or get_current_endpoint(ctx)
 
-    # Set keys from result (endpoint, api_key, use_aihorde, api_type handled below)
+    # Set keys from result (endpoint, api_key, use_aihorde handled below)
     for key in apply_keys:
         if key in result:
             val = result[key]
@@ -115,12 +110,6 @@ def apply_settings_result(ctx, result):
     if "endpoint" in result and effective_endpoint:
         update_lru_history(ctx, effective_endpoint, "endpoint_lru", "")
     
-    if "api_type" in result:
-        api_type_value = str(result["api_type"]).strip().lower()
-        if api_type_value not in ("chat", "completions"):
-            api_type_value = "completions"
-        set_config(ctx, "api_type", api_type_value)
-
     if "api_key" in result:
         set_api_key_for_endpoint(ctx, current_endpoint, result["api_key"])
 

@@ -18,7 +18,6 @@ def do_calc_extend_edit(ctx, model, input_box_fn, is_edit):
     col_range = range(area.StartColumn, area.EndColumn + 1)
     row_range = range(area.StartRow, area.EndRow + 1)
 
-    api_type = str(get_config(ctx, "api_type", "chat")).lower()
     extend_sys = get_config(ctx, "extend_selection_system_prompt", "")
     extend_max = get_config(ctx, "extend_selection_max_tokens", 70)
     edit_sys = get_config(ctx, "edit_selection_system_prompt", "")
@@ -82,7 +81,7 @@ def do_calc_extend_edit(ctx, model, input_box_fn, is_edit):
             msgbox(ctx, "LocalWriter: Edit Selection (Calc)" if is_edit else "LocalWriter: Extend Selection (Calc)", format_error_message(e))
 
         run_stream_completion_async(
-            ctx, client, prompt, system_prompt, max_tokens, api_type,
+            ctx, client, prompt, system_prompt, max_tokens,
             apply_chunk, on_done, on_error
         )
 
