@@ -42,9 +42,9 @@ ENDPOINT_PRESETS = [
 # directly to top-level config keys (endpoint, model, etc.).
 AI_SIMPLE_FIELDS = {
     "endpoint",
-    "model",
     "text_model",
     "image_model",
+    "stt_model",
     "api_key",
     "temperature",
     "chat_max_tokens",
@@ -219,39 +219,93 @@ def get_provider_from_endpoint(endpoint):
     return None
 
 
-def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint, strict=False):
+def get_model_capability(ctx, model_id, endpoint):
+    """Check the model catalog for capabilities (text, image, audio)."""
+    provider = get_provider_from_endpoint(endpoint)
+    # Check DEFAULT_MODELS for this ID/provider
+    for m in DEFAULT_MODELS:
+        effective_id = resolve_model_id(m, provider)
+        if effective_id == model_id:
+            return m.get("capability", "text")
+    return ""
+
+
+def has_native_audio(ctx, model_id, endpoint):
+    """Determine if a model supports native audio input.
+    Uses persistent cache first, then catalog/heuristics.
+    Returns: True if supported, False if unsupported, None if unknown.
+    """
+    model_id = str(model_id).lower()
+    endpoint = _normalize_endpoint_url(endpoint)
+    
+    # 1. Persistent Cache Check
+    cache = get_config(ctx, "audio_support_map", {})
+    if isinstance(cache, dict):
+        key = f"{endpoint}@{model_id}"
+        if key in cache:
+            return as_bool(cache[key])
+
+    # 2. Catalog check
+    caps = get_model_capability(ctx, model_id, endpoint)
+    if "audio" in caps.split(","):
+        return True
+        
+    # 3. Heuristics (Regex/Keywords) for known audio-native families
+    # Gemini (Flash/Pro 1.5+)
+    if "gemini" in model_id and ("1.5" in model_id or "2.0" in model_id):
+        return True
+    # GPT-4o family
+    if "gpt-4o" in model_id:
+        return True
+    # Explicit audio models
+    if "audio-preview" in model_id or "multimodal" in model_id:
+        return True
+        
+    return None # Unknown, allow trying native audio
+
+
+def set_native_audio_support(ctx, model_id, endpoint, supported):
+    """Save the audio support status for a model+endpoint pair."""
+    model_id = str(model_id).lower()
+    endpoint = _normalize_endpoint_url(endpoint)
+    key = f"{endpoint}@{model_id}"
+    
+    cache = get_config(ctx, "audio_support_map", {})
+    if not isinstance(cache, dict):
+        cache = {}
+    
+    cache[key] = bool(supported)
+    set_config(ctx, "audio_support_map", cache)
+
+
+def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint):
     """Helper to populate a combobox with values from an LRU list in config.
     LRU is scoped to the provided endpoint.
-    If LRU is empty, pre-populates with default models for the provider.
-    When strict=True, only show models for this endpoint; if current_val is not
-    in that list, set selection to first item or empty. Returns the value set."""
+    Merges relevant default models based on the capability inferred from lru_key.
+    Returns the value set."""
     scoped_key = f"{lru_key}@{endpoint}" if endpoint else lru_key
     lru = get_config(ctx, scoped_key, [])
     if not isinstance(lru, list):
         lru = []
     
-    # Always try to merge DEFAULT_MODELS into the options so they are always choices
     provider = get_provider_from_endpoint(endpoint)
+    req_cap = "image" if "image" in lru_key.lower() else "audio" if "audio" in lru_key.lower() or "stt" in lru_key.lower() else "text"
+    
+    # Merge defaults into the list
+    to_show = list(lru)
     if provider:
-        req_cap = "image" if "image" in lru_key.lower() else "text"
         for m in DEFAULT_MODELS:
-            caps = m.get("capability", "text").split(",")
+            caps = [c.strip() for c in m.get("capability", "text").split(",")]
             if req_cap in caps:
                 effective_id = resolve_model_id(m, provider)
-                if effective_id and effective_id not in lru:
-                    lru.append(effective_id)
+                if effective_id and effective_id not in to_show:
+                    to_show.append(effective_id)
 
     curr_val_str = str(current_val).strip()
-    to_show = list(lru)
-    if strict:
-        if curr_val_str not in to_show:
-            display_val = to_show[0] if to_show else ""
-        else:
-            display_val = curr_val_str
-    else:
-        if curr_val_str and curr_val_str not in to_show:
-            to_show.insert(0, curr_val_str)
-        display_val = curr_val_str if curr_val_str else (to_show[0] if to_show else "")
+    if curr_val_str and curr_val_str not in to_show:
+        to_show.insert(0, curr_val_str)
+    
+    display_val = curr_val_str if curr_val_str else (to_show[0] if to_show else "")
     
     if to_show:
         ctrl.removeItems(0, ctrl.getItemCount())
@@ -285,6 +339,14 @@ def update_lru_history(ctx, val, lru_key, endpoint, max_items=None):
 def get_text_model(ctx):
     """Return the text/chat model (stored as text_model, fallback to model)."""
     return str(get_config(ctx, "text_model", "") or get_config(ctx, "model", "")).strip()
+
+def get_stt_model(ctx):
+    """Return the configured STT model."""
+    from plugin.contrib.default_models import get_provider_defaults
+    current_endpoint = get_current_endpoint(ctx)
+    defaults = get_provider_defaults(current_endpoint)
+    default_stt = defaults.get("stt_model", "")
+    return str(get_config(ctx, "stt_model", default_stt)).strip()
 
 
 def get_endpoint_presets():
@@ -538,7 +600,7 @@ def populate_image_model_selector(ctx, ctrl, override_endpoint=None):
         return current_image_model
     current_image_model = get_image_model(ctx)
     endpoint = override_endpoint if override_endpoint is not None else get_current_endpoint(ctx)
-    return populate_combobox_with_lru(ctx, ctrl, current_image_model, "image_model_lru", endpoint, strict=True)
+    return populate_combobox_with_lru(ctx, ctrl, current_image_model, "image_model_lru", endpoint)
 
 
 class ConfigAccessError(Exception):

@@ -34,7 +34,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
         if model_selector:
             current_endpoint = get_current_endpoint(ctx)
             current_model = get_text_model(ctx)
-            populate_combobox_with_lru(ctx, model_selector, current_model, "model_lru", current_endpoint, strict=True)
+            populate_combobox_with_lru(ctx, model_selector, current_model, "model_lru", current_endpoint)
 
         dlg.getControl("edit").setFocus()
         dlg.getControl("edit").setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", 0, len(str(default))))
@@ -65,7 +65,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
 
 def settings_box(ctx, title="Settings", x=None, y=None):
     from plugin.framework.settings_dialog import get_settings_field_specs, apply_settings_result
-    from plugin.framework.config import get_image_model, populate_image_model_selector, endpoint_from_selector_text, get_api_key_for_endpoint, populate_endpoint_selector, as_bool
+    from plugin.framework.config import get_image_model, get_stt_model, populate_combobox_with_lru, populate_image_model_selector, endpoint_from_selector_text, get_api_key_for_endpoint, populate_endpoint_selector, as_bool
 
     from plugin.framework.logging import debug_log
     debug_log("settings_box entry", context="Settings")
@@ -142,9 +142,11 @@ def settings_box(ctx, title="Settings", x=None, y=None):
             ctrl = dlg.getControl(field["name"])
             if ctrl:
                 if field["name"] == "text_model":
-                    populate_combobox_with_lru(ctx, ctrl, field["value"], "model_lru", current_endpoint, strict=True)
+                    populate_combobox_with_lru(ctx, ctrl, field["value"], "model_lru", current_endpoint)
                 elif field["name"] == "image_model":
                     populate_image_model_selector(ctx, ctrl)
+                elif field["name"] == "stt_model":
+                    populate_combobox_with_lru(ctx, ctrl, field["value"], "audio_model_lru", current_endpoint)
                 elif field["name"] == "additional_instructions":
                     populate_combobox_with_lru(ctx, ctrl, field["value"], "prompt_lru", "")
                 elif field["name"] == "endpoint":
@@ -163,12 +165,15 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                                     text_ctrl = self._dlg.getControl("text_model")
                                     image_ctrl = self._dlg.getControl("image_model")
                                     if text_ctrl:
-                                        populate_combobox_with_lru(self._ctx, text_ctrl, get_config(self._ctx, "text_model", "") or get_config(self._ctx, "model", ""), "model_lru", resolved, strict=True)
+                                        populate_combobox_with_lru(self._ctx, text_ctrl, get_config(self._ctx, "text_model", "") or get_config(self._ctx, "model", ""), "model_lru", resolved)
                                     if image_ctrl:
                                         if get_config(self._ctx, "image_provider", "aihorde") == "endpoint":
-                                            populate_combobox_with_lru(self._ctx, image_ctrl, get_image_model(self._ctx), "image_model_lru", resolved, strict=True)
+                                            populate_combobox_with_lru(self._ctx, image_ctrl, get_image_model(self._ctx), "image_model_lru", resolved)
                                         else:
                                             populate_image_model_selector(self._ctx, image_ctrl)
+                                    stt_ctrl = self._dlg.getControl("stt_model")
+                                    if stt_ctrl:
+                                        populate_combobox_with_lru(self._ctx, stt_ctrl, get_stt_model(self._ctx), "audio_model_lru", resolved)
                                     api_key_ctrl = self._dlg.getControl("api_key")
                                     if api_key_ctrl:
                                         api_key_ctrl.getModel().Text = get_api_key_for_endpoint(self._ctx, resolved)
@@ -269,6 +274,11 @@ def settings_box(ctx, title="Settings", x=None, y=None):
         if result:
             apply_settings_result(ctx, result)
         return result
+    except Exception as e:
+        from plugin.framework.dialogs import msgbox
+        import traceback
+        msgbox(ctx, "Error", f"Failed to open Settings: {e}\n\n{traceback.format_exc()}")
+        return {}
     finally:
         dlg.dispose()
 

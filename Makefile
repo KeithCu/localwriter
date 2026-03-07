@@ -35,6 +35,9 @@ EXTENSION_NAME = localwriter
 # Create Makefile.local with e.g. USE_DOCKER = 1
 -include Makefile.local
 
+# Set NO_RECORDING=1 to build without voice recording (excludes contrib/audio, audio_recorder.py).
+NO_RECORDING ?= 0
+
 # Set USE_DOCKER=1 to build via Docker instead of local Python/PyYAML.
 # Persistent: echo "USE_DOCKER = 1" > Makefile.local
 # One-shot:   make deploy USE_DOCKER=1
@@ -72,7 +75,7 @@ endif
 
 # ── Phony targets ────────────────────────────────────────────────────────────
 
-.PHONY: help build repack repack-deploy manifest xcu clean \
+.PHONY: help build build-no-recording repack repack-deploy manifest xcu clean \
         install install-force uninstall cache \
         dev-deploy dev-deploy-remove \
         lo-start lo-start-full lo-kill lo-restart \
@@ -89,6 +92,7 @@ help:
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                  Build .oxt (all modules)"
+	@echo "  make build-no-recording     Build .oxt without voice recording (no contrib/audio, no Record button)"
 	@echo "  make xcu                    Generate XCS/XCU from config schemas"
 	@echo "  make clean                  Remove build artifacts"
 	@echo ""
@@ -139,9 +143,14 @@ build:
 else
 build: vendor manifest
 	@echo "Building $(EXTENSION_NAME).oxt..."
-	$(PYTHON) $(SCRIPTS)/build_oxt.py --output build/$(EXTENSION_NAME).oxt
+	$(PYTHON) $(SCRIPTS)/build_oxt.py --output build/$(EXTENSION_NAME).oxt $(if $(filter 1,$(NO_RECORDING)),--no-recording)
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 endif
+
+build-no-recording: vendor manifest
+	@echo "Building $(EXTENSION_NAME).oxt (no voice recording)..."
+	$(PYTHON) $(SCRIPTS)/build_oxt.py --no-recording --output build/$(EXTENSION_NAME).oxt
+	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 
 repack:
 	@echo "Re-packing from build/bundle/..."

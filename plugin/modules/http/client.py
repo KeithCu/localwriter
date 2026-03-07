@@ -82,6 +82,25 @@ def format_error_for_display(e):
     return "Error: %s" % format_error_message(e)
 
 
+def is_audio_unsupported_error(e):
+    """Try to determine if the error indicates that audio/modality is unsupported by the model."""
+    msg = str(e).lower()
+    
+    # Common error strings across providers
+    if "unsupported content type" in msg: return True
+    if "unsupported modality" in msg: return True
+    if "audio" in msg and ("not supported" in msg or "unsupported" in msg): return True
+    if "modality" in msg and "not supported" in msg: return True
+    
+    # Specific API error bodies (passed via _format_http_error_response)
+    if "model" in msg and "cannot process" in msg and "audio" in msg: return True
+    if "no endpoints found that support input audio" in msg: return True
+    if "gpt-4" in msg and "audio" in msg: # Some legacy GPT-4 might not have it
+        if "not support" in msg: return True
+        
+    return False
+
+
 def get_unverified_ssl_context():
     """Create an SSL context that doesn't verify certificates. Shared by API and aihordeclient."""
     ssl_context = ssl.create_default_context()
@@ -359,7 +378,7 @@ class LlmClient:
 
         return content, finish_reason, thinking, delta
 
-    def make_chat_request(self, messages, max_tokens=512, tools=None, stream=False):
+    def make_chat_request(self, messages, max_tokens=512, tools=None, stream=False, model=None):
         """Build a chat completions request from a full messages array."""
         try:
             max_tokens = int(max_tokens)
@@ -369,7 +388,7 @@ class LlmClient:
         endpoint = self._endpoint()
         api_path = self._api_path()
         url = endpoint + api_path + "/chat/completions"
-        model_name = self.config.get("model", "")
+        model_name = model or self.config.get("model", "")
         temperature = self.config.get("temperature", 0.5)
 
         data = {
@@ -452,6 +471,80 @@ class LlmClient:
             path += "?" + parsed.query
             
         return "POST", path, json_data, self._headers()
+
+    def transcribe_audio(self, wav_path, model=None):
+        """Transcribe audio using the /v1/audio/transcriptions endpoint (fallback path).
+        If the model supports native audio, use a chat request instead.
+        """
+        import uuid
+        import os
+        import base64
+        from plugin.framework.config import has_native_audio
+
+        # Determine model
+        model_name = model or self.config.get("stt_model") or "whisper-1"
+
+        # 1. Check if the STT model itself supports native audio
+        if has_native_audio(self.ctx, model_name, self._endpoint()):
+            debug_log("Using multimodal chat for transcription fallback (model: %s)" % model_name, context="API")
+            try:
+                with open(wav_path, "rb") as f:
+                    audio_b64 = base64.b64encode(f.read()).decode("utf-8")
+                
+                messages = [{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Transcribe this audio exactly. Output ONLY the transcript. No preamble, no markers."},
+                        {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
+                    ]
+                }]
+                
+                # Using synchronous chat completion with model override
+                return self.chat_completion_sync(messages, max_tokens=16384, model=model_name)
+            except Exception as e:
+                debug_log("Multimodal transcription failed: %s. Falling back to stt endpoint." % e, context="API")
+
+        # 2. Standard multipart fallback (Whisper, etc.)
+        boundary = "Boundary-%s" % uuid.uuid4().hex
+        
+        endpoint = self._endpoint()
+        api_path = self._api_path()
+        url = endpoint + api_path + "/audio/transcriptions"
+        
+        # Build multipart/form-data body manually (urllib doesn't have a built-in helper)
+        parts = []
+        # file part
+        filename = os.path.basename(wav_path)
+        parts.append(("--%s" % boundary).encode("utf-8"))
+        parts.append(('Content-Disposition: form-data; name="file"; filename="%s"' % filename).encode("utf-8"))
+        parts.append(b'Content-Type: audio/wav')
+        parts.append(b'')
+        with open(wav_path, "rb") as f:
+            parts.append(f.read())
+            
+        # model part
+        parts.append(("--%s" % boundary).encode("utf-8"))
+        parts.append(('Content-Disposition: form-data; name="model"').encode("utf-8"))
+        parts.append(b'')
+        parts.append(model_name.encode("utf-8"))
+        
+        # End boundary
+        parts.append(("--%s--" % boundary).encode("utf-8"))
+        parts.append(b'')
+        
+        # Headers: use base headers but override Content-Type
+        headers = self._headers()
+        headers["Content-Type"] = "multipart/form-data; boundary=%s" % boundary
+        
+        body_bytes = b"\r\n".join(parts)
+        
+        debug_log("=== STT Request ===", context="API")
+        debug_log("URL: %s" % url, context="API")
+        debug_log("STT Model: %s" % model_name, context="API")
+        
+        # use sync_request (blocking helper already in this file)
+        res = sync_request(url, data=body_bytes, headers=headers)
+        return res.get("text", "") if isinstance(res, dict) else str(res)
 
     def stream_completion(
         self,
@@ -666,10 +759,10 @@ class LlmClient:
             stop_checker=stop_checker,
         )
 
-    def request_with_tools(self, messages, max_tokens=512, tools=None, body_override=None):
+    def request_with_tools(self, messages, max_tokens=512, tools=None, body_override=None, model=None):
         """Non-streaming chat request. Returns parsed response dict. body_override: optional str/bytes to use as request body (e.g. for modalities)."""
         method, path, body, headers = self.make_chat_request(
-            messages, max_tokens, tools=tools, stream=False
+            messages, max_tokens, tools=tools, stream=False, model=model
         )
         if body_override is not None:
             body = body_override.encode("utf-8") if isinstance(body_override, str) else body_override
@@ -775,12 +868,12 @@ class LlmClient:
             "usage": message_snapshot.get("usage", {}),
         }
 
-    def chat_completion_sync(self, messages, max_tokens=512):
+    def chat_completion_sync(self, messages, max_tokens=512, model=None):
         """
         Synchronous chat completion (no streaming, no tools).
         Returns the assistant message content string.
         """
         result = self.request_with_tools(
-            messages, max_tokens=max_tokens, tools=None
+            messages, max_tokens=max_tokens, tools=None, model=model
         )
         return result.get("content") or ""

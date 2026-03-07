@@ -4,9 +4,6 @@
 
 import os
 import sys
-import json
-import queue
-import threading
 import weakref
 import hashlib
 import uuid
@@ -24,14 +21,28 @@ _ext_root = _this_file
 if _ext_root not in sys.path:
     sys.path.insert(0, _ext_root)
 
-from plugin.framework.logging import agent_log, debug_log, update_activity_state, start_watchdog_thread, init_logging
-from plugin.framework.async_stream import run_stream_completion_async, run_stream_drain_loop
+# Add contrib (and contrib/audio for sounddevice when recording is enabled) so this file can be loaded by LibreOffice
+_vendor_dir = os.path.join(_ext_root, "contrib")
+if _vendor_dir not in sys.path:
+    sys.path.insert(0, _vendor_dir)
+_audio_dir = os.path.join(_ext_root, "contrib", "audio")
+if _audio_dir not in sys.path:
+    sys.path.insert(0, _audio_dir)
+
+# Recording available only if audio_recorder (and thus contrib/audio) is present
+try:
+    from plugin.modules.chatbot.audio_recorder import start_recording, stop_recording  # noqa: F401
+    HAS_RECORDING = True
+except ImportError:
+    HAS_RECORDING = False
+
+from plugin.framework.logging import debug_log, start_watchdog_thread, init_logging
 from plugin.modules.chatbot.panel import ChatSession, SendButtonListener, StopButtonListener, ClearButtonListener
 from plugin.framework.uno_helpers import get_optional as get_optional_control, get_checkbox_state, set_checkbox_state, get_active_document, get_extension_url, get_extension_path, is_writer, is_calc, is_draw
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
 from com.sun.star.ui.UIElementType import TOOLPANEL
-from com.sun.star.awt import XActionListener, XItemListener, XWindowListener
+from com.sun.star.awt import XItemListener, XWindowListener
 
 # Extension ID from description.xml; XDL path inside the .oxt
 EXTENSION_ID = "org.extension.localwriter"
@@ -82,12 +93,21 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
     def __init__(self, controls):
         self._c = controls        # dict name -> control or None
         self._initial = None      # captured from XDL-loaded pixel positions
+        self._in_relayout = False
 
     def windowResized(self, evt):
+        r = evt.Source.getPosSize()
+        debug_log("windowResized: W=%d H=%d" % (r.Width, r.Height), context="Chat")
+        if self._in_relayout:
+            debug_log("windowResized: skipped (in_relayout)", context="Chat")
+            return
         try:
+            self._in_relayout = True
             self._relayout(evt.Source)
-        except Exception:
-            pass
+        except Exception as e:
+            debug_log("windowResized error: %s" % e, context="Chat")
+        finally:
+            self._in_relayout = False
 
     def windowMoved(self, evt): pass
     def windowShown(self, evt): pass
@@ -119,15 +139,14 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
         if self._initial is None:
             self._capture_initial(win)
         if self._initial is None:
+            debug_log("_relayout: no initial state, skip", context="Chat")
             return
 
-        iw = self._initial["win_w"]
-        ih = self._initial["win_h"]
-        resp_bottom = self._initial.get("resp_bottom", 0)
-        width_ratio = w / iw if iw > 0 else 1.0
+        # Use anchoring/filling instead of scaling ratios to prevent feedback loops.
+        # Controls in fluid_controls will stretch to fill width.
+        # Buttons and labels stay fixed size and anchored left.
+        fluid_controls = ("response", "query", "model_selector", "image_model_selector", "status", "aspect_ratio_selector")
 
-        # First pass: position all non-response controls and find
-        # the topmost y of the bottom-anchored section.
         top_of_bottom = h  # will track highest new_y below response
         for name, ctrl in self._c.items():
             if not ctrl or name == "response":
@@ -136,19 +155,31 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
             if not orig:
                 continue
             ox, oy, ow, oh = orig
-            new_x = int(ox * width_ratio)
-            new_w = int(ow * width_ratio)
+
+            if name in fluid_controls:
+                # Fill space to right margin
+                new_x = ox
+                margin_right = iw - (ox + ow)
+                new_w = max(10, w - ox - margin_right)
+            else:
+                # Fixed size, anchored left
+                new_x = ox
+                new_w = ow
 
             if oy >= resp_bottom:
                 # Anchor to bottom: preserve distance from bottom edge
                 new_y = h - (ih - oy)
-                ctrl.setPosSize(new_x, new_y, new_w, oh, 15)
+                cur = ctrl.getPosSize()
+                if cur.X != new_x or cur.Y != new_y or cur.Width != new_w or cur.Height != oh:
+                    ctrl.setPosSize(new_x, new_y, new_w, oh, 15)
                 top_of_bottom = min(top_of_bottom, new_y)
             else:
-                # Above response (e.g. response_label): scale width only
-                ctrl.setPosSize(new_x, oy, new_w, oh, 15)
+                # Above response: stay anchored to top
+                cur = ctrl.getPosSize()
+                if cur.X != new_x or cur.Y != oy or cur.Width != new_w or cur.Height != oh:
+                    ctrl.setPosSize(new_x, oy, new_w, oh, 15)
 
-        # Second pass: stretch response to fill gap up to bottom section
+        # Second pass: stretch response area to fill remaining vertical gap
         resp_orig = self._initial["ctrls"].get("response")
         resp_ctrl = self._c.get("response")
         if resp_orig and resp_ctrl:
@@ -157,8 +188,14 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
             if gap < 0:
                 gap = 2
             new_rh = max(30, top_of_bottom - gap - ry)
-            resp_ctrl.setPosSize(int(rx * width_ratio), ry,
-                                int(rw * width_ratio), new_rh, 15)
+            
+            # Fill width to right margin
+            margin_right = iw - (rx + rw)
+            new_rw = max(10, w - rx - margin_right)
+            
+            cur = resp_ctrl.getPosSize()
+            if cur.X != rx or cur.Y != ry or cur.Width != new_rw or cur.Height != new_rh:
+                resp_ctrl.setPosSize(rx, ry, new_rw, new_rh, 15)
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +337,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         current_endpoint = get_current_endpoint(self.ctx)
         
         if model_selector:
-            set_val = populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru", current_endpoint, strict=True)
+            set_val = populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru", current_endpoint)
             if set_val != current_model:
                 set_config(self.ctx, "text_model", set_val)
         if prompt_selector:
@@ -341,7 +378,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         current_endpoint = get_current_endpoint(self.ctx)
         
         if model_selector:
-            set_model_val = populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru", current_endpoint, strict=True)
+            set_model_val = populate_combobox_with_lru(self.ctx, model_selector, current_model, "model_lru", current_endpoint)
             if set_model_val != current_model:
                 set_config(self.ctx, "text_model", set_model_val)
                 
@@ -638,6 +675,18 @@ class ChatPanelElement(unohelper.Base, XUIElement):
 
         # 4. Buttons
         self._wire_buttons(controls, model, active_greeting, set_control_enabled)
+
+        # Wire query listener to update Record/Send button label
+        if controls["query"] and controls["send"]:
+            try:
+                from plugin.modules.chatbot.panel import QueryTextListener
+                controls["query"].addTextListener(QueryTextListener(controls["send"]))
+                if controls["query"].getModel().Text.strip():
+                    controls["send"].getModel().Label = "Send"
+                else:
+                    controls["send"].getModel().Label = "Record" if HAS_RECORDING else "Send"
+            except Exception as e:
+                debug_log("QueryTextListener setup error: %s" % e, context="Chat")
 
         if controls["status"] and hasattr(controls["status"], "setText"):
             try: controls["status"].setText("Ready")

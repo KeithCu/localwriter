@@ -9,6 +9,7 @@ def get_settings_field_specs(ctx):
         {"name": "endpoint", "value": str(get_config(ctx, "endpoint", "http://127.0.0.1:5000"))},
         {"name": "text_model", "value": str(get_config(ctx, "text_model", "") or get_config(ctx, "model", ""))},
         {"name": "image_model", "value": str(get_image_model(ctx))},
+        {"name": "stt_model", "value": str(get_config(ctx, "stt_model", ""))},
         {"name": "api_key", "value": str(get_api_key_for_endpoint(ctx, current_endpoint_for_specs))},
         {"name": "temperature", "value": str(get_config(ctx, "temperature", "-1")), "type": "float"},
         {"name": "use_aihorde", "value": "true" if get_config(ctx, "image_provider", "aihorde") == "aihorde" else "false", "type": "bool"},
@@ -108,6 +109,8 @@ def apply_settings_result(ctx, result):
             # Update LRU history
             if key == "text_model" and val:
                 update_lru_history(ctx, val, "model_lru", current_endpoint)
+            elif key == "stt_model" and val:
+                update_lru_history(ctx, val, "audio_model_lru", current_endpoint)
             elif key == "image_model" and val:
                 set_image_model(ctx, val)
             elif key == "additional_instructions" and val:
