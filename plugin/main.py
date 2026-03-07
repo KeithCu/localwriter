@@ -554,7 +554,7 @@ class MainBootstrapJob(unohelper.Base, XJobExecutor, XJob):
         if args == "ToggleMCPServer": _dispatch_command("http.toggle_server")
         elif args == "MCPStatus": _dispatch_command("http.server_status")
         elif args == "DrainMCP":
-            from plugin.framework.mcp_thread import drain_mcp_queue
+            from plugin.modules.http.mcp_protocol import drain_mcp_queue
             drain_mcp_queue()
         else:
             _dispatch_command("main." + args)

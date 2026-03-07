@@ -61,7 +61,7 @@ def run_stream_drain_loop(
             # Pulse MCP if enabled
             if ctx:
                 try:
-                    from plugin.framework.mcp_thread import drain_mcp_queue
+                    from plugin.modules.http.mcp_protocol import drain_mcp_queue
                     drain_mcp_queue()
                 except ImportError:
                     pass
