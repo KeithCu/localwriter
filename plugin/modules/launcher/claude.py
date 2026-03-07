@@ -2,7 +2,6 @@
 
 import os
 import json
-import shutil
 
 from .base import BaseProvider
 
@@ -33,13 +32,5 @@ class ClaudeProvider(BaseProvider):
         os.makedirs(dot_claude, exist_ok=True)
         with open(os.path.join(dot_claude, "settings.json"), "w") as f:
             json.dump({"mcp": {"enabled": True}}, f, indent=2)
-
-        # 3. Copy skills
-        skills_src = os.path.join(os.path.dirname(__file__), "claude_skills")
-        if os.path.isdir(skills_src):
-            skills_dst = os.path.join(cwd, "skills")
-            if os.path.exists(skills_dst):
-                shutil.rmtree(skills_dst)
-            shutil.copytree(skills_src, skills_dst)
 
         return env
