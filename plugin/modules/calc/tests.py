@@ -87,7 +87,7 @@ def run_calc_tests(ctx, doc):
 
         # --- UNO Integrations Tests ---
         # Instead of mocking, we will create a hidden Calc document to run our tests on.
-        desktop = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+        desktop = get_desktop(ctx)
         from com.sun.star.beans import PropertyValue
         hidden_prop = PropertyValue()
         hidden_prop.Name = "Hidden"

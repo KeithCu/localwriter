@@ -1,8 +1,7 @@
-"""Document helpers for LocalWriter."""
-import time
 import uno
 from plugin.modules.calc.bridge import CalcBridge
 from plugin.modules.calc.analyzer import SheetAnalyzer
+from plugin.framework.uno_helpers import is_writer, is_calc, is_draw, get_active_document as get_active_doc
 
 
 class DocumentCache:
@@ -28,29 +27,6 @@ class DocumentCache:
         if mid in cls._instances:
             del cls._instances[mid]
 
-def is_writer(model):
-    """Return True if model is a Writer document."""
-    try:
-        return model.supportsService("com.sun.star.text.TextDocument")
-    except Exception:
-        return False
-
-
-def is_calc(model):
-    """Return True if model is a Calc document."""
-    try:
-        return model.supportsService("com.sun.star.sheet.SpreadsheetDocument")
-    except Exception:
-        return False
-
-
-def is_draw(model):
-    """Return True if model is a Draw/Impress document."""
-    try:
-        return (model.supportsService("com.sun.star.drawing.DrawingDocument") or 
-                model.supportsService("com.sun.star.presentation.PresentationDocument"))
-    except Exception:
-        return False
 
 
 def get_document_path(model):
@@ -537,13 +513,7 @@ class DocumentService(ServiceBase):
         pass
 
     def get_active_document(self):
-        try:
-            ctx = get_ctx()
-            smgr = ctx.getServiceManager()
-            desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-            return desktop.getCurrentComponent()
-        except Exception:
-            return None
+        return get_active_doc()
 
     def detect_doc_type(self, doc):
         if is_calc(doc): return "calc"

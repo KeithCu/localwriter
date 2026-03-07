@@ -20,7 +20,7 @@ def run_draw_tests(ctx, model=None):
 
     try:
         smgr = ctx.getServiceManager()
-        desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+        desktop = get_desktop(ctx)
         doc = model
         
         # Ensure we have a Draw document

@@ -22,6 +22,8 @@ from com.sun.star.task import XJobExecutor, XJob
 from com.sun.star.frame import XDispatch, XDispatchProvider
 from com.sun.star.lang import XInitialization, XServiceInfo
 
+from plugin.framework.uno_helpers import get_active_document, get_extension_url, get_package_info, is_writer, is_calc, is_draw
+
 # ---------------------------------------------------------------------------
 # HTTP / MCP Server (Module wrapper)
 # ---------------------------------------------------------------------------
@@ -225,8 +227,7 @@ def _dispatch_command(command):
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                model = get_active_document(ctx)
                 w_model = model if (model and is_writer(model)) else None
                 p, f, log = run_markdown_tests(ctx, w_model)
                 msgbox(ctx, "Format tests", f"Format tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
@@ -239,8 +240,7 @@ def _dispatch_command(command):
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                model = get_active_document(ctx)
                 c_model = model if (model and is_calc(model)) else None
                 p, f, log = run_calc_tests(ctx, c_model)
                 msgbox(ctx, "Calc tests", f"Calc tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
@@ -253,8 +253,7 @@ def _dispatch_command(command):
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                model = get_active_document(ctx)
                 c_model = model if (model and is_calc(model)) else None
                 p, f, log = run_calc_integration_tests(ctx, c_model)
                 msgbox(ctx, "Calc API tests", f"Calc API tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
@@ -267,8 +266,7 @@ def _dispatch_command(command):
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                model = get_active_document(ctx)
                 d_model = model if (model and is_draw(model)) else None
                 p, f, log = run_draw_tests(ctx, d_model)
                 msgbox(ctx, "Draw tests", f"Draw tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
@@ -384,15 +382,11 @@ def _load_icon_graphic(module_name, icon_filename):
     try:
         import uno
         from com.sun.star.beans import PropertyValue
-        ctx = uno.getComponentContext()
-        smgr = ctx.ServiceManager
-        pip = ctx.getValueByName(
-            "/singletons/com.sun.star.deployment.PackageInformationProvider")
-        ext_url = pip.getPackageLocation(EXTENSION_ID)
-        if not ext_url:
-            return None
         gp = smgr.createInstanceWithContext(
             "com.sun.star.graphic.GraphicProvider", ctx)
+        ext_url = get_extension_url(ctx)
+        if not ext_url:
+            return None
         pv = PropertyValue()
         # Support nested module directories
         mod_dir = module_name.replace(".", "/")
@@ -527,8 +521,7 @@ class MainBootstrapJob(unohelper.Base, XJobExecutor, XJob):
         if self._handle_framework_actions(args):
             return
 
-        desk = self.ctx.ServiceManager.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
-        model = desk.getCurrentComponent()
+        model = get_active_document(self.ctx)
         from plugin.modules.core.services.document import is_writer, is_calc, is_draw
         
         if is_writer(model):

@@ -14,6 +14,7 @@ import os
 
 import uno
 import unohelper
+from plugin.framework.uno_helpers import get_desktop, get_active_document
 from com.sun.star.awt import XActionListener
 
 from plugin.framework.logging import agent_log, debug_log, update_activity_state
@@ -221,16 +222,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
     def _get_document_model(self):
         """Get the Writer document model."""
-        model = None
-        if self.frame:
-            try:
-                model = self.frame.getController().getModel()
-            except Exception:
-                pass
-        if not model:
-            desktop = self.ctx.getServiceManager().createInstanceWithContext(
-                "com.sun.star.frame.Desktop", self.ctx)
-            model = desktop.getCurrentComponent()
+        model = get_active_document(self.ctx)
 
         from plugin.modules.core.services.document import is_writer, is_calc, is_draw
         if model and (is_writer(model) or is_calc(model) or is_draw(model)):

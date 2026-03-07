@@ -23,6 +23,7 @@ XDL dialog loading (used by ModuleBase helpers)::
 
 import logging
 import threading
+from plugin.framework.uno_helpers import get_desktop, get_extension_url
 
 log = logging.getLogger("localwriter.dialogs")
 
@@ -38,9 +39,7 @@ def msgbox(ctx, title, message):
         log.info("MSGBOX (no ctx) - %s: %s", title, message)
         return
     try:
-        smgr = ctx.ServiceManager
-        desktop = smgr.createInstanceWithContext(
-            "com.sun.star.frame.Desktop", ctx)
+        desktop = get_desktop(ctx)
         frame = desktop.getCurrentFrame()
         if frame is None:
             log.info("MSGBOX (no frame) - %s: %s", title, message)
@@ -390,9 +389,7 @@ def _load_xdl(relative_path):
 
     ctx = get_ctx()
     smgr = ctx.getServiceManager()
-    pip = ctx.getValueByName(
-        "/singletons/com.sun.star.deployment.PackageInformationProvider")
-    base = pip.getPackageLocation(EXTENSION_ID)
+    base = get_extension_url()
     url = base + "/" + relative_path
     dp = smgr.createInstanceWithContext(
         "com.sun.star.awt.DialogProvider2", ctx)

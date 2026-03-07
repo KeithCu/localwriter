@@ -12,6 +12,7 @@ from plugin.modules.writer.format_support import (
     _preserving_search_replace,
 )
 from plugin.framework.logging import debug_log
+from plugin.framework.uno_helpers import get_desktop
 
 # Compatibility shim: old _doc_text_length returned (length, text), new returns int
 def _doc_text_length(doc):
@@ -122,8 +123,7 @@ def run_markdown_tests(ctx, model=None):
     def fail(msg):
         log.append("FAIL: %s" % msg)
 
-    desktop = ctx.getServiceManager().createInstanceWithContext(
-        "com.sun.star.frame.Desktop", ctx)
+    desktop = get_desktop(ctx)
     doc = model
     if doc is None or not hasattr(doc, "getText"):
         try:
@@ -780,8 +780,7 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
     # Simulates: AI replaces the entire (small) document with a plain text edit
     # Use a fresh single-paragraph doc so doc_len == word length
     try:
-        desktop = ctx.getServiceManager().createInstanceWithContext(
-            "com.sun.star.frame.Desktop", ctx)
+        desktop = get_desktop(ctx)
         small_doc = desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())
         if not small_doc or not hasattr(small_doc, "getText"):
             raise RuntimeError("Could not create small doc for target=full test")

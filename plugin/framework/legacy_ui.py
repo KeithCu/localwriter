@@ -1,5 +1,4 @@
-"""Legacy UI functions for settings, input, and Eval Dashboard."""
-from plugin.framework.uno_helpers import TabListener, is_checkbox_control, get_checkbox_state, set_checkbox_state, get_optional
+from plugin.framework.uno_helpers import get_desktop, get_active_document, get_extension_url, TabListener, is_checkbox_control, get_checkbox_state, set_checkbox_state, get_optional
 from plugin.modules.core.services.config import get_config, get_current_endpoint, get_text_model, populate_combobox_with_lru, set_config, update_lru_history
 from plugin.framework.logging import init_logging, debug_log
 import uno
@@ -10,8 +9,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
     debug_log("input_box: opening Edit Input dialog (message=%r)" % (message[:40] + "..." if len(message) > 40 else message), context="Chat")
     try:
         smgr = ctx.getServiceManager()
-        pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
-        base_url = pip.getPackageLocation("org.extension.localwriter")
+        base_url = get_extension_url()
         debug_log("input_box: base_url=%s" % (base_url or ""), context="Chat")
         dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
         dlg_url = base_url + "/LocalWriterDialogs/EditInputDialog.xdl"
@@ -79,8 +77,7 @@ def settings_box(ctx, title="Settings", x=None, y=None):
     field_specs = get_settings_field_specs(ctx)
     debug_log(f"get_settings_field_specs returned {len(field_specs)} fields", context="Settings")
 
-    pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
-    base_url = pip.getPackageLocation("org.extension.localwriter")
+    base_url = get_extension_url()
     dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
     dialog_url = base_url + "/LocalWriterDialogs/SettingsDialog.xdl"
     try:
@@ -281,8 +278,7 @@ def show_eval_dashboard(ctx):
     from plugin.modules.core.eval_runner import run_benchmark_suite
 
     smgr = ctx.getServiceManager()
-    pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
-    base_url = pip.getPackageLocation("org.extension.localwriter")
+    base_url = get_extension_url()
     dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
     dlg = dp.createDialog(base_url + "/LocalWriterDialogs/EvalDialog.xdl")
 
@@ -322,8 +318,8 @@ def show_eval_dashboard(ctx):
                 self.dialog.getControl("status").setText("Running...")
                 self.toolkit.processEventsToIdle()
                 
-                desktop = self.ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
-                doc = desktop.getCurrentComponent()
+                desktop = get_desktop(self.ctx)
+                doc = get_active_document(self.ctx)
                 
                 summary = run_benchmark_suite(self.ctx, doc, model_name, categories)
                 

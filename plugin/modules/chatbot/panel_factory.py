@@ -27,7 +27,7 @@ if _ext_root not in sys.path:
 from plugin.framework.logging import agent_log, debug_log, update_activity_state, start_watchdog_thread, init_logging
 from plugin.modules.core.async_stream import run_stream_completion_async, run_stream_drain_loop
 from plugin.modules.chatbot.panel import ChatSession, SendButtonListener, StopButtonListener, ClearButtonListener
-from plugin.framework.uno_helpers import get_optional as get_optional_control, get_checkbox_state, set_checkbox_state
+from plugin.framework.uno_helpers import get_optional as get_optional_control, get_checkbox_state, set_checkbox_state, get_active_document, get_extension_url, get_extension_path, is_writer, is_calc, is_draw
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
 from com.sun.star.ui.UIElementType import TOOLPANEL
@@ -60,15 +60,8 @@ def _ensure_extension_on_path(ctx):
     LibreOffice registers each .py as a UNO component individually but does not
     put the extension folder on sys.path, so 'from main import ...' and
     'from document_tools import ...' fail without this."""
-    import sys
     try:
-        pip = ctx.getValueByName(
-            "/singletons/com.sun.star.deployment.PackageInformationProvider")
-        ext_url = pip.getPackageLocation(EXTENSION_ID)
-        if ext_url.startswith("file://"):
-            ext_path = str(uno.fileUrlToSystemPath(ext_url))
-        else:
-            ext_path = ext_url
+        ext_path = get_extension_path(ctx)
         if ext_path and ext_path not in sys.path:
             sys.path.insert(0, ext_path)
             init_logging(ctx)
@@ -238,9 +231,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
 
     def _getOrCreatePanelRootWindow(self):
         debug_log("_getOrCreatePanelRootWindow entered", context="Chat")
-        pip = self.ctx.getValueByName(
-            "/singletons/com.sun.star.deployment.PackageInformationProvider")
-        base_url = pip.getPackageLocation(EXTENSION_ID)
+        base_url = get_extension_url()
         dialog_url = base_url + "/" + XDL_PATH
         debug_log("dialog_url: %s" % dialog_url, context="Chat")
         provider = self.ctx.getServiceManager().createInstanceWithContext(
@@ -339,12 +330,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             except Exception:
                 pass
         if model is None:
-            try:
-                smgr = self.ctx.getServiceManager()
-                desktop = smgr.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
-                model = desktop.getCurrentComponent()
-            except Exception:
-                pass
+            model = get_active_document(self.ctx)
         return model
 
     def _wire_model_selectors(self, model_selector, image_model_selector):
@@ -476,7 +462,6 @@ class ChatPanelElement(unohelper.Base, XUIElement):
     def _setup_sessions(self, model, extra_instructions):
         """Creates the document and web research chat sessions."""
         from plugin.framework.constants import get_chat_system_prompt_for_document, DEFAULT_CHAT_SYSTEM_PROMPT
-        from plugin.modules.core.services.document import is_writer, is_calc, is_draw
         from plugin.framework.uno_helpers import get_document_property, set_document_property
         
         if model and (is_writer(model) or is_calc(model) or is_draw(model)):
@@ -513,7 +498,6 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 ensure_path_fn=_ensure_extension_on_path)
 
             if model:
-                from plugin.modules.core.services.document import is_calc, is_draw, is_writer
                 if is_calc(model): send_listener.initial_doc_type = "Calc"
                 elif is_draw(model): send_listener.initial_doc_type = "Draw"
                 elif is_writer(model): send_listener.initial_doc_type = "Writer"

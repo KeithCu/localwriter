@@ -7,6 +7,9 @@ text search utilities.
 
 import contextlib
 import logging
+import uno
+import unohelper
+from plugin.framework.uno_helpers import get_desktop, get_active_document
 import os
 import re
 import tempfile
@@ -153,9 +156,7 @@ def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc
     temp_doc = None
     try:
         smgr = ctx.getServiceManager()
-        desktop = smgr.createInstanceWithContext(
-            "com.sun.star.frame.Desktop", ctx
-        )
+        desktop = get_desktop(ctx)
         load_props = (_create_property_value("Hidden", True),)
         temp_doc = desktop.loadComponentFromURL(
             "private:factory/swriter", "_default", 0, load_props
