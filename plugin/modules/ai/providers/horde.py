@@ -75,8 +75,8 @@ class HordeProvider(ImageProvider):
         Returns:
             (file_paths: list[str], error: str | None)
         """
-        api_key = self._config.get("api_key") or "0000000000"
-        model = kwargs.get("model") or self._config.get("model") or "stable_diffusion"
+        api_key = self._config.get("horde_api_key") or "0000000000"
+        model = kwargs.get("model") or self._config.get("horde_model") or "stable_diffusion"
         width = kwargs.get("width", 512)
         height = kwargs.get("height", 512)
         max_wait = kwargs.get("max_wait") or self._config.get("max_wait") or 5

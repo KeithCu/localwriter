@@ -1,15 +1,27 @@
 """Legacy UI functions for settings, input, and Eval Dashboard."""
-from plugin.framework.uno_helpers import TabListener, is_checkbox_control, get_checkbox_state, set_checkbox_state
-from plugin.modules.core.services.config import get_config, get_current_endpoint, populate_combobox_with_lru
+from plugin.framework.uno_helpers import TabListener, is_checkbox_control, get_checkbox_state, set_checkbox_state, get_optional
+from plugin.modules.core.services.config import get_config, get_current_endpoint, get_text_model, populate_combobox_with_lru, set_config, update_lru_history
+from plugin.framework.logging import init_logging, debug_log
 import uno
 
 def input_box(ctx, message, title="", default="", x=None, y=None):
     """ Shows input dialog (EditInputDialog.xdl). Returns (result_text, extra_prompt) if OK, else ("", ""). """
-    smgr = ctx.getServiceManager()
-    pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
-    base_url = pip.getPackageLocation("org.extension.localwriter")
-    dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
-    dlg = dp.createDialog(base_url + "/LocalWriterDialogs/EditInputDialog.xdl")
+    init_logging(ctx)
+    debug_log("input_box: opening Edit Input dialog (message=%r)" % (message[:40] + "..." if len(message) > 40 else message), context="Chat")
+    try:
+        smgr = ctx.getServiceManager()
+        pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
+        base_url = pip.getPackageLocation("org.extension.localwriter")
+        debug_log("input_box: base_url=%s" % (base_url or ""), context="Chat")
+        dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
+        dlg_url = base_url + "/LocalWriterDialogs/EditInputDialog.xdl"
+        dlg = dp.createDialog(dlg_url)
+        debug_log("input_box: dialog created successfully", context="Chat")
+    except Exception as e:
+        import traceback
+        debug_log("input_box: failed to create dialog: %s" % e, context="Chat")
+        debug_log("input_box: traceback: %s" % traceback.format_exc(), context="Chat")
+        raise
     try:
         dlg.getControl("label").getModel().Label = str(message)
         dlg.getControl("edit").getModel().Text = str(default)
@@ -20,16 +32,38 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
         current_prompt = get_config(ctx, "additional_instructions", "")
         populate_combobox_with_lru(ctx, prompt_ctrl, current_prompt, "prompt_lru", "")
 
+        model_selector = get_optional(dlg, "model_selector")
+        if model_selector:
+            current_endpoint = get_current_endpoint(ctx)
+            current_model = get_text_model(ctx)
+            populate_combobox_with_lru(ctx, model_selector, current_model, "model_lru", current_endpoint, strict=True)
+
         dlg.getControl("edit").setFocus()
         dlg.getControl("edit").setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", 0, len(str(default))))
         
+        debug_log("input_box: showing dialog (execute)", context="Chat")
         if dlg.execute():
             ret_text = dlg.getControl("edit").getModel().Text
             ret_prompt = prompt_ctrl.getText()
+            if model_selector:
+                chosen = model_selector.getText()
+                if chosen:
+                    set_config(ctx, "text_model", chosen)
+                    update_lru_history(ctx, chosen, "model_lru", get_current_endpoint(ctx))
+            debug_log("input_box: user clicked OK, returning (text len=%d)" % len(ret_text or ""), context="Chat")
             return ret_text, ret_prompt
+        debug_log("input_box: user cancelled", context="Chat")
         return "", ""
+    except Exception as e:
+        import traceback
+        debug_log("input_box: error while showing or reading dialog: %s" % e, context="Chat")
+        debug_log("input_box: traceback: %s" % traceback.format_exc(), context="Chat")
+        raise
     finally:
-        dlg.dispose()
+        try:
+            dlg.dispose()
+        except Exception:
+            pass
 
 def settings_box(ctx, title="Settings", x=None, y=None):
     from plugin.framework.settings_dialog import get_settings_field_specs, apply_settings_result

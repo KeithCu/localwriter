@@ -1,5 +1,6 @@
 """Document helpers for LocalWriter."""
 import time
+import uno
 from plugin.modules.calc.bridge import CalcBridge
 from plugin.modules.calc.analyzer import SheetAnalyzer
 
@@ -51,6 +52,16 @@ def is_draw(model):
     except Exception:
         return False
 
+
+def get_document_path(model):
+    """Return the local filesystem path for the document, or None if not a file URL (e.g. untitled)."""
+    try:
+        url = model.getURL()
+        if not url or not str(url).startswith("file://"):
+            return None
+        return str(uno.fileUrlToSystemPath(url))
+    except Exception:
+        return None
 
 
 def get_full_document_text(model, max_chars=8000):

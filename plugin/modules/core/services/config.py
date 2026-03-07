@@ -42,6 +42,7 @@ ENDPOINT_PRESETS = [
 # directly to top-level config keys (endpoint, model, etc.).
 AI_SIMPLE_FIELDS = {
     "endpoint",
+    "model",
     "text_model",
     "image_model",
     "api_key",
@@ -50,6 +51,11 @@ AI_SIMPLE_FIELDS = {
     "chat_context_length",
     "request_timeout",
     "additional_instructions",
+    "aihorde_api_key",
+    "image_provider",
+    "nsfw",
+    "censor_nsfw",
+    "max_wait",
 }
 
 
@@ -588,8 +594,25 @@ class ConfigService(ServiceBase):
                 if field == "api_key":
                     endpoint = get_current_endpoint(ctx)
                     return str(get_api_key_for_endpoint(ctx, endpoint) or "")
-                # Other simple fields map 1:1 to top-level keys.
-                return get_config(ctx, field, default)
+                
+                # Internal mappings
+                config_key = field
+                if field == "aihorde_api_key":
+                    config_key = "aihorde_api_key"
+                elif field == "horde_model":
+                    config_key = "image_model"
+                elif field == "max_wait":
+                    config_key = "image_max_wait"
+                elif field == "nsfw":
+                    config_key = "image_nsfw"
+                elif field == "censor_nsfw":
+                    config_key = "image_censor_nsfw"
+
+                return get_config(ctx, config_key, default)
+            
+            # Explicitly return None for removed multi-instance keys
+            if field in ("openai_instances", "ollama_instances", "horde_instances"):
+                return "[]"
 
         # Test fallback
         if self._config_path and os.path.exists(self._config_path):
@@ -616,7 +639,12 @@ class ConfigService(ServiceBase):
         # into the corresponding top-level settings (endpoint, model, etc.).
         if key.startswith("ai."):
             field = key.split(".", 1)[1]
-            if field in AI_SIMPLE_FIELDS:
+            
+            # Legacy/Multi-instance cleanup (silently ignore)
+            if field in ("openai_instances", "ollama_instances", "horde_instances"):
+                return
+
+            if field in AI_SIMPLE_FIELDS or field in ("horde_api_key", "horde_model"):
                 ctx = get_ctx()
                 if field == "endpoint":
                     resolved = endpoint_from_selector_text(str(value))
@@ -625,8 +653,16 @@ class ConfigService(ServiceBase):
                 elif field == "api_key":
                     endpoint = get_current_endpoint(ctx)
                     set_api_key_for_endpoint(ctx, endpoint, value or "")
-                elif field == "image_model":
+                elif field == "image_model" or field == "horde_model":
                     set_image_model(ctx, value or "", update_lru=True)
+                elif field == "aihorde_api_key" or field == "horde_api_key":
+                    set_config(ctx, "aihorde_api_key", value)
+                elif field == "max_wait":
+                    set_config(ctx, "image_max_wait", int(value) if value else 5)
+                elif field == "nsfw":
+                    set_config(ctx, "image_nsfw", value)
+                elif field == "censor_nsfw":
+                    set_config(ctx, "image_censor_nsfw", value)
                 else:
                     # Direct 1:1 mapping to top-level key.
                     set_config(ctx, field, value)

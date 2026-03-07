@@ -119,6 +119,8 @@ class ChatbotModule(ModuleBase):
         """Extend selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
         from plugin.modules.core.async_stream import run_stream_async
+        from plugin.modules.core.services.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             selection = doc.CurrentController.getSelection()
@@ -152,8 +154,10 @@ class ChatbotModule(ModuleBase):
             log.error("Extend selection failed: %s", e)
             msgbox(ctx, "LocalWriter: Extend Selection", str(e))
 
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
         run_stream_async(
-            ctx, provider, messages, tools=None,
+            ctx, client, messages, tools=None,
             apply_chunk_fn=apply_chunk,
             on_done_fn=lambda: None,
             on_error_fn=on_error,
@@ -164,6 +168,8 @@ class ChatbotModule(ModuleBase):
         """Extend selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
         from plugin.modules.core.async_stream import run_stream_async
+        from plugin.modules.core.services.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             sheet = doc.CurrentController.ActiveSheet
@@ -195,6 +201,9 @@ class ChatbotModule(ModuleBase):
             msgbox(ctx, "LocalWriter", "No cells with content selected")
             return
 
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
+
         # Process cells sequentially via callback chain
         task_index = [0]
 
@@ -221,7 +230,7 @@ class ChatbotModule(ModuleBase):
                 msgbox(ctx, "LocalWriter: Extend Selection", str(e))
 
             run_stream_async(
-                ctx, provider, msgs, tools=None,
+                ctx, client, msgs, tools=None,
                 apply_chunk_fn=apply_chunk,
                 on_done_fn=run_next_cell,
                 on_error_fn=on_error,
@@ -260,29 +269,23 @@ class ChatbotModule(ModuleBase):
                    "Edit selection not supported for this document type")
 
     def _show_edit_input(self):
-        """Show the edit instructions dialog. Returns user input or empty."""
-        try:
-            dlg = self.load_dialog("edit_input")
-        except Exception:
-            log.exception("Failed to load edit_input dialog")
-            return ""
-
-        try:
-            import uno
-            ctrl = dlg.getControl("edit")
-            ctrl.setFocus()
-            ctrl.setSelection(
-                uno.createUnoStruct("com.sun.star.awt.Selection", 0, 0))
-            if dlg.execute():
-                return (ctrl.getModel().Text or "").strip()
-            return ""
-        finally:
-            dlg.dispose()
+        """Show the edit instructions dialog. Returns (user_input, extra_instructions); empty strings if cancelled.
+        Uses the shared EditInputDialog.xdl (legacy_ui.input_box) so menu and shortcut share the same UI.
+        """
+        from plugin.framework.uno_context import get_ctx
+        from plugin.framework.legacy_ui import input_box
+        ctx = get_ctx()
+        user_input, extra_instructions = input_box(
+            ctx, "Please enter edit instructions!", "Input", ""
+        )
+        return user_input, extra_instructions
 
     def _edit_writer(self, ctx, doc, provider):
         """Edit selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
         from plugin.modules.core.async_stream import run_stream_async
+        from plugin.modules.core.services.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             selection = doc.CurrentController.getSelection()
@@ -296,12 +299,16 @@ class ChatbotModule(ModuleBase):
             msgbox(ctx, "LocalWriter", "No text selected")
             return
 
-        user_input = self._show_edit_input()
+        user_input, extra_instructions = self._show_edit_input()
         if not user_input:
             return
+        if extra_instructions:
+            from plugin.modules.core.services.config import set_config, update_lru_history, get_current_endpoint
+            set_config(ctx, "additional_instructions", extra_instructions)
+            update_lru_history(ctx, extra_instructions, "prompt_lru", get_current_endpoint(ctx))
 
         config = self._services.config.proxy_for("chatbot")
-        system_prompt = config.get("system_prompt") or ""
+        system_prompt = extra_instructions or config.get("system_prompt") or ""
         max_new_tokens = config.get("edit_selection_max_new_tokens") or 0
 
         prompt = (
@@ -338,8 +345,10 @@ class ChatbotModule(ModuleBase):
             log.error("Edit selection failed: %s", e)
             msgbox(ctx, "LocalWriter: Edit Selection", str(e))
 
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
         run_stream_async(
-            ctx, provider, messages, tools=None,
+            ctx, client, messages, tools=None,
             apply_chunk_fn=apply_chunk,
             on_done_fn=lambda: None,
             on_error_fn=on_error,
@@ -350,6 +359,8 @@ class ChatbotModule(ModuleBase):
         """Edit selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
         from plugin.modules.core.async_stream import run_stream_async
+        from plugin.modules.core.services.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             sheet = doc.CurrentController.ActiveSheet
@@ -359,12 +370,16 @@ class ChatbotModule(ModuleBase):
             msgbox(ctx, "LocalWriter", "No cells selected")
             return
 
-        user_input = self._show_edit_input()
+        user_input, extra_instructions = self._show_edit_input()
         if not user_input:
             return
+        if extra_instructions:
+            from plugin.modules.core.services.config import set_config, update_lru_history, get_current_endpoint
+            set_config(ctx, "additional_instructions", extra_instructions)
+            update_lru_history(ctx, extra_instructions, "prompt_lru", get_current_endpoint(ctx))
 
         config = self._services.config.proxy_for("chatbot")
-        system_prompt = config.get("system_prompt") or ""
+        system_prompt = extra_instructions or config.get("system_prompt") or ""
         max_new_tokens = config.get("edit_selection_max_new_tokens") or 0
 
         # Build task list
@@ -396,6 +411,9 @@ class ChatbotModule(ModuleBase):
 
         if not tasks:
             return
+
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
 
         # Process cells sequentially
         task_index = [0]
@@ -429,7 +447,7 @@ class ChatbotModule(ModuleBase):
                 msgbox(ctx, "LocalWriter: Edit Selection", str(e))
 
             run_stream_async(
-                ctx, provider, msgs, tools=None,
+                ctx, client, msgs, tools=None,
                 apply_chunk_fn=apply_chunk,
                 on_done_fn=run_next_cell,
                 on_error_fn=on_error,
