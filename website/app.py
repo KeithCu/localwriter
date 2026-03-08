@@ -1,13 +1,13 @@
 """
-LocalWriter.org — Flask app for the project website.
+WriterAgent.org — Flask app for the project website.
 """
 from flask import Flask, render_template
 from functools import lru_cache
 
 app = Flask(__name__)
 
-RELEASE_URL = "https://github.com/balisujohn/localwriter/releases"
-GITHUB_URL = "https://github.com/balisujohn/localwriter"
+RELEASE_URL = "https://github.com/balisujohn/writeragent/releases"
+GITHUB_URL = "https://github.com/balisujohn/writeragent"
 KOFI_URL = "https://ko-fi.com/johnbalis"
 CONFIG_EXAMPLES_URL = f"{GITHUB_URL}/blob/main/CONFIG_EXAMPLES.md"
 
