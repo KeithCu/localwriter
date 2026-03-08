@@ -54,6 +54,9 @@ def _is_hermes_prompt(line):
     return s == _HERMES_PROMPT_CHAR
 
 
+# Global to toggle character-by-character reading instead of block reading.
+_CHAR_MODE_READ = False
+
 # ── Shared long-lived process state (one Hermes per WriterAgent run) ──
 _lock = threading.Lock()
 _process = None
@@ -81,49 +84,90 @@ def _stderr_drain_loop(proc):
         pass
 
 
+def _process_line(line, line_count, response_chunk_count):
+    global _current_queue, _reader_ready, _response_done
+    raw_line = line
+    line = _strip_ansi(line)
+    if not line:
+        if raw_line == "":
+            debug_log("reader_loop: read empty (EOF), process may have exited, line_count=%d" % line_count[0], context=_LOG)
+        return
+
+    preview = repr((line[:50] + "…") if len(line) > 50 else line)
+
+    if _current_queue is None:
+        # Waiting for first prompt or between messages
+        if _is_hermes_prompt(line):
+            _reader_ready.set()
+            debug_log("reader_loop: saw prompt (❯), _reader_ready set (between messages)", context=_LOG)
+        elif line_count[0] <= 20 or line_count[0] % 50 == 0:
+            debug_log("reader_loop: skip line #%d (no queue) %s" % (line_count[0], preview), context=_LOG)
+        return
+
+    # In a response: push chunks until we see the next ❯
+    if _is_hermes_prompt(line) or "Goodbye" in line:
+        debug_log("reader_loop: saw end prompt / Goodbye, pushing stream_done (chunks pushed this response=%d)" % response_chunk_count[0], context=_LOG)
+        _current_queue.put(("stream_done", None))
+        _current_queue = None
+        _response_done.set()
+        response_chunk_count[0] = 0
+        return
+
+    response_chunk_count[0] += 1
+    if response_chunk_count[0] <= 3 or response_chunk_count[0] % 100 == 0:
+        debug_log("reader_loop: response chunk #%d %s" % (response_chunk_count[0], preview), context=_LOG)
+    _current_queue.put(("chunk", line if line.endswith("\n") else line + "\n"))
+
+
 def _reader_loop(stdout_stream):
     """Run in background; pushes to _current_queue when set, sets _reader_ready on first ❯.
-    stdout_stream: file-like with readline() (either proc.stdout or pty master).
+    stdout_stream: file-like.
     """
-    global _current_queue, _reader_ready, _response_done, _stop_requested
-    past_banner = False
-    line_count = [0]  # list so we can mutate from nested scope
+    global _stop_requested, _CHAR_MODE_READ, _current_queue, _response_done
+    line_count = [0]
     response_chunk_count = [0]
-    debug_log("reader_loop: started", context=_LOG)
+    debug_log("reader_loop: started (char_mode=%s)" % _CHAR_MODE_READ, context=_LOG)
+
+    buf = ""
     try:
-        for line in iter(stdout_stream.readline, ""):
-            if _stop_requested:
-                debug_log("reader_loop: stop_requested, exiting", context=_LOG)
+        # Using raw file descriptor if possible for block read
+        fd = stdout_stream.fileno() if hasattr(stdout_stream, "fileno") else None
+
+        while not _stop_requested:
+            if _CHAR_MODE_READ or fd is None:
+                chunk = stdout_stream.read(1)
+            else:
+                try:
+                    b = os.read(fd, 1024)
+                    chunk = b.decode("utf-8", errors="replace")
+                except BlockingIOError:
+                    time.sleep(0.01)
+                    continue
+                except Exception:
+                    # fallback
+                    chunk = stdout_stream.read(1)
+
+            if not chunk:
+                # EOF
+                if buf:
+                    line_count[0] += 1
+                    _process_line(buf, line_count, response_chunk_count)
                 break
-            line_count[0] += 1
-            raw_line = line
-            line = _strip_ansi(line)
-            if not line:
-                if raw_line == "":
-                    debug_log("reader_loop: readline returned empty (EOF), process may have exited, line_count=%d" % line_count[0], context=_LOG)
-                continue
-            preview = repr((line[:50] + "…") if len(line) > 50 else line)
-            if _current_queue is None:
-                # Waiting for first prompt or between messages
-                if _is_hermes_prompt(line):
-                    past_banner = True
-                    _reader_ready.set()
-                    debug_log("reader_loop: saw prompt (❯), _reader_ready set (between messages)", context=_LOG)
-                elif line_count[0] <= 20 or line_count[0] % 50 == 0:
-                    debug_log("reader_loop: skip line #%d (no queue) %s" % (line_count[0], preview), context=_LOG)
-                continue
-            # In a response: push chunks until we see the next ❯
-            if _is_hermes_prompt(line) or "Goodbye" in line:
-                debug_log("reader_loop: saw end prompt / Goodbye, pushing stream_done (chunks pushed this response=%d)" % response_chunk_count[0], context=_LOG)
-                _current_queue.put(("stream_done", None))
-                _current_queue = None
-                _response_done.set()
-                response_chunk_count[0] = 0
-                continue
-            response_chunk_count[0] += 1
-            if response_chunk_count[0] <= 3 or response_chunk_count[0] % 100 == 0:
-                debug_log("reader_loop: response chunk #%d %s" % (response_chunk_count[0], preview), context=_LOG)
-            _current_queue.put(("chunk", line if line.endswith("\n") else line + "\n"))
+
+            buf += chunk
+
+            # Process lines
+            while "\n" in buf:
+                line, buf = buf.split("\n", 1)
+                line_count[0] += 1
+                _process_line(line + "\n", line_count, response_chunk_count)
+
+            # If the current buffer matches the prompt exactly (often without newline)
+            if buf and _is_hermes_prompt(buf):
+                line_count[0] += 1
+                _process_line(buf, line_count, response_chunk_count)
+                buf = ""
+
     except (OSError, IOError) as e:
         if getattr(e, "errno", None) == 5:
             proc = None

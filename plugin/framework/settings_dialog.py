@@ -103,7 +103,7 @@ def apply_settings_result(ctx, result):
             if save_key == "agent_backend.backend_id" and val:
                 _label_to_id = {"Built-in": "builtin", "Aider": "aider", "Hermes": "hermes"}
                 val = _label_to_id.get(str(val).strip(), val)
-            
+
             # Special validation for temperature
             if save_key == "temperature":
                 try:
