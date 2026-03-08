@@ -161,8 +161,9 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
 
 - **Streaming I/O**: pure Python queue + main-thread drain
   All streaming paths (sidebar tool-calling, sidebar simple stream, Writer Extend/Edit/menu Chat, Calc) use the same pattern so the UI stays responsive without relying on UNO Timers/listeners:
-  - **Worker thread**: Runs blocking API/streaming (e.g. `stream_completion`, `stream_request_with_tools`), puts items on a **`queue.Queue`** (`("chunk", text)`, `("thinking", text)`, `("stream_done", ...)`, `("error", e)`, `("stopped",)`).
+  - **Worker thread**: Runs blocking API/streaming (e.g. `stream_completion`, `stream_request_with_tools`), puts items on a **`queue.Queue`** (`("chunk", text)`, `("thinking", text)`, `("stream_done", ...)`, `("error", e)`, `("stopped",)`.
   - **Main thread**: After starting the worker, runs a **drain loop**: `q.get(timeout=0.1)` → process item (append text, update status, call on_done/on_error) → **`toolkit.processEventsToIdle()`**. Repeats until job_done.
+  - **Generalized Helper**: `run_blocking_with_pump(ctx, func, *args, **kwargs)` in `plugin/framework/async_stream.py` encapsulates this pattern for synchronous-appearing calls (like Calc `=PROMPT()`), allowing them to block *their* logic while still pumping the global UI events so the application remains responsive.
   - **Connection Keep-Alive**: `LlmClient` uses `http.client.HTTPConnection` (or `HTTPSConnection`) for persistent connections. The client instance is cached in `plugin/modules/chatbot/panel_factory.py` (sidebar), `plugin/main.py` (MainJob), and `plugin/prompt_function.py` (Calc =PROMPT()) to reuse connections across multiple requests, significantly improving performance for multi-turn chat and cell recalculations.
   - **Streaming edge cases (LiteLLM-inspired):** `finish_reason=error` → raise; repeated identical content chunks → raise (infinite-loop guard); `finish_reason=stop` with tool_calls → remap to `tool_calls`; delta normalization for Mistral/Azure (`role`/`tool.type`/`function.arguments`). See [LITELLM_INTEGRATION.md](LITELLM_INTEGRATION.md).
 
