@@ -1,5 +1,5 @@
 # Adapted from Nelson MCP
-"""Launcher module — launches an external AI CLI tool connected to LocalWriter MCP.
+"""Launcher module — launches an external AI CLI tool connected to WriterAgent MCP.
 
 The parent module owns the subprocess lifecycle and terminal detection;
 each child provider supplies its binary, auto-config, and install scripts
@@ -16,7 +16,7 @@ import threading
 
 from plugin.framework.module_base import ModuleBase
 
-log = logging.getLogger("localwriter.launcher")
+log = logging.getLogger("writeragent.launcher")
 
 # Windows: open subprocess in a new console window (not hidden)
 _CREATION_FLAGS = getattr(subprocess, "CREATE_NEW_CONSOLE", 0) if sys.platform == "win32" else 0
@@ -61,7 +61,7 @@ def run_install_for_provider(provider_name):
     mgr = services.launcher_manager
     provider = mgr.get_provider(provider_name)
     if provider is None:
-        msgbox(ctx, "LocalWriter",
+        msgbox(ctx, "WriterAgent",
                "CLI provider '%s' not found." % provider_name)
         return
 
@@ -71,18 +71,12 @@ def run_install_for_provider(provider_name):
     else:
         script_name = "install.sh"
 
-    # Locate script in provider's module directory
-    provider_mod = sys.modules.get(type(provider).__module__)
-    if provider_mod is None or not hasattr(provider_mod, "__file__"):
-        msgbox(ctx, "LocalWriter",
-               "Cannot locate install script for '%s'." % provider.name)
-        return
-
-    mod_dir = os.path.dirname(provider_mod.__file__)
-    script_path = os.path.join(mod_dir, "scripts", script_name)
+    # Locate script in launcher's directory
+    mod_dir = os.path.dirname(__file__)
+    script_path = os.path.join(mod_dir, f"{provider_name}_scripts", script_name)
 
     if not os.path.isfile(script_path):
-        msgbox(ctx, "LocalWriter",
+        msgbox(ctx, "WriterAgent",
                "Install script not found:\n%s" % script_path)
         return
 
@@ -101,7 +95,7 @@ def run_install_for_provider(provider_name):
             term = _find_terminal(terminal)
         except Exception:
             log.exception("Terminal detection failed")
-            msgbox(ctx, "LocalWriter", "Could not find a terminal emulator.")
+            msgbox(ctx, "WriterAgent", "Could not find a terminal emulator.")
             return
 
         cli_cmd = [
@@ -120,7 +114,7 @@ def run_install_for_provider(provider_name):
         )
     except Exception:
         log.exception("Failed to launch install script")
-        msgbox(ctx, "LocalWriter",
+        msgbox(ctx, "WriterAgent",
                "Failed to launch install script.")
 
 
@@ -131,14 +125,19 @@ def get_provider_options(services):
     select widget. Discovers registered providers from the launcher_manager.
     """
     try:
+        log.debug("get_provider_options called with services: %s", "available" if services else "None")
         if services and hasattr(services, "launcher_manager"):
             mgr = services.launcher_manager
-            return [
+            options = [
                 {"value": name, "label": prov.label if hasattr(prov, "label") else name.title()}
                 for name, prov in sorted(mgr.providers.items())
             ]
-    except Exception:
-        log.debug("get_provider_options: services not ready yet")
+            log.info("get_provider_options returning %d options: %s", len(options), [o["value"] for o in options])
+            return options
+        else:
+            log.warning("get_provider_options: launcher_manager service not found in services")
+    except Exception as e:
+        log.error("get_provider_options exception: %s", e)
     return []
 
 
@@ -151,42 +150,117 @@ def get_active_provider_default_cwd(services):
             if name:
                 prov = services.launcher_manager.get_provider(name)
                 if prov:
-                    return prov.default_cwd
+                    return prov.get_default_cwd()
     except Exception:
         pass
     return ""
 
 
 def get_global_instructions_default(services):
-    """Return default content for AGENTS.md from the filesystem."""
+    """Return default content for AI CLI instructions."""
+    from plugin.framework.constants import (
+        FORMATTING_RULES, CORE_DIRECTIVES, TRANSLATION_RULES,
+        CALC_WORKFLOW, CALC_FORMULA_SYNTAX
+    )
+
+    # Start with a strong persona and technical guidance
+    # We use f-string to inject the shared rules from constants.py
+    base = f"""# WriterAgent MCP — AI CLI Instructions
+
+You are an AI assistant helping the user work with a LibreOffice document through **WriterAgent MCP**. Your goal is to help the user create polished, professional documents.
+
+## Core Directives
+
+{CORE_DIRECTIVES}
+
+{TRANSLATION_RULES}
+
+## Formatting Rules
+
+{FORMATTING_RULES}
+
+## Calc & Spreadsheet Rules
+
+{CALC_WORKFLOW}
+
+{CALC_FORMULA_SYNTAX}
+
+## Tool Usage Patterns
+
+- **Writer**: Use `get_document_tree` to see the structure. Use `_mcp_` bookmarks for stable addressing.
+- **Calc**: Use `get_sheet_summary` and `read_cell_range`. Use Excel-style A1 references.
+- **Navigation**: Prefer stable locators (bookmarks, heading text) over paragraph indices.
+- **Batching**: Use `execute_batch` to chain multiple edits for efficiency.
+
+## Context Awareness
+
+This file summarizes the current state of the project. AI Assistants: You SHOULD update this file if you learn something important about the user's workflow or project structure that would help future sessions.
+"""
+    return base
+
+
+def get_unified_prompt(services):
+    """Return the final prompt to be written to CLAUDE.md / AGENTS.md / etc."""
+    cfg = services.config.proxy_for("launcher")
+    instructions = cfg.get("global_ai_instructions")
+    if not instructions or not str(instructions).strip():
+        return get_global_instructions_default(services)
+    return instructions
+
+
+def write_unified_prompt(cwd, filename):
+    """Write the unified prompt to the given file in the working directory."""
+    from plugin.main import get_services
+    services = get_services()
+    if not services:
+        log.warning("Could not write %s: services not available", filename)
+        return False
+
+    prompt = get_unified_prompt(services)
+    prompt_path = os.path.join(cwd, filename)
     try:
-        # Try to find AGENTS.md in launcher_opencode or similar
-        # For now, we'll look in a standard location or hardcode a fallback
-        import os
-        base_dir = os.path.dirname(os.path.dirname(__file__))
-        agents_md = os.path.join(base_dir, "launcher_opencode", "prompts", "AGENTS.md")
-        if os.path.isfile(agents_md):
-            with open(agents_md, "r") as f:
-                return f.read()
+        with open(prompt_path, "w") as f:
+            f.write(prompt)
+        log.info("Wrote unified prompt to %s", prompt_path)
+        return True
     except Exception:
-        log.warning("Failed to load default global instructions")
-    return "# AI CLI Instructions\nYou are an AI assistant helping with LibreOffice documents via LocalWriter MCP."
+        log.exception("Failed to write %s", prompt_path)
+        return False
+
 
 
 def on_install_active_provider():
     """Action handler for the unified Install button."""
+    import webbrowser
     from plugin.main import get_services
+    from plugin.framework.dialogs import msgbox
+    from plugin.framework.uno_context import get_ctx
+
     services = get_services()
     if not services:
         return
+
     cfg = services.config.proxy_for("launcher")
     name = cfg.get("provider")
-    if name:
-        run_install_for_provider(name)
+
+    if not name:
+        msgbox(get_ctx(), "WriterAgent", "Please select a provider first.")
+        return
+
+    provider = services.launcher_manager.get_provider(name)
+    if provider is None:
+        msgbox(get_ctx(), "WriterAgent", "CLI provider '%s' not found." % name)
+        return
+
+    install_url = getattr(provider, "install_url", None)
+    if install_url:
+        try:
+            webbrowser.open(install_url)
+        except Exception:
+            log.exception("Failed to open install URL: %s", install_url)
+            msgbox(get_ctx(), "WriterAgent", "Failed to open install URL.")
     else:
-        from plugin.framework.dialogs import msgbox
-        from plugin.framework.uno_context import get_ctx
-        msgbox(get_ctx(), "LocalWriter", "Please select a provider first.")
+        msgbox(get_ctx(), "WriterAgent", "No install URL available for provider '%s'." % name)
 
 
 def _find_terminal(configured):
@@ -271,7 +345,7 @@ class LauncherManager:
 
     def register_provider(self, name, provider):
         self.providers[name] = provider
-        log.info("CLI provider registered: %s", name)
+        log.info("CLI provider registered: %s (total: %d)", name, len(self.providers))
 
     def get_provider(self, name):
         return self.providers.get(name)
@@ -284,6 +358,16 @@ class LauncherModule(ModuleBase):
         self._process = None
         self._lock = threading.Lock()
         self._manager = LauncherManager()
+        
+        # Register providers
+        from .claude import ClaudeProvider
+        from .gemini import GeminiProvider
+        from .hermes import HermesProvider
+        from .opencode import OpenCodeProvider
+        for cls in (ClaudeProvider, GeminiProvider, HermesProvider, OpenCodeProvider):
+            p = cls(services)
+            self._manager.register_provider(p.name, p)
+            
         services.register_instance("launcher_manager", self._manager)
 
     def shutdown(self):
@@ -354,18 +438,18 @@ class LauncherModule(ModuleBase):
         cfg = self._services.config.proxy_for(self.name)
         provider_name = cfg.get("provider")
         if not provider_name:
-            msgbox(get_ctx(), "LocalWriter",
+            msgbox(get_ctx(), "WriterAgent",
                    "No AI CLI provider selected.\n"
-                   "Go to Options → LocalWriter → Launcher to pick one.")
+                   "Go to Options → WriterAgent → Launcher to pick one.")
         else:
-            msgbox(get_ctx(), "LocalWriter",
+            msgbox(get_ctx(), "WriterAgent",
                    "CLI provider '%s' not found." % provider_name)
         return None
 
     def _get_mcp_url(self):
         """Build the MCP base URL from HTTP config."""
         http_cfg = self._services.config.proxy_for("http")
-        port = http_cfg.get("port") or 8765
+        port = http_cfg.get("port") or http_cfg.get("mcp_port") or 8765
         host = http_cfg.get("host") or "localhost"
         scheme = "https" if http_cfg.get("use_ssl") else "http"
         return "%s://%s:%s" % (scheme, host, port), host, port
@@ -379,7 +463,7 @@ class LauncherModule(ModuleBase):
         ctx = get_ctx()
 
         if self._is_running():
-            msgbox(ctx, "LocalWriter", "AI CLI is already running.")
+            msgbox(ctx, "WriterAgent", "AI CLI is already running.")
             return
 
         provider = self._get_provider()
@@ -401,7 +485,7 @@ class LauncherModule(ModuleBase):
 
         # Check command exists
         if not shutil.which(provider.binary_name):
-            msgbox(ctx, "LocalWriter",
+            msgbox(ctx, "WriterAgent",
                    "Command '%s' not found.\n"
                    "Make sure it is installed and in your PATH.\n\n"
                    "Use 'Install AI CLI' from the menu to get install instructions."
@@ -429,7 +513,7 @@ class LauncherModule(ModuleBase):
         # Auto-config: write MCP config into cwd
         if auto_config:
             try:
-                provider.setup_env(mcp_url, env, cwd, provider_cfg)
+                provider.setup_env(cwd, mcp_url)
             except Exception:
                 log.exception("Auto-config failed for %s", provider.name)
 
@@ -455,11 +539,11 @@ class LauncherModule(ModuleBase):
                 term = _find_terminal(terminal)
             except Exception:
                 log.exception("Terminal detection failed")
-                msgbox(ctx, "LocalWriter", "Could not find a terminal emulator.")
+                msgbox(ctx, "WriterAgent", "Could not find a terminal emulator.")
                 return
 
             if not shutil.which(term) and not (sys.platform == "darwin" and term == "open"):
-                msgbox(ctx, "LocalWriter",
+                msgbox(ctx, "WriterAgent",
                        "Terminal '%s' not found.\n"
                        "Install it or set a different one in Options." % term)
                 return
@@ -492,11 +576,11 @@ class LauncherModule(ModuleBase):
             t.start()
 
         except FileNotFoundError:
-            msgbox(ctx, "LocalWriter",
+            msgbox(ctx, "WriterAgent",
                    "Failed to launch: terminal '%s' not found." % term)
         except Exception:
             log.exception("Failed to launch CLI")
-            msgbox(ctx, "LocalWriter",
+            msgbox(ctx, "WriterAgent",
                    "Failed to launch AI CLI.")
 
     def _wait_for_exit(self):

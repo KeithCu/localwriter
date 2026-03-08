@@ -4,7 +4,7 @@ import logging
 
 from plugin.framework.module_base import ModuleBase
 
-log = logging.getLogger("localwriter.chatbot")
+log = logging.getLogger("writeragent.chatbot")
 
 
 class ChatbotModule(ModuleBase):
@@ -97,13 +97,13 @@ class ChatbotModule(ModuleBase):
         doc_svc = self._services.document
         doc = doc_svc.get_active_document()
         if not doc:
-            msgbox(ctx, "LocalWriter", "No document open")
+            msgbox(ctx, "WriterAgent", "No document open")
             return
 
         try:
             provider = self._services.ai.get_provider("text")
         except RuntimeError as e:
-            msgbox(ctx, "LocalWriter", str(e))
+            msgbox(ctx, "WriterAgent", str(e))
             return
 
         doc_type = doc_svc.detect_doc_type(doc)
@@ -112,24 +112,26 @@ class ChatbotModule(ModuleBase):
         elif doc_type == "calc":
             self._extend_calc(ctx, doc, provider)
         else:
-            msgbox(ctx, "LocalWriter",
+            msgbox(ctx, "WriterAgent",
                    "Extend selection not supported for this document type")
 
     def _extend_writer(self, ctx, doc, provider):
         """Extend selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
-        from plugin.modules.core.async_stream import run_stream_async
+        from plugin.framework.async_stream import run_stream_async
+        from plugin.framework.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             selection = doc.CurrentController.getSelection()
             text_range = selection.getByIndex(0)
             selected_text = text_range.getString()
         except Exception:
-            msgbox(ctx, "LocalWriter", "No text selected")
+            msgbox(ctx, "WriterAgent", "No text selected")
             return
 
         if not selected_text:
-            msgbox(ctx, "LocalWriter", "No text selected")
+            msgbox(ctx, "WriterAgent", "No text selected")
             return
 
         config = self._services.config.proxy_for("chatbot")
@@ -150,10 +152,12 @@ class ChatbotModule(ModuleBase):
 
         def on_error(e):
             log.error("Extend selection failed: %s", e)
-            msgbox(ctx, "LocalWriter: Extend Selection", str(e))
+            msgbox(ctx, "WriterAgent: Extend Selection", str(e))
 
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
         run_stream_async(
-            ctx, provider, messages, tools=None,
+            ctx, client, messages, tools=None,
             apply_chunk_fn=apply_chunk,
             on_done_fn=lambda: None,
             on_error_fn=on_error,
@@ -163,14 +167,16 @@ class ChatbotModule(ModuleBase):
     def _extend_calc(self, ctx, doc, provider):
         """Extend selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
-        from plugin.modules.core.async_stream import run_stream_async
+        from plugin.framework.async_stream import run_stream_async
+        from plugin.framework.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             sheet = doc.CurrentController.ActiveSheet
             selection = doc.CurrentController.Selection
             area = selection.getRangeAddress()
         except Exception:
-            msgbox(ctx, "LocalWriter", "No cells selected")
+            msgbox(ctx, "WriterAgent", "No cells selected")
             return
 
         config = self._services.config.proxy_for("chatbot")
@@ -179,16 +185,24 @@ class ChatbotModule(ModuleBase):
 
         # Build task list
         tasks = []
-        for row in range(area.StartRow, area.EndRow + 1):
-            for col in range(area.StartColumn, area.EndColumn + 1):
-                cell = sheet.getCellByPosition(col, row)
-                cell_text = cell.getString()
+        cell_range = sheet.getCellRangeByPosition(area.StartColumn, area.StartRow, area.EndColumn, area.EndRow)
+        data_array = cell_range.getDataArray()
+
+        for row_idx, row in enumerate(range(area.StartRow, area.EndRow + 1)):
+            for col_idx, col in enumerate(range(area.StartColumn, area.EndColumn + 1)):
+                raw_val = data_array[row_idx][col_idx]
+                cell_text = str(raw_val) if raw_val != "" and raw_val is not None else ""
+
                 if cell_text:
+                    cell = sheet.getCellByPosition(col, row)
                     tasks.append((cell, cell_text))
 
         if not tasks:
-            msgbox(ctx, "LocalWriter", "No cells with content selected")
+            msgbox(ctx, "WriterAgent", "No cells with content selected")
             return
+
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
 
         # Process cells sequentially via callback chain
         task_index = [0]
@@ -213,10 +227,10 @@ class ChatbotModule(ModuleBase):
 
             def on_error(e):
                 log.error("Extend selection (calc) failed: %s", e)
-                msgbox(ctx, "LocalWriter: Extend Selection", str(e))
+                msgbox(ctx, "WriterAgent: Extend Selection", str(e))
 
             run_stream_async(
-                ctx, provider, msgs, tools=None,
+                ctx, client, msgs, tools=None,
                 apply_chunk_fn=apply_chunk,
                 on_done_fn=run_next_cell,
                 on_error_fn=on_error,
@@ -236,13 +250,13 @@ class ChatbotModule(ModuleBase):
         doc_svc = self._services.document
         doc = doc_svc.get_active_document()
         if not doc:
-            msgbox(ctx, "LocalWriter", "No document open")
+            msgbox(ctx, "WriterAgent", "No document open")
             return
 
         try:
             provider = self._services.ai.get_provider("text")
         except RuntimeError as e:
-            msgbox(ctx, "LocalWriter", str(e))
+            msgbox(ctx, "WriterAgent", str(e))
             return
 
         doc_type = doc_svc.detect_doc_type(doc)
@@ -251,52 +265,50 @@ class ChatbotModule(ModuleBase):
         elif doc_type == "calc":
             self._edit_calc(ctx, doc, provider)
         else:
-            msgbox(ctx, "LocalWriter",
+            msgbox(ctx, "WriterAgent",
                    "Edit selection not supported for this document type")
 
     def _show_edit_input(self):
-        """Show the edit instructions dialog. Returns user input or empty."""
-        try:
-            dlg = self.load_dialog("edit_input")
-        except Exception:
-            log.exception("Failed to load edit_input dialog")
-            return ""
-
-        try:
-            import uno
-            ctrl = dlg.getControl("edit")
-            ctrl.setFocus()
-            ctrl.setSelection(
-                uno.createUnoStruct("com.sun.star.awt.Selection", 0, 0))
-            if dlg.execute():
-                return (ctrl.getModel().Text or "").strip()
-            return ""
-        finally:
-            dlg.dispose()
+        """Show the edit instructions dialog. Returns (user_input, extra_instructions); empty strings if cancelled.
+        Uses the shared EditInputDialog.xdl (legacy_ui.input_box) so menu and shortcut share the same UI.
+        """
+        from plugin.framework.uno_context import get_ctx
+        from plugin.framework.legacy_ui import input_box
+        ctx = get_ctx()
+        user_input, extra_instructions = input_box(
+            ctx, "Please enter edit instructions!", "Input", ""
+        )
+        return user_input, extra_instructions
 
     def _edit_writer(self, ctx, doc, provider):
         """Edit selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
-        from plugin.modules.core.async_stream import run_stream_async
+        from plugin.framework.async_stream import run_stream_async
+        from plugin.framework.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             selection = doc.CurrentController.getSelection()
             text_range = selection.getByIndex(0)
             original_text = text_range.getString()
         except Exception:
-            msgbox(ctx, "LocalWriter", "No text selected")
+            msgbox(ctx, "WriterAgent", "No text selected")
             return
 
         if not original_text:
-            msgbox(ctx, "LocalWriter", "No text selected")
+            msgbox(ctx, "WriterAgent", "No text selected")
             return
 
-        user_input = self._show_edit_input()
+        user_input, extra_instructions = self._show_edit_input()
         if not user_input:
             return
+        if extra_instructions:
+            from plugin.framework.config import set_config, update_lru_history, get_current_endpoint
+            set_config(ctx, "additional_instructions", extra_instructions)
+            update_lru_history(ctx, extra_instructions, "prompt_lru", get_current_endpoint(ctx))
 
         config = self._services.config.proxy_for("chatbot")
-        system_prompt = config.get("system_prompt") or ""
+        system_prompt = extra_instructions or config.get("system_prompt") or ""
         max_new_tokens = config.get("edit_selection_max_new_tokens") or 0
 
         prompt = (
@@ -331,10 +343,12 @@ class ChatbotModule(ModuleBase):
             except Exception:
                 pass
             log.error("Edit selection failed: %s", e)
-            msgbox(ctx, "LocalWriter: Edit Selection", str(e))
+            msgbox(ctx, "WriterAgent: Edit Selection", str(e))
 
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
         run_stream_async(
-            ctx, provider, messages, tools=None,
+            ctx, client, messages, tools=None,
             apply_chunk_fn=apply_chunk,
             on_done_fn=lambda: None,
             on_error_fn=on_error,
@@ -344,30 +358,40 @@ class ChatbotModule(ModuleBase):
     def _edit_calc(self, ctx, doc, provider):
         """Edit selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
-        from plugin.modules.core.async_stream import run_stream_async
+        from plugin.framework.async_stream import run_stream_async
+        from plugin.framework.config import get_api_config
+        from plugin.modules.http.client import LlmClient
 
         try:
             sheet = doc.CurrentController.ActiveSheet
             selection = doc.CurrentController.Selection
             area = selection.getRangeAddress()
         except Exception:
-            msgbox(ctx, "LocalWriter", "No cells selected")
+            msgbox(ctx, "WriterAgent", "No cells selected")
             return
 
-        user_input = self._show_edit_input()
+        user_input, extra_instructions = self._show_edit_input()
         if not user_input:
             return
+        if extra_instructions:
+            from plugin.framework.config import set_config, update_lru_history, get_current_endpoint
+            set_config(ctx, "additional_instructions", extra_instructions)
+            update_lru_history(ctx, extra_instructions, "prompt_lru", get_current_endpoint(ctx))
 
         config = self._services.config.proxy_for("chatbot")
-        system_prompt = config.get("system_prompt") or ""
+        system_prompt = extra_instructions or config.get("system_prompt") or ""
         max_new_tokens = config.get("edit_selection_max_new_tokens") or 0
 
         # Build task list
         tasks = []
-        for row in range(area.StartRow, area.EndRow + 1):
-            for col in range(area.StartColumn, area.EndColumn + 1):
-                cell = sheet.getCellByPosition(col, row)
-                original = cell.getString()
+        cell_range = sheet.getCellRangeByPosition(area.StartColumn, area.StartRow, area.EndColumn, area.EndRow)
+        data_array = cell_range.getDataArray()
+
+        for row_idx, row in enumerate(range(area.StartRow, area.EndRow + 1)):
+            for col_idx, col in enumerate(range(area.StartColumn, area.EndColumn + 1)):
+                raw_val = data_array[row_idx][col_idx]
+                original = str(raw_val) if raw_val != "" and raw_val is not None else ""
+
                 prompt = (
                     "ORIGINAL VERSION:\n" + original +
                     "\n Below is an edited version according to the following "
@@ -381,10 +405,15 @@ class ChatbotModule(ModuleBase):
                     "\nEDITED VERSION:\n"
                 )
                 max_tokens = len(original) + max_new_tokens
+
+                cell = sheet.getCellByPosition(col, row)
                 tasks.append((cell, prompt, max_tokens, original))
 
         if not tasks:
             return
+
+        api_config = get_api_config(ctx)
+        client = LlmClient(api_config, ctx)
 
         # Process cells sequentially
         task_index = [0]
@@ -415,10 +444,10 @@ class ChatbotModule(ModuleBase):
                 except Exception:
                     pass
                 log.error("Edit selection (calc) failed: %s", e)
-                msgbox(ctx, "LocalWriter: Edit Selection", str(e))
+                msgbox(ctx, "WriterAgent: Edit Selection", str(e))
 
             run_stream_async(
-                ctx, provider, msgs, tools=None,
+                ctx, client, msgs, tools=None,
                 apply_chunk_fn=apply_chunk,
                 on_done_fn=run_next_cell,
                 on_error_fn=on_error,

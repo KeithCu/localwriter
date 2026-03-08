@@ -9,13 +9,74 @@ import logging
 import threading
 import time
 import uuid
+import queue
 
 from plugin.framework.main_thread import execute_on_main_thread
 
-log = logging.getLogger("localwriter.mcp.protocol")
+log = logging.getLogger("writeragent.mcp.protocol")
 
 # MCP protocol version we advertise
 MCP_PROTOCOL_VERSION = "2025-11-25"
+
+# Main-thread queue pattern for MCP adapted from the LibreOffice MCP Extension
+_mcp_queue = queue.Queue()
+
+class _Future:
+    def __init__(self):
+        self._event = threading.Event()
+        self._result = None
+        self._exc = None
+
+    def set_result(self, v):
+        self._result = v
+        self._event.set()
+
+    def set_exception(self, e):
+        self._exc = e
+        self._event.set()
+
+    def result(self, timeout=30.0):
+        if not self._event.wait(timeout):
+            raise TimeoutError("UNO main-thread call timed out")
+        if self._exc:
+            raise self._exc
+        return self._result
+
+
+def execute_on_main_thread_mcp(func, *args, timeout=30.0):
+    future = _Future()
+    _mcp_queue.put((func, args, future))
+    return future.result(timeout=timeout)
+
+
+def post_to_main_thread(func, *args):
+    """Put a task on the main thread queue and return immediately."""
+    _mcp_queue.put((func, args, None))
+
+
+def drain_mcp_queue(max_per_tick=5):
+    """Drain pending MCP requests. Called on the main thread."""
+    n = 0
+    for _ in range(max_per_tick):
+        try:
+            func, args, future = _mcp_queue.get_nowait()
+        except queue.Empty:
+            break
+        n += 1
+        try:
+            res = func(*args)
+            if future:
+                future.set_result(res)
+        except Exception as e:
+            if future:
+                future.set_exception(e)
+    if n:
+        try:
+            from plugin.framework.logging import debug_log
+            debug_log("MCP queue drained %d item(s)" % n, context="MCP")
+        except Exception:
+            pass
+
 
 # Backpressure — one tool execution at a time
 _tool_semaphore = threading.Semaphore(1)
@@ -271,11 +332,11 @@ class MCPProtocolHandler:
                 "prompts": {"listChanged": False},
             },
             "serverInfo": {
-                "name": "LocalWriter MCP",
+                "name": "WriterAgent MCP",
                 "version": self.version,
             },
             "instructions": (
-                "LocalWriter MCP — AI document workspace. "
+                "WriterAgent MCP — AI document workspace. "
                 "WORKFLOW: 1) Use tools to interact with LibreOffice documents. "
                 "2) Tools are filtered by document type (writer/calc/draw). "
                 "3) All UNO operations run on the main thread for thread safety."
@@ -302,15 +363,25 @@ class MCPProtocolHandler:
         if not tool_name:
             raise ValueError("Missing 'name' in tools/call params")
 
+        from plugin.framework.logging import debug_log
+        debug_log(f"*** tools/call: {tool_name}, event_bus={self.event_bus} ***", context="MCP Protocol")
+
         if self.event_bus:
-            self.event_bus.emit("mcp:request", tool=tool_name, args=arguments)
+            from plugin.framework.logging import debug_log
+        # Fire event for MCP request
+        if getattr(self, "event_bus", None) is not None:
+            self.event_bus.emit(
+                "mcp:request",
+                tool=params["name"],
+                args=params.get("arguments", {}),
+                method="tools/call"
+            )
 
         result = self._execute_with_backpressure(tool_name, arguments)
 
         if self.event_bus:
             snippet = str(result)[:100] if result else ""
-            self.event_bus.emit("mcp:result", tool=tool_name,
-                                result_snippet=snippet)
+            self.event_bus.emit("mcp:result", tool=tool_name, result_snippet=snippet, args=arguments)
 
         is_error = (isinstance(result, dict)
                     and result.get("status") == "error")
@@ -352,6 +423,9 @@ class MCPProtocolHandler:
             "prompts/list":    self._mcp_prompts_list,
         }.get(method)
 
+        from plugin.framework.logging import debug_log
+        debug_log(f"*** MCP INCOMING METHOD: {method} (id={req_id}) ***", context="MCP Protocol")
+
         if handler is None:
             return (400, _jsonrpc_error(
                 req_id, _METHOD_NOT_FOUND,
@@ -359,6 +433,7 @@ class MCPProtocolHandler:
 
         try:
             result = handler(params)
+            debug_log(f"*** MCP RESULT: {str(result)[:100]} ***", context="MCP Protocol")
             return (200, _jsonrpc_ok(req_id, result))
         except BusyError as e:
             log.warning("MCP %s: busy (%s)", method, e)
@@ -450,7 +525,7 @@ class MCPProtocolHandler:
     def _debug_trigger(self, command):
         from plugin.main import get_services
         if command == "settings":
-            from plugin.modules.core.settings_dialog import show_settings
+            from plugin.framework.settings_dialog import show_settings
             from plugin._manifest import MODULES
             config_svc = get_services().config
             execute_on_main_thread(

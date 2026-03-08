@@ -9,17 +9,23 @@ remain in panel_factory.py.
 import json
 import queue
 import threading
-import hashlib
-import os
 
 import uno
 import unohelper
+from plugin.framework.uno_helpers import get_active_document
 from com.sun.star.awt import XActionListener
 
 from plugin.framework.logging import agent_log, debug_log, update_activity_state
 from plugin.framework.uno_helpers import get_checkbox_state
-from plugin.modules.core.async_stream import run_stream_completion_async, run_stream_drain_loop
-from plugin.modules.core.services.history_db import get_chat_history
+from plugin.framework.async_stream import run_stream_completion_async, run_stream_drain_loop
+from plugin.framework.history_db import get_chat_history
+
+# Recording available only if audio_recorder (and contrib/audio) is present
+try:
+    from plugin.modules.chatbot.audio_recorder import start_recording, stop_recording  # noqa: F401
+    HAS_RECORDING = True
+except ImportError:
+    HAS_RECORDING = False
 
 # Default max tool rounds when not in config (get_api_config supplies chat_max_tool_rounds)
 DEFAULT_MAX_TOOL_ROUNDS = 5
@@ -109,6 +115,44 @@ class ChatSession:
 
 
 # ---------------------------------------------------------------------------
+# QueryTextListener - dynamic button toggling
+# ---------------------------------------------------------------------------
+
+from com.sun.star.awt import XTextListener
+
+class QueryTextListener(unohelper.Base, XTextListener):
+    def __init__(self, send_button):
+        self.send_button = send_button
+
+    def textChanged(self, ev):
+        try:
+            model = getattr(ev.Source, "Model", None)
+            if not model:
+                model = ev.Source.getModel()
+            text = model.Text.strip()
+
+            btn_model = self.send_button.getModel()
+            # If currently recording, do not toggle back to Record
+            if btn_model.Label == "Stop Rec":
+                return
+
+            if text:
+                new_label = "Send"
+            else:
+                new_label = "Record" if HAS_RECORDING else "Send"
+
+            if btn_model.Label != new_label:
+                debug_log("QueryTextListener: toggle label '%s' -> '%s'" % (btn_model.Label, new_label), context="Chat")
+                btn_model.Label = new_label
+            else:
+                debug_log("QueryTextListener: label already '%s'" % new_label, context="Chat")
+        except Exception as e:
+            debug_log("QueryTextListener error: %s" % e, context="Chat")
+
+    def disposing(self, ev):
+        pass
+
+# ---------------------------------------------------------------------------
 # SendButtonListener - handles Send button click with tool-calling loop
 # ---------------------------------------------------------------------------
 
@@ -136,14 +180,24 @@ class SendButtonListener(unohelper.Base, XActionListener):
         self._terminal_status = "Ready"
         self._send_busy = False
         self.client = None
-
+        self.audio_wav_path = None
         # Subscribe to MCP/tool bus events
         try:
-            from plugin.framework.event_bus import global_event_bus
-            global_event_bus.subscribe("mcp:request", self._on_mcp_request)
-            global_event_bus.subscribe("mcp:result", self._on_mcp_result)
+            from plugin.main import get_tools
+            event_bus = getattr(get_tools()._services, "events", None)
+            if event_bus:
+                event_bus.subscribe("mcp:request", self._on_mcp_request)
+                event_bus.subscribe("mcp:result", self._on_mcp_result)
+                from plugin.framework.logging import debug_log
+                debug_log(f"*** SendButtonListener subscribed to MCP events on services.events (id={id(event_bus)}) ***", context="Chat")
         except Exception as e:
+            from plugin.framework.logging import debug_log
             debug_log("MCP subscribe error: %s" % e, context="Chat")
+
+    def set_session(self, session):
+        """Update the active session (e.g. when switching between Document and Research chat)."""
+        self.session = session
+        self.client = None # Force client recreation if needed, though they usually share same config
 
     def _set_status(self, text):
         """Update the status field in the sidebar (read-only TextField).
@@ -181,71 +235,40 @@ class SendButtonListener(unohelper.Base, XActionListener):
         except Exception:
             pass
 
-    def _on_mcp_request(self, event_name, tool="", args=None, method=None, **kwargs):
+    def _on_mcp_request(self, tool="", args=None, method=None, **kwargs):
         """Handle MCP request events from the bus (background thread)."""
-        from plugin.framework.main_thread import execute_on_main_thread
-        from plugin.modules.core.services.config import get_config
-
-        if not get_config(self.ctx, "show_mcp_activity", True):
-            return
-
-        def _update_ui():
-            try:
-                args_dict = args or {}
-                arg_vals = []
-                if isinstance(args_dict, dict):
-                    for v in args_dict.values():
-                        s = str(v)
-                        if len(s) > 10:
-                            s = s[:10]
-                        arg_vals.append(s)
-
-                args_str = " (%s)" % ", ".join(arg_vals) if arg_vals else ""
-                method_str = method or "GET"
-                msg = "\n[MCP Request] Tool: %s%s\n" % (tool, args_str) if tool else "\n[MCP Request] %s\n" % method_str
-                self._append_response(msg)
-            except Exception as e:
-                debug_log("_on_mcp_request UI update error: %s" % e, context="Chat")
-
         try:
-            execute_on_main_thread(_update_ui, self.ctx)
+            from plugin.framework.logging import format_tool_call_for_display, debug_log
+            fmt_str = format_tool_call_for_display(tool, args, method)
+            debug_log(f"MCP Request (hidden from UI): {fmt_str}", context="Chat")
         except Exception as e:
-            debug_log("_on_mcp_request post error: %s" % e, context="Chat")
+            from plugin.framework.logging import debug_log
+            debug_log("_on_mcp_request error: %s" % e, context="Chat")
 
-    def _on_mcp_result(self, event_name, tool="", result_snippet="", **kwargs):
+    def _on_mcp_result(self, tool="", result_snippet="", **kwargs):
         """Handle MCP result events from the bus (background thread)."""
         from plugin.framework.main_thread import execute_on_main_thread
-        from plugin.modules.core.services.config import get_config
-
-        if not get_config(self.ctx, "show_mcp_activity", True):
-            return
 
         def _update_ui():
             try:
-                msg = "[MCP Result] %s: %s\n" % (tool, result_snippet[:100])
-                self._append_response(msg)
+                from plugin.framework.logging import format_tool_result_for_display
+                fmt_str = format_tool_result_for_display(tool, result_snippet, args=kwargs.get("args"))
+                self._append_response(f"[MCP Result] {fmt_str}\n")
             except Exception as e:
+                from plugin.framework.logging import debug_log
                 debug_log("_on_mcp_result UI update error: %s" % e, context="Chat")
 
         try:
-            execute_on_main_thread(_update_ui, self.ctx)
+            execute_on_main_thread(_update_ui)
         except Exception as e:
+            from plugin.framework.logging import debug_log
             debug_log("_on_mcp_result post error: %s" % e, context="Chat")
 
     def _get_document_model(self):
         """Get the Writer document model."""
-        model = None
-        if self.frame:
-            try:
-                model = self.frame.getController().getModel()
-            except Exception:
-                pass
-        if not model:
-            desktop = self.ctx.getServiceManager().createInstanceWithContext(
-                "com.sun.star.frame.Desktop", self.ctx)
-            model = desktop.getCurrentComponent()
+        model = get_active_document(self.ctx)
 
-        from plugin.modules.core.services.document import is_writer, is_calc, is_draw
+        from plugin.framework.document import is_writer, is_calc, is_draw
         if model and (is_writer(model) or is_calc(model) or is_draw(model)):
             return model
         return None
@@ -261,6 +284,27 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
     def actionPerformed(self, evt):
         try:
+            btn_model = self.send_control.getModel()
+            if HAS_RECORDING and btn_model.Label == "Record":
+                # Start recording
+                from plugin.modules.chatbot.audio_recorder import start_recording
+                try:
+                    start_recording()
+                except RuntimeError as re:
+                    self._append_response("\n[Audio error: %s]\n" % str(re))
+                    return
+                btn_model.Label = "Stop Rec"
+                self._set_status("Recording audio...")
+                return
+            elif HAS_RECORDING and btn_model.Label == "Stop Rec":
+                # Stop recording and proceed to send
+                from plugin.modules.chatbot.audio_recorder import stop_recording
+                self.audio_wav_path = stop_recording()
+                if self.query_control and self.query_control.getModel().Text.strip():
+                    btn_model.Label = "Send"
+                else:
+                    btn_model.Label = "Record"
+
             self.stop_requested = False
             self._terminal_status = "Ready"
             self._send_busy = True
@@ -276,9 +320,59 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._send_busy = False
             debug_log("actionPerformed finally: resetting UI", context="Chat")
             self._set_status(self._terminal_status)
+            if self.send_control and self.send_control.getModel().Label not in ("Record", "Stop Rec"):
+                # if empty, set to Record (when recording available) else Send
+                if self.query_control and (self.query_control.getModel().Text.strip() or self.audio_wav_path):
+                    self.send_control.getModel().Label = "Send"
+                else:
+                    self.send_control.getModel().Label = "Record" if HAS_RECORDING else "Send"
             self._set_button_states(send_enabled=True, stop_enabled=False)
             debug_log("control returned to LibreOffice", context="Chat")
             update_activity_state("")  # clear phase so watchdog does not report after we return
+
+    def _transcribe_audio_async(self, wav_path, stt_model, model, query_text=""):
+        """Transcribe audio asynchronously and then proceed to chat."""
+        from plugin.framework.async_stream import run_blocking_in_thread
+        from plugin.modules.http.client import format_error_message
+        
+        self._set_status("Transcribing audio...")
+        self._append_response("\n[Transcribing audio...]\n")
+        
+        try:
+            # Ensure client is initialized
+            if not self.client:
+                from plugin.framework.config import get_api_config
+                from plugin.modules.http.client import LlmClient
+                api_config = get_api_config(self.ctx)
+                self.client = LlmClient(api_config, self.ctx)
+            
+            transcript_text = run_blocking_in_thread(self.ctx, self.client.transcribe_audio, wav_path, model=stt_model)
+            
+            # Clean up audio file
+            import os
+            try: os.remove(wav_path)
+            except Exception: pass
+            self.audio_wav_path = None
+            
+            if transcript_text:
+                combined_text = query_text
+                if transcript_text:
+                    combined_text = (combined_text + "\n" + transcript_text).strip() if combined_text else transcript_text
+                
+                # Proceed to send with the transcript
+                self._do_send_chat_with_tools(combined_text, model, self._get_doc_type_str(model).lower())
+            else:
+                self._terminal_status = "Ready"
+                self._set_status("Ready")
+            
+        except Exception as e:
+            self._append_response("\n[Transcription error: %s]\n" % format_error_message(e))
+            self._terminal_status = "Error"
+            self._set_status("Error")
+
+    def _get_doc_type_str(self, model):
+        from plugin.framework.document import is_writer, is_calc, is_draw
+        return "Calc" if is_calc(model) else "Draw" if is_draw(model) else "Writer" if is_writer(model) else "Unknown"
 
     def _do_send(self):
         self._set_status("Starting...")
@@ -300,7 +394,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             return
         debug_log("_do_send: got document model OK", context="Chat")
 
-        from plugin.modules.core.services.document import is_writer, is_calc, is_draw
+        from plugin.framework.document import is_writer, is_calc, is_draw
         doc_type_str = "Calc" if is_calc(model) else "Draw" if is_draw(model) else "Writer" if is_writer(model) else "Unknown"
         debug_log("_do_send: detected document type: %s" % doc_type_str, context="Chat")
         
@@ -322,11 +416,35 @@ class SendButtonListener(unohelper.Base, XActionListener):
         query_text = ""
         if self.query_control and self.query_control.getModel():
             query_text = (self.query_control.getModel().Text or "").strip()
-        if not query_text:
+
+        # Audio implies we have input even if text is empty
+        if not query_text and not self.audio_wav_path:
             self._terminal_status = ""
             return
+
         if self.query_control and self.query_control.getModel():
             self.query_control.getModel().Text = ""
+
+        # Transcription Fallback check
+        if self.audio_wav_path:
+            from plugin.framework.config import get_text_model, get_current_endpoint, has_native_audio, get_stt_model
+            current_model = get_text_model(self.ctx)
+            current_endpoint = get_current_endpoint(self.ctx)
+            
+            if has_native_audio(self.ctx, current_model, current_endpoint) is False:
+                stt_model = get_stt_model(self.ctx)
+                if stt_model:
+                    debug_log("_do_send: model %s has no native audio, using stt fallback %s" % (current_model, stt_model), context="Chat")
+                    self._transcribe_audio_async(self.audio_wav_path, stt_model, model, query_text=query_text)
+                    return
+                else:
+                    err_msg = "[Model %s does not support native audio. Please select an STT Model in Settings.]" % current_model
+                    self._append_response("\n%s\n" % err_msg)
+                    self._terminal_status = "Error"
+                    self._set_status("Error")
+                    return
+            else:
+                debug_log("_do_send: model %s supports native audio, proceeding" % current_model, context="Chat")
 
         # Optional web-search path
         web_search_checked = False
@@ -404,7 +522,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     status_callback=lambda t: q.put(("status", t))
                 )
                 try:
-                    from plugin.modules.core.services.config import update_lru_history, get_current_endpoint
+                    from plugin.framework.config import update_lru_history
                     update_lru_history(self.ctx, base_size_val, "image_base_size_lru", "")
                 except Exception as elru:
                     debug_log("LRU update error: %s" % elru, context="Chat")
@@ -472,9 +590,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
     def _do_send_chat_with_tools(self, query_text, model, doc_type_str):
         try:
             debug_log("_do_send: importing core modules...", context="Chat")
-            from plugin.modules.core.services.config import get_config, get_api_config, update_lru_history, validate_api_config, set_config, set_image_model, get_current_endpoint
+            from plugin.framework.config import get_config, get_api_config, update_lru_history, validate_api_config, set_config, set_image_model, get_current_endpoint
             from plugin.modules.http.client import LlmClient
-            from plugin.modules.core.services.document import get_document_context_for_chat
+            from plugin.framework.document import get_document_context_for_chat
             from plugin.main import get_tools
             debug_log("_do_send: core modules imported OK", context="Chat")
         except Exception as e:
@@ -530,10 +648,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         max_context = int(get_config(self.ctx, "chat_context_length", 8000))
         max_tokens = int(get_config(self.ctx, "chat_max_tokens", 16384))
-        api_type = str(get_config(self.ctx, "api_type", "chat")).lower()
-        debug_log("_do_send: config loaded: api_type=%s, max_tokens=%d, max_context=%d" % (api_type, max_tokens, max_context), context="Chat")
+        debug_log("_do_send: config loaded: max_tokens=%d, max_context=%d" % (max_tokens, max_context), context="Chat")
 
-        use_tools = (api_type == "chat")
+        use_tools = True
 
         api_config = get_api_config(self.ctx)
         ok, err_msg = validate_api_config(api_config)
@@ -562,19 +679,48 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._set_status("Error")
             return
 
-        self.session.add_user_message(query_text)
-        self._append_response("\nYou: %s\n" % query_text)
+        # If there's audio, embed it
+        if self.audio_wav_path:
+            import base64
+            try:
+                with open(self.audio_wav_path, "rb") as f:
+                    wav_data = f.read()
+                b64_audio = base64.b64encode(wav_data).decode("utf-8")
+                audio_msg = {
+                    "type": "input_audio",
+                    "input_audio": {
+                        "data": b64_audio,
+                        "format": "wav"
+                    }
+                }
+
+                content_list = []
+                if query_text:
+                    content_list.append({"type": "text", "text": query_text})
+                content_list.append(audio_msg)
+
+                self.session.add_user_message(content_list)
+
+                display_text = query_text + " [Audio Attached]" if query_text else "[Audio Message]"
+                self._append_response("\nYou: %s\n" % display_text)
+                # Note: We do NOT delete the audio file yet, in case native call fails and we need STT fallback
+            except Exception as e:
+                debug_log("_do_send: Error reading audio: %s" % e, context="Chat")
+                self.session.add_user_message(query_text)
+                self._append_response("\nYou: %s\n" % query_text)
+                self.audio_wav_path = None
+        else:
+            self.session.add_user_message(query_text)
+            self._append_response("\nYou: %s\n" % query_text)
+
         self._append_response("\n[Using chat model.]\n")
         debug_log("_do_send: using chat model", context="Chat")
 
-        self._set_status("Connecting to AI (api_type=%s, tools=%s)..." % (api_type, use_tools))
+        self._set_status("Connecting to AI (tools=%s)..." % use_tools)
         debug_log("_do_send: calling AI, use_tools=%s, messages=%d" % (use_tools, len(self.session.messages)), context="Chat")
-        
-        if use_tools:
-            max_tool_rounds = api_config.get("chat_max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS)
-            self._start_tool_calling_async(client, model, max_tokens, active_tools, execute_fn, max_tool_rounds)
-        else:
-            self._start_simple_stream_async(client, max_tokens, api_type)
+
+        max_tool_rounds = api_config.get("chat_max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS)
+        self._start_tool_calling_async(client, model, max_tokens, active_tools, execute_fn, max_tool_rounds, query_text=query_text)
 
         debug_log("=== _do_send END (async started) ===", context="Chat")
 
@@ -586,17 +732,20 @@ class SendButtonListener(unohelper.Base, XActionListener):
         """Run the web_research tool via the sub-agent and stream its result into the response area."""
         from plugin.modules.http.client import format_error_message
         from plugin.main import get_tools
-        from plugin.modules.core.services.document import is_calc, is_draw
+        from plugin.framework.document import is_calc, is_draw
 
         self._append_response("\nYou: %s\n" % query_text)
-        self._append_response("\n[Using web research.]\n")
-        self._set_status("Starting web research...")
+        self._append_response("\n[Using research chat.]\n")
+        self._set_status("Starting research...")
+
+        # Persist user message to the research session
+        self.session.add_user_message(query_text)
 
         q = queue.Queue()
         job_done = [False]
         # Read show_thinking before spawning the thread so apply_chunk can use it
         try:
-            from plugin.modules.core.services.config import get_config, as_bool
+            from plugin.framework.config import get_config, as_bool
             show_thinking = as_bool(get_config(self.ctx, "show_search_thinking", False))
         except Exception:
             show_thinking = False
@@ -647,10 +796,13 @@ class SendButtonListener(unohelper.Base, XActionListener):
                     answer = data.get("result", "")
                     if not isinstance(answer, str):
                         answer = str(answer)
-                    q.put(("chunk", "AI (web): %s\n" % answer))
+                    msg = "AI (research): %s\n" % answer
+                    q.put(("chunk", msg))
+                    # Persist assistant result to current session
+                    self.session.add_assistant_message(content=msg)
                 else:
-                    msg = data.get("message", "Unknown web search error.")
-                    q.put(("chunk", "[Web research error: %s]\n" % msg))
+                    msg = data.get("message", "Unknown research error.")
+                    q.put(("chunk", "[Research error: %s]\n" % msg))
 
                 q.put(("stream_done", {}))
             except Exception as e:
@@ -688,7 +840,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         def on_error(e):
             err_msg = format_error_message(e)
-            self._append_response("\n[Web research error: %s]\n" % err_msg)
+            self._append_response("\n[Research Chat error: %s]\n" % err_msg)
             self._terminal_status = "Error"
             self._set_status("Error")
 
@@ -703,7 +855,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
 
 
-    def _spawn_llm_worker(self, q, client, max_tokens, tools, round_num):
+    def _spawn_llm_worker(self, q, client, max_tokens, tools, round_num, query_text=None):
         """Spawn a background thread that streams the LLM response into q."""
         update_activity_state("tool_loop", round_num=round_num)
         debug_log("Tool loop round %d: sending %d messages to API..." % (round_num, len(self.session.messages)), context="Chat")
@@ -757,7 +909,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         threading.Thread(target=run_final, daemon=True).start()
 
-    def _start_tool_calling_async(self, client, model, max_tokens, tools, execute_tool_fn, max_tool_rounds=None):
+    def _start_tool_calling_async(self, client, model, max_tokens, tools, execute_tool_fn, max_tool_rounds=None, query_text=None):
         """Tool-calling event loop: single queue, single main-thread loop.
         
         Background threads push messages onto q. The main thread dispatches
@@ -775,7 +927,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
 
         # Read config once for web research thinking display
         try:
-            from plugin.modules.core.services.config import get_config, as_bool
+            from plugin.framework.config import get_config, as_bool
             show_search_thinking = as_bool(get_config(self.ctx, "show_search_thinking", False))
         except Exception:
             show_search_thinking = False
@@ -798,7 +950,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         thinking_open = [False]
 
         # --- Kick off the first LLM stream ---
-        self._spawn_llm_worker(q, client, max_tokens, tools, round_num)
+        self._spawn_llm_worker(q, client, max_tokens, tools, round_num, query_text=query_text)
 
         def on_stream_done(item):
             nonlocal round_num, pending_tools
@@ -818,6 +970,16 @@ class SendButtonListener(unohelper.Base, XActionListener):
                           data={"round": round_num, "has_tool_calls": bool(tool_calls),
                                 "num_tool_calls": len(tool_calls) if tool_calls else 0},
                           hypothesis_id="A")
+
+                # If we were using audio and it reached here, cache success
+                if self.audio_wav_path:
+                    from plugin.framework.config import set_native_audio_support, get_text_model, get_current_endpoint
+                    set_native_audio_support(self.ctx, get_text_model(self.ctx), get_current_endpoint(self.ctx), supported=True)
+                    # Successful native call -> we can now delete the audio file
+                    import os
+                    try: os.remove(self.audio_wav_path)
+                    except: pass
+                    self.audio_wav_path = None
 
                 # --- No tool calls: conversation is done ---
                 if not tool_calls:
@@ -860,7 +1022,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                                   data={"rounds": max_tool_rounds}, hypothesis_id="A")
                         self._spawn_final_stream(q, client, max_tokens)
                     else:
-                        self._spawn_llm_worker(q, client, max_tokens, tools, round_num)
+                        self._spawn_llm_worker(q, client, max_tokens, tools, round_num, query_text=query_text)
                     return False
 
                 tc = pending_tools.pop(0)
@@ -869,6 +1031,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 call_id = tc.get("id", "")
 
                 self._set_status("Running: %s" % func_name)
+                self._append_response("[Running tool: %s...]\n" % func_name)
                 update_activity_state("tool_execute", round_num=round_num, tool_name=func_name)
 
                 try:
@@ -963,11 +1126,39 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._append_response("\n[Stopped by user]\n")
 
         def on_error(e):
-            from plugin.modules.http.client import format_error_message
+            from plugin.modules.http.client import format_error_message, is_audio_unsupported_error
+            from plugin.framework.config import set_native_audio_support, get_text_model, get_current_endpoint, get_stt_model
+            
+            current_model = get_text_model(self.ctx)
+            current_endpoint = get_current_endpoint(self.ctx)
+            
+            # If native audio failed, cache it and try STT fallback
+            if self.audio_wav_path and is_audio_unsupported_error(e):
+                debug_log("Model %s failed native audio, caching and falling back to STT" % current_model, context="Chat")
+                set_native_audio_support(self.ctx, current_model, current_endpoint, supported=False)
+                
+                stt_model = get_stt_model(self.ctx)
+                if stt_model:
+                    # Remove the failed message from session so we can retry with text
+                    if self.session.messages and self.session.messages[-1]["role"] == "user":
+                        # If it was a list (audio+text), just pop it
+                        self.session.messages.pop()
+                    
+                    self._append_response("\n[Model does not support audio. Falling back to STT...]\n")
+                    self._transcribe_audio_async(self.audio_wav_path, stt_model, model, query_text=query_text)
+                    return
+
+            # If we reached here, it's either not a modality error or STT is not configured
             err_msg = format_error_message(e)
             self._append_response("\n[API error: %s]\n" % err_msg)
             self._terminal_status = "Error"
             self._set_status("Error")
+            # Cleanup audio if we aren't falling back
+            if self.audio_wav_path:
+                import os
+                try: os.remove(self.audio_wav_path)
+                except: pass
+                self.audio_wav_path = None
 
         run_stream_drain_loop(
             q, toolkit, [False], self._append_response,
@@ -979,9 +1170,9 @@ class SendButtonListener(unohelper.Base, XActionListener):
             show_search_thinking=show_search_thinking,
         )
 
-    def _start_simple_stream_async(self, client, max_tokens, api_type):
+    def _start_simple_stream_async(self, client, max_tokens):
         """Start simple streaming (no tools) via async helper; returns immediately."""
-        debug_log("=== Simple stream START (api_type=%s) ===" % api_type, context="Chat")
+        debug_log("=== Simple stream START ===", context="Chat")
         self._set_status("Thinking...")
         self._append_response("\nAI: ")
 
@@ -1023,7 +1214,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._set_status("Error")
 
         run_stream_completion_async(
-            self.ctx, client, prompt, system_prompt, max_tokens, api_type,
+            self.ctx, client, prompt, system_prompt, max_tokens,
             apply_chunk, on_done, on_error, on_status_fn=self._set_status,
             stop_checker=lambda: self.stop_requested,
         )
@@ -1069,6 +1260,12 @@ class ClearButtonListener(unohelper.Base, XActionListener):
         self.response_control = response_control
         self.status_control = status_control
         self.greeting = greeting
+
+    def set_session(self, session, greeting=None):
+        """Update the active session and optionally the greeting used for clear."""
+        self.session = session
+        if greeting is not None:
+            self.greeting = greeting
 
     def actionPerformed(self, evt):
         self.session.clear()

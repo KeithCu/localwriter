@@ -1,15 +1,25 @@
-"""Legacy UI functions for settings, input, and Eval Dashboard."""
-from plugin.framework.uno_helpers import TabListener, is_checkbox_control, get_checkbox_state, set_checkbox_state
-from plugin.modules.core.services.config import get_config, get_current_endpoint, populate_combobox_with_lru
+from plugin.framework.uno_helpers import get_desktop, get_active_document, get_extension_url, TabListener, is_checkbox_control, get_checkbox_state, set_checkbox_state, get_optional
+from plugin.framework.config import get_config, get_current_endpoint, get_text_model, populate_combobox_with_lru, set_config, update_lru_history
+from plugin.framework.logging import init_logging, debug_log
 import uno
 
 def input_box(ctx, message, title="", default="", x=None, y=None):
     """ Shows input dialog (EditInputDialog.xdl). Returns (result_text, extra_prompt) if OK, else ("", ""). """
-    smgr = ctx.getServiceManager()
-    pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
-    base_url = pip.getPackageLocation("org.extension.localwriter")
-    dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
-    dlg = dp.createDialog(base_url + "/LocalWriterDialogs/EditInputDialog.xdl")
+    init_logging(ctx)
+    debug_log("input_box: opening Edit Input dialog (message=%r)" % (message[:40] + "..." if len(message) > 40 else message), context="Chat")
+    try:
+        smgr = ctx.getServiceManager()
+        base_url = get_extension_url()
+        debug_log("input_box: base_url=%s" % (base_url or ""), context="Chat")
+        dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
+        dlg_url = base_url + "/WriterAgentDialogs/EditInputDialog.xdl"
+        dlg = dp.createDialog(dlg_url)
+        debug_log("input_box: dialog created successfully", context="Chat")
+    except Exception as e:
+        import traceback
+        debug_log("input_box: failed to create dialog: %s" % e, context="Chat")
+        debug_log("input_box: traceback: %s" % traceback.format_exc(), context="Chat")
+        raise
     try:
         dlg.getControl("label").getModel().Label = str(message)
         dlg.getControl("edit").getModel().Text = str(default)
@@ -20,32 +30,56 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
         current_prompt = get_config(ctx, "additional_instructions", "")
         populate_combobox_with_lru(ctx, prompt_ctrl, current_prompt, "prompt_lru", "")
 
+        model_selector = get_optional(dlg, "model_selector")
+        if model_selector:
+            current_endpoint = get_current_endpoint(ctx)
+            current_model = get_text_model(ctx)
+            populate_combobox_with_lru(ctx, model_selector, current_model, "model_lru", current_endpoint)
+
         dlg.getControl("edit").setFocus()
         dlg.getControl("edit").setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", 0, len(str(default))))
         
+        debug_log("input_box: showing dialog (execute)", context="Chat")
         if dlg.execute():
             ret_text = dlg.getControl("edit").getModel().Text
             ret_prompt = prompt_ctrl.getText()
+            if model_selector:
+                chosen = model_selector.getText()
+                if chosen:
+                    set_config(ctx, "text_model", chosen)
+                    update_lru_history(ctx, chosen, "model_lru", get_current_endpoint(ctx))
+            debug_log("input_box: user clicked OK, returning (text len=%d)" % len(ret_text or ""), context="Chat")
             return ret_text, ret_prompt
+        debug_log("input_box: user cancelled", context="Chat")
         return "", ""
+    except Exception as e:
+        import traceback
+        debug_log("input_box: error while showing or reading dialog: %s" % e, context="Chat")
+        debug_log("input_box: traceback: %s" % traceback.format_exc(), context="Chat")
+        raise
     finally:
-        dlg.dispose()
+        try:
+            dlg.dispose()
+        except Exception:
+            pass
 
-def settings_box(ctx, title="", x=None, y=None):
+def settings_box(ctx, title="Settings", x=None, y=None):
     from plugin.framework.settings_dialog import get_settings_field_specs, apply_settings_result
-    from plugin.modules.core.services.config import get_image_model, populate_image_model_selector, endpoint_from_selector_text, get_api_key_for_endpoint, populate_endpoint_selector, as_bool
+    from plugin.framework.config import get_image_model, get_stt_model, populate_combobox_with_lru, populate_image_model_selector, endpoint_from_selector_text, get_api_key_for_endpoint, populate_endpoint_selector, as_bool
 
-    from plugin.framework.logging import agent_log
+    from plugin.framework.logging import debug_log
+    debug_log("settings_box entry", context="Settings")
     import unohelper
     from com.sun.star.awt import XActionListener, XItemListener, XTextListener
 
     smgr = ctx.getServiceManager()
+    debug_log("Calling get_settings_field_specs", context="Settings")
     field_specs = get_settings_field_specs(ctx)
+    debug_log(f"get_settings_field_specs returned {len(field_specs)} fields", context="Settings")
 
-    pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
-    base_url = pip.getPackageLocation("org.extension.localwriter")
+    base_url = get_extension_url()
     dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
-    dialog_url = base_url + "/LocalWriterDialogs/SettingsDialog.xdl"
+    dialog_url = base_url + "/WriterAgentDialogs/SettingsDialog.xdl"
     try:
         dlg = dp.createDialog(dialog_url)
     except Exception as e:
@@ -101,13 +135,18 @@ def settings_box(ctx, title="", x=None, y=None):
     current_endpoint = get_current_endpoint(ctx)
 
     try:
+        from plugin.framework.logging import debug_log
         for field in field_specs:
+            with open("/tmp/lo_settings.log", "a") as f: f.write(f"processing {field['name']}\n")
+            debug_log(f"Processing setting field: {field['name']} (options: {'yes' if 'options' in field else 'no'})", context="Settings")
             ctrl = dlg.getControl(field["name"])
             if ctrl:
                 if field["name"] == "text_model":
-                    populate_combobox_with_lru(ctx, ctrl, field["value"], "model_lru", current_endpoint, strict=True)
+                    populate_combobox_with_lru(ctx, ctrl, field["value"], "model_lru", current_endpoint)
                 elif field["name"] == "image_model":
                     populate_image_model_selector(ctx, ctrl)
+                elif field["name"] == "stt_model":
+                    populate_combobox_with_lru(ctx, ctrl, field["value"], "audio_model_lru", current_endpoint)
                 elif field["name"] == "additional_instructions":
                     populate_combobox_with_lru(ctx, ctrl, field["value"], "prompt_lru", "")
                 elif field["name"] == "endpoint":
@@ -126,12 +165,15 @@ def settings_box(ctx, title="", x=None, y=None):
                                     text_ctrl = self._dlg.getControl("text_model")
                                     image_ctrl = self._dlg.getControl("image_model")
                                     if text_ctrl:
-                                        populate_combobox_with_lru(self._ctx, text_ctrl, get_config(self._ctx, "text_model", "") or get_config(self._ctx, "model", ""), "model_lru", resolved, strict=True)
+                                        populate_combobox_with_lru(self._ctx, text_ctrl, get_config(self._ctx, "text_model", "") or get_config(self._ctx, "model", ""), "model_lru", resolved)
                                     if image_ctrl:
                                         if get_config(self._ctx, "image_provider", "aihorde") == "endpoint":
-                                            populate_combobox_with_lru(self._ctx, image_ctrl, get_image_model(self._ctx), "image_model_lru", resolved, strict=True)
+                                            populate_combobox_with_lru(self._ctx, image_ctrl, get_image_model(self._ctx), "image_model_lru", resolved)
                                         else:
                                             populate_image_model_selector(self._ctx, image_ctrl)
+                                    stt_ctrl = self._dlg.getControl("stt_model")
+                                    if stt_ctrl:
+                                        populate_combobox_with_lru(self._ctx, stt_ctrl, get_stt_model(self._ctx), "audio_model_lru", resolved)
                                     api_key_ctrl = self._dlg.getControl("api_key")
                                     if api_key_ctrl:
                                         api_key_ctrl.getModel().Text = get_api_key_for_endpoint(self._ctx, resolved)
@@ -170,7 +212,23 @@ def settings_box(ctx, title="", x=None, y=None):
                         except Exception as e:
                             pass
                     elif hasattr(ctrl, "setText"):
-                        # Works for comboboxes
+                        # Populate options if provided (for select/combo widgets)
+                        if "options" in field:
+                            opts = field["options"]
+                            # For ComboBox/ListBox, we set the items
+                            try:
+                                # ComboBox/ListBox typically have StringItemList or can be added directly
+                                # In SettingsDialog.xdl, select=menulist, combo=combobox
+                                labels = tuple(o.get("label", o.get("value", "")) for o in opts)
+                                model = ctrl.getModel()
+                                if hasattr(model, "StringItemList"):
+                                    debug_log(f"Populating {field['name']} with {len(labels)} options: {labels}", context="Settings")
+                                    model.StringItemList = labels
+                                else:
+                                    debug_log(f"Control {field['name']} model does NOT have StringItemList", context="Settings")
+                            except Exception as e:
+                                debug_log(f"Failed to set StringItemList for {field['name']}: {e}", context="Settings")
+                        
                         ctrl.setText(field["value"])
                     else:
                         try:
@@ -216,19 +274,23 @@ def settings_box(ctx, title="", x=None, y=None):
         if result:
             apply_settings_result(ctx, result)
         return result
+    except Exception as e:
+        from plugin.framework.dialogs import msgbox
+        import traceback
+        msgbox(ctx, "Error", f"Failed to open Settings: {e}\n\n{traceback.format_exc()}")
+        return {}
     finally:
         dlg.dispose()
 
 def show_eval_dashboard(ctx):
     import unohelper
     from com.sun.star.awt import XActionListener
-    from plugin.modules.core.eval_runner import run_benchmark_suite
+    from plugin.framework.tests.eval_runner import run_benchmark_suite
 
     smgr = ctx.getServiceManager()
-    pip = ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
-    base_url = pip.getPackageLocation("org.extension.localwriter")
+    base_url = get_extension_url()
     dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
-    dlg = dp.createDialog(base_url + "/LocalWriterDialogs/EvalDialog.xdl")
+    dlg = dp.createDialog(base_url + "/WriterAgentDialogs/EvalDialog.xdl")
 
     try:
         endpoint_ctrl = dlg.getControl("endpoint")
@@ -266,8 +328,8 @@ def show_eval_dashboard(ctx):
                 self.dialog.getControl("status").setText("Running...")
                 self.toolkit.processEventsToIdle()
                 
-                desktop = self.ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
-                doc = desktop.getCurrentComponent()
+                desktop = get_desktop(self.ctx)
+                doc = get_active_document(self.ctx)
                 
                 summary = run_benchmark_suite(self.ctx, doc, model_name, categories)
                 

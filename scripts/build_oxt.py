@@ -33,7 +33,7 @@ ALWAYS_INCLUDE_EXTENSION = [
     "extension/registration/",
     "extension/registry/",
     "extension/dialogs/",
-    "extension/LocalWriterDialogs/",
+    "extension/WriterAgentDialogs/",
     "extension/assets/",
 ]
 
@@ -49,6 +49,10 @@ ALWAYS_INCLUDE_PLUGIN = [
     "plugin/framework/",
     "plugin/lib/",
     "plugin/contrib/",
+]
+
+ALWAYS_INCLUDE_ROOT = [
+    "contrib/",
 ]
 
 # Auto-discover all top-level module directories
@@ -77,7 +81,7 @@ EXCLUDE_PATTERNS = (
 # Generated files (XCS/XCU, XDL dialogs)
 GENERATED_INCLUDES = [
     "build/generated/dialogs/",
-    "build/generated/LocalWriterDialogs/",
+    "build/generated/WriterAgentDialogs/",
     "build/generated/Addons.xcu",
     "build/generated/Accelerators.xcu",
 ]
@@ -128,7 +132,7 @@ def remap_path(f):
     return f
 
 
-def assemble_bundle(base_dir, modules):
+def assemble_bundle(base_dir, modules, no_recording=False):
     """Copy all files into build/bundle/ with final archive paths."""
     bundle_path = os.path.join(base_dir, BUNDLE_DIR)
 
@@ -138,6 +142,7 @@ def assemble_bundle(base_dir, modules):
 
     include = list(ALWAYS_INCLUDE_EXTENSION)
     include.extend(ALWAYS_INCLUDE_PLUGIN)
+    include.extend(ALWAYS_INCLUDE_ROOT)
 
     for mod in modules:
         mod_dir = "plugin/modules/%s/" % mod
@@ -150,6 +155,15 @@ def assemble_bundle(base_dir, modules):
 
     include.extend(GENERATED_INCLUDES)
     files = collect_files(base_dir, include)
+
+    if no_recording:
+        # Exclude voice recording: audio_recorder.py and entire contrib/audio/
+        files = [
+            f for f in files
+            if f != "plugin/modules/chatbot/audio_recorder.py"
+            and not f.startswith("contrib/audio/")
+        ]
+        print("  No-recording build: excluded audio_recorder.py and contrib/audio/")
 
     count = 0
     for f in files:
@@ -216,21 +230,24 @@ def zip_bundle(base_dir, output):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build LocalWriter .oxt extension")
+    parser = argparse.ArgumentParser(description="Build WriterAgent .oxt extension")
     parser.add_argument(
         "--modules", nargs="+", default=None,
         help="Modules to include (default: auto-discover all)")
     parser.add_argument(
-        "--output", default="build/localwriter.oxt",
+        "--output", default="build/WriterAgent.oxt",
         help="Output file (default: build/localwriter.oxt)")
     parser.add_argument(
         "--repack", action="store_true",
         help="Only re-zip build/bundle/ (skip assembly)")
+    parser.add_argument(
+        "--no-recording", action="store_true",
+        help="Exclude voice recording: do not bundle contrib/audio/ or plugin/modules/chatbot/audio_recorder.py")
     args = parser.parse_args()
 
     if not args.repack:
         modules = args.modules or _discover_modules(PROJECT_ROOT)
-        assemble_bundle(PROJECT_ROOT, modules)
+        assemble_bundle(PROJECT_ROOT, modules, no_recording=args.no_recording)
 
     return zip_bundle(PROJECT_ROOT, args.output)
 

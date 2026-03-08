@@ -17,7 +17,7 @@
 #   LibreOffice's model which already handles network requests on another thread.
 # - Simplified error handling: centralized logic in _raise_horde_http_error for better UX.
 # - Removed upstream-specific helper classes: removed HordeClientSettings and
-#   ProcedureInformation, as config and logic are handled by LocalWriter's unified systems.
+#   ProcedureInformation, as config and logic are handled by WriterAgent's unified systems.
 # - Refined informer pattern: used direct callbacks via a simple informer object instead of
 #   the upstream abstract interface.
 
@@ -28,7 +28,7 @@ from time import sleep
 from typing import Any, Dict, List, Tuple, Union
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
-from plugin.modules.core.translation_tool import opustm_hf_translate, OPUSTM_SOURCE_LANGUAGES  # noqa F401
+from plugin.framework.translation_tool import opustm_hf_translate, OPUSTM_SOURCE_LANGUAGES  # noqa F401
 
 from plugin.modules.http.client import sync_request, format_error_message
 from plugin.framework.logging import debug_log, log_exception

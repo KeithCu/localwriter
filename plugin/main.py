@@ -10,6 +10,11 @@ if _ext_root not in sys.path:
 if _plugin_dir not in sys.path:
     sys.path.insert(0, _plugin_dir)
 
+# Add the vendor directory so cross-platform audio wheels (sounddevice, cffi) can be found
+_vendor_dir = os.path.join(_plugin_dir, "vendor")
+if _vendor_dir not in sys.path:
+    sys.path.insert(0, _vendor_dir)
+
 import unohelper
 import officehelper
 
@@ -17,10 +22,11 @@ from plugin.framework.logging import init_logging
 import uno
 import logging
 
-from com.sun.star.beans import PropertyValue
 from com.sun.star.task import XJobExecutor, XJob
 from com.sun.star.frame import XDispatch, XDispatchProvider
 from com.sun.star.lang import XInitialization, XServiceInfo
+
+from plugin.framework.uno_helpers import get_active_document, get_extension_url
 
 # ---------------------------------------------------------------------------
 # HTTP / MCP Server (Module wrapper)
@@ -87,56 +93,80 @@ def _topo_sort(modules):
 
 def bootstrap(ctx=None):
     global _services, _tools, _modules, _initialized
-
-    if _initialized: return
+    
+    if _initialized:
+        return
+        
     with _init_lock:
-        if _initialized: return
-
+        if _initialized:
+            return
+            
+        # 1. Basic UNO context
+        if ctx is None:
+            from plugin.framework.uno_context import get_ctx
+            ctx = get_ctx()
+        
+        # 2. Service Container
         from plugin.framework.service_registry import ServiceRegistry
-        from plugin.framework.tool_registry import ToolRegistry
-        
         _services = ServiceRegistry()
-        
-        # 1. Config Service (Loaded from core module)
-        # 2. Document Service (Loaded from core module)
+        _services.register_instance("uno", ctx)
 
-        # 3. Events Service
-        from plugin.framework.event_bus import EventBus
-        _services.register_instance("events", EventBus())
+        # 3. Core Services (Framework)
+        from plugin.framework.config import ConfigService
+        from plugin.framework.document import DocumentService
+        from plugin.framework.format import FormatService
+        from plugin.framework.event_bus import get_event_bus
+
+        _services.register(ConfigService())
+        _services.register(DocumentService())
+        _services.register(FormatService())
+        _services.register_instance("events", get_event_bus())
 
         # 4. Tool Registry
+        from plugin.framework.tool_registry import ToolRegistry
         _tools = ToolRegistry(_services)
         _services.register_instance("tools", _tools)
 
+        # Set initialized early to prevent recursive calls from re-running bootstrap
+        # but after _services and _tools are created.
+        _initialized = True
+
         # 5. Load manifest and initialize modules
-        # Modules in localwriter lack ModuleBase in many places. 
-        # We will just use auto-discovery on directories for tools, and manual init for HttpModule/AiModule.
         manifests = _topo_sort(_load_manifest())
         
         for manifest in manifests:
             name = manifest["name"]
+            if name == "core":
+                continue
             
             # Auto-discover tools from tools/ subpackage
-            dir_name = name.replace(".", "_")
-            module_dir = os.path.join(os.path.dirname(__file__), "modules", dir_name)
+            # Try nested path first (e.g. "launcher/providers/claude")
+            rel_path = name.replace(".", os.sep)
+            module_dir = os.path.join(os.path.dirname(__file__), "modules", rel_path)
+            import_path = "plugin.modules." + name
             
             if not os.path.isdir(module_dir):
-                continue
+                # Legacy fallback for flat paths (e.g. "launcher_claude")
+                dir_name = name.replace(".", "_")
+                module_dir = os.path.join(os.path.dirname(__file__), "modules", dir_name)
+                import_path = "plugin.modules." + dir_name
+                if not os.path.isdir(module_dir):
+                    continue
                 
             # Tools may be in module root (like localwriter2 draw/calc)
-            _tools.discover(module_dir, "plugin.modules.%s" % dir_name)
+            _tools.discover(module_dir, import_path)
             
             # Structure approach (like the writer tools we generated)
             tools_dir = os.path.join(module_dir, "tools")
             if os.path.isdir(tools_dir):
-                _tools.discover(tools_dir, "plugin.modules.%s.tools" % dir_name)
+                _tools.discover(tools_dir, import_path + ".tools")
 
             # Dynamic ModuleBase initialization
             try:
                 import importlib
                 import inspect
                 
-                mod_pkg = importlib.import_module("plugin.modules.%s" % dir_name)
+                mod_pkg = importlib.import_module(import_path)
                 module_class = None
                 
                 # Look for a class subclassing ModuleBase by checking MRO names (avoids LO sys.path duplicate issues)
@@ -153,8 +183,7 @@ def bootstrap(ctx=None):
                     mod.initialize(_services)
                     _modules.append(mod)
             except Exception as e:
-                import logging
-                logging.getLogger("localwriter").warning("Failed to load module %s: %s", name, e)
+                logging.getLogger("writeragent").warning("Failed to load module %s: %s", name, e)
 
         # Wire event bus into config service
         events_svc = _services.get("events")
@@ -166,22 +195,22 @@ def bootstrap(ctx=None):
         # Pre-load icons into ImageManager so first menu display has them
         threading.Thread(target=_update_menu_icons, daemon=True).start()
 
-        _initialized = True
+
 
 # ── Dynamic menu text infrastructure ─────────────────────────────────
 
-_DISPATCH_PROTOCOL = "org.extension.localwriter:"
+_DISPATCH_PROTOCOL = "org.extension.writeragent:"
 
 _status_listeners = []  # [(listener, url)]
 _status_lock = threading.Lock()
 
-EXTENSION_ID = "org.extension.localwriter"
+EXTENSION_ID = "org.extension.writeragent"
 
 def _dispatch_command(command):
     """Dispatch a module.action command. Used by both MainJob and DispatchHandler."""
     dot = command.find(".")
     if dot <= 0:
-        log = logging.getLogger("localwriter.main")
+        log = logging.getLogger("writeragent.main")
         log.warning("Unhandled command: %s", command)
         return
 
@@ -214,57 +243,57 @@ def _dispatch_command(command):
                 pass
         elif action == "RunFormatTests":
             from plugin.framework.uno_context import get_ctx
-            from plugin.modules.core.format_tests import run_markdown_tests
-            from plugin.modules.core.services.document import is_writer
+            from plugin.framework.format_tests import run_markdown_tests
+            from plugin.framework.document import is_writer
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                from plugin.framework.async_stream import run_blocking_in_thread
+                model = get_active_document(ctx)
                 w_model = model if (model and is_writer(model)) else None
-                p, f, log = run_markdown_tests(ctx, w_model)
+                p, f, log = run_blocking_in_thread(ctx, run_markdown_tests, ctx, w_model)
                 msgbox(ctx, "Format tests", f"Format tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
             except Exception as e:
                 msgbox(ctx, "Format tests", f"Tests failed to run: {e}")
         elif action == "RunCalcTests":
             from plugin.framework.uno_context import get_ctx
             from plugin.modules.calc.tests import run_calc_tests
-            from plugin.modules.core.services.document import is_calc
+            from plugin.framework.document import is_calc
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                from plugin.framework.async_stream import run_blocking_in_thread
+                model = get_active_document(ctx)
                 c_model = model if (model and is_calc(model)) else None
-                p, f, log = run_calc_tests(ctx, c_model)
+                p, f, log = run_blocking_in_thread(ctx, run_calc_tests, ctx, c_model)
                 msgbox(ctx, "Calc tests", f"Calc tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
             except Exception as e:
                 msgbox(ctx, "Calc tests", f"Tests failed to run: {e}")
         elif action == "RunCalcIntegrationTests":
             from plugin.framework.uno_context import get_ctx
             from plugin.modules.calc.tests import run_calc_integration_tests
-            from plugin.modules.core.services.document import is_calc
+            from plugin.framework.document import is_calc
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                from plugin.framework.async_stream import run_blocking_in_thread
+                model = get_active_document(ctx)
                 c_model = model if (model and is_calc(model)) else None
-                p, f, log = run_calc_integration_tests(ctx, c_model)
+                p, f, log = run_blocking_in_thread(ctx, run_calc_integration_tests, ctx, c_model)
                 msgbox(ctx, "Calc API tests", f"Calc API tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
             except Exception as e:
                 msgbox(ctx, "Calc tests", f"Integration tests failed: {e}")
         elif action == "RunDrawTests":
             from plugin.framework.uno_context import get_ctx
-            from plugin.modules.core.draw_tests import run_draw_tests
-            from plugin.modules.core.services.document import is_draw
+            from plugin.framework.draw_tests import run_draw_tests
+            from plugin.framework.document import is_draw
             from plugin.framework.dialogs import msgbox
             ctx = get_ctx()
             try:
-                desk = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
-                model = desk.getCurrentComponent()
+                from plugin.framework.async_stream import run_blocking_in_thread
+                model = get_active_document(ctx)
                 d_model = model if (model and is_draw(model)) else None
-                p, f, log = run_draw_tests(ctx, d_model)
+                p, f, log = run_blocking_in_thread(ctx, run_draw_tests, ctx, d_model)
                 msgbox(ctx, "Draw tests", f"Draw tests: {p} passed, {f} failed.\n\n" + "\n".join(log))
             except Exception as e:
                 msgbox(ctx, "Draw tests", f"Tests failed to run: {e}")
@@ -278,7 +307,7 @@ def _dispatch_command(command):
             mod.on_action(action)
             return
 
-    log = logging.getLogger("localwriter.main")
+    log = logging.getLogger("writeragent.main")
     log.warning("Module not found for command: %s", command)
 
 
@@ -317,7 +346,6 @@ def notify_menu_update():
 
 def _fire_status_event(listener, url, text):
     """Send a FeatureStateEvent to one listener."""
-    import uno
     ev = uno.createUnoStruct("com.sun.star.frame.FeatureStateEvent")
     ev.FeatureURL = url
     ev.IsEnabled = True
@@ -376,21 +404,17 @@ def _collect_icon_commands():
 def _load_icon_graphic(module_name, icon_filename):
     """Load a PNG icon from a module's icons/ directory as XGraphic."""
     try:
-        import uno
         from com.sun.star.beans import PropertyValue
-        ctx = uno.getComponentContext()
-        smgr = ctx.ServiceManager
-        pip = ctx.getValueByName(
-            "/singletons/com.sun.star.deployment.PackageInformationProvider")
-        ext_url = pip.getPackageLocation(EXTENSION_ID)
-        if not ext_url:
-            return None
         gp = smgr.createInstanceWithContext(
             "com.sun.star.graphic.GraphicProvider", ctx)
+        ext_url = get_extension_url(ctx)
+        if not ext_url:
+            return None
         pv = PropertyValue()
-        pv.Name = "URL"
+        # Support nested module directories
+        mod_dir = module_name.replace(".", "/")
         pv.Value = "%s/plugin/modules/%s/icons/%s" % (
-            ext_url, module_name, icon_filename)
+            ext_url, mod_dir, icon_filename)
         return gp.queryGraphic((pv,))
     except Exception:
         return None
@@ -456,14 +480,11 @@ def _get_http_module(ctx=None):
     return None
 
 def _start_mcp_server(ctx):
-    """Start HTTP/MCP server if enabled."""
-    from plugin.modules.core.services.config import get_config, as_bool
+    """Ensure HTTP/MCP server is loaded. Start happens natively in module lifecycle."""
+    from plugin.framework.config import get_config, as_bool
     if not as_bool(get_config(ctx, "mcp_enabled", False)):
         return
     bootstrap(ctx)
-    mod = _get_http_module(ctx)
-    if mod and (not mod._server or not mod._server.is_running()):
-        mod.start_background(_services)
 
 def _stop_mcp_server():
     mod = _get_http_module()
@@ -523,9 +544,8 @@ class MainBootstrapJob(unohelper.Base, XJobExecutor, XJob):
         if self._handle_framework_actions(args):
             return
 
-        desk = self.ctx.ServiceManager.createInstanceWithContext("com.sun.star.frame.Desktop", self.ctx)
-        model = desk.getCurrentComponent()
-        from plugin.modules.core.services.document import is_writer, is_calc, is_draw
+        model = get_active_document(self.ctx)
+        from plugin.framework.document import is_writer, is_calc
         
         if is_writer(model):
             self._handle_writer_actions(args, model)
@@ -540,7 +560,7 @@ class MainBootstrapJob(unohelper.Base, XJobExecutor, XJob):
         if args == "ToggleMCPServer": _dispatch_command("http.toggle_server")
         elif args == "MCPStatus": _dispatch_command("http.server_status")
         elif args == "DrainMCP":
-            from plugin.modules.core.mcp_thread import drain_mcp_queue
+            from plugin.modules.http.mcp_protocol import drain_mcp_queue
             drain_mcp_queue()
         else:
             _dispatch_command("main." + args)
@@ -580,13 +600,13 @@ if __name__ == "__main__":
 
 class DispatchHandler(unohelper.Base, XDispatch, XDispatchProvider,
                       XInitialization, XServiceInfo):
-    """Protocol handler for org.extension.localwriter: URLs.
+    """Protocol handler for org.extension.writeragent: URLs.
 
     Handles menu dispatch and supports dynamic menu text via
     FeatureStateEvent / addStatusListener.
     """
 
-    IMPL_NAME = "org.extension.localwriter.DispatchHandler"
+    IMPL_NAME = "org.extension.writeragent.DispatchHandler"
     SERVICE_NAMES = ("com.sun.star.frame.ProtocolHandler",)
 
     def __init__(self, ctx):
@@ -610,8 +630,8 @@ class DispatchHandler(unohelper.Base, XDispatch, XDispatchProvider,
 
     # ── XDispatchProvider ────────────────────────────────────────
 
-    def queryDispatch(self, url, target, flags):
-        if url.Protocol == _DISPATCH_PROTOCOL:
+    def queryDispatch(self, url, name, flags):
+        if url.Protocol == "org.extension.writeragent:":
             return self
         return None
 
@@ -625,6 +645,7 @@ class DispatchHandler(unohelper.Base, XDispatch, XDispatchProvider,
         command = url.Path
         try:
             bootstrap(self.ctx)
+            init_logging(self.ctx)
             _dispatch_command(command)
             # After action, push updated menu text
             threading.Thread(target=notify_menu_update,
@@ -655,7 +676,7 @@ class DispatchHandler(unohelper.Base, XDispatch, XDispatchProvider,
 g_ImplementationHelper = unohelper.ImplementationHelper()
 g_ImplementationHelper.addImplementation(
     MainBootstrapJob,  # UNO object class
-    "org.extension.localwriter.Main",  # implementation name
+    "org.extension.writeragent.Main",  # implementation name
     ("com.sun.star.task.Job",), )  # implemented services (only 1)
 g_ImplementationHelper.addImplementation(
     DispatchHandler,

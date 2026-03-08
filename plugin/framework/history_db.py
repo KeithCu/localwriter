@@ -1,0 +1,108 @@
+import json
+import sqlite3
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+
+from plugin.framework.config import user_config_dir
+from plugin.framework.uno_context import get_ctx
+
+def _get_db_path():
+    ctx = get_ctx()
+    config_dir = user_config_dir(ctx)
+    if config_dir:
+        try:
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir, exist_ok=True)
+        except Exception as e:
+            from plugin.framework.logging import debug_log
+            debug_log(f"Error creating config directory: {e}", context="HistoryDB")
+        path = os.path.join(config_dir, "writeragent_history.db")
+        from plugin.framework.logging import debug_log
+        debug_log(f"Using database path: {path}", context="HistoryDB")
+        return path
+    return "writeragent_history.db"
+
+# LangChain-compatible JSON conversion
+def message_to_dict(role, content, tool_calls=None):
+    # Don't persist MBs of base64 audio to history db.
+    if isinstance(content, list):
+        text_parts = []
+        has_audio = False
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    text_parts.append(item.get("text", ""))
+                elif item.get("type") == "input_audio":
+                    has_audio = True
+        content = " ".join(text_parts)
+        if has_audio:
+            if content:
+                content += " [Audio Attached]"
+            else:
+                content = "[Audio Attached]"
+
+    return {
+        "role": role,
+        "content": content,
+        "tool_calls": tool_calls
+    }
+
+# ---------------------------------------------------------------------------
+# Native SQLite3 Implementation
+# ---------------------------------------------------------------------------
+class SQLite3History:
+    def __init__(self, session_id, db_path):
+        self.session_id = session_id
+        self.db_path = db_path
+        self._init_db()
+
+    def _init_db(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS message_store (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT,
+                    message TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_session_id ON message_store(session_id)")
+            conn.commit()
+
+    def add_message(self, role, content, tool_calls=None):
+        msg_dict = message_to_dict(role, content, tool_calls)
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT INTO message_store (session_id, message) VALUES (?, ?)",
+                (self.session_id, json.dumps(msg_dict))
+            )
+            conn.commit()
+            from plugin.framework.logging import debug_log
+            debug_log(f"SQLite3: Added message for session {self.session_id}", context="HistoryDB")
+
+    def get_messages(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                "SELECT message FROM message_store WHERE session_id = ? ORDER BY id ASC",
+                (self.session_id,)
+            )
+            msgs = [json.loads(row[0]) for row in cursor.fetchall()]
+            from plugin.framework.logging import debug_log
+            debug_log(f"SQLite3: Retreived {len(msgs)} messages for session {self.session_id}", context="HistoryDB")
+            return msgs
+
+    def clear(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM message_store WHERE session_id = ?", (self.session_id,))
+            conn.commit()
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+def get_chat_history(session_id, db_path=None):
+    if not db_path:
+        db_path = _get_db_path()
+    logger.debug(f"Using native sqlite3 for chat history at {db_path}")
+    return SQLite3History(session_id, db_path)
+

@@ -4,7 +4,7 @@ import logging
 
 from plugin.framework.module_base import ModuleBase
 
-log = logging.getLogger("localwriter.http")
+log = logging.getLogger("writeragent.http")
 
 
 class HttpModule(ModuleBase):
@@ -34,7 +34,9 @@ class HttpModule(ModuleBase):
         self._registry.add("POST", "/api/config", self._handle_config_set)
 
         # MCP endpoints
-        if services.config.proxy_for(self.name).get("mcp_enabled"):
+        mcp_enabled = services.config.proxy_for(self.name).get("mcp_enabled")
+        log.info("HttpModule initialize: mcp_enabled=%s", mcp_enabled)
+        if mcp_enabled:
             self._register_mcp_routes(services)
 
         if hasattr(services, "events"):
@@ -58,6 +60,7 @@ class HttpModule(ModuleBase):
                 self._stop_server()
         elif key == "http.mcp_enabled":
             enabled = cfg.get("mcp_enabled")
+            log.info("Config changed: http.mcp_enabled=%s", enabled)
             if enabled and not self._mcp_routes_registered:
                 self._register_mcp_routes(self._services)
             elif not enabled and self._mcp_routes_registered:
@@ -71,7 +74,7 @@ class HttpModule(ModuleBase):
 
         self._server = HttpServer(
             route_registry=self._registry,
-            port=cfg.get("port") or 8766,
+            port=cfg.get("port") or cfg.get("mcp_port") or 8765,
             host=cfg.get("host") or "localhost",
             use_ssl=cfg.get("use_ssl") or False,
             ssl_cert=cfg.get("ssl_cert") or "",
@@ -105,6 +108,7 @@ class HttpModule(ModuleBase):
             self._unregister_mcp_routes(self._services)
 
     def _register_mcp_routes(self, services):
+        log.info("Registering MCP routes (SSE, /mcp, /debug)...")
         from plugin.modules.http.mcp_protocol import MCPProtocolHandler
 
         self._mcp_protocol = MCPProtocolHandler(services)
@@ -176,16 +180,16 @@ class HttpModule(ModuleBase):
         if self._server and self._server.is_running():
             log.info("Stopping HTTP server via toggle")
             self._stop_server()
-            msgbox(ctx, "LocalWriter", "HTTP server stopped")
+            msgbox(ctx, "WriterAgent", "HTTP server stopped")
         else:
             log.info("Starting HTTP server via toggle")
             self._start_server(self._services)
             if self._server and self._server.is_running():
                 status = self._server.get_status()
-                msgbox(ctx, "LocalWriter",
+                msgbox(ctx, "WriterAgent",
                        "HTTP server started\n%s" % status.get("url", ""))
             else:
-                msgbox(ctx, "LocalWriter",
+                msgbox(ctx, "WriterAgent",
                        "HTTP server failed to start\nCheck ~/localwriter.log")
 
     def _action_server_status(self):
@@ -194,13 +198,13 @@ class HttpModule(ModuleBase):
 
         ctx = get_ctx()
         if not self._server:
-            msgbox(ctx, "LocalWriter", "HTTP server is not running")
+            msgbox(ctx, "WriterAgent", "HTTP server is not running")
             return
 
         status = self._server.get_status()
         running = status.get("running", False)
         if not running:
-            msgbox(ctx, "LocalWriter", "HTTP server not running")
+            msgbox(ctx, "WriterAgent", "HTTP server not running")
             return
 
         url = status.get("url", "?")
@@ -233,7 +237,7 @@ class HttpModule(ModuleBase):
             dlg.dispose()
         except Exception:
             log.exception("Status dialog error")
-            msgbox(ctx, "LocalWriter", "%s\nURL: %s" % (msg, url))
+            msgbox(ctx, "WriterAgent", "%s\nURL: %s" % (msg, url))
 
     # ---- Built-in route handlers ----
 
@@ -241,17 +245,18 @@ class HttpModule(ModuleBase):
         from plugin.version import EXTENSION_VERSION
         return (200, {
             "status": "healthy",
-            "server": "LocalWriter",
+            "server": "WriterAgent",
             "version": EXTENSION_VERSION,
         })
 
     def _handle_info(self, body, headers, query):
+        log.info("Request: GET / (info) from %s", headers.get("User-Agent"))
         from plugin.version import EXTENSION_VERSION
         routes = self._registry.list_routes()
         return (200, {
-            "name": "LocalWriter",
+            "name": "WriterAgent",
             "version": EXTENSION_VERSION,
-            "description": "LocalWriter HTTP server",
+            "description": "WriterAgent HTTP server",
             "routes": ["%s %s" % (m, p) for m, p in sorted(routes)],
         })
 

@@ -1,6 +1,75 @@
-"""Shared UNO UI helpers for dialogs and sidebar (LibreOffice control quirks)."""
+import uno
 import unohelper
 from com.sun.star.awt import XActionListener
+
+
+def get_desktop(ctx=None):
+    """Return the UNO Desktop instance."""
+    from plugin.framework.uno_context import get_ctx
+    ctx = ctx or get_ctx()
+    smgr = ctx.getServiceManager()
+    return smgr.createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+
+
+def get_active_document(ctx=None):
+    """Return the currently active document model."""
+    try:
+        desktop = get_desktop(ctx)
+        return desktop.getCurrentComponent()
+    except Exception:
+        return None
+
+
+def get_package_info(ctx=None):
+    """Return the PackageInformationProvider singleton."""
+    from plugin.framework.uno_context import get_ctx
+    ctx = ctx or get_ctx()
+    return ctx.getValueByName("/singletons/com.sun.star.deployment.PackageInformationProvider")
+
+
+def get_extension_url(ctx=None, extension_id="org.extension.writeragent"):
+    """Return the base URL of the extension package."""
+    pip = get_package_info(ctx)
+    if not pip:
+        return ""
+    return pip.getPackageLocation(extension_id)
+
+
+def get_extension_path(ctx=None, extension_id="org.extension.writeragent"):
+    """Return the local filesystem path of the extension package."""
+    url = get_extension_url(ctx, extension_id)
+    if not url:
+        return ""
+    if url.startswith("file://"):
+        return str(uno.fileUrlToSystemPath(url))
+    return url
+
+
+def is_writer(model):
+    """Return True if model is a Writer document."""
+    try:
+        return model.supportsService("com.sun.star.text.TextDocument")
+    except Exception:
+        return False
+
+
+def is_calc(model):
+    """Return True if model is a Calc document."""
+    try:
+        return model.supportsService("com.sun.star.sheet.SpreadsheetDocument")
+    except Exception:
+        return False
+
+
+def is_draw(model):
+    """Return True if model is a Draw/Impress document."""
+    try:
+        return (model.supportsService("com.sun.star.drawing.DrawingDocument") or 
+                model.supportsService("com.sun.star.presentation.PresentationDocument"))
+    except Exception:
+        return False
+
+
 
 
 def get_optional(root_window, name):

@@ -29,6 +29,16 @@ def resolve_model_id(model, provider):
     # No ids -> use fallback id, available for all providers
     return model.get("id")
 
+#FIXME, this should be a list, stored with the other endpoint pre-configured params
+def get_provider_defaults(provider):
+    """Return default models (stt_model, tts_model) mapped per provider."""
+    defaults = {
+        "together": {"stt_model": "openai/whisper-large-v3"},
+        "openrouter": {"stt_model": "google/gemini-3.1-flash-lite-preview"},
+        "mistral": {"stt_model": "voxtral-mini-2602"},
+    }
+    return defaults.get(provider, {})
+
 
 def merge_catalogs(base, extension):
     """Merge extension models into a base catalog (flat list).
@@ -115,7 +125,7 @@ DEFAULT_MODELS = [
 
     {
         "display_name": "Gemma 3 27B Instruct",
-        "capability": "text",
+        "capability": "text,image,audio",
         "context_length": 131072,
         "priority": 8,
         "notes": "Fast, efficient, excellent instruction following (Google)",
@@ -192,19 +202,46 @@ DEFAULT_MODELS = [
 
     {
         "display_name": "GPT-4o",
-        "capability": "text,image",
+        "capability": "text,image,audio",
         "context_length": 128000,
         "priority": 9,
         "notes": "Mature tool calling, reliable baseline, built-in multimodal",
-        "ids": {"openai": "gpt-4o"},
+        "ids": {"openai": "gpt-4o", "openrouter": "openai/gpt-4o"},
         "id": "gpt-4o",
+    },
+    {
+        "display_name": "GPT-4o mini",
+        "capability": "text,image,audio",
+        "context_length": 128000,
+        "priority": 8,
+        "notes": "Cheaper, very fast, multimodal support",
+        "ids": {"openai": "gpt-4o-mini", "openrouter": "openai/gpt-4o-mini"},
+        "id": "gpt-4o-mini",
+    },
+    {
+        "display_name": "Gemini 1.5 Flash",
+        "capability": "text,image,audio",
+        "context_length": 1000000,
+        "priority": 9,
+        "notes": "Blazing fast, 1M context, strong multimodal (Google)",
+        "ids": {"openrouter": "google/gemini-flash-1.5"},
+        "id": "google/gemini-flash-1.5",
+    },
+    {
+        "display_name": "Gemini 2.0 Flash",
+        "capability": "text,image,audio",
+        "context_length": 1000000,
+        "priority": 10,
+        "notes": "Latest Google model, extremely fast and capable",
+        "ids": {"openrouter": "google/gemini-2.0-flash-001"},
+        "id": "google/gemini-2.0-flash-001",
     },
 
     # ---- Image-only models -----------------------------------------------
 
     {
         "display_name": "Gemini 3.1 Pro Preview",
-        "capability": "image",
+        "capability": "image,audio",
         "context_length": 1000000,
         "priority": 9,
         "notes": "Excellent vision + reasoning, 1M context (Google)",
@@ -231,5 +268,33 @@ DEFAULT_MODELS = [
         "notes": "Classic local multimodal",
         "ids": {"ollama": "llava"},
         "id": "llava",
+    },
+    # ---- Audio/STT models ------------------------------------------------
+    {
+        "display_name": "Whisper-1",
+        "capability": "audio",
+        "priority": 10,
+        "notes": "Standard OpenAI transcription model",
+        "ids": {"openai": "whisper-1"},
+        "id": "whisper-1",
+    },
+    {
+        "display_name": "Whisper Large v3",
+        "capability": "audio",
+        "priority": 9,
+        "notes": "High quality open-weight transcription (Together/Groq)",
+        "ids": {
+            "together": "openai/whisper-large-v3",
+            "openrouter": "openai/whisper-large-v3"
+        },
+        "id": "openai/whisper-large-v3",
+    },
+    {
+        "display_name": "Voxtral Mini",
+        "capability": "audio",
+        "priority": 10,
+        "notes": "Native audio model for Mistral",
+        "ids": {"mistral": "voxtral-mini-2602"},
+        "id": "voxtral-mini-2602",
     },
 ]

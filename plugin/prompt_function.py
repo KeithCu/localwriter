@@ -10,14 +10,14 @@ if _ext_root not in sys.path:
 if _plugin_dir not in sys.path:
     sys.path.insert(0, _plugin_dir)
 
-import uno
+
 import unohelper
-import urllib.request
-import urllib.parse
+
+
 # from com.sun.star.lang import XServiceInfo
 # from com.sun.star.sheet import XAddIn
-from org.extension.localwriter.PromptFunction import XPromptFunction
-from plugin.modules.core.services.config import get_config, get_api_config
+from org.extension.writeragent.PromptFunction import XPromptFunction
+from plugin.framework.config import get_config, get_api_config
 from plugin.modules.http.client import LlmClient
 
 # Enable debug logging
@@ -140,7 +140,9 @@ class PromptFunction(unohelper.Base, XPromptFunction):
                     self.client = LlmClient(config, self.ctx)
                 else:
                     self.client.config = config
-                return self.client.chat_completion_sync(messages, max_tokens=max_tokens)
+                
+                from plugin.framework.async_stream import run_blocking_in_thread
+                return run_blocking_in_thread(self.ctx, self.client.chat_completion_sync, messages, max_tokens=max_tokens)
             except Exception as e:
                 from plugin.modules.http.client import format_error_for_display
                 debug_log("PROMPT error: %s" % str(e))
@@ -149,7 +151,7 @@ class PromptFunction(unohelper.Base, XPromptFunction):
 
     # XServiceInfo implementation
     def getImplementationName(self):
-        return "org.extension.localwriter.PromptFunction"
+        return "org.extension.writeragent.PromptFunction"
     
     def supportsService(self, name):
         return name in self.getSupportedServiceNames()
@@ -160,7 +162,7 @@ class PromptFunction(unohelper.Base, XPromptFunction):
 g_ImplementationHelper = unohelper.ImplementationHelper()
 g_ImplementationHelper.addImplementation(
     PromptFunction,
-    "org.extension.localwriter.PromptFunction",
+    "org.extension.writeragent.PromptFunction",
     ("com.sun.star.sheet.AddIn",),
 )
 

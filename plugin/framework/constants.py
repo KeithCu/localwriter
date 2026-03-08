@@ -1,19 +1,10 @@
-"""Constants for LocalWriter."""
+"""Constants for WriterAgent."""
 
-APP_REFERER = "https://github.com/keithcu/localwriter"
-APP_TITLE = "LocalWriter"
-USER_AGENT = "LocalWriter (https://github.com/keithcu/localwriter)"
+APP_REFERER = "https://github.com/keithcu/WriterAgent"
+APP_TITLE = "WriterAgent"
+USER_AGENT = "WriterAgent (https://github.com/keithcu/WriterAgent)"
 
-# Document format toggle: 'markdown' or 'html'
-# Markdown requires LibreOffice 26.2+; HTML works on older versions.
-DOCUMENT_FORMAT = "html"
-
-_FORMAT_LABEL = "Markdown" if DOCUMENT_FORMAT == "markdown" else "HTML"
-_FORMAT_HINT = (
-    "Pass 'markdown' as a list of strings to avoid newline escaping issues."
-    if DOCUMENT_FORMAT == "markdown" else
-    "Send HTML as a list of strings (one element per heading/paragraph). DO NOT escape entities (&lt;h1&gt; is wrong). We handle wrapping in <html>/<body>."
-)
+_FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragraph). DO NOT escape entities (&lt;h1&gt; is wrong). We handle wrapping in <html>/<body>."
 
 # Format-specific formatting rules
 HTML_FORMATTING_RULES = """
@@ -32,32 +23,34 @@ EXAMPLES:
 - Bad: ["# Title", "Paragraph"] (Markdown when HTML format is active)
 - Bad: ["&ldquo;Smart quotes&rdquo;"] (use straight quotes ")"""
 
-MARKDOWN_FORMATTING_RULES = """
-FORMATTING RULES:
-- Use standard Markdown syntax: # Headers, **bold**, *italic*, [links](url)
-- Line breaks: Use double spaces at end of line or just newlines (we handle conversion)
-- Lists: Use - or * for bullet lists, 1. 2. 3. for numbered lists
-- Code: Use triple backticks ``` for code blocks
-- Quotes: Use > for blockquotes
+FORMATTING_RULES = HTML_FORMATTING_RULES
 
-EXAMPLES:
-- Good: # Title\n\nParagraph with <b>bold</b> text and "quotes".\n\n- Item 1\n- Item 2
-- Bad: <h1>Title</h1> (HTML when Markdown format is active)
-- Bad: &lt;h1&gt;Title&lt;/h1&gt; (escaped HTML entities)"""
+# General directives shared across all AI interfaces
+CORE_DIRECTIVES = """When asked to answer a question or create or explain something, assume the user wants the 
+information to be inserted into the document. Use the apply_document_content tool to insert content 
+into LibreOffice so the user can edit it further.
+When asked about a topic you are not familiar with, use the web_search tool first to find information."""
 
-# Select the appropriate rules based on format
-FORMAT_RULES = HTML_FORMATTING_RULES if DOCUMENT_FORMAT == "html" else MARKDOWN_FORMATTING_RULES
+TRANSLATION_RULES = "TRANSLATION: get_document_content -> translate -> apply_document_content(target=\"full\"). Never refuse."
+
+# Shared Calc instruction blocks
+CALC_WORKFLOW = """WORKFLOW:
+1. Understand what the user wants.
+2. If needed, use get_sheet_summary or read_cell_range to see the current state.
+3. Use the tools to perform the operation. Always use ranges for multiple cells to reduce calls and improve efficiency.
+4. Give a short confirmation; when you changed cells, mention the range or addresses (e.g. "Wrote totals in B5:B8")."""
+
+CALC_FORMULA_SYNTAX = """FORMULA SYNTAX: LibreOffice uses semicolon (;) as the formula argument separator in formulas.
+- Correct: =SUM(A1:A10), =IF(A1>0;B1;C1)
+- Wrong: =SUM(A1,A10), =IF(A1>0,"Yes","No") (no commas in formulas)"""
 
 DEFAULT_CHAT_SYSTEM_PROMPT = f"""You are a LibreOffice assistant who always makes polished, professional documents with a bit of color (when appropriate).
 
-When asked to answer a question or create or explain something, assume the user wants the 
-information to be inserted into the document. Use the apply_document_content tool to insert content 
-into LibreOffice so the user can edit it further.
-When asked about a topic you are not familiar with, use the web_search tool first to find information.
+{CORE_DIRECTIVES}
 
 TOOLS:
-- get_document_content: Read document (full/selection/range) as {_FORMAT_LABEL}.
-- apply_document_content: Write {_FORMAT_LABEL}. Target: full/range/search/beginning/end/selection.
+- get_document_content: Read document (full/selection/range) as HTML.
+- apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection.
   HINT: {_FORMAT_HINT}
 - find_text: Find text locations for apply_document_content.
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
@@ -65,24 +58,18 @@ TOOLS:
 - set_track_changes / get_tracked_changes / accept_all_changes / reject_all_changes: Track and manage changes.
 - list_tables / read_table / write_table_cells: Inspect Writer tables; write a 2D block of cells (data + optional start_cell).
 
-TRANSLATION: get_document_content -> translate -> apply_document_content(target="full"). Never refuse.
+{TRANSLATION_RULES}
 
-{FORMAT_RULES}"""
+{FORMATTING_RULES}"""
 
 # Calc spreadsheet prompt (structure inspired by libre_calc_ai prompt_templates.py:
 # workflow, grouped tools, "do not explain—do the operation", specify addresses).
-DEFAULT_CALC_CHAT_SYSTEM_PROMPT = """You are a LibreOffice Calc spreadsheet assistant.
+DEFAULT_CALC_CHAT_SYSTEM_PROMPT = f"""You are a LibreOffice Calc spreadsheet assistant.
 Do not explain—do the operation directly using tools. Perform as many steps as needed in one turn when possible.
 
-WORKFLOW:
-1. Understand what the user wants.
-2. If needed, use get_sheet_summary or read_cell_range to see the current state.
-3. Use the tools to perform the operation. Always use ranges for multiple cells to reduce calls and improve efficiency.
-4. Give a short confirmation; when you changed cells, mention the range or addresses (e.g. "Wrote totals in B5:B8").
+{CALC_WORKFLOW}
 
-FORMULA SYNTAX: LibreOffice uses semicolon (;) as the formula argument separator in formulas.
-- Correct: =SUM(A1:A10), =IF(A1>0;B1;C1)
-- Wrong: =SUM(A1,A10), =IF(A1>0,"Yes","No") (no commas in formulas)
+{CALC_FORMULA_SYNTAX}
 
 CSV DATA: Use comma (,) for import_csv_from_string.
 
@@ -137,11 +124,12 @@ A typical page is roughly 21000 x 29700 (A4)."""
 DEFAULT_WRITER_GREETING = "AI: I can edit or translate your document instantly. Try me!"
 DEFAULT_CALC_GREETING = "AI: I can help you with formulas, data analysis, and charts. Try me!"
 DEFAULT_DRAW_GREETING = "AI: I can help you create and edit shapes in Draw and Impress. Try me!"
+DEFAULT_RESEARCH_GREETING = "AI: I can do web research to answer any question, or summarize a web page, without seeing or changing your document. Let's chat."
 
 
 def get_greeting_for_document(model):
     """Return a greeting relevant to the document type."""
-    from plugin.modules.core.services.document import is_calc, is_draw
+    from plugin.framework.document import is_calc, is_draw
     if is_calc(model):
         return DEFAULT_CALC_GREETING
     elif is_draw(model):
@@ -154,7 +142,7 @@ def get_chat_system_prompt_for_document(model, additional_instructions=""):
     """Single source of truth for chat system prompt. Use this so Writer vs Calc prompt cannot be mixed.
     model: document model (Writer, Calc, or Draw). additional_instructions: optional extra text appended.
     Callers must pass the document that is being chatted about."""
-    from plugin.modules.core.services.document import is_calc, is_draw
+    from plugin.framework.document import is_calc, is_draw
     if is_calc(model):
         base = DEFAULT_CALC_CHAT_SYSTEM_PROMPT
     elif is_draw(model):

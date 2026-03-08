@@ -1,4 +1,4 @@
-"""Simple file logging for LocalWriter. Single debug log + optional agent log; paths set via init_logging(ctx)."""
+"""Simple file logging for WriterAgent. Single debug log + optional agent log; paths set via init_logging(ctx)."""
 import os
 import sys
 import json
@@ -20,9 +20,9 @@ _watchdog_started = False
 _watchdog_interval_sec = 15
 _watchdog_threshold_sec = 30
 
-DEBUG_LOG_FILENAME = "localwriter_debug.log"
-AGENT_LOG_FILENAME = "localwriter_agent.log"
-FALLBACK_DEBUG = os.path.join(os.path.expanduser("~"), "localwriter_debug.log")
+DEBUG_LOG_FILENAME = "writeragent_debug.log"
+AGENT_LOG_FILENAME = "writeragent_agent.log"
+FALLBACK_DEBUG = os.path.join(os.path.expanduser("~"), "writeragent_debug.log")
 FALLBACK_AGENT = os.path.join(os.path.expanduser("~"), "localwriter_agent.log")
 
 
@@ -131,6 +131,80 @@ def debug_log(msg, context=None):
             f.write(line)
     except Exception:
         pass
+
+
+def format_tool_call_for_display(tool, args, method=None):
+    """Format an MCP tool call or generic method call for UI display, summarizing long arguments."""
+    try:
+        if tool:
+            args_dict = args or {}
+            arg_vals = []
+            if isinstance(args_dict, dict):
+                for k, v in args_dict.items():
+                    val_str = repr(v)
+                    if len(val_str) > 100:
+                        if isinstance(v, str):
+                            val_str = repr(v[:100] + "...")
+                        else:
+                            val_str = val_str[:100] + "..."
+                    arg_vals.append(f"{k}={val_str}")
+            args_str = ", ".join(arg_vals)
+            return f"{tool}({args_str})"
+        else:
+            return method or "GET"
+    except Exception as e:
+        return f"{tool or method} (format error: {e})"
+
+
+def format_tool_result_for_display(tool, result, args=None):
+    """Format an MCP tool result for UI display, extracting inner text/messages and summarizing length."""
+    try:
+        import json
+        res_str = str(result)
+        try:
+            res_dict = json.loads(result) if isinstance(result, str) else result
+            if isinstance(res_dict, dict) and "content" in res_dict and isinstance(res_dict["content"], list):
+                parts = []
+                for item in res_dict["content"]:
+                    if item.get("type") == "text":
+                        parts.append(item.get("text", ""))
+                if parts:
+                    res_str = " ".join(parts)
+                    try:
+                        inner_dict = json.loads(res_str)
+                        if isinstance(inner_dict, dict) and "message" in inner_dict:
+                            res_str = inner_dict["message"]
+                    except:
+                        pass
+        except:
+            pass
+
+        val_repr = repr(res_str)
+        if len(val_repr) > 150:
+            if isinstance(res_str, str):
+                val_repr = repr(res_str[:150] + "...")
+            else:
+                val_repr = val_repr[:150] + "..."
+                
+        args_str = ""
+        if args:
+            args_dict = args if isinstance(args, dict) else {}
+            arg_vals = []
+            for k, v in args_dict.items():
+                v_str = repr(v)
+                if len(v_str) > 100:
+                    if isinstance(v, str):
+                        v_str = repr(v[:100] + "...")
+                    else:
+                        v_str = v_str[:100] + "..."
+                arg_vals.append(f"{k}={v_str}")
+            args_str = ", ".join(arg_vals)
+            
+        if args_str:
+            return f"{tool}({args_str}) -> {val_repr}"
+        return f"{tool}() -> {val_repr}"
+    except Exception as e:
+        return f"{tool}() -> (format error: {e})"
 
 
 def agent_log(location, message, data=None, hypothesis_id=None, run_id=None):

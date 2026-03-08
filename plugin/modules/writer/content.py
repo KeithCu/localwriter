@@ -5,7 +5,7 @@ import logging
 from plugin.framework.tool_base import ToolBase
 from plugin.modules.writer import format_support
 
-log = logging.getLogger("localwriter.writer")
+log = logging.getLogger("writeragent.writer")
 
 
 # ------------------------------------------------------------------
@@ -97,7 +97,7 @@ class ApplyDocumentContent(ToolBase):
         "properties": {
             "content": {
                 "type": "string",
-                "description": "The new content (Markdown or HTML).",
+                "description": "The new content (HTML or plain text). Do not use Markdown.",
             },
             "target": {
                 "type": "string",
@@ -191,7 +191,7 @@ class ApplyDocumentContent(ToolBase):
             try:
                 if use_preserve:
                     # Select entire document directly
-                    from plugin.modules.core.services.document import get_document_length
+                    from plugin.framework.document import get_document_length
                     doc_len = get_document_length(ctx.doc)
                     rng = ctx.doc.getText().createTextCursor()
                     rng.gotoStart(False)

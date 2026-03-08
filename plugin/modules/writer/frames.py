@@ -4,7 +4,7 @@ import logging
 
 from plugin.framework.tool_base import ToolBase
 
-log = logging.getLogger("localwriter.writer")
+log = logging.getLogger("writeragent.writer")
 
 
 # ------------------------------------------------------------------
@@ -26,10 +26,10 @@ class ListTextFrames(ToolBase):
 
     def execute(self, ctx, **kwargs):
         doc = ctx.doc
-        if not hasattr(doc, "getTextFrames"):
-            return {"status": "error", "message": "Document does not support text frames."}
+        text_frames = self.get_collection(doc, "getTextFrames", "Document does not support text frames.")
+        if isinstance(text_frames, dict):
+            return text_frames
 
-        text_frames = doc.getTextFrames()
         frames = []
         for name in text_frames.getElementNames():
             try:
@@ -92,17 +92,14 @@ class GetTextFrameInfo(ToolBase):
         if not frame_name:
             return {"status": "error", "message": "frame_name is required."}
 
-        doc = ctx.doc
-        text_frames = doc.getTextFrames()
-        if not text_frames.hasByName(frame_name):
-            available = list(text_frames.getElementNames())
-            return {
-                "status": "error",
-                "message": "Text frame '%s' not found." % frame_name,
-                "available": available,
-            }
+        frame = self.get_item(
+            ctx.doc, "getTextFrames", frame_name,
+            missing_msg="Document does not support text frames.",
+            not_found_msg="Text frame '%s' not found." % frame_name
+        )
+        if isinstance(frame, dict):
+            return frame
 
-        frame = text_frames.getByName(frame_name)
         size = frame.getPropertyValue("Size")
 
         # Anchor type
@@ -217,15 +214,14 @@ class SetTextFrameProperties(ToolBase):
         if not frame_name:
             return {"status": "error", "message": "frame_name is required."}
 
-        doc = ctx.doc
-        text_frames = doc.getTextFrames()
-        if not text_frames.hasByName(frame_name):
-            return {
-                "status": "error",
-                "message": "Text frame '%s' not found." % frame_name,
-            }
+        frame = self.get_item(
+            ctx.doc, "getTextFrames", frame_name,
+            missing_msg="Document does not support text frames.",
+            not_found_msg="Text frame '%s' not found." % frame_name
+        )
+        if isinstance(frame, dict):
+            return frame
 
-        frame = text_frames.getByName(frame_name)
         updated = []
 
         # Size

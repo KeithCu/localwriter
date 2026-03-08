@@ -4,7 +4,7 @@ import logging
 
 from plugin.framework.tool_base import ToolBase
 
-log = logging.getLogger("localwriter.writer")
+log = logging.getLogger("writeragent.writer")
 
 
 class ListTables(ToolBase):
@@ -25,10 +25,10 @@ class ListTables(ToolBase):
 
     def execute(self, ctx, **kwargs):
         doc = ctx.doc
-        if not hasattr(doc, "getTextTables"):
-            return {"status": "error", "message": "Document does not support text tables."}
+        tables_sup = self.get_collection(doc, "getTextTables", "Document does not support text tables.")
+        if isinstance(tables_sup, dict):
+            return tables_sup
 
-        tables_sup = doc.getTextTables()
         tables = []
         for name in tables_sup.getElementNames():
             table = tables_sup.getByName(name)
@@ -63,17 +63,14 @@ class ReadTable(ToolBase):
         if not table_name:
             return {"status": "error", "message": "table_name is required."}
 
-        doc = ctx.doc
-        tables_sup = doc.getTextTables()
-        if not tables_sup.hasByName(table_name):
-            available = list(tables_sup.getElementNames())
-            return {
-                "status": "error",
-                "message": "Table '%s' not found." % table_name,
-                "available": available,
-            }
+        table = self.get_item(
+            ctx.doc, "getTextTables", table_name,
+            missing_msg="Document does not support text tables.",
+            not_found_msg="Table '%s' not found." % table_name
+        )
+        if isinstance(table, dict):
+            return table
 
-        table = tables_sup.getByName(table_name)
         rows = table.getRows().getCount()
         cols = table.getColumns().getCount()
 
@@ -158,17 +155,14 @@ class WriteTableCells(ToolBase):
             return {"status": "error", "message": "Invalid start_cell: %s (use Excel-style e.g. A1, B3)." % start_cell}
         start_row, start_col = parsed
 
-        doc = ctx.doc
-        tables_sup = doc.getTextTables()
-        if not tables_sup.hasByName(table_name):
-            available = list(tables_sup.getElementNames())
-            return {
-                "status": "error",
-                "message": "Table '%s' not found." % table_name,
-                "available": available,
-            }
+        table = self.get_item(
+            ctx.doc, "getTextTables", table_name,
+            missing_msg="Document does not support text tables.",
+            not_found_msg="Table '%s' not found." % table_name
+        )
+        if isinstance(table, dict):
+            return table
 
-        table = tables_sup.getByName(table_name)
         table_rows = table.getRows().getCount()
         table_cols = table.getColumns().getCount()
         num_rows = len(data)

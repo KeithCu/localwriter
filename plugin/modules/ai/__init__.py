@@ -3,17 +3,13 @@
 import logging
 from plugin.framework.module_base import ModuleBase
 
-log = logging.getLogger("localwriter.ai")
+log = logging.getLogger("writeragent.ai")
 
 
 class Module(ModuleBase):
 
     def initialize(self, services):
-        from plugin.modules.ai.service import AiService
-        from plugin.modules.ai.dict_config_proxy import (
-            DictConfigProxy, load_instances_json)
-        from plugin.modules.ai.service import AiInstance
-
+        from plugin.modules.ai.service import AiService, AiInstance
         ai = AiService()
         ai.set_config(services.config)
         services.register(ai)
@@ -22,79 +18,39 @@ class Module(ModuleBase):
 
         cfg = services.config.proxy_for("ai")
 
-        # 1. Initialize OpenAI-compatible providers
-        from .providers.openai import OpenAICompatProvider
-        instances = load_instances_json(cfg, "openai_instances")
-        if instances:
-            for inst_def in instances:
-                # Merge instance-specific and global defaults
-                data = {
-                    "endpoint": inst_def.get("endpoint") or cfg.get("openai_endpoint"),
-                    "model": inst_def.get("model") or cfg.get("openai_model"),
-                    "api_key": inst_def.get("api_key") or "",
-                    "temperature": cfg.get("ai_temperature"),
-                    "max_tokens": cfg.get("ai_max_tokens"),
-                }
-                proxy = DictConfigProxy(data)
-                provider = OpenAICompatProvider(proxy)
-                self._providers.append(provider)
-                
-                name = inst_def.get("name", "default")
-                instance_id = "ai_openai:%s" % name
-                ai.register_instance(instance_id, AiInstance(
-                    name=name, module_name="ai", provider=provider,
-                    capabilities={"text", "tools"}
-                ))
-                
-                if inst_def.get("image"):
-                    from .providers.openai import EndpointImageProvider
-                    img_provider = EndpointImageProvider(proxy)
-                    ai.register_instance(instance_id + ":image", AiInstance(
-                        name=name + " (image)", module_name="ai",
-                        provider=img_provider, capabilities={"image"}
-                    ))
+        # 1. OpenAI-compatible Provider
+        from .providers.openai import OpenAICompatProvider, EndpointImageProvider
+        openai_provider = OpenAICompatProvider(cfg)
+        self._providers.append(openai_provider)
+        ai.register_instance("openai", AiInstance(
+            name="OpenAI Endpoint", module_name="ai", provider=openai_provider,
+            capabilities={"text", "tools"}
+        ))
+        
+        # OpenAI Image Provider
+        openai_img_provider = EndpointImageProvider(cfg)
+        ai.register_instance("openai_image", AiInstance(
+            name="OpenAI Image", module_name="ai", provider=openai_img_provider,
+            capabilities={"image"}
+        ))
 
-        # 2. Initialize Ollama providers
+        # 2. Ollama Provider
         from .providers.ollama import OllamaProvider
-        instances = load_instances_json(cfg, "ollama_instances")
-        if instances:
-            for inst_def in instances:
-                data = {
-                    "endpoint": inst_def.get("endpoint") or cfg.get("ollama_endpoint"),
-                    "model": inst_def.get("model") or cfg.get("ollama_model"),
-                    "temperature": cfg.get("ai_temperature"),
-                    "max_tokens": cfg.get("ai_max_tokens"),
-                }
-                proxy = DictConfigProxy(data)
-                provider = OllamaProvider(proxy)
-                self._providers.append(provider)
-                
-                name = inst_def.get("name", "default")
-                instance_id = "ai_ollama:%s" % name
-                ai.register_instance(instance_id, AiInstance(
-                    name=name, module_name="ai", provider=provider,
-                    capabilities={"text", "tools"}
-                ))
+        ollama_provider = OllamaProvider(cfg)
+        self._providers.append(ollama_provider)
+        ai.register_instance("ollama", AiInstance(
+            name="Ollama", module_name="ai", provider=ollama_provider,
+            capabilities={"text", "tools"}
+        ))
 
-        # 3. Initialize AI Horde providers
+        # 3. AI Horde Provider
         from .providers.horde import HordeProvider
-        instances = load_instances_json(cfg, "horde_instances")
-        if instances:
-            for inst_def in instances:
-                data = {
-                    "api_key": inst_def.get("api_key") or cfg.get("horde_api_key"),
-                    "model": inst_def.get("model") or "stable_diffusion",
-                }
-                proxy = DictConfigProxy(data)
-                provider = HordeProvider(proxy)
-                self._providers.append(provider)
-                
-                name = inst_def.get("name", "default")
-                instance_id = "ai_horde:%s" % name
-                ai.register_instance(instance_id, AiInstance(
-                    name=name, module_name="ai", provider=provider,
-                    capabilities={"image"}
-                ))
+        horde_provider = HordeProvider(cfg)
+        self._providers.append(horde_provider)
+        ai.register_instance("horde", AiInstance(
+            name="AI Horde", module_name="ai", provider=horde_provider,
+            capabilities={"image"}
+        ))
 
     def shutdown(self):
         for provider in getattr(self, "_providers", []):

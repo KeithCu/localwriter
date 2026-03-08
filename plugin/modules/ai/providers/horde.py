@@ -8,7 +8,7 @@ import logging
 
 from plugin.modules.ai.provider_base import ImageProvider
 
-log = logging.getLogger("localwriter.ai_horde")
+log = logging.getLogger("writeragent.ai_horde")
 
 
 class _HordeInformer:
@@ -64,7 +64,7 @@ class HordeProvider(ImageProvider):
                 client_help_url="",
                 client_download_url="",
                 settings={},
-                client_name="LocalWriter_Horde_Client",
+                client_name="WriterAgent_Horde_Client",
                 informer=self._informer,
             )
         return self._client
@@ -75,8 +75,8 @@ class HordeProvider(ImageProvider):
         Returns:
             (file_paths: list[str], error: str | None)
         """
-        api_key = self._config.get("api_key") or "0000000000"
-        model = kwargs.get("model") or self._config.get("model") or "stable_diffusion"
+        api_key = self._config.get("horde_api_key") or "0000000000"
+        model = kwargs.get("model") or self._config.get("horde_model") or "stable_diffusion"
         width = kwargs.get("width", 512)
         height = kwargs.get("height", 512)
         max_wait = kwargs.get("max_wait") or self._config.get("max_wait") or 5

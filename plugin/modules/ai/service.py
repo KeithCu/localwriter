@@ -13,7 +13,7 @@ from plugin.contrib.default_models import (
     DEFAULT_MODELS, merge_catalogs, resolve_model_id,
 )
 
-log = logging.getLogger("localwriter.ai")
+log = logging.getLogger("writeragent.ai")
 
 
 class AiInstance:
@@ -63,35 +63,53 @@ class AiService(ServiceBase):
     # -- Instance lookup -------------------------------------------------------
 
     def get_instance(self, capability=None, instance_id=None):
-        """Get an AiInstance by explicit ID or active selection.
+        """Get an AiInstance by explicit ID or auto-routing.
 
         Args:
             capability: Required capability ("text", "image", "tools", ...).
-            instance_id: Explicit instance ID. If None, uses config selection.
+            instance_id: Explicit instance ID ("openai", "ollama", "horde", ...).
 
         Returns:
             AiInstance or None.
         """
         if instance_id:
-            inst = self._instances.get(instance_id)
-            if inst and (capability is None or capability in inst.capabilities):
-                return inst
-            return None
+            return self._instances.get(instance_id)
 
-        # Active selection from config
-        active_id = self._get_active_instance_id(capability)
-        if active_id:
-            inst = self._instances.get(active_id)
-            if inst and (capability is None or capability in inst.capabilities):
-                return inst
+        if not capability:
+            # Fallback: Prefer OpenAI then Ollama then Horde
+            for pref in ["openai", "ollama", "horde"]:
+                if pref in self._instances:
+                    return self._instances[pref]
+            return next(iter(self._instances.values())) if self._instances else None
+
+        # Auto-routing for text/tools
+        if capability in ("text", "tools"):
+            endpoint = ""
+            if self._config:
+                # Use current_endpoint directly from config service
+                from plugin.framework.config import get_current_endpoint
+                from plugin.framework.uno_context import get_ctx
+                endpoint = get_current_endpoint(get_ctx())
+
+            # Detect if it's Ollama
+            if endpoint and ("11434" in endpoint or "ollama" in endpoint.lower()):
+                return self._instances.get("ollama")
+            return self._instances.get("openai")
+
+        # Auto-routing for image
+        if capability == "image":
+            provider = "endpoint"
+            if self._config:
+                provider = self._config.get("chatbot.image_provider") or "endpoint"
+            
+            if provider == "ai_horde" or provider == "aihorde":
+                return self._instances.get("horde")
+            return self._instances.get("openai_image")
 
         # Fallback: first instance with the requested capability
-        if capability:
-            for inst in self._instances.values():
-                if capability in inst.capabilities:
-                    return inst
-        elif self._instances:
-            return next(iter(self._instances.values()))
+        for inst in self._instances.values():
+            if capability in inst.capabilities:
+                return inst
 
         return None
 
@@ -138,16 +156,8 @@ class AiService(ServiceBase):
     # -- Model catalog ---------------------------------------------------------
 
     def _load_global_models(self):
-        """Load the global YAML models file from ai.models_file config."""
-        if not self._config:
-            return
-        from plugin.modules.ai.yaml_loader import load_ai_config
-        yaml_path = self._config.get("ai.models_file", caller_module=None) or ""
-        yaml_data = load_ai_config(yaml_path)
-        if yaml_data and yaml_data.get("models"):
-            self._global_models = yaml_data["models"]
-            log.info("Global model catalog loaded: %d models",
-                     len(self._global_models))
+        """Load the global models (placeholder for future internal catalog)."""
+        pass
 
     def _load_custom_models(self):
         """Load custom models from ai.custom_models config (JSON list).
@@ -265,38 +275,13 @@ class AiService(ServiceBase):
         return inst.provider.get_status()
 
     def _get_active_instance_id(self, capability):
-        """Return the active instance: volatile first, then config default."""
-        cap = "image" if capability in ("image",) else "text"
-        # Volatile override (from sidebar)
-        val = self._active.get(cap)
-        if val is not None:
-            return val
-        # Fall back to config default
-        if not self._config:
-            return ""
-        if cap == "image":
-            key = "ai.default_image_instance"
-        else:
-            key = "ai.default_text_instance"
-        return self._config.get(key, caller_module=None) or ""
+        """No longer used; replaced by auto-routing in get_instance."""
+        return ""
 
 
 def _instance_label(inst):
-    """Format instance label as '[Provider] Name (model)'."""
-    provider = inst.module_name.rsplit(".", 1)[-1] if inst.module_name else "?"
-    name = inst.name or inst.module_name or "?"
-    model = ""
-    try:
-        cfg = getattr(inst.provider, "_config", None)
-        if cfg:
-            model = cfg.get("model") or ""
-    except Exception:
-        pass
-    if model:
-        # Shorten long model ids: keep last segment after /
-        short = model.rsplit("/", 1)[-1] if "/" in model else model
-        return "[%s] %s (%s)" % (provider, name, short)
-    return "[%s] %s" % (provider, name)
+    """Format instance label."""
+    return inst.name
 
 
 def get_text_instance_options(services):

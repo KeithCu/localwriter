@@ -4,6 +4,7 @@ Each tool is a ToolBase subclass that instantiates CalcBridge,
 CellInspector, and CellManipulator per call using ``ctx.doc``.
 """
 
+import json
 import logging
 
 from plugin.framework.tool_base import ToolBase
@@ -11,7 +12,7 @@ from plugin.modules.calc.bridge import CalcBridge
 from plugin.modules.calc.inspector import CellInspector
 from plugin.modules.calc.manipulator import CellManipulator
 
-logger = logging.getLogger("localwriter.calc")
+logger = logging.getLogger("writeragent.calc")
 
 
 # ── Colour helper ──────────────────────────────────────────────────────
@@ -57,11 +58,11 @@ class ReadCellRange(ToolBase):
         "type": "object",
         "properties": {
             "range_name": {
-                "type": ["string", "array"],
+                "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Cell range(s) (e.g. A1:D10, Sheet1.A1:C5) or list of "
-                    "ranges/cells for non-contiguous areas."
+                    "Cell range(s) (e.g. [\"A1:D10\"] or [\"A1\", \"C2:E5\"]) "
+                    "for one or more ranges/cells."
                 ),
             },
         },
@@ -74,15 +75,17 @@ class ReadCellRange(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         inspector = CellInspector(bridge)
-        rn = kwargs["range_name"]
+        rn = kwargs.get("range_name") or []
+        rn = [rn] if isinstance(rn, str) else (rn or [])
 
         try:
-            if isinstance(rn, list):
-                results = [inspector.read_range(r) for r in rn]
-                return {"status": "ok", "result": results}
-            else:
-                result = inspector.read_range(rn)
+            if len(rn) == 0:
+                return {"status": "error", "error": "range_name is required"}
+            if len(rn) == 1:
+                result = inspector.read_range(rn[0])
                 return {"status": "ok", "result": result}
+            results = [inspector.read_range(r) for r in rn]
+            return {"status": "ok", "result": results}
         except Exception as e:
             logger.exception("read_cell_range failed")
             return {"status": "error", "error": str(e)}
@@ -101,18 +104,18 @@ class WriteCellRange(ToolBase):
         "type": "object",
         "properties": {
             "range_name": {
-                "type": ["string", "array"],
+                "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Target range(s) (e.g. A1:A10, B2:D2) or list of "
-                    "ranges/cells for non-contiguous areas."
+                    "Target range(s) (e.g. [\"A1:A10\"] or [\"A1\", \"B2:D2\"]) "
+                    "for one or more ranges."
                 ),
             },
             "formula_or_values": {
-                "type": ["string", "number", "array"],
+                "type": "string",
                 "description": (
-                    "Single formula/value for all cells, or array of "
-                    "formulas/values for each cell. Formulas start with '='."
+                    "Formula (e.g. '=SUM(A1:A10)'), value, or JSON array string "
+                    "for multiple values (e.g. '[\"a\", \"b\"]'). Use '=' prefix for formulas."
                 ),
             },
         },
@@ -125,17 +128,24 @@ class WriteCellRange(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        rn = kwargs["range_name"]
-        fov = kwargs["formula_or_values"]
+        rn = kwargs.get("range_name") or []
+        rn = [rn] if isinstance(rn, str) else (rn or [])
+        fov = kwargs.get("formula_or_values")
+        # Normalize: schema is string for Gemini; accept number/list from other providers
+        if isinstance(fov, (int, float)):
+            fov = str(fov)
+        elif isinstance(fov, list):
+            fov = json.dumps(fov) if fov else ""
 
         try:
-            if isinstance(rn, list):
-                for r in rn:
-                    manipulator.write_formula_range(r, fov)
-                return {"status": "ok", "message": f"Wrote to {len(rn)} ranges"}
-            else:
-                result = manipulator.write_formula_range(rn, fov)
+            if len(rn) == 0:
+                return {"status": "error", "error": "range_name is required"}
+            if len(rn) == 1:
+                result = manipulator.write_formula_range(rn[0], fov)
                 return {"status": "ok", "message": result}
+            for r in rn:
+                manipulator.write_formula_range(r, fov)
+            return {"status": "ok", "message": f"Wrote to {len(rn)} ranges"}
         except Exception as e:
             logger.exception("write_formula_range failed")
             return {"status": "error", "error": str(e)}
@@ -154,11 +164,11 @@ class SetCellStyle(ToolBase):
         "type": "object",
         "properties": {
             "range_name": {
-                "type": ["string", "array"],
+                "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Target cell(s) or range(s) (e.g. A1:D10) or list of "
-                    "ranges/cells for non-contiguous areas."
+                    "Target cell(s) or range(s) (e.g. [\"A1:D10\"] or "
+                    "[\"A1\", \"B2\"])."
                 ),
             },
             "bold": {"type": "boolean", "description": "Bold font"},
@@ -203,7 +213,8 @@ class SetCellStyle(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        rn = kwargs["range_name"]
+        rn = kwargs.get("range_name") or []
+        rn = [rn] if isinstance(rn, str) else (rn or [])
 
         style_kwargs = {
             "bold": kwargs.get("bold"),
@@ -219,16 +230,17 @@ class SetCellStyle(ToolBase):
         }
 
         try:
-            if isinstance(rn, list):
-                for r in rn:
-                    manipulator.set_cell_style(r, **style_kwargs)
-                return {
-                    "status": "ok",
-                    "message": f"Style applied to {len(rn)} ranges",
-                }
-            else:
-                manipulator.set_cell_style(rn, **style_kwargs)
-                return {"status": "ok", "message": f"Style applied to {rn}"}
+            if len(rn) == 0:
+                return {"status": "error", "error": "range_name is required"}
+            if len(rn) == 1:
+                manipulator.set_cell_style(rn[0], **style_kwargs)
+                return {"status": "ok", "message": f"Style applied to {rn[0]}"}
+            for r in rn:
+                manipulator.set_cell_style(r, **style_kwargs)
+            return {
+                "status": "ok",
+                "message": f"Style applied to {len(rn)} ranges",
+            }
         except Exception as e:
             logger.exception("set_cell_style failed")
             return {"status": "error", "error": str(e)}
@@ -249,11 +261,10 @@ class MergeCells(ToolBase):
         "type": "object",
         "properties": {
             "range_name": {
-                "type": ["string", "array"],
+                "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Range(s) to merge (e.g. A1:D1) or list of ranges for "
-                    "non-contiguous areas."
+                    "Range(s) to merge (e.g. [\"A1:D1\"] or [\"A1:B1\", \"C1:D1\"])."
                 ),
             },
             "center": {
@@ -269,20 +280,22 @@ class MergeCells(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        rn = kwargs["range_name"]
+        rn = kwargs.get("range_name") or []
+        rn = [rn] if isinstance(rn, str) else (rn or [])
         center = kwargs.get("center", True)
 
         try:
-            if isinstance(rn, list):
-                for r in rn:
-                    manipulator.merge_cells(r, center=center)
-                return {
-                    "status": "ok",
-                    "message": f"Merged cells in {len(rn)} ranges",
-                }
-            else:
-                manipulator.merge_cells(rn, center=center)
-                return {"status": "ok", "message": f"Merged cells {rn}"}
+            if len(rn) == 0:
+                return {"status": "error", "error": "range_name is required"}
+            if len(rn) == 1:
+                manipulator.merge_cells(rn[0], center=center)
+                return {"status": "ok", "message": f"Merged cells {rn[0]}"}
+            for r in rn:
+                manipulator.merge_cells(r, center=center)
+            return {
+                "status": "ok",
+                "message": f"Merged cells in {len(rn)} ranges",
+            }
         except Exception as e:
             logger.exception("merge_cells failed")
             return {"status": "error", "error": str(e)}
@@ -301,11 +314,10 @@ class ClearRange(ToolBase):
         "type": "object",
         "properties": {
             "range_name": {
-                "type": ["string", "array"],
+                "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Range(s) to clear (e.g. A1:D10) or list of "
-                    "ranges/cells for non-contiguous areas."
+                    "Range(s) to clear (e.g. [\"A1:D10\"] or [\"A1\", \"B2:C3\"])."
                 ),
             },
         },
@@ -317,19 +329,21 @@ class ClearRange(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        rn = kwargs["range_name"]
+        rn = kwargs.get("range_name") or []
+        rn = [rn] if isinstance(rn, str) else (rn or [])
 
         try:
-            if isinstance(rn, list):
-                for r in rn:
-                    manipulator.clear_range(r)
-                return {
-                    "status": "ok",
-                    "message": f"Cleared {len(rn)} ranges",
-                }
-            else:
-                manipulator.clear_range(rn)
-                return {"status": "ok", "message": f"Cleared range {rn}"}
+            if len(rn) == 0:
+                return {"status": "error", "error": "range_name is required"}
+            if len(rn) == 1:
+                manipulator.clear_range(rn[0])
+                return {"status": "ok", "message": f"Cleared range {rn[0]}"}
+            for r in rn:
+                manipulator.clear_range(r)
+            return {
+                "status": "ok",
+                "message": f"Cleared {len(rn)} ranges",
+            }
         except Exception as e:
             logger.exception("clear_range failed")
             return {"status": "error", "error": str(e)}
@@ -349,11 +363,10 @@ class SortRange(ToolBase):
         "type": "object",
         "properties": {
             "range_name": {
-                "type": ["string", "array"],
+                "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Range(s) to sort (e.g. A1:D10) or list of ranges "
-                    "for non-contiguous areas."
+                    "Range(s) to sort (e.g. [\"A1:D10\"] or [\"A1:B10\", \"D1:E10\"])."
                 ),
             },
             "sort_column": {
@@ -385,28 +398,30 @@ class SortRange(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        rn = kwargs["range_name"]
+        rn = kwargs.get("range_name") or []
+        rn = [rn] if isinstance(rn, str) else (rn or [])
         sort_column = kwargs.get("sort_column", 0)
         ascending = kwargs.get("ascending", True)
         has_header = kwargs.get("has_header", True)
 
         try:
-            if isinstance(rn, list):
-                for r in rn:
-                    manipulator.sort_range(
-                        r, sort_column=sort_column,
-                        ascending=ascending, has_header=has_header,
-                    )
-                return {
-                    "status": "ok",
-                    "message": f"Sorted {len(rn)} ranges",
-                }
-            else:
+            if len(rn) == 0:
+                return {"status": "error", "error": "range_name is required"}
+            if len(rn) == 1:
                 result = manipulator.sort_range(
-                    rn, sort_column=sort_column,
+                    rn[0], sort_column=sort_column,
                     ascending=ascending, has_header=has_header,
                 )
                 return {"status": "ok", "message": result}
+            for r in rn:
+                manipulator.sort_range(
+                    r, sort_column=sort_column,
+                    ascending=ascending, has_header=has_header,
+                )
+            return {
+                "status": "ok",
+                "message": f"Sorted {len(rn)} ranges",
+            }
         except Exception as e:
             logger.exception("sort_range failed")
             return {"status": "error", "error": str(e)}
@@ -470,9 +485,10 @@ class DeleteStructure(ToolBase):
                 "description": "Type of structure to delete.",
             },
             "start": {
-                "type": ["integer", "string"],
+                "type": "string",
                 "description": (
-                    "For rows: row number (1-based); for columns: column letter."
+                    "For rows: 1-based row number (e.g. \"5\"); for columns: "
+                    "column letter (e.g. \"C\")."
                 ),
             },
             "count": {
@@ -489,8 +505,10 @@ class DeleteStructure(ToolBase):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
         structure_type = kwargs["structure_type"]
-        start = kwargs["start"]
+        start_raw = kwargs["start"]
         count = kwargs.get("count", 1)
+        # Normalize: rows accept integer or string; columns accept letter(s).
+        start = int(start_raw) if structure_type == "rows" and str(start_raw).isdigit() else start_raw
 
         try:
             result = manipulator.delete_structure(structure_type, start, count=count)
