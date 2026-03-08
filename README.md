@@ -2,6 +2,10 @@
 
 A LibreOffice extension (Python + UNO) that adds generative AI editing to Writer, Calc, and Draw.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/KeithCu/writeragent)
+
+> DeepWiki provides excellent analysis of the codebase, including visual dependency graphs.
+
 ## Features
 
 WriterAgent provides powerful AI-driven capabilities integrated directly into your LibreOffice suite:
@@ -71,7 +75,7 @@ Integrated cross-platform audio recording directly in the chat sidebar.
 
 WriterAgent isn't just a wrapper; it's built for performance and deep integration with LibreOffice:
 
-*   **Responsive Streaming Architecture**: Unlike simple extensions that freeze when waiting for an AI response, WriterAgent now uses a background thread and queue system. This keeps the LibreOffice UI alive and responsive while text and tool calls stream in and are executed.
+*   **Responsive Streaming Architecture**: Unlike simple extensions that freeze when waiting for an AI response, WriterAgent uses a background thread and queue system. This keeps the LibreOffice UI alive and responsive while text and tool calls stream in and are executed.
 *   **Interleaved Streaming & Multi-Step Tools**: The engine natively supports interleaved reasoning tokens, content streaming, and complex multi-turn tool calling. This allows for sophisticated AI behavior that handles multi-step tasks while keeping the user informed in real-time.
 *   **High-Throughput Performance (200+ tps)**: Optimized for speed, the system can easily handle 200 tokens per second with zero UI stutter.
 *   **Native Formatting Persistence**: For structured content (Markdown/HTML), WriterAgent injects AI-generated text using the import path, preserving native LibreOffice styles. For plain-text replacements (e.g. typo fixes), we preserve your existing per-character formatting so highlights, bold, and colors stay intact.
