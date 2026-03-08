@@ -28,12 +28,11 @@ class DetectErrors(ToolBase):
         "type": "object",
         "properties": {
             "range_name": {
-                "type": ["string", "array"],
+                "type": "array",
                 "items": {"type": "string"},
                 "description": (
-                    "Cell range(s) to check (e.g. A1:Z100) or list of "
-                    "ranges/cells for non-contiguous areas. Full sheet "
-                    "if empty."
+                    "Cell range(s) to check (e.g. [\"A1:Z100\"] or [\"A1\", \"B2\"]). "
+                    "Omit or use empty list for full sheet."
                 ),
             },
         },
@@ -47,9 +46,11 @@ class DetectErrors(ToolBase):
         inspector = CellInspector(bridge)
         error_detector = ErrorDetector(bridge, inspector)
         rn = kwargs.get("range_name")
+        if rn is not None and isinstance(rn, str):
+            rn = [rn] if rn else []
 
         try:
-            if rn and isinstance(rn, list):
+            if rn and isinstance(rn, list) and len(rn) > 0:
                 results = [
                     error_detector.detect_and_explain(range_str=r) for r in rn
                 ]
