@@ -1,5 +1,9 @@
 import json
-import sqlite3
+try:
+    import sqlite3
+    HAS_SQLITE = True
+except ImportError:
+    HAS_SQLITE = False
 import logging
 import os
 
@@ -54,6 +58,8 @@ def message_to_dict(role, content, tool_calls=None):
 # ---------------------------------------------------------------------------
 class SQLite3History:
     def __init__(self, session_id, db_path):
+        if not HAS_SQLITE:
+            raise ImportError("sqlite3 module is not available")
         self.session_id = session_id
         self.db_path = db_path
         self._init_db()
@@ -98,11 +104,72 @@ class SQLite3History:
             conn.commit()
 
 # ---------------------------------------------------------------------------
+# JSON Implementation (Fallback)
+# ---------------------------------------------------------------------------
+class JSONHistory:
+    def __init__(self, session_id, db_path):
+        self.session_id = session_id
+        # Use a directory based on the db_path filename (e.g. writeragent_history.json.d/)
+        self.history_dir = db_path + ".d"
+        try:
+            if not os.path.exists(self.history_dir):
+                os.makedirs(self.history_dir, exist_ok=True)
+            from plugin.framework.logging import debug_log
+            debug_log(f"JSONHistory: Using directory {self.history_dir}", context="HistoryDB")
+        except Exception as e:
+            from plugin.framework.logging import debug_log
+            debug_log(f"JSONHistory: Error creating directory: {e}", context="HistoryDB")
+        
+        self.file_path = os.path.join(self.history_dir, f"{session_id}.json")
+
+    def add_message(self, role, content, tool_calls=None):
+        msg_dict = message_to_dict(role, content, tool_calls)
+        messages = self.get_messages()
+        messages.append(msg_dict)
+        try:
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                json.dump(messages, f, indent=2)
+            from plugin.framework.logging import debug_log
+            debug_log(f"JSONHistory: Added message for session {self.session_id}", context="HistoryDB")
+        except Exception as e:
+            from plugin.framework.logging import debug_log
+            debug_log(f"JSONHistory: Error saving message: {e}", context="HistoryDB")
+
+    def get_messages(self):
+        if not os.path.exists(self.file_path):
+            return []
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as f:
+                msgs = json.load(f)
+            from plugin.framework.logging import debug_log
+            debug_log(f"JSONHistory: Retreived {len(msgs)} messages for session {self.session_id}", context="HistoryDB")
+            return msgs
+        except Exception as e:
+            from plugin.framework.logging import debug_log
+            debug_log(f"JSONHistory: Error reading messages: {e}", context="HistoryDB")
+            return []
+
+    def clear(self):
+        if os.path.exists(self.file_path):
+            try:
+                os.remove(self.file_path)
+            except Exception as e:
+                from plugin.framework.logging import debug_log
+                debug_log(f"JSONHistory: Error clearing history: {e}", context="HistoryDB")
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 def get_chat_history(session_id, db_path=None):
     if not db_path:
         db_path = _get_db_path()
-    logger.debug(f"Using native sqlite3 for chat history at {db_path}")
-    return SQLite3History(session_id, db_path)
+
+    try:
+        from plugin.framework.logging import debug_log
+        debug_log(f"Attempting to use native sqlite3 for chat history at {db_path}", context="HistoryDB")
+        return SQLite3History(session_id, db_path)
+    except Exception as e:
+        from plugin.framework.logging import debug_log
+        debug_log(f"SQLite3 failed, falling back to JSON: {e}", context="HistoryDB")
+        return JSONHistory(session_id, db_path)
 
