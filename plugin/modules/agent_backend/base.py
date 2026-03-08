@@ -1,6 +1,5 @@
 """Abstract base for agent backends. All adapters push events into a queue.Queue."""
 
-import threading
 
 
 class AgentBackend:

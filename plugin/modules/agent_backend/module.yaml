@@ -15,6 +15,10 @@ config:
         label: Aider
       - value: hermes
         label: Hermes
+      - value: openhands
+        label: OpenHands
+      - value: opencode
+        label: OpenCode
 
   path:
     type: string
