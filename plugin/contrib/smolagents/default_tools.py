@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 # coding=utf-8
 
-import sqlite3
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
+
+try:
+    from plugin.framework.sqlite_available import HAS_SQLITE, sqlite3
+except Exception:
+    HAS_SQLITE = False
+    sqlite3 = None  # type: ignore[assignment]
 
 from .local_python_executor import (
     BASE_BUILTIN_MODULES,
@@ -50,7 +55,7 @@ def _is_garbage_text(s: str) -> bool:
     return (garbage_count / len(s)) > _GARBAGE_RATIO_THRESHOLD
 
 
-def _web_cache_ensure_schema(conn: sqlite3.Connection) -> None:
+def _web_cache_ensure_schema(conn: Any) -> None:
     conn.execute(
         "CREATE TABLE IF NOT EXISTS web_cache "
         "(kind TEXT, key TEXT, value TEXT, size INTEGER, created_at REAL, PRIMARY KEY (kind, key))"
@@ -60,6 +65,8 @@ def _web_cache_ensure_schema(conn: sqlite3.Connection) -> None:
 
 def _web_cache_with_connection(db_path: str, fn):
     """Run fn(conn) with a locked connection; retry on database locked/busy."""
+    if not HAS_SQLITE:
+        return None
     for attempt in range(_WEB_CACHE_MAX_RETRIES):
         with _WEB_CACHE_LOCK:
             try:
@@ -77,8 +84,8 @@ def _web_cache_with_connection(db_path: str, fn):
 
 
 def _web_cache_get(db_path: str, kind: str, key: str) -> str | None:
-    """Return cached value for (kind, key), or None. On hit, touch row (update created_at)."""
-    if not db_path or not key:
+    """Return cached value for (kind, key), or None. On hit, touch row (update created_at). No-op when SQLite unavailable."""
+    if not HAS_SQLITE or not db_path or not key:
         return None
 
     def do_get(conn):
@@ -96,8 +103,8 @@ def _web_cache_get(db_path: str, kind: str, key: str) -> str | None:
 
 
 def _web_cache_set(db_path: str, kind: str, key: str, value: str, max_size_bytes: int) -> None:
-    """Store (kind, key) -> value; evict oldest entries until total size <= max_size_bytes."""
-    if not db_path or not key or max_size_bytes <= 0:
+    """Store (kind, key) -> value; evict oldest entries until total size <= max_size_bytes. No-op when SQLite unavailable."""
+    if not HAS_SQLITE or not db_path or not key or max_size_bytes <= 0:
         return
     size = len(value.encode("utf-8"))
 

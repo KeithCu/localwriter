@@ -15,13 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import json
-try:
-    import sqlite3
-    HAS_SQLITE = True
-except ImportError:
-    HAS_SQLITE = False
 import logging
 import os
+
+from plugin.framework.sqlite_available import HAS_SQLITE, sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +71,6 @@ def message_to_dict(role, content, tool_calls=None):
 # ---------------------------------------------------------------------------
 class SQLite3History:
     def __init__(self, session_id, db_path):
-        if not HAS_SQLITE:
-            raise ImportError("sqlite3 module is not available")
         self.session_id = session_id
         self.db_path = db_path
         self._init_db()
@@ -180,12 +175,16 @@ def get_chat_history(session_id, db_path=None):
     if not db_path:
         db_path = _get_db_path()
 
+    if not HAS_SQLITE:
+        from plugin.framework.logging import debug_log
+        debug_log("SQLite not available; using JSON fallback for chat history", context="HistoryDB")
+        return JSONHistory(session_id, db_path)
     try:
         from plugin.framework.logging import debug_log
-        debug_log(f"Attempting to use native sqlite3 for chat history at {db_path}", context="HistoryDB")
+        debug_log(f"Using SQLite for chat history at {db_path}", context="HistoryDB")
         return SQLite3History(session_id, db_path)
     except Exception as e:
         from plugin.framework.logging import debug_log
-        debug_log(f"SQLite3 failed, falling back to JSON: {e}", context="HistoryDB")
+        debug_log(f"SQLite failed, falling back to JSON: {e}", context="HistoryDB")
         return JSONHistory(session_id, db_path)
 

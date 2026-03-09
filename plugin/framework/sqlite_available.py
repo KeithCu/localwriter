@@ -14,6 +14,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Single source of truth for extension version."""
+"""Global guard: sqlite3 availability. When False, chat history uses JSON fallback and web cache is disabled."""
 
-EXTENSION_VERSION = "0.4.0-beta"
+try:
+    import sqlite3
+    HAS_SQLITE = True
+except ImportError:
+    sqlite3 = None  # type: ignore[assignment]
+    HAS_SQLITE = False
