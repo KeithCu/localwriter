@@ -173,11 +173,11 @@ def set_document_property(model, name, value):
     try:
         if hasattr(model, "getDocumentProperties"):
             props = model.getDocumentProperties().UserDefinedProperties
-            if not props.hasByName(name):
+            if props is not None and hasattr(props, "hasByName") and not props.hasByName(name):
                 # Using a fixed type (string) for session IDs
                 from com.sun.star.beans.PropertyAttribute import REMOVABLE
                 props.addProperty(name, REMOVABLE, str(value))
-            else:
+            elif props is not None and hasattr(props, "setPropertyValue"):
                 props.setPropertyValue(name, str(value))
     except Exception as e:
         # Fallback to debug log if available, but avoid circular imports

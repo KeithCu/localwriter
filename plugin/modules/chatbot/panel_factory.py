@@ -138,9 +138,14 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
 
         if self._initial is None:
             self._capture_initial(win)
+
         if self._initial is None:
             debug_log("_relayout: no initial state, skip", context="Chat")
             return
+
+        iw = self._initial["win_w"]
+        ih = self._initial["win_h"]
+        resp_bottom = self._initial.get("resp_bottom", 0)
 
         # Use anchoring/filling instead of scaling ratios to prevent feedback loops.
         # Controls in fluid_controls will stretch to fill width.
