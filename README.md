@@ -103,11 +103,11 @@ WriterAgent stands on the shoulders of giants. We'd like to give massive credit 
 
 **[LibreCalc AI Assistant](https://extensions.libreoffice.org/en/extensions/show/99509)**
 
-Their pioneering work on AI support for LibreOffice provided the foundation and inspiration for our enhanced Calc integration. We've built upon their excellent tools to create more ambitious and performance-oriented spreadsheet features. We encourage everyone to check out their extension and join the effort to improve free, local AI for everyone!
+Their pioneering work on AI support for LibreOffice provided the foundation and inspiration for our enhanced Calc integration. We've built upon their excellent tools to create more ambitious and performance-oriented spreadsheet features. We sent multiple emails thanking them and asking to work together but haven't heard back.
 
 **[LibreOffice MCP Extension](https://github.com/quazardous/mcp-libre)**
 
-Their work on an embedded MCP (Model Context Protocol) server for LibreOffice was an invaluable reference for expanding WriterAgent's Writer tool set. From their project we adapted production-quality UNO implementations for style inspection, comment management, track-changes control, and table editing — resulting in 12 new Writer tools now available to WriterAgent's embedded AI. We also used their patterns for server lifecycle, health-check probing, and port utilities when we added WriterAgent's built-in MCP HTTP server. We're grateful for the high-quality open work and encourage everyone to check it out.
+Their work on an embedded MCP (Model Context Protocol) server for LibreOffice was an invaluable reference for expanding WriterAgent's Writer tool set. From their project we adapted production-quality UNO implementations for style inspection, comment management, track-changes control, and table editing — resulting in 12 new Writer tools now available to WriterAgent's embedded AI. We also used their patterns for server lifecycle, health-check probing, and port utilities when we added WriterAgent's built-in MCP HTTP server. We're grateful for the high-quality open work.
 
 ## Performance & Batch Optimizations
 
