@@ -3,6 +3,7 @@ name = "WriterAgent"
 dynamic = ["version"]
 description = "LibreOffice AI writing assistant with MCP server"
 requires-python = ">=3.8"
+license = {text = "GPL-3.0-or-later"}
 
 [project.optional-dependencies]
 dev = [

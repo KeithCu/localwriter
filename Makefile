@@ -1,4 +1,8 @@
 # Makefile — LocalWriter extension build & dev tools.
+# Copyright (c) 2024 John Balis
+# Copyright (c) 2025-2026 quazardous (registries, build system)
+# Copyright (c) 2026 KeithCu (modifications and relicensing)
+#
 #
 # Cross-platform: detects Windows vs Linux/macOS and calls .ps1 or .sh scripts.
 #

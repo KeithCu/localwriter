@@ -246,8 +246,15 @@ make help
 ```
 
 ## License
-WriterAgent is primarily released under the **MPL 2.0** license. See `License.txt` for details.
+WriterAgent is released under the **GNU General Public License v3 (or later)**. See `LICENSE` for the full text.
+
+### History & Attribution
+WriterAgent was originally released under the **MPL 2.0** license. In 2026, it was transitioned to GPL v3 to ensure stronger protection for user freedoms and better compatibility with modern Python libraries.
+
 Copyright (c) 2024 John Balis
+Copyright (c) 2025-2026 quazardous (config, registries, build system)
+Copyright (c) 2026 LibreCalc AI Assistant (Calc integration features, originally MIT)
+Copyright (c) 2026 KeithCu (modifications and relicensing)
 
 *Architecture diagram created by Sonnet 4.6.*
 

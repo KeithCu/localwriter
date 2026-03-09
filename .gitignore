@@ -16,6 +16,12 @@ __pycache__/
 
 # Log files
 log.txt
+writeragent_debug.log
+writeragent_agent.log
+writeragent_history.db*
+writeragent_web_cache.db*
+writeragent.log
+soffice-debug.log
 
 # IDE files
 .vscode/

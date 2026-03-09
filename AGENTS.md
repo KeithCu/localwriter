@@ -23,6 +23,8 @@
 
 Config is stored in `writeragent.json` in LibreOffice's user config directory. See `CONFIG_EXAMPLES.md` for examples (Ollama, OpenWebUI, OpenRouter, etc.).
 
+**Licensing**: In March 2026, the project was relicensed from MPL 2.0 to **GPL v3 (or later)** to better support community contributions and clarify patent grants. Original work by John Balis (MPL 2.0) is attributed in file headers and the installer. Significant contributions to the framework and build system were provided by [quazardous](https://github.com/quazardous/), and Calc integration features were provided by **LibreCalc AI Assistant** (originally under MIT).
+
 ---
 
 ## 2. Repository Structure
