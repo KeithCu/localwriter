@@ -96,7 +96,7 @@ READ:
 - get_sheet_summary: Summary of the active sheet (size, headers, used range).
 
 WRITE & FORMAT:
-- write_formula_range: Write formulas or values to a range efficiently. Use single value for entire range or array for each cell. Always use ranges for efficiency; avoid single-cell operations.
+- write_formula_range: Single string fills entire range; JSON array must match range size exactly (one value per cell). Use ranges for efficiency; avoid single-cell operations.
 - set_cell_style: Formatting (bold, colors, alignment, number format) for a range. Prefer ranges for efficiency; use after bulk writes.
 - import_csv_from_string: Bulk insert CSV data into the sheet starting at a cell. Use for large datasets.
 - merge_cells: Merge a range (e.g. headers); then write and style with write_formula_range/set_cell_style.

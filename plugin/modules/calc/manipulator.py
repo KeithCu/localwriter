@@ -433,8 +433,10 @@ class CellManipulator:
             if isinstance(formula_or_values, (list, tuple)):
                 if len(formula_or_values) != total_cells:
                     raise ValueError(
-                        f"Array length {len(formula_or_values)} doesn't match "
-                        f"range size {total_cells}"
+                        f"Array has {len(formula_or_values)} values but range has "
+                        f"{total_cells} cells. Use a single string to fill the whole "
+                        "range, or an array with exactly that many values for "
+                        "cell-by-cell control."
                     )
                 values = formula_or_values
             else:

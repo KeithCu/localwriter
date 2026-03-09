@@ -114,8 +114,8 @@ class WriteCellRange(ToolBase):
     name = "write_formula_range"
     description = (
         "Writes formulas or values to a cell range(s) efficiently. "
-        "Use a single value to fill the entire range, or an array of "
-        "values for each cell. Supports lists for non-contiguous areas."
+        "Single string fills entire range; JSON array must match range size "
+        "exactly (one value per cell). Supports lists for non-contiguous areas."
     )
     parameters = {
         "type": "object",
@@ -131,8 +131,9 @@ class WriteCellRange(ToolBase):
             "formula_or_values": {
                 "type": "string",
                 "description": (
-                    "Formula (e.g. '=SUM(A1:A10)'), value, or JSON array string "
-                    "for multiple values (e.g. '[\"a\", \"b\"]'). Use '=' prefix for formulas."
+                    "Single string: fills the entire range with that value or formula "
+                    "(use '=' prefix for formulas). JSON array: must have exactly as "
+                    "many elements as cells in the range (e.g. '[\"a\", \"b\"]' for 2 cells)."
                 ),
             },
         },
