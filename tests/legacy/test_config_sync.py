@@ -20,16 +20,16 @@ class TestConfigSync(unittest.TestCase):
         self.ctx = MagicMock()
         self.config_data = {}
         
-        # Mock get_config and set_config
-        def mock_get_config(ctx, key, default):
-            return self.config_data.get(key, default)
+        # Mock get_config and set_config (get_config no longer takes default; mock supplies "" when missing)
+        def mock_get_config(ctx, key):
+            return self.config_data.get(key, "")
         
         def mock_set_config(ctx, key, value):
             self.config_data[key] = value
             
-        self.get_patcher = patch('core.config.get_config', side_effect=mock_get_config)
-        self.set_patcher = patch('core.config.set_config', side_effect=mock_set_config)
-        self.notify_patcher = patch('core.config.notify_config_changed')
+        self.get_patcher = patch('plugin.framework.config.get_config', side_effect=mock_get_config)
+        self.set_patcher = patch('plugin.framework.config.set_config', side_effect=mock_set_config)
+        self.notify_patcher = patch('plugin.framework.config.notify_config_changed')
         
         self.mock_get = self.get_patcher.start()
         self.mock_set = self.set_patcher.start()
@@ -50,12 +50,12 @@ class TestConfigSync(unittest.TestCase):
 
     def test_set_image_model_endpoint(self):
         self.config_data["image_provider"] = "endpoint"
-        with patch('core.config.update_lru_history') as mock_lru:
+        with patch('plugin.framework.config.update_lru_history') as mock_lru:
             set_image_model(self.ctx, "new-endpoint-model")
             
             self.assertEqual(self.config_data.get("image_model"), "new-endpoint-model")
             self.assertIsNone(self.config_data.get("aihorde_model"))
-            mock_lru.assert_called_once_with(self.ctx, "new-endpoint-model", "image_model_lru")
+            mock_lru.assert_called_once_with(self.ctx, "new-endpoint-model", "image_model_lru", "")
             self.mock_notify.assert_called_once_with(self.ctx)
 
     def test_get_image_model(self):

@@ -43,7 +43,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
             dlg.getModel().Title = title
         
         prompt_ctrl = dlg.getControl("prompt_selector")
-        current_prompt = get_config(ctx, "additional_instructions", "")
+        current_prompt = get_config(ctx, "additional_instructions")
         populate_combobox_with_lru(ctx, prompt_ctrl, current_prompt, "prompt_lru", "")
 
         model_selector = get_optional(dlg, "model_selector")
@@ -180,9 +180,9 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                                     text_ctrl = self._dlg.getControl("text_model")
                                     image_ctrl = self._dlg.getControl("image_model")
                                     if text_ctrl:
-                                        populate_combobox_with_lru(self._ctx, text_ctrl, get_config(self._ctx, "text_model", "") or get_config(self._ctx, "model", ""), "model_lru", resolved)
+                                        populate_combobox_with_lru(self._ctx, text_ctrl, get_config(self._ctx, "text_model") or get_config(self._ctx, "model") or "", "model_lru", resolved)
                                     if image_ctrl:
-                                        if get_config(self._ctx, "image_provider", "aihorde") == "endpoint":
+                                        if get_config(self._ctx, "image_provider") == "endpoint":
                                             populate_combobox_with_lru(self._ctx, image_ctrl, get_image_model(self._ctx), "image_model_lru", resolved)
                                         else:
                                             populate_image_model_selector(self._ctx, image_ctrl)
@@ -309,11 +309,11 @@ def show_eval_dashboard(ctx):
 
     try:
         endpoint_ctrl = dlg.getControl("endpoint")
-        endpoint_ctrl.getModel().Text = str(get_config(ctx, "endpoint", ""))
+        endpoint_ctrl.getModel().Text = str(get_config(ctx, "endpoint") or "")
         
         model_ctrl = dlg.getControl("models")
-        current_model = str(get_config(ctx, "text_model", "") or get_config(ctx, "model", ""))
-        current_endpoint = str(get_config(ctx, "endpoint", "")).strip()
+        current_model = str(get_config(ctx, "text_model") or get_config(ctx, "model") or "")
+        current_endpoint = str(get_config(ctx, "endpoint") or "").strip()
         populate_combobox_with_lru(ctx, model_ctrl, current_model, "model_lru", current_endpoint)
 
         class EvalRunListener(unohelper.Base, XActionListener):

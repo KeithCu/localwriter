@@ -102,17 +102,122 @@ def user_config_dir(ctx):
         return None
 
 
-def get_config(ctx, key, default):
-    """Get a config value by key. Returns default if missing or on error."""
-    config_file_path = _config_path(ctx)
-    if not config_file_path or not os.path.exists(config_file_path):
-        return default
+def _get_schema_default(key):
+    """Return default for key from MODULES (module.yaml schema). Supports flat and dotted keys."""
     try:
-        with open(config_file_path, "r", encoding="utf-8") as f:
-            config_data = json.load(f)
-    except (IOError, json.JSONDecodeError):
-        return default
-    return config_data.get(key, default)
+        from plugin._manifest import MODULES
+    except ImportError:
+        return None
+    # Dotted key (e.g. agent_backend.backend_id)
+    if "." in key:
+        mod_name, field_name = key.split(".", 1)
+        for m in MODULES:
+            if m.get("name") == mod_name:
+                for fname, schema in m.get("config", {}).items():
+                    if fname == field_name and "default" in schema:
+                        return schema["default"]
+        return None
+    # Flat key: find first module that has this config field
+    for m in MODULES:
+        for fname, schema in m.get("config", {}).items():
+            if fname == key and "default" in schema:
+                return schema["default"]
+    return None
+
+
+def _dotted_fallback_keys(key):
+    """Yield dotted key variants for key using MODULES (e.g. extend_selection_max_tokens -> chatbot.extend_selection_max_tokens)."""
+    try:
+        from plugin._manifest import MODULES
+    except ImportError:
+        return
+    if "." in key:
+        return
+    for m in MODULES:
+        mod_name = m.get("name", "")
+        if not mod_name:
+            continue
+        for fname in m.get("config", {}):
+            if fname == key:
+                yield f"{mod_name}.{fname}"
+                break
+
+
+# Central fallback for keys not in any module.yaml. Single source of defaults in code.
+_CONFIG_DEFAULTS = {
+    "endpoint": "http://127.0.0.1:5000",
+    "text_model": "",
+    "model": "",
+    "temperature": -1,
+    "additional_instructions": "",
+    "chat_context_length": 8000,
+    "chat_max_tokens": 16384,
+    "request_timeout": 120,
+    "chat_max_tool_rounds": 5,
+    "stt_model": "",
+    "api_key": "",
+    "api_keys_by_endpoint": {},
+    "aihorde_api_key": "",
+    "image_base_size": 512,
+    "image_default_aspect": "Square",
+    "image_cfg_scale": 7.5,
+    "image_steps": 30,
+    "image_nsfw": False,
+    "image_censor_nsfw": True,
+    "image_max_wait": 5,
+    "image_auto_gallery": True,
+    "image_insert_frame": False,
+    "image_translate_prompt": True,
+    "image_translate_from": "",
+    "image_model": "",
+    "image_provider": "aihorde",
+    "aihorde_model": "stable_diffusion",
+    "seed": "",
+    "show_search_thinking": False,
+    "enable_agent_log": False,
+    "web_cache_max_mb": 50,
+    "is_openwebui": False,
+    "extend_selection_system_prompt": "",
+    "edit_selection_system_prompt": "",
+    "audio_support_map": {},
+    "chat_direct_image": False,
+    "calc_prompt_max_tokens": 70,
+}
+
+
+def _resolve_default(key):
+    """Resolve default for key: schema first, then central dict. Safe fallbacks for None."""
+    val = _get_schema_default(key)
+    if val is not None:
+        return val
+    val = _CONFIG_DEFAULTS.get(key)
+    if val is not None:
+        return val
+    if "@" in key or key.endswith("_lru"):
+        return []
+    if "by_endpoint" in key or "_map" in key:
+        return {}
+    return ""
+
+
+def get_config(ctx, key):
+    """Get a config value by key. JSON overrides; when key is missing, use schema default then central fallback."""
+    config_file_path = _config_path(ctx)
+    config_data = {}
+    if config_file_path and os.path.exists(config_file_path):
+        try:
+            with open(config_file_path, "r", encoding="utf-8") as f:
+                config_data = json.load(f)
+        except (IOError, json.JSONDecodeError):
+            pass
+    if not isinstance(config_data, dict):
+        config_data = {}
+    if key in config_data:
+        return config_data[key]
+    for dotted in _dotted_fallback_keys(key):
+        if dotted in config_data:
+            return config_data[dotted]
+    return _resolve_default(key)
 
 
 def get_config_dict(ctx):
@@ -129,7 +234,7 @@ def get_config_dict(ctx):
 
 def get_current_endpoint(ctx):
     """Return the current endpoint URL from config, normalized (stripped)."""
-    return str(get_config(ctx, "endpoint", "")).strip()
+    return str(get_config(ctx, "endpoint") or "").strip()
 
 
 def set_config(ctx, key, value):
@@ -255,7 +360,7 @@ def has_native_audio(ctx, model_id, endpoint):
     endpoint = _normalize_endpoint_url(endpoint)
     
     # 1. Persistent Cache Check
-    cache = get_config(ctx, "audio_support_map", {})
+    cache = get_config(ctx, "audio_support_map")
     if isinstance(cache, dict):
         key = f"{endpoint}@{model_id}"
         if key in cache:
@@ -283,7 +388,7 @@ def set_native_audio_support(ctx, model_id, endpoint, supported):
     endpoint = _normalize_endpoint_url(endpoint)
     key = f"{endpoint}@{model_id}"
     
-    cache = get_config(ctx, "audio_support_map", {})
+    cache = get_config(ctx, "audio_support_map")
     if not isinstance(cache, dict):
         cache = {}
     
@@ -297,10 +402,10 @@ def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint):
     Merges relevant default models based on the capability inferred from lru_key.
     Returns the value set."""
     scoped_key = f"{lru_key}@{endpoint}" if endpoint else lru_key
-    lru = get_config(ctx, scoped_key, [])
+    lru = get_config(ctx, scoped_key)
     if not isinstance(lru, list):
         lru = []
-    
+
     provider = get_provider_from_endpoint(endpoint)
     req_cap = "image" if "image" in lru_key.lower() else "audio" if "audio" in lru_key.lower() or "stt" in lru_key.lower() else "text"
     
@@ -339,7 +444,7 @@ def update_lru_history(ctx, val, lru_key, endpoint, max_items=None):
         return
 
     scoped_key = f"{lru_key}@{endpoint}" if endpoint else lru_key
-    lru = get_config(ctx, scoped_key, [])
+    lru = get_config(ctx, scoped_key)
     if not isinstance(lru, list):
         lru = []
 
@@ -351,16 +456,19 @@ def update_lru_history(ctx, val, lru_key, endpoint, max_items=None):
 
 def get_text_model(ctx):
     """Return the text/chat model (stored as text_model, fallback to model)."""
-    return str(get_config(ctx, "text_model", "") or get_config(ctx, "model", "")).strip()
+    return str(get_config(ctx, "text_model") or get_config(ctx, "model") or "").strip()
+
 
 def get_stt_model(ctx):
     """Return the configured STT model."""
     from plugin.contrib.default_models import get_provider_defaults
+    val = get_config(ctx, "stt_model")
+    if val is not None and str(val).strip():
+        return str(val).strip()
     current_endpoint = get_current_endpoint(ctx)
     provider = get_provider_from_endpoint(current_endpoint)
     defaults = get_provider_defaults(provider)
-    default_stt = defaults.get("stt_model", "")
-    return str(get_config(ctx, "stt_model", default_stt)).strip()
+    return str(defaults.get("stt_model", "") or "").strip()
 
 
 def get_endpoint_presets():
@@ -404,7 +512,7 @@ def populate_endpoint_selector(ctx, ctrl, current_endpoint):
     current_url = _normalize_endpoint_url(current_endpoint or "")
 
     preset_labels = [label for label, _ in ENDPOINT_PRESETS]
-    lru = get_config(ctx, "endpoint_lru", [])
+    lru = get_config(ctx, "endpoint_lru")
     if not isinstance(lru, list):
         lru = []
 
@@ -443,7 +551,7 @@ def get_endpoint_options(services):
         preset_urls.add(url_norm)
         options.append({"value": url_norm, "label": label})
 
-    lru = get_config(ctx, "endpoint_lru", [])
+    lru = get_config(ctx, "endpoint_lru")
     if not isinstance(lru, list):
         lru = []
     for url in lru:
@@ -467,10 +575,10 @@ def validate_api_config(config):
 
 def get_image_model(ctx):
     """Return current image model based on provider."""
-    image_provider = get_config(ctx, "image_provider", "aihorde")
+    image_provider = get_config(ctx, "image_provider")
     if image_provider == "aihorde":
-        return str(get_config(ctx, "aihorde_model", "stable_diffusion")).strip()
-    return str(get_config(ctx, "image_model", "")).strip()
+        return str(get_config(ctx, "aihorde_model") or "").strip()
+    return str(get_config(ctx, "image_model") or "").strip()
 
 
 def set_image_model(ctx, val, update_lru=True):
@@ -481,7 +589,7 @@ def set_image_model(ctx, val, update_lru=True):
     if not val_str:
         return
 
-    image_provider = get_config(ctx, "image_provider", "aihorde")
+    image_provider = get_config(ctx, "image_provider")
     if image_provider == "aihorde":
         set_config(ctx, "aihorde_model", val_str)
     else:
@@ -500,7 +608,7 @@ def get_text_model_options(services):
     ctx = get_ctx()
     endpoint = get_current_endpoint(ctx)
     scoped_key = f"model_lru@{endpoint}" if endpoint else "model_lru"
-    lru = get_config(ctx, scoped_key, [])
+    lru = get_config(ctx, scoped_key)
     if not isinstance(lru, list):
         lru = []
     options = [{"value": "", "label": "(none)"}]
@@ -520,7 +628,7 @@ def get_image_model_options(services):
     ctx = get_ctx()
     endpoint = get_current_endpoint(ctx)
     scoped_key = f"image_model_lru@{endpoint}" if endpoint else "image_model_lru"
-    lru = get_config(ctx, scoped_key, [])
+    lru = get_config(ctx, scoped_key)
     if not isinstance(lru, list):
         lru = []
     options = [{"value": "", "label": "(none)"}]
@@ -534,10 +642,10 @@ def get_image_model_options(services):
 
 def _migrate_api_key_to_map_if_needed(ctx):
     """One-time upgrade: move legacy api_key into api_keys_by_endpoint under current endpoint, then delete api_key."""
-    data = get_config(ctx, "api_keys_by_endpoint", {})
+    data = get_config(ctx, "api_keys_by_endpoint")
     if isinstance(data, dict) and data:
         return
-    legacy_key = str(get_config(ctx, "api_key", "")).strip()
+    legacy_key = str(get_config(ctx, "api_key") or "").strip()
     current_endpoint = get_current_endpoint(ctx)
     if not legacy_key or not current_endpoint:
         return
@@ -552,16 +660,16 @@ def _migrate_api_key_to_map_if_needed(ctx):
 def get_api_key_for_endpoint(ctx, endpoint):
     """Return API key for the given endpoint. Runs migration first; then map lookup with legacy fallback."""
     _migrate_api_key_to_map_if_needed(ctx)
-    data = get_config(ctx, "api_keys_by_endpoint", {})
+    data = get_config(ctx, "api_keys_by_endpoint")
     if not isinstance(data, dict):
         data = {}
     normalized = _normalize_endpoint_url(endpoint or "")
-    return data.get(normalized) or str(get_config(ctx, "api_key", ""))
+    return data.get(normalized) or str(get_config(ctx, "api_key") or "")
 
 
 def set_api_key_for_endpoint(ctx, endpoint, key):
     """Store API key for the given endpoint in api_keys_by_endpoint."""
-    data = get_config(ctx, "api_keys_by_endpoint", {})
+    data = get_config(ctx, "api_keys_by_endpoint")
     if not isinstance(data, dict):
         data = {}
     normalized = _normalize_endpoint_url(endpoint or "")
@@ -571,9 +679,9 @@ def set_api_key_for_endpoint(ctx, endpoint, key):
 
 def get_api_config(ctx):
     """Build API config dict from ctx for LlmClient. Pass to LlmClient(config, ctx)."""
-    endpoint = str(get_config(ctx, "endpoint", "http://127.0.0.1:5000")).rstrip("/")
+    endpoint = str(get_config(ctx, "endpoint") or "").rstrip("/")
     is_openwebui = (
-        as_bool(get_config(ctx, "is_openwebui", False))
+        as_bool(get_config(ctx, "is_openwebui"))
         or "open-webui" in endpoint.lower()
         or "openwebui" in endpoint.lower()
     )
@@ -586,12 +694,12 @@ def get_api_config(ctx):
         "model": get_text_model(ctx),
         "is_openwebui": is_openwebui,
         "is_openrouter": is_openrouter,
-        "seed": get_config(ctx, "seed", ""),
-        "request_timeout": _safe_int(get_config(ctx, "request_timeout", 120), 120),
-        "chat_max_tool_rounds": _safe_int(get_config(ctx, "chat_max_tool_rounds", 5), 5),
+        "seed": get_config(ctx, "seed") or "",
+        "request_timeout": _safe_int(get_config(ctx, "request_timeout"), 120),
+        "chat_max_tool_rounds": _safe_int(get_config(ctx, "chat_max_tool_rounds"), 5),
     }
 
-    temp = _safe_float(get_config(ctx, "temperature", -1), -1)
+    temp = _safe_float(get_config(ctx, "temperature"), -1)
     if temp >= 0:
         api_config["temperature"] = temp
 
@@ -604,7 +712,7 @@ def populate_image_model_selector(ctx, ctrl, override_endpoint=None):
     uses strict=True so only models for that endpoint are shown. Returns the value set."""
     if not ctrl:
         return ""
-    image_provider = get_config(ctx, "image_provider", "aihorde")
+    image_provider = get_config(ctx, "image_provider")
     if image_provider == "aihorde":
         current_image_model = get_image_model(ctx)
         from plugin.contrib.aihordeclient import MODELS
@@ -669,9 +777,7 @@ class ConfigService(ServiceBase):
             if field in AI_SIMPLE_FIELDS:
                 ctx = get_ctx()
                 if field == "endpoint":
-                    return str(
-                        get_config(ctx, "endpoint", "http://127.0.0.1:5000")
-                    ).strip()
+                    return str(get_config(ctx, "endpoint") or "").strip()
                 if field == "api_key":
                     endpoint = get_current_endpoint(ctx)
                     return str(get_api_key_for_endpoint(ctx, endpoint) or "")
@@ -689,7 +795,7 @@ class ConfigService(ServiceBase):
                 elif field == "censor_nsfw":
                     config_key = "image_censor_nsfw"
 
-                return get_config(ctx, config_key, default)
+                return get_config(ctx, config_key)
             
             # Explicitly return None for removed multi-instance keys
             if field in ("openai_instances", "ollama_instances", "horde_instances"):
@@ -706,7 +812,7 @@ class ConfigService(ServiceBase):
                  pass
 
         ctx = get_ctx()
-        val = get_config(ctx, key, None)
+        val = get_config(ctx, key)
         if val is not None:
             return val
         return self._defaults.get(key, default)

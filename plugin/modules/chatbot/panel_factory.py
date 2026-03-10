@@ -353,7 +353,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         image_model_selector = get_optional("image_model_selector")
         
         current_model = get_text_model(self.ctx)
-        extra_instructions = get_config(self.ctx, "additional_instructions", "")
+        extra_instructions = get_config(self.ctx, "additional_instructions")
         
         current_endpoint = get_current_endpoint(self.ctx)
         
@@ -374,7 +374,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         direct_image_check = get_optional("direct_image_check")
         if direct_image_check:
             try:
-                direct_checked = get_config(self.ctx, "chat_direct_image", False)
+                direct_checked = get_config(self.ctx, "chat_direct_image")
                 set_checkbox_state(direct_image_check, 1 if direct_checked else 0)
             except Exception:
                 pass
@@ -391,7 +391,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             ctrl = get_optional_control(root, "backend_indicator")
             if not ctrl:
                 return
-            backend_id = str(get_config(self.ctx, "agent_backend.backend_id", "builtin")).strip().lower()
+            backend_id = str(get_config(self.ctx, "agent_backend.backend_id") or "builtin").strip().lower()
             if backend_id and backend_id != "builtin":
                 label = backend_id.capitalize()
                 if hasattr(ctrl.getModel(), "Label"):
@@ -469,11 +469,11 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         
         if aspect_ratio_selector:
             aspect_ratio_selector.addItems(("Square", "Landscape (16:9)", "Portrait (9:16)", "Landscape (3:2)", "Portrait (2:3)"), 0)
-            aspect_ratio_selector.setText(get_config(self.ctx, "image_default_aspect", "Square"))
+            aspect_ratio_selector.setText(get_config(self.ctx, "image_default_aspect") or "Square")
             
         if base_size_input:
             from plugin.framework.config import populate_combobox_with_lru
-            populate_combobox_with_lru(self.ctx, base_size_input, str(get_config(self.ctx, "image_base_size", 512)), "image_base_size_lru", "")
+            populate_combobox_with_lru(self.ctx, base_size_input, str(get_config(self.ctx, "image_base_size")), "image_base_size_lru", "")
 
         def update_base_size_label(aspect_str):
             if not base_size_label: return
@@ -513,7 +513,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
 
         if direct_image_check:
             try:
-                direct_checked = get_config(self.ctx, "chat_direct_image", False)
+                direct_checked = get_config(self.ctx, "chat_direct_image")
                 set_checkbox_state(direct_image_check, 1 if direct_checked else 0)
                 toggle_image_ui(direct_checked)
                 
@@ -690,7 +690,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         # 1. Config, Models, and UI
         try:
             from plugin.framework.config import get_config
-            extra_instructions = get_config(self.ctx, "additional_instructions", "")
+            extra_instructions = get_config(self.ctx, "additional_instructions")
             
             self._wire_model_selectors(controls["model_selector"], controls["image_model_selector"])
             

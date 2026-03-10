@@ -66,7 +66,7 @@ class WebResearchTool(ToolBase):
             max_steps = int(config.get("search_web_max_steps", 20))
 
             udir = user_config_dir(ctx.ctx)
-            raw_mb = int(get_config(ctx.ctx, "web_cache_max_mb", 50))
+            raw_mb = int(get_config(ctx.ctx, "web_cache_max_mb"))
             cache_max_mb = 0 if raw_mb <= 0 else max(1, min(500, raw_mb))
             cache_path = os.path.join(udir, "localwriter_web_cache.db") if (udir and cache_max_mb > 0) else None
 

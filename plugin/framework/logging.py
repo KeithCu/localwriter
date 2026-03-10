@@ -57,7 +57,7 @@ def init_logging(ctx):
             if udir:
                 _debug_log_path = os.path.join(udir, DEBUG_LOG_FILENAME)
                 _agent_log_path = os.path.join(udir, AGENT_LOG_FILENAME)
-                _enable_agent_log = config.as_bool(config.get_config(ctx, "enable_agent_log", False))
+                _enable_agent_log = config.as_bool(config.get_config(ctx, "enable_agent_log"))
         except Exception:
             pass
 

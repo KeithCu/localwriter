@@ -78,7 +78,7 @@ class CLIProcessBackend(AgentBackend):
     def is_available(self, ctx):
         try:
             from plugin.framework.config import get_config
-            path = str(get_config(ctx, "agent_backend.path", "") or "").strip()
+            path = str(get_config(ctx, "agent_backend.path") or "").strip()
             if path:
                 return os.path.isfile(path) or bool(shutil.which(path))
             return bool(shutil.which(self.get_default_cmd()))
@@ -365,8 +365,8 @@ class CLIProcessBackend(AgentBackend):
 
         try:
             from plugin.framework.config import get_config
-            path = str(get_config(self._ctx, "agent_backend.path", "") or "").strip()
-            args_str = str(get_config(self._ctx, "agent_backend.args", "") or "").strip()
+            path = str(get_config(self._ctx, "agent_backend.path") or "").strip()
+            args_str = str(get_config(self._ctx, "agent_backend.args") or "").strip()
         except Exception:
             path = ""
             args_str = ""

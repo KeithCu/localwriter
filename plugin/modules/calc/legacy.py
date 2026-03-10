@@ -35,11 +35,11 @@ def do_calc_extend_edit(ctx, model, input_box_fn, is_edit):
     col_range = range(area.StartColumn, area.EndColumn + 1)
     row_range = range(area.StartRow, area.EndRow + 1)
 
-    extend_sys = get_config(ctx, "extend_selection_system_prompt", "")
-    extend_max = get_config(ctx, "extend_selection_max_tokens", 1000)
-    edit_sys = get_config(ctx, "edit_selection_system_prompt", "")
+    extend_sys = get_config(ctx, "extend_selection_system_prompt")
+    extend_max = get_config(ctx, "extend_selection_max_tokens")
+    edit_sys = get_config(ctx, "edit_selection_system_prompt")
     try:
-        edit_max = int(get_config(ctx, "edit_selection_max_new_tokens", 1000))
+        edit_max = int(get_config(ctx, "edit_selection_max_new_tokens"))
     except (TypeError, ValueError):
         edit_max = 0
 

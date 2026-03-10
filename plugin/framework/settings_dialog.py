@@ -22,27 +22,27 @@ def get_settings_field_specs(ctx):
     debug_log("get_settings_field_specs entry", context="Settings")
     current_endpoint_for_specs = get_current_endpoint(ctx)
     field_specs = [
-        {"name": "endpoint", "value": str(get_config(ctx, "endpoint", "http://127.0.0.1:5000"))},
-        {"name": "text_model", "value": str(get_config(ctx, "text_model", "") or get_config(ctx, "model", ""))},
+        {"name": "endpoint", "value": str(get_config(ctx, "endpoint") or "")},
+        {"name": "text_model", "value": str(get_config(ctx, "text_model") or get_config(ctx, "model") or "")},
         {"name": "image_model", "value": str(get_image_model(ctx))},
-        {"name": "stt_model", "value": str(get_config(ctx, "stt_model", ""))},
+        {"name": "stt_model", "value": str(get_config(ctx, "stt_model") or "")},
         {"name": "api_key", "value": str(get_api_key_for_endpoint(ctx, current_endpoint_for_specs))},
-        {"name": "temperature", "value": str(get_config(ctx, "temperature", "-1")), "type": "float"},
-        {"name": "use_aihorde", "value": "true" if get_config(ctx, "image_provider", "aihorde") == "aihorde" else "false", "type": "bool"},
-        {"name": "aihorde_api_key", "value": str(get_config(ctx, "aihorde_api_key", ""))},
-        {"name": "image_base_size", "value": str(get_config(ctx, "image_base_size", "512")), "type": "int"},
-        {"name": "image_default_aspect", "value": str(get_config(ctx, "image_default_aspect", "Square"))},
-        {"name": "image_cfg_scale", "value": str(get_config(ctx, "image_cfg_scale", "7.5")), "type": "float"},
-        {"name": "image_steps", "value": str(get_config(ctx, "image_steps", "30")), "type": "int"},
-        {"name": "image_nsfw", "value": "true" if as_bool(get_config(ctx, "image_nsfw", False)) else "false", "type": "bool"},
-        {"name": "image_censor_nsfw", "value": "true" if as_bool(get_config(ctx, "image_censor_nsfw", True)) else "false", "type": "bool"},
-        {"name": "image_max_wait", "value": str(get_config(ctx, "image_max_wait", "5")), "type": "int"},
-        {"name": "image_auto_gallery", "value": "true" if as_bool(get_config(ctx, "image_auto_gallery", True)) else "false", "type": "bool"},
-        {"name": "image_insert_frame", "value": "true" if as_bool(get_config(ctx, "image_insert_frame", False)) else "false", "type": "bool"},
-        {"name": "image_translate_prompt", "value": "true" if as_bool(get_config(ctx, "image_translate_prompt", True)) else "false", "type": "bool"},
-        {"name": "image_translate_from", "value": str(get_config(ctx, "image_translate_from", ""))},
-        {"name": "seed", "value": str(get_config(ctx, "seed", ""))},
-        {"name": "show_search_thinking", "value": "true" if as_bool(get_config(ctx, "show_search_thinking", False)) else "false", "type": "bool"},
+        {"name": "temperature", "value": str(get_config(ctx, "temperature")), "type": "float"},
+        {"name": "use_aihorde", "value": "true" if get_config(ctx, "image_provider") == "aihorde" else "false", "type": "bool"},
+        {"name": "aihorde_api_key", "value": str(get_config(ctx, "aihorde_api_key") or "")},
+        {"name": "image_base_size", "value": str(get_config(ctx, "image_base_size")), "type": "int"},
+        {"name": "image_default_aspect", "value": str(get_config(ctx, "image_default_aspect") or "")},
+        {"name": "image_cfg_scale", "value": str(get_config(ctx, "image_cfg_scale")), "type": "float"},
+        {"name": "image_steps", "value": str(get_config(ctx, "image_steps")), "type": "int"},
+        {"name": "image_nsfw", "value": "true" if as_bool(get_config(ctx, "image_nsfw")) else "false", "type": "bool"},
+        {"name": "image_censor_nsfw", "value": "true" if as_bool(get_config(ctx, "image_censor_nsfw")) else "false", "type": "bool"},
+        {"name": "image_max_wait", "value": str(get_config(ctx, "image_max_wait")), "type": "int"},
+        {"name": "image_auto_gallery", "value": "true" if as_bool(get_config(ctx, "image_auto_gallery")) else "false", "type": "bool"},
+        {"name": "image_insert_frame", "value": "true" if as_bool(get_config(ctx, "image_insert_frame")) else "false", "type": "bool"},
+        {"name": "image_translate_prompt", "value": "true" if as_bool(get_config(ctx, "image_translate_prompt")) else "false", "type": "bool"},
+        {"name": "image_translate_from", "value": str(get_config(ctx, "image_translate_from") or "")},
+        {"name": "seed", "value": str(get_config(ctx, "seed") or "")},
+        {"name": "show_search_thinking", "value": "true" if as_bool(get_config(ctx, "show_search_thinking")) else "false", "type": "bool"},
     ]
 
     try:
@@ -59,7 +59,7 @@ def get_settings_field_specs(ctx):
                 config_key = f"{m['name']}.{field_name}"
                 
                 default = str(schema.get("default", ""))
-                val = get_config(ctx, config_key, default)
+                val = get_config(ctx, config_key)
                 opts = schema.get("options", [])
                 # For select/combo with value/label options, use label for display so dropdown shows correctly
                 if opts and isinstance(opts[0], dict):

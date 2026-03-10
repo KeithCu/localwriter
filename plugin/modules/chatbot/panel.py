@@ -490,7 +490,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # Agent backend (Aider, Hermes): use external agent instead of built-in LLM
         try:
             from plugin.framework.config import get_config, as_bool
-            agent_backend_id = str(get_config(self.ctx, "agent_backend.backend_id", "builtin")).strip().lower()
+            agent_backend_id = str(get_config(self.ctx, "agent_backend.backend_id") or "builtin").strip().lower()
             if agent_backend_id and agent_backend_id != "builtin":
                 debug_log("_do_send: using agent backend %s" % agent_backend_id, context="Chat")
                 self._do_send_via_agent_backend(query_text, model, doc_type_str.lower())
@@ -657,7 +657,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._terminal_status = "Error"
             return
 
-        extra_instructions = get_config(self.ctx, "additional_instructions", "") or ""
+        extra_instructions = get_config(self.ctx, "additional_instructions") or ""
         from plugin.framework.constants import get_chat_system_prompt_for_document
         self.session.messages[0]["content"] = get_chat_system_prompt_for_document(model, extra_instructions)
 
@@ -674,8 +674,8 @@ class SendButtonListener(unohelper.Base, XActionListener):
                 set_image_model(self.ctx, selected_image_model)
                 debug_log("_do_send: image model updated to %s" % selected_image_model, context="Chat")
 
-        max_context = int(get_config(self.ctx, "chat_context_length", 8000))
-        max_tokens = int(get_config(self.ctx, "chat_max_tokens", 16384))
+        max_context = int(get_config(self.ctx, "chat_context_length"))
+        max_tokens = int(get_config(self.ctx, "chat_max_tokens"))
         debug_log("_do_send: config loaded: max_tokens=%d, max_context=%d" % (max_tokens, max_context), context="Chat")
 
         use_tools = True
@@ -771,7 +771,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         except Exception:
             pass
 
-        max_context = int(get_config(self.ctx, "chat_context_length", 8000))
+        max_context = int(get_config(self.ctx, "chat_context_length"))
         try:
             doc_context = get_document_context_for_chat(
                 model, max_context, include_end=True, include_selection=True, ctx=self.ctx
@@ -782,7 +782,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
             self._set_status("Error")
             return
 
-        backend_id = str(get_config(self.ctx, "agent_backend.backend_id", "builtin")).strip().lower()
+            backend_id = str(get_config(self.ctx, "agent_backend.backend_id") or "builtin").strip().lower()
         adapter = get_backend(backend_id, ctx=self.ctx)
         if not adapter:
             self._append_response("\n[Agent backend '%s' not found.]\n" % backend_id)
@@ -897,7 +897,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # Read show_thinking before spawning the thread so apply_chunk can use it
         try:
             from plugin.framework.config import get_config, as_bool
-            show_thinking = as_bool(get_config(self.ctx, "show_search_thinking", False))
+            show_thinking = as_bool(get_config(self.ctx, "show_search_thinking"))
         except Exception:
             show_thinking = False
 
@@ -1079,7 +1079,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # Read config once for web research thinking display
         try:
             from plugin.framework.config import get_config, as_bool
-            show_search_thinking = as_bool(get_config(self.ctx, "show_search_thinking", False))
+            show_search_thinking = as_bool(get_config(self.ctx, "show_search_thinking"))
         except Exception:
             show_search_thinking = False
 

@@ -135,9 +135,9 @@ class PromptFunction(unohelper.Base, XPromptFunction):
         aProgrammaticName = "PROMPT"
         if aProgrammaticName == "PROMPT":
             try:
-                system_prompt = systemPrompt if systemPrompt is not None else get_config(self.ctx, "extend_selection_system_prompt", "")
-                model_name = model if model is not None else (get_config(self.ctx, "text_model", "") or get_config(self.ctx, "model", ""))
-                max_tokens = maxTokens if maxTokens is not None else get_config(self.ctx, "extend_selection_max_tokens", 70)
+                system_prompt = systemPrompt if systemPrompt is not None else get_config(self.ctx, "extend_selection_system_prompt")
+                model_name = model if model is not None else (get_config(self.ctx, "text_model") or get_config(self.ctx, "model") or "")
+                max_tokens = maxTokens if maxTokens is not None else get_config(self.ctx, "calc_prompt_max_tokens")
                 try:
                     max_tokens = int(max_tokens)
                 except (TypeError, ValueError):
