@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import uno
 import re
+import time
 from plugin.modules.calc.bridge import CalcBridge
 from plugin.modules.calc.analyzer import SheetAnalyzer
 from plugin.framework.uno_helpers import is_writer, is_calc, is_draw, get_active_document as get_active_doc

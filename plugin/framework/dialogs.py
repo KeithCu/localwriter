@@ -61,6 +61,7 @@ def msgbox(ctx, title, message):
             log.info("MSGBOX (no frame) - %s: %s", title, message)
             return
         window = frame.getContainerWindow()
+        smgr = ctx.getServiceManager()
         toolkit = smgr.createInstanceWithContext(
             "com.sun.star.awt.Toolkit", ctx)
         box = toolkit.createMessageBox(

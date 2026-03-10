@@ -17,6 +17,7 @@
 import json
 from plugin.main import get_tools
 from plugin.framework.logging import debug_log
+from plugin.framework.uno_helpers import get_desktop
 
 def run_draw_tests(ctx, model=None):
     """
