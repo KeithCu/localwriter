@@ -66,8 +66,14 @@ def manifest():
 class TestDefaults:
     def test_get_returns_default(self, config_svc, manifest):
         config_svc.set_manifest(manifest)
-        assert config_svc.get("mcp.port") == 8766
-        assert config_svc.get("mcp.host") == "localhost"
+        import plugin.framework.config as c
+        old_get_config = c.get_config
+        c.get_config = lambda x, y: None
+        try:
+            assert config_svc.get("mcp.port") == 8766
+            assert config_svc.get("mcp.host") == "localhost"
+        finally:
+            c.get_config = old_get_config
 
     def test_get_returns_none_for_unknown(self, config_svc):
         assert config_svc.get("nonexistent.key") is None
@@ -185,13 +191,25 @@ class TestModuleConfigProxy:
             proxy.get("mcp.ssl_key")
 
     def test_default_fallback(self, config_svc, manifest):
-        config_svc.set_manifest(manifest)
-        proxy = config_svc.proxy_for("mcp")
-        assert proxy.get("nonexistent", default="fallback") == "fallback"
+        import plugin.framework.config as c
+        old_get_config = c.get_config
+        c.get_config = lambda x, y: None
+        try:
+            config_svc.set_manifest(manifest)
+            proxy = config_svc.proxy_for("mcp")
+            assert proxy.get("nonexistent", default="fallback") == "fallback"
+        finally:
+            c.get_config = old_get_config
 
     def test_remove(self, config_svc, manifest):
-        config_svc.set_manifest(manifest)
-        proxy = config_svc.proxy_for("mcp")
-        proxy.set("port", 9000)
-        proxy.remove("port")
-        assert proxy.get("port") == 8766  # back to default
+        import plugin.framework.config as c
+        old_get_config = c.get_config
+        c.get_config = lambda x, y: None
+        try:
+            config_svc.set_manifest(manifest)
+            proxy = config_svc.proxy_for("mcp")
+            proxy.set("port", 9000)
+            proxy.remove("port")
+            assert proxy.get("port") == 8766  # back to default
+        finally:
+            c.get_config = old_get_config
