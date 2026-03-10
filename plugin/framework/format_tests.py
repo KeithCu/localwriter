@@ -20,12 +20,12 @@ from plugin.modules.writer.format_support import (
     insert_content_at_position as _insert_markdown_at_position,
     content_has_markup as _content_has_markup,
     replace_preserving_format as _replace_text_preserving_format,
-    apply_content_at_range,
     apply_content_at_search,
     replace_full_document,
     find_text_ranges,
     _doc_text_length as _doc_text_length_raw,
     _preserving_search_replace,
+    _normalize,
 )
 from plugin.framework.logging import debug_log
 from plugin.framework.uno_helpers import get_desktop
@@ -33,6 +33,15 @@ from plugin.framework.uno_helpers import get_desktop
 # Compatibility shim: old _doc_text_length returned (length, text), new returns int
 def _doc_text_length(doc):
     return (_doc_text_length_raw(doc), "")
+
+
+def _move_cursor_by_offset(cursor, offset, expand=False):
+    """Move cursor by offset in chunks to handle UNO's short (16-bit) limitation."""
+    remaining = offset
+    while remaining > 0:
+        n = min(remaining, 8192)
+        cursor.goRight(n, expand)
+        remaining -= n
 
 
 # ---------------------------------------------------------------------------
@@ -522,7 +531,7 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
     except (AssertionError, Exception) as e:
         failed += 1
         fail("_content_has_markup: %s" % e)
-
+    
     # Helper: create text with per-character background colors and return the range
     COLORS = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF]  # Red Green Blue Yellow Magenta
 
@@ -555,12 +564,8 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
         # Create range using the offsets
         range_cursor = text.createTextCursor()
         range_cursor.gotoStart(False)
-        remaining = start_off
-        while remaining > 0:
-            n = min(remaining, 8192)
-            range_cursor.goRight(n, False)
-            remaining -= n
-        range_cursor.gotoEnd(True)
+        _move_cursor_by_offset(range_cursor, start_off)
+        _move_cursor_by_offset(range_cursor, len(chars), expand=True)
         return range_cursor
 
 
@@ -737,7 +742,7 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
             c = text.createTextCursor()
             c.gotoStart(False)
             c.gotoEnd(True)
-            return len(c.getString())
+            return len(_normalize(c.getString()))
 
         start_off = get_accurate_offset()
         for i, ch in enumerate(word):
@@ -757,7 +762,7 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
         colors = []
         pos_cursor = text.createTextCursor()
         pos_cursor.gotoStart(False)
-        pos_cursor.goRight(start_off, False)
+        _move_cursor_by_offset(pos_cursor, start_off)
         for _ in range(length):
             cc = text.createTextCursorByRange(pos_cursor)
             cc.goRight(1, True)
@@ -778,7 +783,7 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
         # Build start offset by measuring from doc start
         tmp = text.createTextCursorByRange(found.getStart())
         tmp.gotoStart(True)
-        start_off = len(tmp.getString())
+        start_off = len(_normalize(tmp.getString()))
         actual = _get_colors_at_range(start_off, len(search_str))
         if actual == expected_colors:
             return True, ""
@@ -876,7 +881,7 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
                 small_txt = small_doc.getText()
                 tmp = small_txt.createTextCursorByRange(found.getStart())
                 tmp.gotoStart(True)
-                start_off2 = len(tmp.getString())
+                start_off2 = len(_normalize(tmp.getString()))
                 actual_colors = []
                 pos_c = small_txt.createTextCursor()
                 pos_c.gotoStart(False)

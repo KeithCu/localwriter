@@ -559,12 +559,18 @@ def replace_preserving_format(model, target_range, new_text, ctx=None):
             except Exception:
                 toolkit = None
 
+        # Create a selection for exactly one character to check/replace.
+        sel = text.createTextCursorByRange(main_cursor)
+        if not sel.goRight(1, True):
+            break
+
         if new_text[i] != old_text[i]:
-            sel = text.createTextCursorByRange(main_cursor)
-            sel.goRight(1, True)
             sel.setString(new_text[i])
 
-        main_cursor.goRight(1, False)
+        # Explicitly move main_cursor to the end of the character just processed.
+        # This is more robust than goRight(1) because setString() can affect
+        # the cursor's logical position in some environments.
+        main_cursor.gotoRange(sel.getEnd(), False)
 
     # Handle length changes.
     if new_len > old_len:
@@ -573,12 +579,11 @@ def replace_preserving_format(model, target_range, new_text, ctx=None):
     elif old_len > new_len:
         # Delete remaining original characters.
         # Ensure we don't go out of bounds of the original target_range.
-        # target_range might have shrunk if text was deleted, but we replace char-by-char.
-        # We need to select from main_cursor to the end of where old_text was.
-        # We know we advanced main_cursor by `new_len` positions.
-        # The remaining length to delete is `old_len - new_len`.
         remaining_to_del = old_len - new_len
         del_cursor = text.createTextCursorByRange(main_cursor)
-        for _ in range(remaining_to_del):
-            del_cursor.goRight(1, True)
+        # Use chunks for deletion just in case it's large.
+        while remaining_to_del > 0:
+            n = min(remaining_to_del, 8192)
+            del_cursor.goRight(n, True)
+            remaining_to_del -= n
         del_cursor.setString("")

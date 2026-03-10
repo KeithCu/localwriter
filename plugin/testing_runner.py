@@ -150,9 +150,28 @@ def main() -> int:
 
     try:
         summary = json.loads(summary_json)
-    except Exception:  # noqa: BLE001
-        # If the JSON is malformed, treat as failure.
-        return 1
+    except Exception:
+        summary = {"total_failed": 1}
+
+    # Force-close LibreOffice so it doesn't stay running (and mess up the screen).
+    try:
+        desktop = ctx.getServiceManager().createInstanceWithContext("com.sun.star.frame.Desktop", ctx)
+        if desktop:
+            # Close all open components without saving (to avoid blocking termination)
+            try:
+                comps = desktop.getComponents().createEnumeration()
+                while comps.hasMoreElements():
+                    c = comps.nextElement()
+                    if hasattr(c, "close"):
+                        try:
+                            c.close(True)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            desktop.terminate()
+    except Exception:
+        pass
 
     return 0 if int(summary.get("total_failed", 0) or 0) == 0 else 1
 
