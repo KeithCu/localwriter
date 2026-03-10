@@ -546,7 +546,7 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
             c = text.createTextCursor()
             c.gotoStart(False)
             c.gotoEnd(True)
-            return len(c.getString())
+            return len(_normalize(c.getString()))
 
         start_off = get_accurate_offset()
 
@@ -885,7 +885,7 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
                 actual_colors = []
                 pos_c = small_txt.createTextCursor()
                 pos_c.gotoStart(False)
-                pos_c.goRight(start_off2, False)
+                _move_cursor_by_offset(pos_c, start_off2)
                 for _ in range(len(new_word)):
                     cc2 = small_txt.createTextCursorByRange(pos_c)
                     cc2.goRight(1, True)
