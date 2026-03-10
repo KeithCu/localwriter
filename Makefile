@@ -130,6 +130,7 @@ help:
 	@echo "  make check-setup            Verify dev stack (Python, LO, make, ...)"
 	@echo "  make check-ext              Verify extension is registered"
 	@echo "  make set-config             List all config keys"
+	@echo "  make test                   Run in-process LO tests via plugin.testing_runner"
 	@echo ""
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -299,7 +300,7 @@ check-ext:
 	@$(PYTHON) -c "from plugin._manifest import MODULES; print('Manifest OK: %d modules, %d with config' % (len(MODULES), len([m for m in MODULES if m.get('config')])))"
 
 test:
-	uv run --extra dev pytest
+	$(PYTHON) -m plugin.testing_runner
 
 # ── POC extension ───────────────────────────────────────────────────────────
 

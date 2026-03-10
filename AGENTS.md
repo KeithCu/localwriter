@@ -455,6 +455,34 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 - Impress support; Calc range-aware behavior.
 - DSPy prompt optimization and evaluation live in `scripts/prompt_optimization/`. `run_eval.py` runs a fixed Writer dataset against the current `DEFAULT_CHAT_SYSTEM_PROMPT` (using mock tools) and reports correctness + token usage; `run_optimize.py` runs DSPy MIPROv2 to search for better system prompts; `run_eval_multi.py` sweeps **multiple models** (from `model_configs.py`) and ranks them by **intelligence per dollar** (average correctness divided by estimated USD cost from list prices).
 
+### In-process test runner (debug-only)
+
+- **Mini test harness (no pytest inside LO)**: `plugin/testing_runner.py` defines `run_all_tests(ctx)` which aggregates existing in-LibreOffice tests:
+  - Writer markdown/format-preserving tests from `plugin/framework/format_tests.py` (`run_markdown_tests`).
+  - Calc API/tool tests from `plugin/modules/calc/tests.py` (`run_calc_tests`).
+- **JSON summary**: `run_all_tests(ctx)` returns a JSON string:
+
+  ```json
+  {
+    "total_passed": 10,
+    "total_failed": 1,
+    "suites": [
+      {"name": "writer.format_tests", "passed": 7, "failed": 1, "log": ["OK: ...", "FAIL: ..."]},
+      {"name": "calc.tests", "passed": 3, "failed": 0, "log": ["OK: ..."]}
+    ]
+  }
+  ```
+
+- **Command-line entrypoint (uses LibreOffice Python)**: `plugin/testing_runner.py` is also executable as a module and uses `officehelper.bootstrap()` to start a headless LibreOffice and run tests:
+
+  - Basic usage (from an environment where `officehelper` is available, typically LibreOffice’s Python):
+
+    ```bash
+    python -m plugin.testing_runner
+    ```
+
+  - This prints the JSON summary to stdout and exits with code `0` if `total_failed == 0`, otherwise non-zero. It does **not** depend on MCP/HTTP and does not require any UI interaction (no menus or dialogs).
+
 ### Optional refactoring (future work)
 - **panel_factory.py**: Split `SendButtonListener._do_send` into smaller methods (e.g. `_do_send_direct_image`, `_do_send_with_tools`, `_do_send_simple_stream`) with a short `_do_send` that validates and dispatches.
 - **plugin/main.py**: Split `trigger()` into handlers (e.g. `_handle_mcp`, `_handle_writer`, `_handle_calc`, `_handle_draw`) so `trigger` only delegates; optionally extract settings populate/read into helpers driven by `field_specs`.
