@@ -201,7 +201,8 @@ class TestModuleConfigProxy:
         finally:
             c.get_config = old_get_config
 
-    def test_remove(self, config_svc, manifest):
+    def test_proxy_remove(self, config_svc, manifest):
+        """Remove via ModuleConfigProxy (proxy.remove)."""
         import plugin.framework.config as c
         old_get_config = c.get_config
         c.get_config = lambda x, y: None

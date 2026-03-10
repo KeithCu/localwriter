@@ -3,20 +3,22 @@
 Run streaming + tool-calling against your configured endpoint. No LibreOffice required.
 Shows content, thinking, and tool_calls as they accumulate on screen.
 
-Usage:
-  python -m plugin.tests.run_streaming_test
+Usage (from repo root):
+  python scripts/run_streaming_test.py
+  python scripts/run_streaming_test.py "Your prompt here"
 
 Requires CHAT_ENDPOINT and OPENROUTER_API_KEY in the environment.
 """
-
 import json
 import os
 import ssl
 import sys
 import urllib.request
 
-# Add project 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Repo root on path so "plugin" is importable
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 
 MODEL = "x-ai/grok-4.1-fast"
 

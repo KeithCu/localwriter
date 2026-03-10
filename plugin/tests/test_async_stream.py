@@ -74,3 +74,51 @@ def test_run_stream_drain_loop_error():
     assert job_done[0] is True
     assert len(errors) == 1
     assert isinstance(errors[0], ValueError)
+
+
+def test_run_stream_drain_loop_stopped():
+    q = queue.Queue()
+    q.put(("stopped",))
+
+    toolkit = DummyToolkit()
+    job_done = [False]
+    stopped_called = [False]
+
+    def on_stopped():
+        stopped_called[0] = True
+
+    run_stream_drain_loop(
+        q, toolkit, job_done, lambda t, is_thinking: None,
+        on_stream_done=lambda i: True, on_stopped=on_stopped, on_error=lambda e: None
+    )
+
+    assert stopped_called[0] is True
+    assert job_done[0] is True
+
+
+def test_run_blocking_in_thread():
+    from unittest.mock import MagicMock
+    from plugin.framework.async_stream import run_blocking_in_thread
+
+    ctx = MagicMock()
+    ctx.getServiceManager.return_value = MagicMock()
+
+    def blocking_func():
+        return "success"
+
+    assert run_blocking_in_thread(ctx, blocking_func) == "success"
+
+
+def test_run_blocking_in_thread_error():
+    from unittest.mock import MagicMock
+    import pytest
+    from plugin.framework.async_stream import run_blocking_in_thread
+
+    ctx = MagicMock()
+    ctx.getServiceManager.return_value = MagicMock()
+
+    def blocking_func():
+        raise ValueError("failed")
+
+    with pytest.raises(ValueError, match="failed"):
+        run_blocking_in_thread(ctx, blocking_func)

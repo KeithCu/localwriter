@@ -30,11 +30,6 @@ from plugin.modules.writer.format_support import (
 from plugin.framework.logging import debug_log
 from plugin.framework.uno_helpers import get_desktop
 
-# Compatibility shim: old _doc_text_length returned (length, text), new returns int
-def _doc_text_length(doc):
-    return (_doc_text_length_raw(doc), "")
-
-
 def _move_cursor_by_offset(cursor, offset, expand=False):
     """Move cursor by offset in chunks to handle UNO's short (16-bit) limitation."""
     remaining = offset
@@ -44,88 +39,64 @@ def _move_cursor_by_offset(cursor, offset, expand=False):
         remaining -= n
 
 
-# ---------------------------------------------------------------------------
-# Compatibility shims for old tool_* dispatch functions (return JSON strings)
-# ---------------------------------------------------------------------------
+def _tool_ctx(doc, ctx):
+    """Build ToolContext for writer tools (uses real get_services())."""
+    from plugin.main import get_services
+    from plugin.framework.tool_context import ToolContext
+    return ToolContext(doc, ctx, "writer", get_services(), "test")
 
-def tool_get_document_content(doc, ctx, params):
-    """Shim for old tool_get_document_content dispatch function."""
+
+def _get_document_content(doc, ctx, params):
+    """Call real get_document_content tool; returns dict."""
+    from plugin.main import get_tools
     scope = params.get("scope", "full")
-    start = params.get("start")
-    end = params.get("end")
-    max_chars = params.get("max_chars")
+    kwargs = {"scope": scope}
+    if params.get("max_chars") is not None:
+        kwargs["max_chars"] = params["max_chars"]
+    if scope == "range":
+        if params.get("start") is not None:
+            kwargs["start"] = params["start"]
+        if params.get("end") is not None:
+            kwargs["end"] = params["end"]
     try:
-        content = document_to_markdown(doc, ctx, services=None,
-                                       max_chars=max_chars, scope=scope,
-                                       range_start=start, range_end=end)
-        doc_len = _doc_text_length_raw(doc)
-        result = {"status": "ok", "content": content, "document_length": doc_len}
-        if scope == "range" and start is not None and end is not None:
-            result["start"] = start
-            result["end"] = end
-        return json.dumps(result)
+        return get_tools().execute("get_document_content", _tool_ctx(doc, ctx), **kwargs)
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"status": "error", "message": str(e)}
 
 
-def tool_apply_document_content(doc, ctx, params):
-    """Shim for old tool_apply_document_content dispatch function."""
+def _apply_document_content(doc, ctx, params):
+    """Call real apply_document_content tool; returns dict."""
+    from plugin.main import get_tools
     content = params.get("content", "")
     target = params.get("target", "end")
     if isinstance(content, list):
         content = "\n".join(str(x) for x in content)
+    kwargs = {"content": content, "target": target}
+    if params.get("search") is not None:
+        kwargs["search"] = params["search"]
+    if params.get("start") is not None:
+        kwargs["start"] = params["start"]
+    if params.get("end") is not None:
+        kwargs["end"] = params["end"]
+    if params.get("all_matches") is not None:
+        kwargs["all_matches"] = params["all_matches"]
+    if params.get("case_sensitive") is not None:
+        kwargs["case_sensitive"] = params["case_sensitive"]
     try:
-        if target == "full":
-            if not _content_has_markup(content):
-                # We need to preserve format, but replace_preserving_format requires 
-                # a range. We use a cursor over the whole document.
-                doc_len = _doc_text_length_raw(doc)
-                rng = doc.getText().createTextCursor()
-                rng.gotoStart(False)
-                # Advance by doc_len to select the entire document
-                remaining = doc_len
-                while remaining > 0:
-                    n = min(remaining, 8192)
-                    rng.goRight(n, True)
-                    remaining -= n
-                from plugin.modules.writer.format_support import replace_preserving_format
-                replace_preserving_format(doc, rng, content, ctx)
-            else:
-                replace_full_document(doc, ctx, content)
-        elif target == "range":
-            start = int(params.get("start", 0))
-            end = int(params.get("end", 0))
-            if not _content_has_markup(content):
-                from plugin.modules.writer.ops import get_text_cursor_at_range
-                rng = get_text_cursor_at_range(doc, start, end)
-                if rng:
-                    from plugin.modules.writer.format_support import replace_preserving_format
-                    replace_preserving_format(doc, rng, content, ctx)
-            else:
-                apply_content_at_range(doc, ctx, content, start, end)
-        elif target == "search":
-            search = params.get("search", "")
-            if not _content_has_markup(content):
-                from plugin.modules.writer.format_support import _preserving_search_replace
-                _preserving_search_replace(doc, ctx, content, search)
-            else:
-                apply_content_at_search(doc, ctx, content, search)
-        else:
-            _insert_markdown_at_position(doc, ctx, content, target)
-        return json.dumps({"status": "ok"})
+        return get_tools().execute("apply_document_content", _tool_ctx(doc, ctx), **kwargs)
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"status": "error", "message": str(e)}
 
 
-def tool_find_text(doc, ctx, params):
-    """Shim for old tool_find_text dispatch function."""
+def _find_text(doc, ctx, params):
+    """Call find_text_ranges and return same dict shape as former _find_text."""
     search = params.get("search", "")
     case_sensitive = params.get("case_sensitive", True)
     try:
         ranges = find_text_ranges(doc, ctx, search, case_sensitive=case_sensitive)
-        return json.dumps({"status": "ok", "ranges": ranges})
+        return {"status": "ok", "ranges": ranges}
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)})
+        return {"status": "error", "message": str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -173,14 +144,14 @@ def run_markdown_tests(ctx, model=None):
         log.append("FAIL: document_to_markdown raised: %s" % e)
 
     try:
-        result = tool_get_document_content(doc, ctx, {"scope": "full"})
-        data = json.loads(result)
+        result = _get_document_content(doc, ctx, {"scope": "full"})
+        data = result
         if data.get("status") == "ok" and "content" in data:
             passed += 1
             ok("tool_get_document_content returned status=ok and content (len=%d)" % len(data.get("content", "")))
         else:
             failed += 1
-            fail("tool_get_document_content: %s" % result[:200])
+            fail("tool_get_document_content: %s" % str(result)[:200])
     except Exception as e:
         failed += 1
         log.append("FAIL: tool_get_document_content raised: %s" % e)
@@ -195,8 +166,8 @@ def run_markdown_tests(ctx, model=None):
 
     # Test: get_document_content returns document_length
     try:
-        result = tool_get_document_content(doc, ctx, {"scope": "full"})
-        data = json.loads(result)
+        result = _get_document_content(doc, ctx, {"scope": "full"})
+        data = result
         doc_len_actual = len(_read_doc_text(doc))
         if data.get("status") == "ok" and "document_length" in data and data["document_length"] == doc_len_actual:
             passed += 1
@@ -213,7 +184,7 @@ def run_markdown_tests(ctx, model=None):
 
     # Test: apply at end via _insert_markdown_at_position
     try:
-        len_before = _doc_text_length(doc)[0]
+        len_before = _doc_text_length_raw(doc)
         _insert_markdown_at_position(doc, ctx, test_content, "end")
         full_text = _read_doc_text(doc)
         len_after = len(full_text)
@@ -231,41 +202,41 @@ def run_markdown_tests(ctx, model=None):
         log.append("FAIL: apply at end raised: %s" % e)
         debug_log(ctx, "format_tests: apply at end raised: %s" % e)
 
-    # Test: production path (tool_apply_document_content target='end')
+    # Test: production path (_apply_document_content target='end')
     try:
-        result = tool_apply_document_content(doc, ctx, {
+        result = _apply_document_content(doc, ctx, {
             "content": test_content,
             "target": "end",
         })
-        data = json.loads(result)
+        data = result
         if data.get("status") != "ok":
             failed += 1
-            fail("tool_apply_document_content: %s" % result[:200])
+            fail("_apply_document_content: %s" % str(result)[:200])
         else:
             full_text = _read_doc_text(doc)
             if insert_needle in full_text:
                 passed += 1
-                ok("tool_apply_document_content(target='end'): status=ok and content in document (len=%d)" % len(full_text))
+                ok("_apply_document_content(target='end'): status=ok and content in document (len=%d)" % len(full_text))
             else:
                 failed += 1
-                fail("tool_apply_document_content returned ok but content not in document (len=%d)" % len(full_text))
+                fail("_apply_document_content returned ok but content not in document (len=%d)" % len(full_text))
     except Exception as e:
         failed += 1
-        log.append("FAIL: tool_apply_document_content raised: %s" % e)
+        log.append("FAIL: _apply_document_content raised: %s" % e)
 
     # Test D: formatting (bold, italic) - VISIBLE TEST
     try:
         formatted_input = "<h1>Heading</h1><p><b>Bold text</b> and <i>italic text</i></p>"
 
-        len_before = _doc_text_length(doc)[0]
-        result = tool_apply_document_content(doc, ctx, {
+        len_before = _doc_text_length_raw(doc)
+        result = _apply_document_content(doc, ctx, {
             "content": formatted_input,
             "target": "end",
         })
-        data = json.loads(result)
+        data = result
         if data.get("status") != "ok":
             failed += 1
-            fail("formatted content: tool returned error: %s" % result[:200])
+            fail("formatted content: tool returned error: %s" % str(result)[:200])
         else:
             full_text = _read_doc_text(doc)
             len_after = len(full_text)
@@ -296,12 +267,12 @@ def run_markdown_tests(ctx, model=None):
         
         replacement = "<b>replaced</b>"
         
-        result = tool_apply_document_content(doc, ctx, {
+        result = _apply_document_content(doc, ctx, {
             "content": replacement,
             "target": "search",
             "search": marker,
         })
-        data = json.loads(result)
+        data = result
         full_text = _read_doc_text(doc)
         if data.get("status") == "ok" and "replaced" in full_text and marker not in full_text:
             passed += 1
@@ -318,12 +289,12 @@ def run_markdown_tests(ctx, model=None):
     try:
         # Pass a REAL list, expect joined content
         list_input = ["item_a", "item_b"]
-        len_before = _doc_text_length(doc)[0]
-        result = tool_apply_document_content(doc, ctx, {
+        len_before = _doc_text_length_raw(doc)
+        result = _apply_document_content(doc, ctx, {
             "content": list_input,
             "target": "end",
         })
-        data = json.loads(result)
+        data = result
         full_text = _read_doc_text(doc)
         
         has_content = "item_a" in full_text and "item_b" in full_text
@@ -342,8 +313,8 @@ def run_markdown_tests(ctx, model=None):
     # Test H: target="full" — replace entire document
     try:
         full_replacement = "<h1>Full Replace Test</h1><p>Only this content should remain.</p>"
-        result = tool_apply_document_content(doc, ctx, {"content": full_replacement, "target": "full"})
-        data = json.loads(result)
+        result = _apply_document_content(doc, ctx, {"content": full_replacement, "target": "full"})
+        data = result
         full_text = _read_doc_text(doc)
         if data.get("status") == "ok" and "Full Replace" in full_text:
             passed += 1
@@ -359,8 +330,8 @@ def run_markdown_tests(ctx, model=None):
     try:
         doc_len = _doc_text_length_raw(doc)
         range_content = "<h2>Range Replace</h2><p>Replaced [0, %d).</p>" % doc_len
-        result = tool_apply_document_content(doc, ctx, {"content": range_content, "target": "range", "start": 0, "end": doc_len})
-        data = json.loads(result)
+        result = _apply_document_content(doc, ctx, {"content": range_content, "target": "range", "start": 0, "end": doc_len})
+        data = result
         full_text = _read_doc_text(doc)
         if data.get("status") == "ok" and "Range Replace" in full_text:
             passed += 1
@@ -376,14 +347,14 @@ def run_markdown_tests(ctx, model=None):
     try:
         full_text = _read_doc_text(doc)
         if len(full_text) >= 10:
-            result = tool_get_document_content(doc, ctx, {"scope": "range", "start": 0, "end": 10})
-            data = json.loads(result)
+            result = _get_document_content(doc, ctx, {"scope": "range", "start": 0, "end": 10})
+            data = result
             if data.get("status") == "ok" and data.get("start") == 0 and data.get("end") == 10 and "content" in data:
                 passed += 1
                 ok("get_document_content scope='range' (0,10): returns start, end and content")
             else:
                 failed += 1
-                fail("get_document_content scope=range: %s" % result[:200])
+                fail("get_document_content scope=range: %s" % str(result)[:200])
         else:
             passed += 1
             ok("get_document_content scope=range: skipped (doc too short)")
@@ -391,7 +362,7 @@ def run_markdown_tests(ctx, model=None):
         failed += 1
         log.append("FAIL: get_document_content scope=range raised: %s" % e)
 
-    # Test K: tool_find_text
+    # Test K: _find_text
     try:
         marker_find = "FIND_ME_UNIQUE_xyz"
         text = doc.getText()
@@ -399,11 +370,11 @@ def run_markdown_tests(ctx, model=None):
         cursor.gotoEnd(False)
         text.insertString(cursor, "\n" + marker_find, False)
         
-        result = tool_find_text(doc, ctx, {
+        result = _find_text(doc, ctx, {
             "search": marker_find,
             "case_sensitive": True
         })
-        data = json.loads(result)
+        data = result
         
         if data.get("status") == "ok" and "ranges" in data:
             ranges = data["ranges"]
@@ -429,8 +400,8 @@ def run_markdown_tests(ctx, model=None):
     # Test L: HTML linebreak preservation
     try:
         plain_input = "Line 1\nLine 2\n\nParagraph 2"
-        len_before = _doc_text_length(doc)[0]
-        result = tool_apply_document_content(doc, ctx, {
+        len_before = _doc_text_length_raw(doc)
+        result = _apply_document_content(doc, ctx, {
             "content": plain_input,
             "target": "end",
         })
@@ -458,13 +429,13 @@ def run_markdown_tests(ctx, model=None):
         marker_u = "UNIQUE_CRLF_TEST"
         payload = crlf_input + "\n" + marker_u
         
-        tool_apply_document_content(doc, ctx, {
+        _apply_document_content(doc, ctx, {
             "content": payload,
             "target": "end",
         })
         
         # Now find it
-        res_find = json.loads(tool_find_text(doc, ctx, {"search": marker_u}))
+        res_find = _find_text(doc, ctx, {"search": marker_u})
         if res_find.get("status") == "ok" and res_find.get("ranges"):
             r = res_find["ranges"][0]
             # Look at the text just before the marker
@@ -476,7 +447,7 @@ def run_markdown_tests(ctx, model=None):
             
             # Get content from start of payload to end of marker
             # We don't know the exact starting offset easily without searching for "Line A"
-            res_find_start = json.loads(tool_find_text(doc, ctx, {"search": "Line A"}))
+            res_find_start = _find_text(doc, ctx, {"search": "Line A"})
             if res_find_start.get("status") == "ok" and res_find_start.get("ranges"):
                 # Find the last "Line A"
                 r_start = res_find_start["ranges"][-1]
@@ -718,7 +689,7 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
 
 
 def _run_tool_integration_tests(ctx, doc, passed, failed, log):
-    """Integration tests: call tool_apply_document_content end-to-end with plain text
+    """Integration tests: call _apply_document_content end-to-end with plain text
     and verify that CharBackColor is preserved. These cover the full stack including
     the _ensure_html_linebreaks ordering fix and all three target paths.
 
@@ -789,18 +760,18 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
             return True, ""
         return False, "expected %s got %s" % (expected_colors, actual)
 
-    # --- Test Q: tool_apply_document_content(target='search') preserves colors ---
+    # --- Test Q: _apply_document_content(target='search') preserves colors ---
     # Simulates: AI is asked "change Bert Pickle to Bert Tickle"
     try:
         word = "zBertPicklez"   # unique sentinel around the name
         start_off, end_off = _insert_colored_word(word)
         expected_colors = [COLORS[i % len(COLORS)] for i in range(len(word))]
 
-        result = json.loads(tool_apply_document_content(doc, ctx, {
+        result = _apply_document_content(doc, ctx, {
             "content": "zBertTicklez",
             "target": "search",
             "search": "zBertPicklez",
-        }))
+        })
         if result.get("status") != "ok":
             failed += 1; fail("tool target=search: tool returned error: %s" % result)
         else:
@@ -815,19 +786,19 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
         failed += 1
         log.append("FAIL: tool target=search integration test raised: %s" % e)
 
-    # --- Test R: tool_apply_document_content(target='range') preserves colors ---
+    # --- Test R: _apply_document_content(target='range') preserves colors ---
     # Simulates: AI uses find_text then apply with target=range
     try:
         word = "zNormaFlintez"
         start_off, end_off = _insert_colored_word(word)
         expected_colors = [COLORS[i % len(COLORS)] for i in range(len(word))]
 
-        result = json.loads(tool_apply_document_content(doc, ctx, {
+        result = _apply_document_content(doc, ctx, {
             "content": "zNormaGlintez",
             "target": "range",
             "start": start_off,
             "end": end_off,
-        }))
+        })
         if result.get("status") != "ok":
             failed += 1; fail("tool target=range: tool returned error: %s" % result)
         else:
@@ -842,7 +813,7 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
         failed += 1
         log.append("FAIL: tool target=range integration test raised: %s" % e)
 
-    # --- Test S: tool_apply_document_content(target='full') preserves colors ---
+    # --- Test S: _apply_document_content(target='full') preserves colors ---
     # Simulates: AI replaces the entire (small) document with a plain text edit
     # Use a fresh single-paragraph doc so doc_len == word length
     try:
@@ -864,10 +835,10 @@ def _run_tool_integration_tests(ctx, doc, passed, failed, log):
             cc.setPropertyValue("CharBackColor", COLORS[i % len(COLORS)])
         expected_colors = [COLORS[i % len(COLORS)] for i in range(len(word))]
 
-        result = json.loads(tool_apply_document_content(small_doc, ctx, {
+        result = _apply_document_content(small_doc, ctx, {
             "content": new_word,
             "target": "full",
-        }))
+        })
         if result.get("status") != "ok":
             failed += 1; fail("tool target=full: tool returned error: %s" % result)
         else:

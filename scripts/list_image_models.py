@@ -1,3 +1,7 @@
+"""
+Scrape OpenRouter image models. Run from repo root: python scripts/list_image_models.py
+Requires: pip install playwright && playwright install chromium
+"""
 import json
 import time
 from playwright.sync_api import sync_playwright

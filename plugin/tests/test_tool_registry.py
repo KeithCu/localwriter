@@ -141,3 +141,74 @@ class TestSchemas:
         s = schemas[0]
         assert s["name"] == "fake_tool"
         assert "inputSchema" in s
+
+
+class TestExecuteEventsAndInvalidation:
+    """Tests that execute() emits events and invalidates document cache (from test_registry)."""
+
+    def test_execute_emits_events_and_invalidates_cache(self):
+        class MockEventBus:
+            def __init__(self):
+                self.events = []
+
+            def emit(self, event, **kwargs):
+                self.events.append((event, kwargs))
+
+        class MockDocumentService:
+            def __init__(self):
+                self.invalidated = []
+
+            def invalidate_cache(self, doc):
+                self.invalidated.append(doc)
+
+        class ToolWithParams(ToolBase):
+            name = "tool_with_params"
+            description = "Tool with params"
+            parameters = {"type": "object", "properties": {"arg1": {"type": "string"}}}
+            doc_types = ["writer"]
+
+            def execute(self, ctx, **kwargs):
+                return {"status": "success"}
+
+        services = ServiceRegistry()
+        events = MockEventBus()
+        doc_svc = MockDocumentService()
+        services.register_instance("events", events)
+        services.register_instance("document", doc_svc)
+
+        reg = ToolRegistry(services)
+        reg.register(ToolWithParams())
+
+        ctx = ToolContext(doc=object(), ctx=None, doc_type="writer", services=services, caller="test")
+        result = reg.execute("tool_with_params", ctx, arg1="val1", extra="ignored")
+
+        assert result == {"status": "success"}
+        assert len(events.events) == 2
+        assert events.events[0][0] == "tool:executing"
+        assert events.events[1][0] == "tool:completed"
+        assert len(doc_svc.invalidated) == 1
+        assert doc_svc.invalidated[0] is ctx.doc
+
+
+def test_tool_registry_discover(tmpdir):
+    """Discovery from a directory (from test_registry)."""
+    import sys
+
+    services = ServiceRegistry()
+    registry = ToolRegistry(services)
+
+    pkg_dir = tmpdir.mkdir("fake_tools")
+    pkg_dir.join("__init__.py").write("")
+    pkg_dir.join("my_tool.py").write("""
+from plugin.framework.tool_base import ToolBase
+class MyFakeTool(ToolBase):
+    name = "my_fake"
+    def execute(self, ctx, **kwargs): pass
+""")
+
+    sys.path.insert(0, str(tmpdir))
+    try:
+        registry.discover(str(pkg_dir), "fake_tools")
+        assert "my_fake" in registry.tool_names
+    finally:
+        sys.path.pop(0)

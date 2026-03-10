@@ -69,29 +69,6 @@ def run_writer_tests(ctx, doc=None):
             return passed, failed, log
 
         try:
-            # 2. Test document cache caching logic
-            cache1 = DocumentCache.get(doc)
-            cache2 = DocumentCache.get(doc)
-            if cache1 is cache2:
-                passed += 1
-                ok("DocumentCache returns same instance for same model")
-            else:
-                failed += 1
-                fail("DocumentCache returned different instances")
-
-            DocumentCache.invalidate(doc)
-            cache3 = DocumentCache.get(doc)
-            if cache1 is not cache3:
-                passed += 1
-                ok("DocumentCache.invalidate clears the cache")
-            else:
-                failed += 1
-                fail("DocumentCache.invalidate failed")
-        except Exception as e:
-            failed += 1
-            fail(f"DocumentCache test failed: {e}")
-
-        try:
             # Test Proximity Service
             from plugin.modules.writer.proximity import ProximityService
             from plugin.modules.writer.bookmarks import BookmarkService
