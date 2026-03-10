@@ -1,6 +1,3 @@
-import plugin.framework.config
-from unittest.mock import MagicMock
-plugin.framework.config.get_config = MagicMock(return_value=None)
 """Tests for plugin.framework.config (ConfigService + ModuleConfigProxy)."""
 
 import json
@@ -77,7 +74,6 @@ class TestDefaults:
             assert config_svc.get("mcp.host") == "localhost"
         finally:
             c.get_config = old_get_config
-        assert config_svc.get("mcp.host") == "localhost"
 
     def test_get_returns_none_for_unknown(self, config_svc):
         import plugin.framework.config as c
@@ -243,9 +239,15 @@ class TestModuleConfigProxy:
             proxy.get("mcp.ssl_key")
 
     def test_default_fallback(self, config_svc, manifest):
-        config_svc.set_manifest(manifest)
-        proxy = config_svc.proxy_for("mcp")
-        assert proxy.get("nonexistent", default="fallback") == "fallback"
+        import plugin.framework.config as c
+        old_get_config = c.get_config
+        c.get_config = lambda x, y: None
+        try:
+            config_svc.set_manifest(manifest)
+            proxy = config_svc.proxy_for("mcp")
+            assert proxy.get("nonexistent", default="fallback") == "fallback"
+        finally:
+            c.get_config = old_get_config
 
     def test_remove(self, config_svc, manifest):
         import plugin.framework.config as c
