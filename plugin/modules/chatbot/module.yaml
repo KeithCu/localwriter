@@ -54,7 +54,7 @@ config:
 
   extend_selection_max_tokens:
     type: int
-    default: 70
+    default: 1000
     min: 10
     max: 4096
     widget: number
@@ -62,7 +62,7 @@ config:
 
   edit_selection_max_new_tokens:
     type: int
-    default: 0
+    default: 1000
     min: 0
     max: 4096
     widget: number
