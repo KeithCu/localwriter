@@ -173,7 +173,7 @@ _CONFIG_DEFAULTS = {
     "image_provider": "aihorde",
     "aihorde_model": "stable_diffusion",
     "seed": "",
-    "show_search_thinking": False,
+    "chatbot.show_search_thinking": False,
     "enable_agent_log": False,
     "web_cache_max_mb": 50,
     "is_openwebui": False,
@@ -214,6 +214,9 @@ def get_config(ctx, key):
         config_data = {}
     if key in config_data:
         return config_data[key]
+    # Legacy: show_search_thinking moved to chatbot.show_search_thinking
+    if key == "chatbot.show_search_thinking" and "show_search_thinking" in config_data:
+        return config_data["show_search_thinking"]
     for dotted in _dotted_fallback_keys(key):
         if dotted in config_data:
             return config_data[dotted]

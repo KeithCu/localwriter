@@ -8,12 +8,12 @@
 
   <!-- Tab buttons (always visible, no page attribute) -->
   <!-- Tab buttons (always visible, no page attribute) -->
-  <dlg:button dlg:id="btn_tab_chat" dlg:left="5" dlg:top="5" dlg:width="60" dlg:height="14" dlg:value="Chat / Text"/>
+  <dlg:button dlg:id="btn_tab_chat" dlg:left="5" dlg:top="5" dlg:width="60" dlg:height="14" dlg:value="General"/>
   <dlg:button dlg:id="btn_tab_image" dlg:left="68" dlg:top="5" dlg:width="60" dlg:height="14" dlg:value="Image Settings"/>
 
   <!-- AUTO_GENERATED_TABS -->
 
-  <!-- === Page 1: Chat / Text Settings === -->
+  <!-- === Page 1: General Settings === -->
   <dlg:text dlg:id="label_endpoint" dlg:page="1" dlg:left="8" dlg:top="26" dlg:width="150" dlg:height="10" dlg:value="Endpoint URL (/v1 added):" dlg:align="left"/>
   <dlg:combobox dlg:id="endpoint" dlg:page="1" dlg:left="165" dlg:top="24" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
 
@@ -42,11 +42,6 @@
   <!-- Row 8: Additional Instructions -->
   <dlg:text dlg:id="label_additional_instructions" dlg:page="1" dlg:left="8" dlg:top="138" dlg:width="150" dlg:height="10" dlg:value="Additional Instructions:" dlg:align="left"/>
   <dlg:combobox dlg:id="additional_instructions" dlg:page="1" dlg:left="165" dlg:top="136" dlg:width="265" dlg:height="14" dlg:tabstop="true" dlg:spin="true" dlg:dropdown="true" dlg:value="" dlg:border="1"/>
-
-  <!-- Search Settings -->
-  <dlg:checkbox dlg:id="show_search_thinking" dlg:page="1" dlg:left="8" dlg:top="154" dlg:width="150" dlg:height="10" dlg:value="Show Web Search Thinking" dlg:checked="false"/>
-
-
 
   <!-- === Page 2: Image Settings === -->
   <!-- Section 1: shared (all providers). Section 2: AI Horde only (below fixedline). -->

@@ -35,12 +35,6 @@ config:
       - value: stats
         label: Stats + outline only
 
-  system_prompt:
-    type: string
-    default: ""
-    widget: textarea
-    label: System Prompt
-
   extend_selection_max_tokens:
     type: int
     default: 1000
@@ -58,12 +52,18 @@ config:
     label: Edit Selection Extra Tokens
     helper: "Extra tokens beyond original text length. 0 = same length as original."
 
-  tool_broker:
+#  tool_broker:
+#    type: boolean
+#    default: true
+#    widget: checkbox
+#    label: Tool Broker
+#    helper: "Two-tier tool delivery: LLM gets core tools first, activates others by intent"
+
+  show_search_thinking:
     type: boolean
-    default: true
+    default: false
     widget: checkbox
-    label: Tool Broker
-    helper: "Two-tier tool delivery: LLM gets core tools first, activates others by intent"
+    label: Show Web Search Thinking
 
 #  enter_sends:
 #    type: boolean

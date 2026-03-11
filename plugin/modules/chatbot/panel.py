@@ -897,7 +897,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # Read show_thinking before spawning the thread so apply_chunk can use it
         try:
             from plugin.framework.config import get_config, as_bool
-            show_thinking = as_bool(get_config(self.ctx, "show_search_thinking"))
+            show_thinking = as_bool(get_config(self.ctx, "chatbot.show_search_thinking"))
         except Exception:
             show_thinking = False
 
@@ -1079,7 +1079,7 @@ class SendButtonListener(unohelper.Base, XActionListener):
         # Read config once for web research thinking display
         try:
             from plugin.framework.config import get_config, as_bool
-            show_search_thinking = as_bool(get_config(self.ctx, "show_search_thinking"))
+            show_search_thinking = as_bool(get_config(self.ctx, "chatbot.show_search_thinking"))
         except Exception:
             show_search_thinking = False
 

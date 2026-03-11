@@ -133,7 +133,9 @@ def settings_box(ctx, title="Settings", x=None, y=None):
         for m in MODULES:
             if m["name"] in ("main", "ai") or m["name"] in inline_set:
                 continue
-            
+            if m["name"] in ("tunnel", "launcher"):
+                continue
+
             config = m.get("config", {})
             children = inline_map.get(m["name"])
             

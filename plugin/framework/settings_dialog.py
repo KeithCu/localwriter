@@ -42,7 +42,6 @@ def get_settings_field_specs(ctx):
         {"name": "image_translate_prompt", "value": "true" if as_bool(get_config(ctx, "image_translate_prompt")) else "false", "type": "bool"},
         {"name": "image_translate_from", "value": str(get_config(ctx, "image_translate_from") or "")},
         {"name": "seed", "value": str(get_config(ctx, "seed") or "")},
-        {"name": "show_search_thinking", "value": "true" if as_bool(get_config(ctx, "show_search_thinking")) else "false", "type": "bool"},
     ]
 
     try:
