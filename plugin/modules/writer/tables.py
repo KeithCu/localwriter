@@ -76,8 +76,6 @@ class ReadTable(ToolBase):
 
     def execute(self, ctx, **kwargs):
         table_name = kwargs.get("table_name", "")
-        if not table_name:
-            return {"status": "error", "message": "table_name is required."}
 
         table = self.get_item(
             ctx.doc, "getTextTables", table_name,
@@ -159,8 +157,6 @@ class WriteTableCells(ToolBase):
         data = kwargs.get("data")
         start_cell = (kwargs.get("start_cell") or "A1").strip().upper()
 
-        if not table_name:
-            return {"status": "error", "message": "table_name is required."}
         if not data or not isinstance(data, list):
             return {"status": "error", "message": "data must be a non-empty array of rows."}
         if not any(isinstance(row, list) and len(row) > 0 for row in data):
@@ -275,8 +271,6 @@ class CreateTable(ToolBase):
     def execute(self, ctx, **kwargs):
         rows = kwargs.get("rows")
         cols = kwargs.get("cols")
-        if not rows or not cols:
-            return {"status": "error", "message": "rows and cols are required."}
         if rows < 1 or cols < 1:
             return {"status": "error", "message": "rows and cols must be >= 1."}
 
@@ -287,48 +281,45 @@ class CreateTable(ToolBase):
         doc = ctx.doc
         doc_svc = ctx.services.document
 
-        try:
-            # Resolve locator to paragraph index
-            if locator is not None and paragraph_index is None:
-                resolved = doc_svc.resolve_locator(doc, locator)
-                paragraph_index = resolved.get("para_index")
+        # Resolve locator to paragraph index
+        if locator is not None and paragraph_index is None:
+            resolved = doc_svc.resolve_locator(doc, locator)
+            paragraph_index = resolved.get("para_index")
 
-            if paragraph_index is None:
-                return {
-                    "status": "error",
-                    "message": "Provide locator or paragraph_index.",
-                }
-
-            # Find the target paragraph element
-            target, _ = doc_svc.find_paragraph_element(doc, paragraph_index)
-            if target is None:
-                return {
-                    "status": "error",
-                    "message": "Paragraph %d not found." % paragraph_index,
-                }
-
-            # Create and insert the table
-            table = doc.createInstance("com.sun.star.text.TextTable")
-            table.initialize(rows, cols)
-
-            doc_text = doc.getText()
-            if position == "before":
-                cursor = doc_text.createTextCursorByRange(target.getStart())
-            else:
-                cursor = doc_text.createTextCursorByRange(target.getEnd())
-
-            doc_text.insertTextContent(cursor, table, False)
-
-            table_name = table.getName()
-
+        if paragraph_index is None:
             return {
-                "status": "ok",
-                "table_name": table_name,
-                "rows": rows,
-                "cols": cols,
+                "status": "error",
+                "message": "Provide locator or paragraph_index.",
             }
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
+
+        # Find the target paragraph element
+        target, _ = doc_svc.find_paragraph_element(doc, paragraph_index)
+        if target is None:
+            return {
+                "status": "error",
+                "message": "Paragraph %d not found." % paragraph_index,
+            }
+
+        # Create and insert the table
+        table = doc.createInstance("com.sun.star.text.TextTable")
+        table.initialize(rows, cols)
+
+        doc_text = doc.getText()
+        if position == "before":
+            cursor = doc_text.createTextCursorByRange(target.getStart())
+        else:
+            cursor = doc_text.createTextCursorByRange(target.getEnd())
+
+        doc_text.insertTextContent(cursor, table, False)
+
+        table_name = table.getName()
+
+        return {
+            "status": "ok",
+            "table_name": table_name,
+            "rows": rows,
+            "cols": cols,
+        }
 
 
 # ------------------------------------------------------------------

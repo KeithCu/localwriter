@@ -19,7 +19,6 @@ from plugin.framework.config import get_config, get_api_config, validate_api_con
 from plugin.modules.http.client import format_error_message
 from plugin.framework.async_stream import run_stream_completion_async
 from plugin.framework.dialogs import msgbox
-from plugin.framework.uno_context import get_ctx
 
 def do_extend_selection(ctx, model, input_box_fn):
     selection = model.CurrentController.getSelection()

@@ -193,7 +193,7 @@ class ToolRegistry:
         # Validate parameters
         ok, err = tool.validate(**kwargs)
         if not ok:
-            return {"status": "error", "error": err}
+            return {"status": "error", "message": err}
 
         # Emit executing event
         bus = self._services.get("events")
@@ -212,7 +212,7 @@ class ToolRegistry:
             log.exception("Tool execution failed: %s", tool_name)
             if bus:
                 bus.emit("tool:failed", name=tool_name, error=str(exc), caller=ctx.caller)
-            return {"status": "error", "error": str(exc)}
+            return {"status": "error", "message": str(exc)}
 
         if bus:
             bus.emit("tool:completed", name=tool_name, caller=ctx.caller)

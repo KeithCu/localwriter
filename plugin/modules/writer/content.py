@@ -182,9 +182,6 @@ class ApplyDocumentContent(ToolBase):
         if isinstance(content, str):
             content = content.replace("\\n", "\n").replace("\\t", "\t")
 
-        if not target:
-            return {"status": "error", "message": "target is required."}
-
         # Detect markup BEFORE any HTML wrapping.
         raw_content = content
         use_preserve = isinstance(content, str) and not format_support.content_has_markup(content)
@@ -194,108 +191,92 @@ class ApplyDocumentContent(ToolBase):
         # -- search -------------------------------------------------
         if target == "search":
             search = kwargs.get("search")
-            if not search and search != "":
-                return {"status": "error", "message": "search is required when target is 'search'."}
             all_matches = kwargs.get("all_matches", False)
             case_sensitive = kwargs.get("case_sensitive", True)
-            try:
-                if use_preserve:
-                    count = format_support._preserving_search_replace(
-                        ctx.doc, ctx.ctx, raw_content, search,
-                        all_matches=all_matches,
-                        case_sensitive=case_sensitive,
-                    )
-                else:
-                    count = format_support.apply_content_at_search(
-                        ctx.doc, ctx.ctx, content, search,
-                        all_matches=all_matches,
-                        case_sensitive=case_sensitive,
-                        config_svc=config_svc,
-                    )
-                msg = "Replaced %d occurrence(s)." % count
-                if use_preserve and count > 0:
-                    msg += " (formatting preserved)"
-                if count == 0:
-                    msg += (
-                        " No matches found. Try search_in_document first, then "
-                        "use target='range'."
-                    )
-                return {"status": "ok", "message": msg}
-            except Exception as exc:
-                return {"status": "error", "message": str(exc)}
+            if use_preserve:
+                count = format_support._preserving_search_replace(
+                    ctx.doc, ctx.ctx, raw_content, search,
+                    all_matches=all_matches,
+                    case_sensitive=case_sensitive,
+                )
+            else:
+                count = format_support.apply_content_at_search(
+                    ctx.doc, ctx.ctx, content, search,
+                    all_matches=all_matches,
+                    case_sensitive=case_sensitive,
+                    config_svc=config_svc,
+                )
+            msg = "Replaced %d occurrence(s)." % count
+            if use_preserve and count > 0:
+                msg += " (formatting preserved)"
+            if count == 0:
+                msg += (
+                    " No matches found. Try search_in_document first, then "
+                    "use target='range'."
+                )
+            return {"status": "ok", "message": msg}
 
         # -- full ---------------------------------------------------
         if target == "full":
-            try:
-                if use_preserve:
-                    # Select entire document directly
-                    from plugin.framework.document import get_document_length
-                    doc_len = get_document_length(ctx.doc)
-                    rng = ctx.doc.getText().createTextCursor()
-                    rng.gotoStart(False)
-                    remaining = doc_len
-                    while remaining > 0:
-                        n = min(remaining, 8192)
-                        rng.goRight(n, True)
-                        remaining -= n
-                    format_support.replace_preserving_format(
-                        ctx.doc, rng, raw_content, ctx.ctx
-                    )
-                    return {"status": "ok", "message": "Replaced entire document. (formatting preserved)"}
-                else:
-                    format_support.replace_full_document(
-                        ctx.doc, ctx.ctx, content, config_svc=config_svc
-                    )
-                    return {"status": "ok", "message": "Replaced entire document."}
-            except Exception as exc:
-                return {"status": "error", "message": str(exc)}
+            if use_preserve:
+                # Select entire document directly
+                from plugin.framework.document import get_document_length
+                doc_len = get_document_length(ctx.doc)
+                rng = ctx.doc.getText().createTextCursor()
+                rng.gotoStart(False)
+                remaining = doc_len
+                while remaining > 0:
+                    n = min(remaining, 8192)
+                    rng.goRight(n, True)
+                    remaining -= n
+                format_support.replace_preserving_format(
+                    ctx.doc, rng, raw_content, ctx.ctx
+                )
+                return {"status": "ok", "message": "Replaced entire document. (formatting preserved)"}
+            else:
+                format_support.replace_full_document(
+                    ctx.doc, ctx.ctx, content, config_svc=config_svc
+                )
+                return {"status": "ok", "message": "Replaced entire document."}
 
         # -- range --------------------------------------------------
         if target == "range":
             start_val = kwargs.get("start")
             end_val = kwargs.get("end")
-            if start_val is None or end_val is None:
-                return {"status": "error", "message": "target 'range' requires start and end."}
-            try:
-                if use_preserve:
-                    from plugin.modules.writer.ops import get_text_cursor_at_range
-                    rng = get_text_cursor_at_range(
-                        ctx.doc, int(start_val), int(end_val)
-                    )
-                    format_support.replace_preserving_format(
-                        ctx.doc, rng, raw_content, ctx.ctx
-                    )
-                    return {
-                        "status": "ok",
-                        "message": "Replaced range [%s, %s). (formatting preserved)"
-                        % (start_val, end_val),
-                    }
-                else:
-                    format_support.apply_content_at_range(
-                        ctx.doc, ctx.ctx, content,
-                        int(start_val), int(end_val),
-                        config_svc=config_svc,
-                    )
-                    return {
-                        "status": "ok",
-                        "message": "Replaced range [%s, %s)." % (start_val, end_val),
-                    }
-            except Exception as exc:
-                return {"status": "error", "message": str(exc)}
-
-        # -- beginning / end / selection ----------------------------
-        if target in ("beginning", "end", "selection"):
-            try:
-                format_support.insert_content_at_position(
-                    ctx.doc, ctx.ctx, content, target,
+            if use_preserve:
+                from plugin.modules.writer.ops import get_text_cursor_at_range
+                rng = get_text_cursor_at_range(
+                    ctx.doc, int(start_val), int(end_val)
+                )
+                format_support.replace_preserving_format(
+                    ctx.doc, rng, raw_content, ctx.ctx
+                )
+                return {
+                    "status": "ok",
+                    "message": "Replaced range [%s, %s). (formatting preserved)"
+                    % (start_val, end_val),
+                }
+            else:
+                format_support.apply_content_at_range(
+                    ctx.doc, ctx.ctx, content,
+                    int(start_val), int(end_val),
                     config_svc=config_svc,
                 )
                 return {
                     "status": "ok",
-                    "message": "Inserted content at %s." % target,
+                    "message": "Replaced range [%s, %s)." % (start_val, end_val),
                 }
-            except Exception as exc:
-                return {"status": "error", "message": str(exc)}
+
+        # -- beginning / end / selection ----------------------------
+        if target in ("beginning", "end", "selection"):
+            format_support.insert_content_at_position(
+                ctx.doc, ctx.ctx, content, target,
+                config_svc=config_svc,
+            )
+            return {
+                "status": "ok",
+                "message": "Inserted content at %s." % target,
+            }
 
         return {"status": "error", "message": "Unknown target: %s" % target}
 
