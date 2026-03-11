@@ -189,6 +189,8 @@ def _run_one_model(
             "correctness": r.correctness,
             "metric_score": r.metric_score,
             "total_tokens": r.total_tokens,
+            "final_document": r.final_document,
+            "error": r.error,
         })
 
     return {

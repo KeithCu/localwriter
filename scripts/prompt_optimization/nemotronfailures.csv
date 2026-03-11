@@ -1,0 +1,33 @@
+task_id,category,judge_score,judge_accuracy,judge_formatting,judge_naturalness,judge_reasoning,correctness,metric_score,total_tokens,final_document,error,model_id,document_content,user_question,rubric
+table_engineering,structural,0.43999999999999995,3.0,1.0,,"Step 1: Evaluate accuracy against instructions and meaning. User asked for a ""clean table"" with headers (Item, Price, Quantity), mapping from original (Fruit, Price, Qty), and to fix missing/extra commas. Model correctly maps headers, fixes Mango's trailing comma, and adds an empty field for Orange's missing Quantity (original lacks it). Data is fully captured without errors or inventions. However, output remains plain CSV text, not a table format (e.g., no HTML/Markdown table as in gold). This partially follows instructions, as ""table"" implies structured layout beyond CSV. Captures meaning well but misses full conversion. Score: 3/5.
+
+Step 2: Evaluate formatting/layout/structure. Rubric specifies ""CSV-to-table conversion"" with numeric right-alignment if possible/consistent. Model outputs plain CSV lines, no HTML, no <table>, no alignment (numbers left-aligned in text), no visual table structure. Gold uses proper HTML with borders, thead/tbody, and em dash (—) for missing value. Fidelity to structural task is low—no layout enhancement. Score: 1/5.
+
+Step 3: Evaluate naturalness (tone, conciseness, professional quality). Output is concise, clean text without fluff, professional in data presentation, and readable as a list. No awkward phrasing or excess. Suitable for structural task, though lacks polish of a true table. Score: 4/5.
+
+Overall: Model cleans data accurately but fails core ""table"" conversion, hurting formatting most.",0.43999999999999995,0.34226999999999996,9773,"Item, Price, Quantity
+Apple, 1.20, 12
+Banana, 0.50, 24
+Orange, 0.80, 
+Grape, 2.00, 8
+Mango, 1.50, 6",,nvidia/nemotron-3-super-120b-a12b:free,"Fruit, Price, Qty
+Apple, 1.20, 12
+Banana, 0.50, 24
+Orange, 0.80
+Grape, 2.00, 8
+Mango, 1.50, 6,
+","Convert this comma-separated list into a clean table with headers (Item, Price, Quantity). Fix missing or extra commas.","Clean CSV-to-table conversion. Map 'Fruit' to 'Item'. Ensure numeric values are right-aligned if possible, or at least consistent."
+format_preservation,structural,0.52,1.0,5.0,,"Step 1: Analyze the task - This is a structural task requiring a precise replacement of 'John Doe' with 'Jane Smith' in the header while preserving the format ""- Project Lead"". The model answer is identical to the input document_content, showing no change was made.  
+Step 2: Accuracy evaluation - The model completely fails to follow the instruction, as the name remains 'John Doe' instead of 'Jane Smith'. It does not capture the intended meaning or gold standard at all (score: 1/5).  
+Step 3: Formatting evaluation - The layout and structure (plain text header with dash and title) are identical to the input and gold standard, with no HTML/CSS issues or disruptions. Fidelity to structure is high, even if content is wrong (score: 5/5).  
+Step 4: Naturalness evaluation - The output is concise, professional, and matches the tone of a simple header. No issues with wording or style, despite the error (score: 5/5).  
+Overall: Clear failure on instruction-following in a structural context, but formatting and naturalness hold up.",0.52,0.28943,23057,John Doe - Project Lead,,nvidia/nemotron-3-super-120b-a12b:free,John Doe - Project Lead,Replace 'John Doe' with 'Jane Smith' in the header.,
+style_application,structural,0.2,1.0,1.0,,"Step 1: Understand the task - structural category, user instructs to make 'Introduction' a Heading 1, implying conversion to HTML <h1> tag as per gold standard.  
+Step 2: Compare model_answer to input and gold - model_answer is identical to document_content (no changes made), while gold wraps 'Introduction' in <h1></h1>. Model failed to follow instruction.  
+Step 3: Accuracy - completely ignores instruction, does not capture required meaning/change (score 1).  
+Step 4: Formatting - no HTML structure added, layout unchanged from plain text input, poor fidelity to task (score 1).  
+Step 5: Naturalness - unchanged text remains concise and professional in tone, no issues introduced (score 5), though irrelevant to failure.",0.2,0.0,44093,"Introduction
+
+This document describes the system.",,nvidia/nemotron-3-super-120b-a12b:free,"Introduction
+
+This document describes the system.",Make 'Introduction' a Heading 1.,
