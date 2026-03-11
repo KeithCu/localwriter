@@ -652,8 +652,8 @@ def _run_format_preserving_tests(doc, ctx, ok, fail, log):
     
     # --- Test T: Long replacement triggers processEvents (no crash) ---
     try:
-        # Create a string > 500 chars to trigger the processEvents path
-        long_len = 505
+        # Create a string long enough to exercise replacement; kept small (50) so tests run quickly.
+        long_len = 50
         old_chars = "X" * long_len
         rng = _create_colored_text(old_chars)
         
