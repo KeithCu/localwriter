@@ -80,12 +80,12 @@ config:
 #    helper: "Expose /api/chat endpoints on the HTTP server"
 #    public: true
 
-  api_auth_token:
-    type: string
-    default: ""
-    widget: text
-    label: API Auth Token
-    helper: "Optional Bearer token for researchers/external apps. Empty = no auth."
+  # api_auth_token:
+  #   type: string
+  #   default: ""
+  #   widget: text
+  #   label: API Auth Token
+  #   helper: "Optional Bearer token for researchers/external apps. Empty = no auth."
 
   query_history:
     type: string
