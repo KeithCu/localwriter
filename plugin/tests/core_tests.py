@@ -1,6 +1,6 @@
 from plugin.framework.document import DocumentCache
 from plugin.framework.uno_helpers import get_desktop
-from plugin.testing_runner import setup, teardown, test
+from plugin.testing_runner import setup, teardown, native_test
 
 
 _test_doc1 = None
@@ -36,7 +36,7 @@ def teardown_framework_tests(ctx):
     _test_ctx = None
 
 
-@test
+@native_test
 def test_document_cache():
     cache1 = DocumentCache.get(_test_doc1)
     cache1_again = DocumentCache.get(_test_doc1)
@@ -51,7 +51,7 @@ def test_document_cache():
     assert cache1 is not cache1_new, "DocumentCache.invalidate failed"
 
 
-@test
+@native_test
 def test_event_bus():
     from plugin.framework.event_bus import EventBus
     events = EventBus()
@@ -67,7 +67,7 @@ def test_event_bus():
     assert event_received[0].get("data") == 123, f"EventBus failed, received: {event_received}"
 
 
-@test
+@native_test
 def test_service_registry():
     from plugin.framework.service_registry import ServiceRegistry
     registry = ServiceRegistry()

@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from plugin.framework.uno_helpers import get_desktop
-from plugin.testing_runner import setup, teardown, test
+from plugin.testing_runner import setup, teardown, native_test
 
 
 _test_doc = None
@@ -47,7 +47,7 @@ def teardown_calc_tests(ctx):
     _test_ctx = None
 
 
-@test
+@native_test
 def test_address_utils():
     from plugin.modules.calc.address_utils import (
         column_to_index, index_to_column, parse_address,
@@ -83,7 +83,7 @@ def test_address_utils():
         pass
 
 
-@test
+@native_test
 def test_error_detector_data():
     from plugin.modules.calc.error_detector import ERROR_TYPES, ERROR_PATTERNS
     assert 502 in ERROR_TYPES
@@ -93,7 +93,7 @@ def test_error_detector_data():
         assert "description" in info
 
 
-@test
+@native_test
 def test_cells_parse_color():
     from plugin.modules.calc.cells import _parse_color
     assert _parse_color("red") == 0xFF0000
@@ -114,7 +114,7 @@ def _execute_calc_tool(name, args):
     return res
 
 
-@test
+@native_test
 def test_write_formula_range():
     active_sheet = _test_doc.getCurrentController().getActiveSheet()
     res = _execute_calc_tool("write_formula_range", {"range_name": "A1", "formula_or_values": "Hello"})
@@ -127,7 +127,7 @@ def test_write_formula_range():
     assert active_sheet.getCellByPosition(1, 1).getString() == "Batch", "Batch write cell 2 failed"
 
 
-@test
+@native_test
 def test_set_cell_style_and_details():
     active_sheet = _test_doc.getCurrentController().getActiveSheet()
     _execute_calc_tool("set_cell_style", {"range_name": "A1", "bold": True, "bg_color": "yellow"})
@@ -146,7 +146,7 @@ def test_set_cell_style_and_details():
     assert details.get("bold") == BOLD, f"Details readback bold failed: {details}"
 
 
-@test
+@native_test
 def test_merge_cells():
     active_sheet = _test_doc.getCurrentController().getActiveSheet()
     _execute_calc_tool("merge_cells", {"range_name": ["C1:D1", "E1:F1"]})
@@ -156,7 +156,7 @@ def test_merge_cells():
     assert rng2.getIsMerged(), "E1:F1 not merged"
 
 
-@test
+@native_test
 def test_clear_range():
     active_sheet = _test_doc.getCurrentController().getActiveSheet()
     active_sheet.getCellByPosition(6, 0).setString("ClearMe")
@@ -166,13 +166,13 @@ def test_clear_range():
     assert active_sheet.getCellByPosition(7, 0).getString() == "", "H1 not cleared"
 
 
-@test
+@native_test
 def test_unknown_tool():
     res = _execute_calc_tool("bad_tool", {})
     assert res.get("status") == "error", f"unknown tool handling failed: {res}"
 
 
-@test
+@native_test
 def test_formulas_error_detector():
     from plugin.modules.calc.formulas import DetectErrors
     from plugin.framework.tool_context import ToolContext
@@ -197,7 +197,7 @@ def test_formulas_error_detector():
     assert err0.get("code") == "#NAME?", f"Expected #NAME?, got: {errors}"
 
 
-@test
+@native_test
 def test_analyzer_get_sheet_summary():
     from plugin.modules.calc.bridge import CalcBridge
     from plugin.modules.calc.analyzer import SheetAnalyzer
@@ -212,14 +212,14 @@ def test_analyzer_get_sheet_summary():
     assert summary.get("row_count") >= 6, f"Row count mismatch: {summary}"
 
 
-@test
+@native_test
 def test_create_sheet():
     res = _execute_calc_tool("create_sheet", {"sheet_name": "NewSheet"})
     assert res.get("status") == "ok", f"create_sheet failed: {res}"
     assert _test_doc.getSheets().hasByName("NewSheet"), "Sheet not created"
 
 
-@test
+@native_test
 def test_add_row_and_column():
     active_sheet = _test_doc.getCurrentController().getActiveSheet()
     _execute_calc_tool("add_row", {"sheet_name": active_sheet.getName(), "row_index": 1, "count": 1})
@@ -227,6 +227,6 @@ def test_add_row_and_column():
     # we just test it didn't crash for now
 
 
-@test
+@native_test
 def test_calc_integration_tests():
     pass

@@ -99,7 +99,7 @@ def _find_text(doc, ctx, params):
         return {"status": "error", "message": str(e)}
 
 
-from plugin.testing_runner import setup, teardown, test
+from plugin.testing_runner import setup, teardown, native_test
 
 
 _test_doc = None
@@ -140,20 +140,20 @@ def _read_doc_text(d):
     return raw.getString()
 
 
-@test
+@native_test
 def test_document_to_markdown():
     md = document_to_markdown(_test_doc, _test_ctx, None, scope="full")
     assert isinstance(md, str), f"document_to_markdown did not return string: {type(md)}"
 
 
-@test
+@native_test
 def test_tool_get_document_content():
     result = _get_document_content(_test_doc, _test_ctx, {"scope": "full"})
     assert result.get("status") == "ok", f"tool_get_document_content failed: {result}"
     assert "content" in result, "Missing content"
 
 
-@test
+@native_test
 def test_get_document_content_returns_document_length():
     result = _get_document_content(_test_doc, _test_ctx, {"scope": "full"})
     doc_len_actual = len(_read_doc_text(_test_doc))
@@ -161,7 +161,7 @@ def test_get_document_content_returns_document_length():
     assert result.get("document_length") == doc_len_actual, f"Length mismatch: {result.get('document_length')} vs {doc_len_actual}"
 
 
-@test
+@native_test
 def test_apply_at_end_via_insert_markdown():
     test_content = "Format test\n\nThis was inserted by the test."
     insert_needle = "Format test"
@@ -171,7 +171,7 @@ def test_apply_at_end_via_insert_markdown():
     assert insert_needle in full_text, "Content not found after apply at end"
 
 
-@test
+@native_test
 def test_apply_document_content_target_end():
     test_content = "Format test\n\nThis was inserted by the test."
     insert_needle = "Format test"
@@ -185,7 +185,7 @@ def test_apply_document_content_target_end():
     assert insert_needle in full_text, "Content not found after _apply_document_content"
 
 
-@test
+@native_test
 def test_formatted_content():
     formatted_input = "<h1>Heading</h1><p><b>Bold text</b> and <i>italic text</i></p>"
     result = _apply_document_content(_test_doc, _test_ctx, {
@@ -201,7 +201,7 @@ def test_formatted_content():
     assert has_heading or has_bold or has_italic, "Formatting keywords not found"
 
 
-@test
+@native_test
 def test_search_and_replace():
     marker = "REPLACE_ME_MARKER"
     text = _test_doc.getText()
@@ -222,7 +222,7 @@ def test_search_and_replace():
     assert marker not in full_text, "marker not gone"
 
 
-@test
+@native_test
 def test_list_input_accommodation():
     list_input = ["item_a", "item_b"]
     result = _apply_document_content(_test_doc, _test_ctx, {
@@ -234,7 +234,7 @@ def test_list_input_accommodation():
     assert "item_a" in full_text and "item_b" in full_text, "list input content missing"
 
 
-@test
+@native_test
 def test_target_full():
     full_replacement = "<h1>Full Replace Test</h1><p>Only this content should remain.</p>"
     result = _apply_document_content(_test_doc, _test_ctx, {"content": full_replacement, "target": "full"})
@@ -243,7 +243,7 @@ def test_target_full():
     assert "Full Replace" in full_text, "'Full Replace' not found"
 
 
-@test
+@native_test
 def test_target_range():
     doc_len = _doc_text_length_raw(_test_doc)
     range_content = "<h2>Range Replace</h2><p>Replaced [0, %d).</p>" % doc_len
@@ -253,7 +253,7 @@ def test_target_range():
     assert "Range Replace" in full_text, "'Range Replace' not found"
 
 
-@test
+@native_test
 def test_get_document_content_scope_range():
     full_text = _read_doc_text(_test_doc)
     if len(full_text) >= 10:
@@ -262,7 +262,7 @@ def test_get_document_content_scope_range():
         assert result.get("start") == 0 and result.get("end") == 10 and "content" in result, "Malformed response"
 
 
-@test
+@native_test
 def test_find_text():
     marker_find = "FIND_ME_UNIQUE_xyz"
     text = _test_doc.getText()
@@ -282,7 +282,7 @@ def test_find_text():
     assert text_at_range == marker_find, f"find_text mismatch. Expected '{marker_find}', got '{text_at_range}'"
 
 
-@test
+@native_test
 def test_html_linebreak_preservation():
     plain_input = "Line 1\nLine 2\n\nParagraph 2"
     result = _apply_document_content(_test_doc, _test_ctx, {
@@ -293,7 +293,7 @@ def test_html_linebreak_preservation():
     assert "Line 1" in full_text and "Line 2" in full_text and "Paragraph 2" in full_text, "HTML linebreak preservation failed"
 
 
-@test
+@native_test
 def test_crlf_normalization():
     crlf_input = "Line A\r\nLine B"
     marker_u = "UNIQUE_CRLF_TEST"
@@ -317,7 +317,7 @@ def test_crlf_normalization():
     assert total_range_text == expected_norm, f"Expected {repr(expected_norm)}, got {repr(total_range_text)}"
 
 
-@test
+@native_test
 def test_content_has_markup_auto_detection():
     assert _content_has_markup("**bold**") == True
     assert _content_has_markup("<b>bold</b>") == True
@@ -380,7 +380,7 @@ def _get_char_colors(range_cursor):
     return colors
 
 
-@test
+@native_test
 def test_same_length_replacement_preserves_colors():
     old_chars = "ABCDE"
     rng = _create_colored_text(old_chars)
@@ -398,7 +398,7 @@ def test_same_length_replacement_preserves_colors():
     assert actual_colors == expected_colors and found.getString() == "PQRST", f"Expected {expected_colors}, got {actual_colors}, text='{found.getString()}'"
 
 
-@test
+@native_test
 def test_longer_replacement_inherits_last_color():
     old_chars = "ABC"
     rng = _create_colored_text(old_chars)
@@ -419,7 +419,7 @@ def test_longer_replacement_inherits_last_color():
     assert actual_colors == expected_colors and found.getString() == "MNOPQ", f"Expected {expected_colors}, got {actual_colors}, text='{found.getString()}'"
 
 
-@test
+@native_test
 def test_shorter_replacement_leftover_deleted():
     old_chars = "ABCDE"
     rng = _create_colored_text(old_chars)
@@ -438,7 +438,7 @@ def test_shorter_replacement_leftover_deleted():
     assert actual_colors == expected_colors and result_text == "UV", f"Expected {expected_colors}, got {actual_colors}, text={repr(result_text)}"
 
 
-@test
+@native_test
 def test_long_replacement_process_events():
     long_len = 50
     old_chars = "X" * long_len
@@ -515,7 +515,7 @@ def _check_colors_at_search(search_str, expected_colors):
     return False, "expected %s got %s" % (expected_colors, actual)
 
 
-@test
+@native_test
 def test_apply_document_content_target_search_preserves_colors():
     word = "zBertPicklez"   # unique sentinel around the name
     start_off, end_off = _insert_colored_word(word)
@@ -531,7 +531,7 @@ def test_apply_document_content_target_search_preserves_colors():
     assert ok_flag, f"colors not preserved: {detail}"
 
 
-@test
+@native_test
 def test_apply_document_content_target_range_preserves_colors():
     word = "zNormaFlintez"
     start_off, end_off = _insert_colored_word(word)
@@ -548,7 +548,7 @@ def test_apply_document_content_target_range_preserves_colors():
     assert ok_flag, f"colors not preserved: {detail}"
 
 
-@test
+@native_test
 def test_apply_document_content_target_full_preserves_colors():
     desktop = get_desktop(_test_ctx)
     small_doc = desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, ())

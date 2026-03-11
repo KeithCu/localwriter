@@ -60,8 +60,8 @@ class TestStreamingBasic(unittest.TestCase):
             "request_timeout": 60,
         }
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_basic_streaming(self, mock_init_logging, mock_debug_log):
         """Happy path: two content chunks then [DONE]."""
         chunks = [
@@ -76,13 +76,12 @@ class TestStreamingBasic(unittest.TestCase):
 
         client.stream_request(
             "POST", "/v1/chat/completions", b"{}", {},
-            "chat",
-            append_callback=content_parts.append,
+            content_parts.append,
         )
         self.assertEqual(content_parts, ["Hello", " world"])
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_sse_no_space_after_colon(self, mock_init_logging, mock_debug_log):
         """SSE line 'data:{...}' without space after colon is still parsed.
         LiteLLM: streaming_handler.py ~L1280 _strip_sse_data_from_chunk (Sagemaker format).
@@ -96,13 +95,12 @@ class TestStreamingBasic(unittest.TestCase):
         content_parts = []
         client.stream_request(
             "POST", "/v1/chat/completions", b"{}", {},
-            "chat",
-            append_callback=content_parts.append,
+            content_parts.append,
         )
         self.assertEqual(content_parts, ["ok"])
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_sse_comment_lines_skipped(self, mock_init_logging, mock_debug_log):
         """Lines starting with ':' are skipped (OpenRouter heartbeats)."""
         chunks = [
@@ -116,13 +114,12 @@ class TestStreamingBasic(unittest.TestCase):
         content_parts = []
         client.stream_request(
             "POST", "/v1/chat/completions", b"{}", {},
-            "chat",
-            append_callback=content_parts.append,
+            content_parts.append,
         )
         self.assertEqual(content_parts, ["x"])
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_malformed_json_skipped(self, mock_init_logging, mock_debug_log):
         """Garbled payload is skipped; subsequent chunks are processed."""
         lines = [
@@ -135,8 +132,7 @@ class TestStreamingBasic(unittest.TestCase):
         content_parts = []
         client.stream_request(
             "POST", "/v1/chat/completions", b"{}", {},
-            "chat",
-            append_callback=content_parts.append,
+            content_parts.append,
         )
         self.assertEqual(content_parts, ["fine"])
 
@@ -148,8 +144,8 @@ class TestStreamingFinishReasonError(unittest.TestCase):
         self.ctx = MagicMock()
         self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_finish_reason_error_raises(self, mock_init_logging, mock_debug_log):
         """Chunk with finish_reason='error' raises Exception."""
         chunk = _make_chat_chunk(content="", finish_reason="error")
@@ -160,8 +156,7 @@ class TestStreamingFinishReasonError(unittest.TestCase):
         with self.assertRaises(Exception) as ctx:
             client.stream_request(
                 "POST", "/v1/chat/completions", b"{}", {},
-                "chat",
-                append_callback=lambda t: None,
+                lambda t: None,
             )
         # API re-raises with format_error_message(); user sees friendly text
         self.assertIn("AI provider reported an error", str(ctx.exception))
@@ -174,8 +169,8 @@ class TestStreamingRepeatedChunks(unittest.TestCase):
         self.ctx = MagicMock()
         self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_repeated_chunks_raises(self, mock_init_logging, mock_debug_log):
         """Many identical content chunks raise Exception."""
         # Default REPEATED_STREAMING_CHUNK_LIMIT in api.py is 20
@@ -187,8 +182,7 @@ class TestStreamingRepeatedChunks(unittest.TestCase):
         with self.assertRaises(Exception) as ctx:
             client.stream_request(
                 "POST", "/v1/chat/completions", b"{}", {},
-                "chat",
-                append_callback=lambda t: None,
+                lambda t: None,
             )
         self.assertIn("repeating", str(ctx.exception).lower())
 
@@ -202,8 +196,8 @@ class TestNormalizeDelta(unittest.TestCase):
         self.ctx = MagicMock()
         self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_tool_none_arguments_normalized(self, mock_init_logging, mock_debug_log):
         """Streamed tool_call with function.arguments=None becomes '' after accumulate_delta + normalize."""
         # One chunk with tool_calls and arguments None (Azure); after normalize, accumulate_delta gets ""
@@ -236,8 +230,8 @@ class TestNormalizeDelta(unittest.TestCase):
         self.assertIn("arguments", fn)
         self.assertEqual(fn["arguments"], "")
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_tool_none_type_normalized(self, mock_init_logging, mock_debug_log):
         """Streamed tool_call with type=None becomes 'function' (Mistral)."""
         chunks = [
@@ -266,8 +260,8 @@ class TestNormalizeDelta(unittest.TestCase):
         self.assertEqual(len(result["tool_calls"]), 1)
         self.assertEqual(result["tool_calls"][0].get("type"), "function")
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_role_none_normalized(self, mock_init_logging, mock_debug_log):
         """Delta with role=None is normalized to 'assistant' (Mistral)."""
         chunks = [
@@ -297,8 +291,8 @@ class TestFinishReasonRemap(unittest.TestCase):
         self.ctx = MagicMock()
         self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
 
-    @patch("core.api.debug_log")
-    @patch("core.api.init_logging")
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
     def test_finish_reason_stop_with_tool_calls_remapped(self, mock_init_logging, mock_debug_log):
         """When finish_reason is 'stop' but tool_calls exist, result has finish_reason='tool_calls'."""
         chunks = [

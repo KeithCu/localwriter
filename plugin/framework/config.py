@@ -816,7 +816,7 @@ class ConfigService(ServiceBase):
 
         ctx = get_ctx()
         val = get_config(ctx, key)
-        if val is not None:
+        if val is not None and val != "":
             return val
         return self._defaults.get(key, default)
 

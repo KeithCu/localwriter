@@ -6,7 +6,7 @@ from plugin.framework.document import (
     get_document_length,
 )
 from plugin.framework.uno_helpers import get_desktop
-from plugin.testing_runner import setup, teardown, test
+from plugin.testing_runner import setup, teardown, native_test
 
 
 _test_doc = None
@@ -67,40 +67,62 @@ def teardown_writer_tests(ctx):
     _test_ctx = None
 
 
-@test
+@native_test
 def test_proximity_service():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     from plugin.modules.writer.proximity import ProximityService
     from plugin.modules.writer.bookmarks import BookmarkService
     from plugin.modules.writer.tree import TreeService
     from plugin.framework.events import EventBus
+    from plugin.modules.writer.ops import find_paragraph_for_range as ops_find_paragraph_for_range
 
     events = EventBus()
-
     cache3 = DocumentCache.get(_test_doc)
 
-    class DummyDocSvc:
+    class DocSvcAdapter:
+        def doc_key(self, doc):
+            return id(doc)
         def get_document_length(self, model):
             return cache3.length
+        def resolve_locator(self, doc, locator):
+            return resolve_locator(doc, locator)
+        def get_paragraph_ranges(self, doc):
+            return get_paragraph_ranges(doc)
+        def find_paragraph_for_range(self, anchor, para_ranges, text_obj):
+            return ops_find_paragraph_for_range(anchor, para_ranges, text_obj)
+        def yield_to_gui(self):
+            pass
 
-    doc_svc = DummyDocSvc()
+    doc_svc = DocSvcAdapter()
     bm = BookmarkService(doc_svc, events)
     tree_svc = TreeService(doc_svc, bm, events)
     prox = ProximityService(doc_svc, tree_svc, bm, events)
 
-    res = prox.get_context_at_offset(_test_doc, 0)
-    assert res is not None and res["paragraph_index"] == 0, f"ProximityService get_context_at_offset failed: {res}"
+    res = prox.get_surroundings(_test_doc, "paragraph:0", radius=0)
+    assert res is not None and res.get("center_para_index") == 0, f"ProximityService get_surroundings failed: {res}"
 
 
-@test
+@native_test
 def test_content_has_markup():
     from plugin.modules.writer.format_support import content_has_markup
     assert content_has_markup("**bold**"), "content_has_markup failed to detect **bold**"
     assert not content_has_markup("plain text"), "content_has_markup falsely detected plain text"
 
 
-@test
+@native_test
 def test_ensure_heading_bookmarks():
-    from plugin.modules.writer.bookmarks import ensure_heading_bookmarks
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
+    from plugin.framework.document import ensure_heading_bookmarks
     ensure_heading_bookmarks(_test_doc)
     bookmarks = _test_doc.getBookmarks()
     bnames = bookmarks.getElementNames()
@@ -112,14 +134,26 @@ def test_ensure_heading_bookmarks():
     assert len(bnames) == 3, f"ensure_heading_bookmarks duplicated bookmarks, total: {len(bnames)}"
 
 
-@test
+@native_test
 def test_get_paragraph_ranges():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     ranges = get_paragraph_ranges(_test_doc)
     assert len(ranges) == 5, f"get_paragraph_ranges expected 5 paragraphs, got {len(ranges)}"
 
 
-@test
+@native_test
 def test_build_heading_tree():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     tree = build_heading_tree(_test_doc)
     assert "children" in tree and len(tree["children"]) == 2, "build_heading_tree did not find 2 root children"
     h1 = tree["children"][0]
@@ -131,8 +165,14 @@ def test_build_heading_tree():
     assert h2["body_paragraphs"] == 0, "H2 body paragraphs mismatch"
 
 
-@test
+@native_test
 def test_resolve_locator():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     res1 = resolve_locator(_test_doc, "paragraph:1")
     assert res1 and res1["para_index"] == 1, f"resolve_locator paragraph:1 failed: {res1}"
 
@@ -143,8 +183,14 @@ def test_resolve_locator():
     assert res3 and res3["para_index"] == 2, f"resolve_locator heading:1.1 failed: {res3}"
 
 
-@test
+@native_test
 def test_document_cache_length_tracking():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     cache3 = DocumentCache.get(_test_doc)
     _ = get_document_length(_test_doc)
     prev_len = cache3.length

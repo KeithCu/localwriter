@@ -17,7 +17,7 @@
 import json
 from plugin.framework.logging import debug_log
 from plugin.framework.uno_helpers import get_desktop
-from plugin.testing_runner import setup, teardown, test
+from plugin.testing_runner import setup, teardown, native_test
 
 
 _test_doc = None
@@ -59,8 +59,14 @@ def _exec_tool(name, args):
     return json.dumps(res) if isinstance(res, dict) else res
 
 
-@test
+@native_test
 def test_list_pages():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     result = _exec_tool("list_pages", {})
     data = json.loads(result)
     assert data.get("status") == "ok", f"list_pages failed: {result}"
@@ -68,8 +74,14 @@ def test_list_pages():
     assert num_pages > 0, "No pages found"
 
 
-@test
+@native_test
 def test_create_and_verify_shape():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     # 1. Create shape
     result = _exec_tool("create_shape", {
         "shape_type": "rectangle",
@@ -107,8 +119,14 @@ def test_create_and_verify_shape():
     assert data.get("status") == "ok", f"delete_shape failed: {result}"
 
 
-@test
+@native_test
 def test_get_draw_context_for_chat():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
     from plugin.framework.document import get_draw_context_for_chat
     ctx_str = get_draw_context_for_chat(_test_doc, 8000, _test_ctx)
     has_doc_type = "Draw Document" in ctx_str or "Impress Presentation" in ctx_str

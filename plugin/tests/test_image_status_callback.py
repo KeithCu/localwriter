@@ -44,7 +44,7 @@ class TestImageStatusCallback(unittest.TestCase):
                 result = service.generate_image("test prompt", status_callback=status_callback)
                 
                 # Assert calls
-                self.assertEqual(result, ["/tmp/image.png"])
+                self.assertEqual(result, (["/tmp/image.png"], ""))
                 
                 # Check callback calls
                 status_callback.assert_any_call("Horde: Starting... (0%)")

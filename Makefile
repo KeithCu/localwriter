@@ -70,11 +70,21 @@ else
     SCRIPTS = scripts
     RUN_SH  = bash
     EXT     = .sh
-    PYTHON  = python3
+    PYTHON  = python
     RM_RF   = rm -rf
     MKDIR   = mkdir -p
     LO_CONF = $(HOME)/.config/libreoffice/4
     HOME_DIR = $(HOME)
+endif
+
+# Prefer project .venv so "make test" uses venv even when shell isn't activated
+ifneq ($(wildcard .venv/bin/python),)
+    PYTHON := .venv/bin/python
+endif
+ifeq ($(OS),Windows_NT)
+ifneq ($(wildcard .venv/Scripts/python.exe),)
+    PYTHON := .venv/Scripts/python.exe
+endif
 endif
 
 # ── Phony targets ────────────────────────────────────────────────────────────
@@ -131,7 +141,7 @@ help:
 	@echo "  make check-setup            Verify dev stack (Python, LO, make, ...)"
 	@echo "  make check-ext              Verify extension is registered"
 	@echo "  make set-config             List all config keys"
-	@echo "  make test                   Run in-process LO tests via plugin.testing_runner"
+	@echo "  make test                   Run pytest (plugin/tests), then in-process LO tests (plugin.testing_runner)"
 	@echo ""
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -305,8 +315,11 @@ check-ext:
 	@echo "---"
 	@$(PYTHON) -c "from plugin._manifest import MODULES; print('Manifest OK: %d modules, %d with config' % (len(MODULES), len([m for m in MODULES if m.get('config')])))"
 
+# For LO tests: use Python that has uno (same as "python -m plugin.testing_runner"). Override with make test LO_PYTHON=...
+LO_PYTHON ?= python
 test:
-	$(PYTHON) -m plugin.testing_runner
+	$(PYTHON) -m pytest plugin/tests
+	$(LO_PYTHON) -m plugin.testing_runner
 
 # ── POC extension ───────────────────────────────────────────────────────────
 

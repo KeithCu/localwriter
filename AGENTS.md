@@ -489,6 +489,8 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 
   - This prints the JSON summary to stdout and exits with code `0` if `total_failed == 0`, otherwise non-zero. It does **not** depend on MCP/HTTP and does not require any UI interaction (no menus or dialogs).
 
+- **Pytest vs native runner**: LO-dependent suites (`test_calc.py`, `test_chat_model_logic.py`, `test_draw.py`, `test_writer.py`) are not collected by pytest when `uno` is not importable (`plugin/tests/conftest.py`). Native-runner tests use the `@native_test` decorator (from `plugin.testing_runner`); tests that need a live document skip with `pytest.skip(...)` when `_test_doc is None` so they only run when the native runner has executed setup. **ConfigService**: `get()` treats empty string from `get_config()` as missing and falls back to manifest/defaults so unknown keys return `None` and manifest defaults (e.g. `mcp.port`) are used in tests.
+
 ### Optional refactoring (future work)
 - **panel_factory.py**: Split `SendButtonListener._do_send` into smaller methods (e.g. `_do_send_direct_image`, `_do_send_with_tools`, `_do_send_simple_stream`) with a short `_do_send` that validates and dispatches.
 - **plugin/main.py**: Split `trigger()` into handlers (e.g. `_handle_mcp`, `_handle_writer`, `_handle_calc`, `_handle_draw`) so `trigger` only delegates; optionally extract settings populate/read into helpers driven by `field_specs`.

@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 from plugin.framework.uno_helpers import get_active_document
 
 
-def test(func):
+def native_test(func):
     """Decorator to mark a function as a test in the native test runner."""
     func._is_test = True
     return func
@@ -40,7 +40,7 @@ def _run_suite(
 ) -> None:
     """Run a test module using the decorator-based native runner.
 
-    Collects functions marked with @setup, @teardown, and @test.
+    Collects functions marked with @setup, @teardown, and @native_test.
     Executes setup(ctx), then all tests(ctx), then teardown(ctx).
     """
     total_passed = 0
