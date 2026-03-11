@@ -579,18 +579,7 @@ class CellManipulator:
         position: str = None,
         has_header: bool = True,
     ):
-        """Create a chart from data.
-
-        Args:
-            data_range: Range for chart data (e.g. "A1:B10").
-            chart_type: Chart type (bar, line, pie, scatter, column).
-            title: Chart title.
-            position: Cell where chart is placed (e.g. "E1").
-            has_header: Whether first row/column is a label.
-
-        Returns:
-            Description string.
-        """
+        """Create a chart from data."""
         try:
             sheet = self.bridge.get_active_sheet()
             cell_range = self.bridge.get_cell_range(sheet, data_range)
@@ -628,9 +617,10 @@ class CellManipulator:
                 chart_name, rect, (range_address,), has_header, has_header,
             )
 
-            chart = charts.getByName(chart_name).getEmbeddedObject()
-            diagram = chart.createInstance(chart_service)
-            chart.setDiagram(diagram)
+            chart_obj = charts.getByName(chart_name)
+            chart_doc = chart_obj.getEmbeddedObject()
+            diagram = chart_doc.createInstance(chart_service)
+            chart_doc.setDiagram(diagram)
 
             if chart_type == "bar" and hasattr(diagram, "Vertical"):
                 diagram.Vertical = True
@@ -638,15 +628,299 @@ class CellManipulator:
                 diagram.Vertical = False
 
             if title:
-                chart.setPropertyValue("HasMainTitle", True)
-                chart_title = chart.getTitle()
+                chart_doc.setPropertyValue("HasMainTitle", True)
+                chart_title = chart_doc.getTitle()
                 chart_title.setPropertyValue("String", title)
 
             logger.info("Chart created: %s (%s)", chart_name, chart_type)
-            return f"{chart_type} type chart created."
+            return f"{chart_type} type chart created as '{chart_name}'."
         except Exception as e:
             logger.error("Chart creation error: %s", str(e))
             raise
+
+    def list_charts(self):
+        """List all charts on the active sheet."""
+        try:
+            sheet = self.bridge.get_active_sheet()
+            charts = sheet.getCharts()
+            result = []
+            for name in charts.getElementNames():
+                chart_obj = charts.getByName(name)
+                entry = {"name": name}
+                try:
+                    chart_doc = chart_obj.getEmbeddedObject()
+                    if chart_doc:
+                        try:
+                            entry["has_legend"] = chart_doc.HasLegend
+                        except Exception:
+                            entry["has_legend"] = False
+                        try:
+                            entry["title"] = chart_doc.getTitle().String if chart_doc.HasMainTitle else ""
+                        except Exception:
+                            entry["title"] = ""
+                except Exception:
+                    pass
+                result.append(entry)
+            return result
+        except Exception as e:
+            logger.error("List charts error: %s", str(e))
+            raise
+
+    def get_chart_info(self, chart_name: str):
+        """Get detailed info about a chart."""
+        try:
+            sheet = self.bridge.get_active_sheet()
+            charts = sheet.getCharts()
+            if not charts.hasByName(chart_name):
+                return None
+
+            chart_obj = charts.getByName(chart_name)
+            info = {"name": chart_name, "sheet": sheet.getName()}
+
+            try:
+                ranges = chart_obj.getRanges()
+                info["data_ranges"] = [self.bridge._range_to_str(r) for r in ranges]
+            except Exception:
+                info["data_ranges"] = []
+
+            chart_doc = chart_obj.getEmbeddedObject()
+            if chart_doc:
+                try:
+                    info["title"] = chart_doc.getTitle().String if chart_doc.HasMainTitle else ""
+                except Exception:
+                    info["title"] = ""
+                try:
+                    info["subtitle"] = chart_doc.getSubTitle().String if chart_doc.HasSubTitle else ""
+                except Exception:
+                    info["subtitle"] = ""
+                try:
+                    info["has_legend"] = chart_doc.HasLegend
+                except Exception:
+                    info["has_legend"] = None
+                try:
+                    diagram = chart_doc.getDiagram()
+                    info["diagram_type"] = diagram.getDiagramType()
+                except Exception:
+                    info["diagram_type"] = ""
+
+            return info
+        except Exception as e:
+            logger.error("Get chart info error: %s", str(e))
+            raise
+
+    def edit_chart(
+        self,
+        chart_name: str,
+        title: str = None,
+        subtitle: str = None,
+        has_legend: bool = None,
+    ):
+        """Modify chart properties."""
+        try:
+            sheet = self.bridge.get_active_sheet()
+            charts = sheet.getCharts()
+            if not charts.hasByName(chart_name):
+                raise ValueError(f"Chart '{chart_name}' not found.")
+
+            chart_obj = charts.getByName(chart_name)
+            chart_doc = chart_obj.getEmbeddedObject()
+            if chart_doc is None:
+                raise RuntimeError("Cannot access chart document.")
+
+            updated = []
+            if title is not None:
+                chart_doc.HasMainTitle = True
+                title_obj = chart_doc.getTitle()
+                title_obj.String = title
+                updated.append("title")
+
+            if subtitle is not None:
+                chart_doc.HasSubTitle = True
+                sub_obj = chart_doc.getSubTitle()
+                sub_obj.String = subtitle
+                updated.append("subtitle")
+
+            if has_legend is not None:
+                chart_doc.HasLegend = has_legend
+                updated.append("has_legend")
+
+            return updated
+        except Exception as e:
+            logger.error("Edit chart error: %s", str(e))
+            raise
+
+    def delete_chart(self, chart_name: str):
+        """Delete a chart."""
+        try:
+            sheet = self.bridge.get_active_sheet()
+            charts = sheet.getCharts()
+            if not charts.hasByName(chart_name):
+                return False
+            charts.removeByName(chart_name)
+            return True
+        except Exception as e:
+            logger.error("Delete chart error: %s", str(e))
+            raise
+
+    # ── Conditional Formatting ─────────────────────────────────────────
+
+    def list_conditional_formats(self, range_str: str = None):
+        """List conditional formatting rules on a cell range.
+
+        Args:
+            range_str: Cell range (e.g. "A1:D10"). If None, scans used area.
+
+        Returns:
+            List of rule dictionaries.
+        """
+        try:
+            sheet = self.bridge.get_active_sheet()
+            if range_str:
+                cell_range = self.bridge.get_cell_range(sheet, range_str)
+            else:
+                cursor = sheet.createCursor()
+                cursor.gotoStartOfUsedArea(False)
+                cursor.gotoEndOfUsedArea(True)
+                cell_range = cursor
+
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+            if formats is None or formats.getCount() == 0:
+                return []
+
+            rules = []
+            for i in range(formats.getCount()):
+                entry = formats.getByIndex(i)
+                rules.append(self._entry_to_dict(entry, i))
+            return rules
+        except Exception as e:
+            logger.error("List conditional formats error: %s", str(e))
+            raise
+
+    def add_conditional_format(
+        self,
+        range_str: str,
+        operator: str,
+        formula1: str,
+        style_name: str,
+        formula2: str = "",
+    ):
+        """Add a conditional formatting rule to a range.
+
+        Args:
+            range_str: Cell range (e.g. "A1:B10").
+            operator: Condition operator (EQUAL, GREATER, FORMULA, etc.).
+            formula1: First formula or value.
+            style_name: Cell style name to apply.
+            formula2: Second formula or value (for BETWEEN).
+        """
+        try:
+            from com.sun.star.beans import PropertyValue
+            from com.sun.star.sheet.ConditionOperator import (
+                NONE, EQUAL, NOT_EQUAL, GREATER, GREATER_EQUAL,
+                LESS, LESS_EQUAL, BETWEEN, NOT_BETWEEN, FORMULA,
+            )
+
+            op_map = {
+                "NONE": NONE, "EQUAL": EQUAL, "NOT_EQUAL": NOT_EQUAL,
+                "GREATER": GREATER, "GREATER_EQUAL": GREATER_EQUAL,
+                "LESS": LESS, "LESS_EQUAL": LESS_EQUAL,
+                "BETWEEN": BETWEEN, "NOT_BETWEEN": NOT_BETWEEN,
+                "FORMULA": FORMULA,
+            }
+
+            op_val = op_map.get(operator.upper())
+            if op_val is None:
+                raise ValueError(f"Unknown condition operator: {operator}")
+
+            sheet = self.bridge.get_active_sheet()
+            cell_range = self.bridge.get_cell_range(sheet, range_str)
+
+            props = []
+            pv = PropertyValue()
+            pv.Name = "Operator"
+            pv.Value = op_val
+            props.append(pv)
+
+            pv = PropertyValue()
+            pv.Name = "Formula1"
+            pv.Value = formula1
+            props.append(pv)
+
+            if formula2:
+                pv = PropertyValue()
+                pv.Name = "Formula2"
+                pv.Value = formula2
+                props.append(pv)
+
+            pv = PropertyValue()
+            pv.Name = "StyleName"
+            pv.Value = style_name
+            props.append(pv)
+
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+            formats.addNew(tuple(props))
+            cell_range.setPropertyValue("ConditionalFormat", formats)
+
+            logger.info("Conditional format added to %s.", range_str.upper())
+            return formats.getCount()
+        except Exception as e:
+            logger.error("Add conditional format error: %s", str(e))
+            raise
+
+    def remove_conditional_format(self, range_str: str, index: int):
+        """Remove a conditional formatting rule by index."""
+        try:
+            sheet = self.bridge.get_active_sheet()
+            cell_range = self.bridge.get_cell_range(sheet, range_str)
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+            if formats and 0 <= index < formats.getCount():
+                formats.removeByIndex(index)
+                cell_range.setPropertyValue("ConditionalFormat", formats)
+                return True
+            return False
+        except Exception as e:
+            logger.error("Remove conditional format error: %s", str(e))
+            raise
+
+    def clear_conditional_formats(self, range_str: str):
+        """Clear all conditional formatting from a range."""
+        try:
+            sheet = self.bridge.get_active_sheet()
+            cell_range = self.bridge.get_cell_range(sheet, range_str)
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+            formats.clear()
+            cell_range.setPropertyValue("ConditionalFormat", formats)
+            return True
+        except Exception as e:
+            logger.error("Clear conditional formats error: %s", str(e))
+            raise
+
+    def _entry_to_dict(self, entry, idx):
+        """Convert a conditional entry to a readable dict."""
+        result = {"index": idx}
+        try:
+            op = entry.getOperator()
+            # UNO enum handling
+            op_name = str(op.value) if hasattr(op, "value") else str(op)
+            result["operator"] = op_name
+        except Exception:
+            pass
+        try:
+            f1 = entry.getFormula1()
+            if f1: result["formula1"] = f1
+        except Exception:
+            pass
+        try:
+            f2 = entry.getFormula2()
+            if f2 and f2 != "0": result["formula2"] = f2
+        except Exception:
+            pass
+        try:
+            sn = entry.getPropertyValue("StyleName")
+            if sn: result["style_name"] = sn
+        except Exception:
+            pass
+        return result
 
     # ── Structure operations ───────────────────────────────────────────
 

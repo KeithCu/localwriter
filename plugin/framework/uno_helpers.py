@@ -17,6 +17,7 @@
 import uno
 import unohelper
 from com.sun.star.awt import XActionListener
+from com.sun.star.beans import PropertyValue
 
 
 def get_desktop(ctx=None):
@@ -202,3 +203,28 @@ def set_document_property(model, name, value):
             debug_log("set_document_property error: %s" % e, context="Chat")
         except Exception:
             pass
+def get_dialog_background_color(ctx):
+    """Return the BackgroundColor from the current LibreOffice color scheme.
+    
+    Falls back to 0xF0F0F0 (light gray) if the configuration cannot be read.
+    """
+    try:
+        smgr = ctx.getServiceManager()
+        cfg_prov = smgr.createInstanceWithContext(
+            "com.sun.star.configuration.ConfigurationProvider", ctx)
+        
+        arg = PropertyValue()
+        arg.Name = "nodepath"
+        arg.Value = "/org.openoffice.Office.UI/ColorScheme"
+        
+        cfg = cfg_prov.createInstanceWithArguments(
+            "com.sun.star.configuration.ConfigurationAccess", (arg,))
+        
+        scheme_name = cfg.getPropertyValue("CurrentColorScheme")
+        schemes = cfg.getByName("ColorSchemes")
+        scheme = schemes.getByName(scheme_name)
+        
+        return scheme.getPropertyValue("DialogColor")
+    except Exception:
+        # Fallback: standard light gray background
+        return 0xF0F0F0

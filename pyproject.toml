@@ -9,6 +9,7 @@ license = {text = "GPL-3.0-or-later"}
 dev = [
     "pyyaml",
     "pytest",
+    "dspy",
 ]
 
 [tool.setuptools.dynamic]

@@ -54,7 +54,7 @@ except ImportError:
 
 from plugin.framework.logging import debug_log, start_watchdog_thread, init_logging
 from plugin.modules.chatbot.panel import ChatSession, SendButtonListener, StopButtonListener, ClearButtonListener
-from plugin.framework.uno_helpers import get_optional as get_optional_control, get_checkbox_state, set_checkbox_state, get_active_document, get_extension_url, get_extension_path, is_writer, is_calc, is_draw
+from plugin.framework.uno_helpers import get_optional as get_optional_control, get_checkbox_state, set_checkbox_state, get_active_document, get_extension_url, get_extension_path, is_writer, is_calc, is_draw, get_dialog_background_color
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
 from com.sun.star.ui.UIElementType import TOOLPANEL
@@ -301,6 +301,13 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         # Sidebar does not show the panel content without this (framework does not make it visible).
         if self.m_panelRootWindow and hasattr(self.m_panelRootWindow, "setVisible"):
             self.m_panelRootWindow.setVisible(True)
+            # Match the background color with the current LibreOffice theme
+            try:
+                bg_color = get_dialog_background_color(self.ctx)
+                if bg_color != -1:  # -1 means let the system handle it, but for sidebar we be explicit
+                    self.m_panelRootWindow.getModel().BackgroundColor = bg_color
+            except Exception as e:
+                debug_log("_getOrCreatePanelRootWindow: failed to set background color: %s" % e, context="Chat")
         # Constrain panel only when parent already has size (layout may be 0x0 here).
         parent_rect = self.xParentWindow.getPosSize()
         if parent_rect.Width > 0 and parent_rect.Height > 0:

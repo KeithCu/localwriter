@@ -174,6 +174,17 @@ MODELS: list[ModelConfig] = [
         notes="Small MoE; open-weights; agentic AI; high compute efficiency.",
     ),
     ModelConfig(
+        openrouter_id="nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        display_name="NVIDIA: Llama 3.3 Nemotron Super 49B V1.5",
+        context_window_tokens=131_072,
+        input_cost_per_million=0.10,
+        output_cost_per_million=0.40,
+        notes=(
+            "49B reasoning/chat model derived from Llama-3.3-70B-Instruct; "
+            "128K context; optimized for agentic workflows, RAG, and tool use."
+        ),
+    ),
+    ModelConfig(
         openrouter_id="mistralai/devstral-2512",
         display_name="Mistral: Devstral 2 2512",
         context_window_tokens=262_144,
