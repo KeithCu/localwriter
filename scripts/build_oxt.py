@@ -210,6 +210,42 @@ def assemble_bundle(base_dir, modules, no_recording=False, with_tests=False):
         if vendor_count:
             print("Vendored %d packages into plugin/lib/" % vendor_count)
 
+    # Release build: strip Debug (test) menu and write Addons.xcu to bundle
+    if not with_tests:
+        src_addons = os.path.join(base_dir, "extension", "Addons.xcu")
+        dst_addons = os.path.join(bundle_path, "Addons.xcu")
+        if os.path.isfile(src_addons):
+            with open(src_addons, "r", encoding="utf-8") as f:
+                content = f.read()
+            marker = 'oor:name="M_Debug"'
+            start = content.find(marker)
+            if start != -1:
+                tag_start = content.rfind("<node ", 0, start)
+                if tag_start != -1:
+                    depth = 1
+                    pos = content.find(">", start) + 1
+                    while depth > 0 and pos < len(content):
+                        next_open = content.find("<node ", pos)
+                        if next_open == -1:
+                            next_open = content.find("<node>", pos)
+                        next_close = content.find("</node>", pos)
+                        if next_close == -1:
+                            break
+                        use_open = next_open != -1 and (next_open < next_close)
+                        if use_open:
+                            depth += 1
+                            pos = content.find(">", next_open) + 1
+                        else:
+                            depth -= 1
+                            if depth == 0:
+                                end_pos = next_close + len("</node>")
+                                content = content[:tag_start] + content[end_pos:].lstrip("\r\n")
+                                break
+                            pos = next_close + len("</node>")
+            with open(dst_addons, "w", encoding="utf-8") as f:
+                f.write(content)
+            print("  Release build: stripped Debug menu from Addons.xcu")
+
     print("Assembled %d files in %s" % (count, BUNDLE_DIR))
     return count
 

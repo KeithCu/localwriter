@@ -429,6 +429,8 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 
 **Build without voice recording:** Run `make build-no-recording` (or `make build NO_RECORDING=1`) to produce an .oxt that excludes voice/audio recording: the bundle omits `contrib/audio/` and `plugin/modules/chatbot/audio_recorder.py`; the Chat sidebar stays and the Record button is simply not shown. This reduces extension size when recording is not needed.
 
+**Release build:** `make release` builds an .oxt without `plugin/tests/` or `plugin/testing_runner.py`. The build script reads `extension/Addons.xcu`, strips the **Debug** submenu node (Run format tests, Run calc tests, etc.), and writes the result to the bundle so the release menu has no test entries.
+
 ---
 
 ## 7. What to Do Next
