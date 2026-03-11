@@ -445,10 +445,11 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 
 **Build without voice recording:** Run `make build-no-recording` (or `make build NO_RECORDING=1`) to produce an .oxt that excludes voice/audio recording: the bundle omits `contrib/audio/` and `plugin/modules/chatbot/audio_recorder.py`; the Chat sidebar stays and the Record button is simply not shown. This reduces extension size when recording is not needed.
 
-**Release build:**
-  - **Testing**: `make test` runs both standard `pytest` (for core logic) and an in-process `testing_runner` (for UNO/LibreOffice integration). The `Makefile` automatically detects a Python interpreter with the `uno` module available, even when running from within a virtual environment.
-  - **Localized Test Support**: Writer integration tests handle localized style names (e.g., fallback between "Default Paragraph Style" and "Standard") to ensure compatibility across different LibreOffice builds.
-`make release` builds an .oxt without `plugin/tests/` or `plugin/testing_runner.py`. The build script reads `extension/Addons.xcu`, strips the **Debug** submenu node (Run format tests, Run calc tests, etc.), and writes the result to the bundle so the release menu has no test entries.
+**Release build**: `make release` builds an .oxt without `plugin/tests/` or `plugin/testing_runner.py`. The build script reads `extension/Addons.xcu`, strips the **Debug** submenu node (Run format tests, Run calc tests, etc.), and writes the result to the bundle so the release menu has no test entries.
+
+**Testing & QA**:
+- **make test**: Runs both standard `pytest` (for core logic) and an in-process `testing_runner` (for UNO/LibreOffice integration). The `Makefile` automatically detects a Python interpreter with the `uno` module available, even when running from within a virtual environment.
+- **Localized Style Support**: Writer integration tests handle localized style names (e.g., fallback between "Default Paragraph Style" and "Standard") to ensure compatibility across different OS/Linux builds.
 
 ---
 
