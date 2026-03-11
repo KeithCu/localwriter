@@ -105,7 +105,7 @@ writeragent/
 
 The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextList includes `com.sun.star.sheet.SpreadsheetDocument`).
 
-- **Sidebar panel**: WriterAgent deck in Writer's or Calc's right sidebar; panel has Response area, Ask field, Send button, Stop button, and Clear button. When the user changes Settings (e.g. model or additional instructions), the sidebar is notified via **config-change listeners** in `plugin/framework/config.py` (`add_config_listener`, `notify_config_changed`); the panel refreshes its model and prompt selectors from config so they stay in sync. Listeners use weakref so panels can be GC'd without unregistering.
+- **Sidebar panel**: WriterAgent deck in Writer's or Calc's right sidebar; panel has Response area, Ask field, Send button, Stop button, and Clear button. **Theme Matching**: The sidebar dynamically matches its background color to the current LibreOffice color scheme (e.g. Dark Mode) by reading `DialogColor` from the global configuration. When the user changes Settings (e.g. model or additional instructions), the sidebar is notified via **config-change listeners** in `plugin/framework/config.py` (`add_config_listener`, `notify_config_changed`); the panel refreshes its model and prompt selectors from config so they stay in sync. Listeners use weakref so panels can be GC'd without unregistering.
   - **Auto-scroll**: The response area automatically scrolls to the bottom as text is streamed or tools are called, ensuring the latest AI output is always visible.
   - **Stop button**: A dedicated "Stop" button allows users to halt AI generation mid-stream. It is enabled only while the AI is active and disabled when idle.
   - **Undo grouping**: AI edits performed during tool-calling rounds are grouped into a single undo context ("AI Edit"). Users can revert all changes from an AI turn with a single Ctrl+Z.
@@ -114,9 +114,9 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
 - **Tool-calling**: WriterAgent detects document type using robust service-based identification (`supportsService`) in `plugin/framework/document.py`.
 - **Obsolete Models Removed**: In March 2026, references to GPT-4o, GPT-4o mini, and Gemini 2.0 Flash were removed from the functional model catalog (`DEFAULT_MODELS`) and framework heuristics. Benchmarks and smoke tests were preserved for legacy comparison.
 - **OpenRouter STT Cleanup**: OpenRouter's STT model list was streamlined to keep `google/gemini-3.1-flash-lite-preview` as the primary cross-platform audio-native option.
-    - **Writer**: `com.sun.star.text.TextDocument`. `plugin/modules/writer/tools.py` exposes **WRITER_TOOLS** = `get_document_content`, `apply_document_content`, `find_text` (in `plugin/modules/writer/format_support.py`) + `tool_get_document_outline`, `tool_get_heading_content`, `tool_read_paragraphs`, `tool_insert_at_paragraph`, `tool_get_document_stats`, `list_styles`, `get_style_info`, `list_comments`, `add_comment`, `delete_comment`, `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes`, `list_tables`, `read_table`, `write_table_cells` (in `plugin/modules/writer/tables.py`) + `generate_image`, `edit_image`.
-    - **Calc**: `com.sun.star.sheet.SpreadsheetDocument`. `plugin/modules/calc/tools.py` exposes **CALC_TOOLS** and `execute_calc_tool`; core logic in `core/calc_*.py`.
-    - **Draw/Impress**: `com.sun.star.drawing.DrawingDocument` or `com.sun.star.presentation.PresentationDocument`. `plugin/modules/draw/tools.py` exposes **DRAW_TOOLS** and `execute_draw_tool`. Includes slide/page management (`add_slide`, `delete_slide`) and speaker notes context.
+    - **Writer**: `com.sun.star.text.TextDocument`. Writer tools are auto-discovered from `plugin/modules/writer/tools/` and expose `get_document_content`, `apply_document_content`, `find_text` (in `plugin/modules/writer/format_support.py`) + `tool_get_document_outline`, `tool_get_heading_content`, `tool_read_paragraphs`, `tool_insert_at_paragraph`, `tool_get_document_stats`, `list_styles`, `get_style_info`, `list_comments`, `add_comment`, `delete_comment`, `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes`, `list_tables`, `read_table`, `write_table_cells` (in `plugin/modules/writer/tables.py`) + `generate_image`, `edit_image`.
+    - **Calc**: `com.sun.star.sheet.SpreadsheetDocument`. Calc tools are auto-discovered from `plugin/modules/calc/tools/`; core logic in `core/calc_*.py`. Additional tools for **charts** (list, create, edit, delete) and **conditional formatting** (list, add, remove, clear) are available in `plugin/modules/calc/charts.py` and `plugin/modules/calc/conditional.py`.
+    - **Draw/Impress**: `com.sun.star.drawing.DrawingDocument` or `com.sun.star.presentation.PresentationDocument`. Draw/Impress tools are auto-discovered from `plugin/modules/draw/` and provide slide/page management (`add_slide`, `delete_slide`), shape management (`list_pages`, `get_draw_summary`, `create_shape`, `edit_shape`, `delete_shape`), slide text + speaker notes inspection (`read_slide_text`), and presentation metadata (`get_presentation_info`). Chat and MCP use `get_draw_context_for_chat` in `plugin/framework/document.py`, which summarizes slides, shapes, and notes; all of these behaviors are aligned with the current `nelson-mcp` Draw/Impress implementation.
 - **Menu fallback**: Menu item "Chat with Document" opens input dialog, streams response with no tool-calling. **Writer**: appends to document end. **Calc**: streams to "AI Response" sheet. Both sidebar and menu use the same robust document detection.
 - **Config keys** (used by chat): `chat_context_length`, `chat_max_tokens`, `additional_instructions` (in Settings).
 - **Unified Prompt System**: See Section 3c.
@@ -270,7 +270,21 @@ To improve UI responsiveness and AI navigation in complex documents, we ported p
 
 ---
 
-## 4. Shared Helpers
+---
+ 
+ ## 3f. Sidebar Theme Fix
+ 
+ **Issue**: The sidebar chat panel background remained white (or default light gray) even when LibreOffice was switched to a Dark Mode theme, creating a jarring visual contrast.
+ 
+ **Fix**:
+ - Added `get_dialog_background_color(ctx)` to `plugin/framework/uno_helpers.py`. This helper queries the `/org.openoffice.Office.UI/ColorScheme` configuration node to find the `DialogColor` of the active schema.
+ - Updated `plugin/modules/chatbot/panel_factory.py` to apply this background color to the panel's root window during creation (`_getOrCreatePanelRootWindow`).
+ 
+ **Result**: The sidebar now seamlessly matches the user's chosen LibreOffice theme, including Dark Mode.
+ 
+ ---
+ 
+ ## 4. Shared Helpers
 
 - **`MainJob._apply_settings_result(self, result)`** (`plugin/main.py`): Applies settings dialog result to config. Used by both Writer and Calc settings branches.
 - **`plugin/framework/logging.py`**:
@@ -457,7 +471,7 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 ### General
 - API key and auth for the configured endpoint are already implemented; optional: endpoint preset dropdown in Settings.
 - Impress support; Calc range-aware behavior.
-- DSPy prompt optimization and evaluation live in `scripts/prompt_optimization/`. `run_eval.py` runs a fixed Writer dataset against the current `DEFAULT_CHAT_SYSTEM_PROMPT` (using mock tools) and reports correctness + token usage; `run_optimize.py` runs DSPy MIPROv2 to search for better system prompts; `run_eval_multi.py` sweeps **multiple models** (from `model_configs.py`) and ranks them by **intelligence per dollar** (average correctness divided by estimated USD cost from list prices).
+- DSPy prompt optimization and evaluation live in `scripts/prompt_optimization/`. `run_eval.py` runs a fixed Writer dataset against the current `DEFAULT_CHAT_SYSTEM_PROMPT` (using mock tools) and reports correctness + token usage; `run_optimize.py` runs DSPy MIPROv2 to search for better system prompts; `run_eval_multi.py` sweeps **multiple models** (from `model_configs.py`) and ranks them by **intelligence per dollar** (average correctness divided by estimated USD cost from list prices). The default multi-model suite now includes `nvidia/llama-3.3-nemotron-super-49b-v1.5` (Llama 3.3 Nemotron Super 49B V1.5 from OpenRouter).
 
 ### In-process test runner (debug-only)
 
