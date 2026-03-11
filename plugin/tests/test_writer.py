@@ -37,7 +37,10 @@ def setup_writer_tests(ctx):
 
     # P1
     text.insertString(cursor, "P1", False)
-    cursor.setPropertyValue("ParaStyleName", "Default Paragraph Style")
+    try:
+        cursor.setPropertyValue("ParaStyleName", "Default Paragraph Style")
+    except Exception:
+        cursor.setPropertyValue("ParaStyleName", "Standard")
     text.insertControlCharacter(cursor, 0, False)
 
     # H1.1
@@ -47,7 +50,10 @@ def setup_writer_tests(ctx):
 
     # P2
     text.insertString(cursor, "P2", False)
-    cursor.setPropertyValue("ParaStyleName", "Default Paragraph Style")
+    try:
+        cursor.setPropertyValue("ParaStyleName", "Default Paragraph Style")
+    except Exception:
+        cursor.setPropertyValue("ParaStyleName", "Standard")
     text.insertControlCharacter(cursor, 0, False)
 
     # H2

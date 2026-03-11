@@ -315,8 +315,9 @@ check-ext:
 	@echo "---"
 	@$(PYTHON) -c "from plugin._manifest import MODULES; print('Manifest OK: %d modules, %d with config' % (len(MODULES), len([m for m in MODULES if m.get('config')])))"
 
-# For LO tests: use Python that has uno (same as "python -m plugin.testing_runner"). Override with make test LO_PYTHON=...
-LO_PYTHON ?= python
+# For LO tests: use Python that has uno (same as "python -m plugin.testing_runner").
+# We try to detect one that has the 'uno' module available, falling back to 'python' if none found.
+LO_PYTHON ?= $(shell python3 -c "import uno" 2>/dev/null && echo python3 || (python -c "import uno" 2>/dev/null && echo python || echo python))
 test:
 	$(PYTHON) -m pytest plugin/tests
 	$(LO_PYTHON) -m plugin.testing_runner
