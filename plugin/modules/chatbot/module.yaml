@@ -41,17 +41,6 @@ config:
     widget: textarea
     label: System Prompt
 
-  image_provider:
-    type: string
-    default: endpoint
-    widget: select
-    label: Image Provider
-    options:
-      - value: endpoint
-        label: LLM Endpoint
-      - value: ai_horde
-        label: AI Horde (free)
-
   extend_selection_max_tokens:
     type: int
     default: 1000
@@ -76,20 +65,20 @@ config:
     label: Tool Broker
     helper: "Two-tier tool delivery: LLM gets core tools first, activates others by intent"
 
-  enter_sends:
-    type: boolean
-    default: true
-    widget: checkbox
-    label: Enter Sends Message
-    helper: "Press Enter to send, Shift+Enter for newline"
+#  enter_sends:
+#    type: boolean
+#    default: true
+#    widget: checkbox
+#    label: Enter Sends Message
+#    helper: "Press Enter to send, Shift+Enter for newline"
 
-  api_enabled:
-    type: boolean
-    default: false
-    widget: checkbox
-    label: Enable Chat API
-    helper: "Expose /api/chat endpoints on the HTTP server"
-    public: true
+#  api_enabled:
+#    type: boolean
+#    default: false
+#    widget: checkbox
+#    label: Enable Chat API
+#    helper: "Expose /api/chat endpoints on the HTTP server"
+#    public: true
 
   api_auth_token:
     type: string
