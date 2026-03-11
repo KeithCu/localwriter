@@ -156,8 +156,8 @@ class GetTextFrameInfo(ToolBase):
         try:
             anchor = frame.getAnchor()
             doc_svc = ctx.services.document
-            para_ranges = doc_svc.get_paragraph_ranges(doc)
-            text_obj = doc.getText()
+            para_ranges = doc_svc.get_paragraph_ranges(ctx.doc)
+            text_obj = ctx.doc.getText()
             paragraph_index = doc_svc.find_paragraph_for_range(
                 anchor, para_ranges, text_obj
             )

@@ -131,9 +131,6 @@ class AddComment(ToolBase):
         para_index = kwargs.get("paragraph_index")
         author = kwargs.get("author", "AI")
 
-        if not content:
-            return {"status": "error", "message": "content is required."}
-
         doc = ctx.doc
         doc_text = doc.getText()
 
@@ -286,9 +283,6 @@ class ResolveComment(ToolBase):
         comment_name = kwargs.get("comment_name", "")
         resolution = kwargs.get("resolution", "")
         author = kwargs.get("author", "AI")
-
-        if not comment_name:
-            return {"status": "error", "message": "comment_name is required."}
 
         doc = ctx.doc
         doc_text = doc.getText()
@@ -456,8 +450,6 @@ class Workflow(ToolBase):
 
     def _set_status(self, ctx, kwargs):
         content = kwargs.get("content", "")
-        if not content:
-            return {"status": "error", "message": "content is required for set_status."}
         doc = ctx.doc
         doc_text = doc.getText()
         fields = doc.getTextFields()

@@ -133,9 +133,6 @@ class GetStyleInfo(ToolBase):
         style_name = kwargs.get("style_name", "")
         family = kwargs.get("family", "ParagraphStyles")
 
-        if not style_name:
-            return {"status": "error", "message": "style_name is required."}
-
         doc = ctx.doc
         style_family = self.get_item(
             doc, "getStyleFamilies", family,

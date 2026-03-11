@@ -24,8 +24,7 @@ text search utilities.
 import contextlib
 import logging
 import uno
-import unohelper
-from plugin.framework.uno_helpers import get_desktop, get_active_document
+from plugin.framework.uno_helpers import get_desktop
 import os
 import re
 import tempfile
@@ -34,7 +33,6 @@ log = logging.getLogger("writeragent.writer")
 
 
 from plugin.framework.document import (
-    get_document_length as _doc_text_length,
     normalize_linebreaks as _normalize,
 )
 
@@ -70,7 +68,6 @@ def _file_url(path):
 
 def _create_property_value(name, value):
     """Create a ``com.sun.star.beans.PropertyValue``."""
-    import uno
     p = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
     p.Name = name
     p.Value = value
