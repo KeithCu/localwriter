@@ -55,7 +55,9 @@ writeragent/
 │       │   ├── service.py   # AIService: unified chat/tool-calling interface
 │       │   └── providers/   # Provider-specific implementations
 │       ├── chatbot/         # Sidebar chat panel UI and interactions
-│       │   ├── panel.py     # ChatSession, logic loop (Send/Stop/Clear)
+│       │   ├── panel.py     # ChatSession, Send/Stop/Clear wiring, delegates to mixins
+│       │   ├── send_handlers.py # SendHandlersMixin: audio, web-research, image, agent backends
+│       │   ├── tool_loop.py # ToolCallingMixin: multi-round tool-calling engine & simple stream
 │       │   └── panel_factory.py # UNO Sidebar Factory
 │       ├── writer/          # Writer-specific tools and formatting
 │       │   ├── format_support.py # HTML/Markdown handling, format-preserving replacement
