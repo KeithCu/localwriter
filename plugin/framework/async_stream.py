@@ -90,7 +90,8 @@ def run_stream_drain_loop(
                     drain_mcp_queue()
                 except ImportError:
                     pass
-            toolkit.processEventsToIdle()
+            if toolkit:
+                toolkit.processEventsToIdle()
             continue
 
         try:
@@ -187,7 +188,8 @@ def run_stream_drain_loop(
             except:
                 pass
 
-        toolkit.processEventsToIdle()
+        if toolkit:
+            toolkit.processEventsToIdle()
 
 
 def run_stream_completion_async(

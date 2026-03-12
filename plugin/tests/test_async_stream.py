@@ -123,6 +123,189 @@ def test_run_blocking_in_thread_error():
         run_blocking_in_thread(ctx, blocking_func)
 
 
+def test_run_stream_drain_loop_toolkit_none():
+    q = queue.Queue()
+    q.put(("chunk", "hello"))
+    q.put(("stream_done", None))
+
+    job_done = [False]
+
+    applied = []
+    def apply_chunk(t, is_thinking):
+        applied.append((t, is_thinking))
+
+    def stream_done(item):
+        return True
+
+    def noop(*args, **kwargs):
+        pass
+
+    # Should run successfully without a toolkit
+    run_stream_drain_loop(
+        q, None, job_done, apply_chunk,
+        on_stream_done=stream_done, on_stopped=noop, on_error=noop
+    )
+
+    assert job_done[0] is True
+    assert ("hello", False) in applied
+
+
+def test_run_stream_drain_loop_tool_thinking():
+    q = queue.Queue()
+    q.put(("tool_thinking", "Searching google..."))
+    q.put(("stream_done", None))
+
+    job_done = [False]
+
+    applied = []
+    def apply_chunk(t, is_thinking):
+        applied.append((t, is_thinking))
+
+    def stream_done(item):
+        return True
+
+    def noop(*args, **kwargs):
+        pass
+
+    # With show_search_thinking=True, it should apply the chunk
+    run_stream_drain_loop(
+        q, None, job_done, apply_chunk,
+        on_stream_done=stream_done, on_stopped=noop, on_error=noop, show_search_thinking=True
+    )
+
+    assert job_done[0] is True
+    assert ("Searching google...", True) in applied
+
+    # With show_search_thinking=False, it should NOT apply the chunk
+    q2 = queue.Queue()
+    q2.put(("tool_thinking", "Searching bing..."))
+    q2.put(("stream_done", None))
+
+    job_done2 = [False]
+    applied2 = []
+    def apply_chunk2(t, is_thinking):
+        applied2.append((t, is_thinking))
+
+    run_stream_drain_loop(
+        q2, None, job_done2, apply_chunk2,
+        on_stream_done=stream_done, on_stopped=noop, on_error=noop, show_search_thinking=False
+    )
+
+    assert job_done2[0] is True
+    assert len(applied2) == 0
+
+
+def test_run_stream_drain_loop_complex_interleaving():
+    # Test a realistic stream involving thinking, chunking, status, tool_done, and final_done
+    q = queue.Queue()
+    q.put(("status", "Searching..."))
+    q.put(("thinking", "I need to check the web."))
+    q.put(("thinking", " Looking up..."))
+    q.put(("chunk", "Based on my research, "))
+    q.put(("status", "Writing..."))
+    q.put(("chunk", "the answer is 42."))
+    q.put(("tool_done", "call_123", "web_search", '{"q": "answer"}', '{"status": "ok"}'))
+    q.put(("final_done", " That is all."))
+
+    toolkit = None
+    job_done = [False]
+
+    applied = []
+    statuses = []
+    tools_done = []
+
+    def apply_chunk(t, is_thinking):
+        applied.append((t, is_thinking))
+
+    def on_status(s):
+        statuses.append(s)
+
+    def stream_done(item):
+        kind = item[0] if isinstance(item, tuple) else item
+        if kind == "tool_done":
+            tools_done.append(item)
+            return True # stop the loop for testing purposes
+        if kind == "final_done":
+            applied.append((item[1], False))
+            return True
+        return False
+
+    def noop(*args, **kwargs):
+        pass
+
+    run_stream_drain_loop(
+        q, toolkit, job_done, apply_chunk,
+        on_stream_done=stream_done, on_stopped=noop, on_error=noop, on_status_fn=on_status
+    )
+
+    assert job_done[0] is True
+
+    # Assert specific sequence of flushes
+    assert statuses == ["Searching...", "Writing..."]
+
+    # Check what was applied to the UI in order
+    assert applied[0] == ("[Thinking] ", True)
+    assert applied[1] == ("I need to check the web. Looking up...", True)
+    assert applied[2] == (" /thinking\n", True)
+    # The batching combines consecutive content chunks into a single flush
+    assert applied[3] == ("Based on my research, the answer is 42.", False)
+
+    assert len(tools_done) == 1
+    assert tools_done[0][1] == "call_123"
+
+    # In our mock stream_done, tool_done returns True to stop the loop,
+    # so we shouldn't actually see final_done applied in the assertions above.
+    # Wait, the queue items are batched and processed sequentially in one go,
+    # but `tool_done` handler does:
+    # if on_stream_done(item): job_done[0] = True; break
+    # so if it breaks, we don't process final_done in the same batch. Let's adjust assertions.
+    # We will remove the `final_done` assertion because the loop will exit early.
+
+    # Fix: We'll assert that final_done is NOT reached because tool_done broke the loop.
+    assert len(applied) == 4
+
+
+def test_run_stream_drain_loop_next_tool_and_approval():
+    q = queue.Queue()
+    q.put(("approval_required", "Do you allow file access?", "read_file", '{"path": "test.txt"}', "req_1"))
+    q.put(("next_tool",))
+
+    toolkit = None
+    job_done = [False]
+
+    applied = []
+    approvals = []
+    stream_done_items = []
+
+    def apply_chunk(t, is_thinking):
+        applied.append((t, is_thinking))
+
+    def stream_done(item):
+        stream_done_items.append(item)
+        if item[0] == "next_tool":
+            return True
+        return False
+
+    def on_stopped():
+        pass
+
+    def on_approval(item):
+        approvals.append(item)
+
+    run_stream_drain_loop(
+        q, toolkit, job_done, apply_chunk,
+        on_stream_done=stream_done, on_stopped=on_stopped, on_error=lambda e: None,
+        on_approval_required=on_approval
+    )
+
+    assert job_done[0] is True
+    assert len(stream_done_items) == 1
+    assert stream_done_items[0] == ("next_tool",)
+
+    assert len(approvals) == 1
+    assert approvals[0] == ("approval_required", "Do you allow file access?", "read_file", '{"path": "test.txt"}', "req_1")
+
+
 def test_run_stream_drain_loop_connection_drop():
     import threading
 
