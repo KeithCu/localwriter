@@ -57,6 +57,7 @@ TRANSLATION_RULES = "TRANSLATION: get_document_content -> translate -> apply_doc
 # Tool-usage workflow patterns learned from DSPy MIPROv2 optimization
 TOOL_USAGE_PATTERNS = """TOOL USAGE PATTERNS:
 - When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
+- When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
 - ALWAYS include 'target' when calling apply_document_content. Use "full" for whole-document operations.
 - For precise text replacement, use find_text first to locate exact positions, then apply_document_content with target="range" and start/end.
 - For creative rewriting or reformatting, read the full document first with get_document_content, then apply with target="full".
