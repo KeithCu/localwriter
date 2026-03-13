@@ -1,5 +1,5 @@
 name: draw
 title: Draw and Impress tools
-requires: [document, config, ai]
+requires: [document, config]
 
 config: {}

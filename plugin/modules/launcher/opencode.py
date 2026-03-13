@@ -31,19 +31,15 @@ class OpenCodeProvider(BaseProvider):
     def setup_env(self, cwd, mcp_url):
         env = super().setup_env(cwd, mcp_url)
 
-        ai = self.services.get("ai")
-        inst = ai.get_instance("text")
-
-        endpoint = "http://localhost:11434/v1"
-        model = "qwen2.5-coder:7b"
-
-        if inst:
-            try:
-                p_cfg = getattr(inst.provider, "_config", {})
-                endpoint = p_cfg.get("endpoint", endpoint)
-                model = p_cfg.get("model", model)
-            except Exception:
-                pass
+        from plugin.framework.config import get_api_config
+        from plugin.framework.uno_context import get_ctx
+        try:
+            api_config = get_api_config(get_ctx())
+            endpoint = api_config.get("endpoint", "http://localhost:11434/v1")
+            model = api_config.get("model", "qwen2.5-coder:7b")
+        except Exception:
+            endpoint = "http://localhost:11434/v1"
+            model = "qwen2.5-coder:7b"
 
         opencode_config = {
             "api_key": "ollama",

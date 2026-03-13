@@ -1,6 +1,8 @@
 name: chatbot
 title: AI chat sidebar and REST API
-requires: [document, config, events, ai, http_routes]
+requires: [document, config, events, http_routes]
+tools:
+  - plugin.modules.chatbot.web_research:WebResearchTool
 
 actions:
   extend_selection:

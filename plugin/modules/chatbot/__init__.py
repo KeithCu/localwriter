@@ -116,22 +116,16 @@ class ChatbotModule(ModuleBase):
             msgbox(ctx, "WriterAgent", "No document open")
             return
 
-        try:
-            provider = self._services.ai.get_provider("text")
-        except RuntimeError as e:
-            msgbox(ctx, "WriterAgent", str(e))
-            return
-
         doc_type = doc_svc.detect_doc_type(doc)
         if doc_type == "writer":
-            self._extend_writer(ctx, doc, provider)
+            self._extend_writer(ctx, doc)
         elif doc_type == "calc":
-            self._extend_calc(ctx, doc, provider)
+            self._extend_calc(ctx, doc)
         else:
             msgbox(ctx, "WriterAgent",
                    "Extend selection not supported for this document type")
 
-    def _extend_writer(self, ctx, doc, provider):
+    def _extend_writer(self, ctx, doc):
         """Extend selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async
@@ -180,7 +174,7 @@ class ChatbotModule(ModuleBase):
             max_tokens=max_tokens,
         )
 
-    def _extend_calc(self, ctx, doc, provider):
+    def _extend_calc(self, ctx, doc):
         """Extend selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async
@@ -269,17 +263,11 @@ class ChatbotModule(ModuleBase):
             msgbox(ctx, "WriterAgent", "No document open")
             return
 
-        try:
-            provider = self._services.ai.get_provider("text")
-        except RuntimeError as e:
-            msgbox(ctx, "WriterAgent", str(e))
-            return
-
         doc_type = doc_svc.detect_doc_type(doc)
         if doc_type == "writer":
-            self._edit_writer(ctx, doc, provider)
+            self._edit_writer(ctx, doc)
         elif doc_type == "calc":
-            self._edit_calc(ctx, doc, provider)
+            self._edit_calc(ctx, doc)
         else:
             msgbox(ctx, "WriterAgent",
                    "Edit selection not supported for this document type")
@@ -296,7 +284,7 @@ class ChatbotModule(ModuleBase):
         )
         return user_input, extra_instructions
 
-    def _edit_writer(self, ctx, doc, provider):
+    def _edit_writer(self, ctx, doc):
         """Edit selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async
@@ -371,7 +359,7 @@ class ChatbotModule(ModuleBase):
             max_tokens=max_tokens,
         )
 
-    def _edit_calc(self, ctx, doc, provider):
+    def _edit_calc(self, ctx, doc):
         """Edit selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async

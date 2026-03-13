@@ -108,12 +108,13 @@ class GenerateImage(ToolBase):
         height = args.get("height", h)
         image_model_override = args.get("image_model")
 
-        # We filter args to pass only what AiService expects
+        from plugin.framework.image_utils import ImageService
+        image_svc = ImageService(ctx.ctx, config)
         args_copy = {k: v for k, v in args.items() if k not in ("prompt", "base_size", "aspect_ratio", "width", "height")}
-        paths, error_msg = ctx.services.ai.generate_image(
+        paths, error_msg = image_svc.generate_image(
             prompt, width=width, height=height,
             status_callback=status_callback,
-            model=image_model_override, **args_copy
+            **args_copy
         )
 
         if not paths:
@@ -167,7 +168,9 @@ class EditImage(ToolBase):
         add_to_gallery = as_bool(config.get("image_auto_gallery", True))
         add_frame = as_bool(config.get("image_insert_frame", False))
 
-        paths, error_msg = ctx.services.ai.generate_image(
+        from plugin.framework.image_utils import ImageService
+        image_svc = ImageService(ctx.ctx, config)
+        paths, error_msg = image_svc.generate_image(
             prompt, source_image=source_b64,
             status_callback=status_callback, **args
         )
