@@ -79,7 +79,7 @@ DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 TOOLS:
 - apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection.
   HINT: {_FORMAT_HINT}
-- get_document_content: Read document (full/selection/range) as HTML.
+- get_document_content: Read document (full/selection/range) as HTML. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
 - find_text: Find text locations for apply_document_content.
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
 - list_comments / add_comment / delete_comment: Read and manage inline comments.
