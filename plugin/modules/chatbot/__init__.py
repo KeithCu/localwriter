@@ -33,23 +33,10 @@ class ChatbotModule(ModuleBase):
         # Chat tool routing is now handled natively by main.py's get_tools() instead of ChatToolAdapter
         self._adapter = None
 
-        # Register API routes if enabled
-        cfg = services.config.proxy_for(self.name)
-        if cfg.get("api_enabled"):
-            self._register_routes(services)
-
-        services.events.subscribe(
-            "config:changed", self._on_config_changed)
-
-    def _on_config_changed(self, **kwargs):
-        key = kwargs.get("key", "")
-        if key != "chatbot.api_enabled":
-            return
-        enabled = kwargs.get("value")
-        if enabled and not self._routes_registered:
-            self._register_routes(self._services)
-        elif not enabled and self._routes_registered:
-            self._unregister_routes(self._services)
+        # Always register API routes (legacy Chat API) when http_routes is available.
+        # The old chatbot.api_enabled toggle was removed from the manifest, so the
+        # routes are now unconditionally enabled for the HTTP server.
+        self._register_routes(services)
 
     def _register_routes(self, services):
         routes = services.get("http_routes")

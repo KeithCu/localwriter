@@ -110,11 +110,18 @@ class GenerateImage(ToolBase):
 
         from plugin.framework.image_utils import ImageService
         image_svc = ImageService(ctx.ctx, config)
-        args_copy = {k: v for k, v in args.items() if k not in ("prompt", "base_size", "aspect_ratio", "width", "height")}
+        args_copy = {
+            k: v
+            for k, v in args.items()
+            if k not in ("prompt", "base_size", "aspect_ratio", "width", "height", "provider")
+        }
         paths, error_msg = image_svc.generate_image(
-            prompt, width=width, height=height,
+            prompt,
+            provider_name=provider,
+            width=width,
+            height=height,
             status_callback=status_callback,
-            **args_copy
+            **args_copy,
         )
 
         if not paths:
@@ -170,9 +177,13 @@ class EditImage(ToolBase):
 
         from plugin.framework.image_utils import ImageService
         image_svc = ImageService(ctx.ctx, config)
+        args_copy = {k: v for k, v in args.items() if k != "provider"}
         paths, error_msg = image_svc.generate_image(
-            prompt, source_image=source_b64,
-            status_callback=status_callback, **args
+            prompt,
+            provider_name=provider,
+            source_image=source_b64,
+            status_callback=status_callback,
+            **args_copy,
         )
 
         if not paths:
