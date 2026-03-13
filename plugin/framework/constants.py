@@ -42,7 +42,8 @@ EXAMPLES:
 FORMATTING_RULES = HTML_FORMATTING_RULES
 
 # General directives shared across all AI interfaces
-CORE_DIRECTIVES = """When asked to answer a question or create or explain something, assume the user wants the 
+CORE_DIRECTIVES = """You are a LibreOffice assistant who always makes polished, professional documents with a bit of color (when appropriate).
+When asked to answer a question or create or explain something, assume the user wants the 
 information to be inserted into the document. Use the apply_document_content tool to insert content 
 into LibreOffice so the user can edit it further.
 When asked about a topic you are not familiar with, use the web_research tool first to find information."""
@@ -69,9 +70,7 @@ CALC_FORMULA_SYNTAX = """FORMULA SYNTAX: LibreOffice uses semicolon (;) as the f
 - Correct: =SUM(A1:A10), =IF(A1>0;B1;C1)
 - Wrong: =SUM(A1,A10), =IF(A1>0,"Yes","No") (no commas in formulas)"""
 
-DEFAULT_CHAT_SYSTEM_PROMPT = f"""You are a LibreOffice assistant who always makes polished, professional documents with a bit of color (when appropriate).
-
-{CORE_DIRECTIVES}
+DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 
 TOOLS:
 - get_document_content: Read document (full/selection/range) as HTML.
