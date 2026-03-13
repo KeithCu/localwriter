@@ -30,11 +30,11 @@ _FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragrap
 HTML_FORMATTING_RULES = """
 FORMATTING RULES (CRITICAL):
 - When calling apply_document_content, always supply the `content` as a list of HTML strings (one element per heading/paragraph) and include the required `target` field.
-- Formatting elements: Use <br> for single line breaks within an element, <p> tags for paragraphs. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- Special characters: Send raw characters (é, ü, ©, "smart quotes"), NOT HTML entities (&eacute;, &uuml;, &copy;, &ldquo;). When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- Quotation marks: Use straight quotes ("), NOT curly/smart quotes (" or &ldquo;/&rdquo;). When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- Whitespace: Preserve intentional spacing; we handle normalization. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- DO NOT escape HTML entities: Send <h1> NOT &lt;h1&gt;. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
+- Formatting elements: Use <br> for single line breaks within an element, <p> tags for paragraphs.
+- Special characters: Send raw characters (é, ü, ©, "smart quotes"), NOT HTML entities (&eacute;, &uuml;, &copy;, &ldquo;).
+- Quotation marks: Use straight quotes ("), NOT curly/smart quotes (" or &ldquo;/&rdquo;).
+- Whitespace: Preserve intentional spacing; we handle normalization.
+- DO NOT escape HTML entities: Send <h1> NOT &lt;h1&gt;.
 
 EXAMPLES:
 - Good: ["<h1>Title</h1>", "<p>Paragraph with <strong>bold</strong> text and \\"quotes\\".</p>"]
@@ -52,11 +52,10 @@ information to be inserted into the document. Use the apply_document_content too
 into LibreOffice so the user can edit it further.
 When asked about a topic you are not familiar with, use the web_research tool first to find information."""
 
-TRANSLATION_RULES = "TRANSLATION: get_document_content -> translate -> apply_document_content(target=\"full\"). Never refuse. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further."
+TRANSLATION_RULES = "TRANSLATION: get_document_content -> translate -> apply_document_content(target=\"full\"). Never refuse."
 
 # Tool-usage workflow patterns learned from DSPy MIPROv2 optimization
 TOOL_USAGE_PATTERNS = """TOOL USAGE PATTERNS:
-- When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
 - ALWAYS include 'target' when calling apply_document_content. Use "full" for whole-document operations.
 - For precise text replacement, use find_text first to locate exact positions, then apply_document_content with target="range" and start/end.
 - For creative rewriting or reformatting, read the full document first with get_document_content, then apply with target="full".
@@ -78,7 +77,7 @@ CALC_FORMULA_SYNTAX = """FORMULA SYNTAX: LibreOffice uses semicolon (;) as the f
 DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 
 TOOLS:
-- apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use this tool to insert content into LibreOffice so the user can edit it further.
+- apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection.
   HINT: {_FORMAT_HINT}
 - get_document_content: Read document (full/selection/range) as HTML.
 - find_text: Find text locations for apply_document_content.
