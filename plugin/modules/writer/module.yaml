@@ -1,6 +1,6 @@
 name: writer
 title: Writer document tools (including navigation and search)
-requires: [document, config, format, ai, events]
+requires: [document, config, format, events]
 provides_services: [writer_bookmarks, writer_tree, writer_proximity, writer_index]
 
 config: {}

@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
+from plugin.framework.constants import BROWSER_USER_AGENT, USER_AGENT
+from plugin.framework.logging import debug_log
+
 try:
     from plugin.framework.sqlite_available import HAS_SQLITE, sqlite3
 except Exception:
@@ -20,12 +23,6 @@ from .local_python_executor import (
     evaluate_python_code,
 )
 from .tools import PipelineTool, Tool
-
-try:
-    from plugin.framework.logging import debug_log
-except Exception:
-    def debug_log(msg, context=None):  # noqa: ARG001
-        pass
 
 USE_MARKDOWN = False
 
@@ -42,6 +39,25 @@ _GARBAGE_CHECK_BYTES = 4096
 # Minimum decoded length and garbage ratio threshold to treat content as binary
 _GARBAGE_MIN_CHARS = 100
 _GARBAGE_RATIO_THRESHOLD = 0.5
+
+
+def _get_user_agent_for_url(url: str | None = None) -> str:
+    """Return the appropriate User-Agent for a given URL.
+
+    - DuckDuckGo and Wikipedia: WriterAgent UA (truthful identification).
+    - Everything else: browser-style UA (assume random sites are paranoid).
+    """
+    if not url:
+        return BROWSER_USER_AGENT
+    try:
+        parsed = urlparse(url)
+        host = (parsed.netloc or "").lower()
+    except Exception:
+        return USER_AGENT
+
+    if "duckduckgo.com" in host or "wikipedia.org" in host:
+        return USER_AGENT
+    return BROWSER_USER_AGENT
 
 
 def _is_garbage_text(s: str) -> bool:
@@ -231,13 +247,7 @@ class DuckDuckGoSearchTool(Tool):
 
         url = "https://lite.duckduckgo.com/lite/"
         data = urllib.parse.urlencode({"q": query}).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0"
-            },
-        )
+        req = urllib.request.Request(url, data=data, headers={"User-Agent": _get_user_agent_for_url(url)})
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
                 html = response.read().decode("utf-8")
@@ -362,12 +372,7 @@ class VisitWebpageTool(Tool):
         import re
 
         try:
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0"
-                },
-            )
+            req = urllib.request.Request(url, headers={"User-Agent": _get_user_agent_for_url(url)})
             with urllib.request.urlopen(req, timeout=20) as response:
                 # Content-Type: reject application/pdf without reading body
                 content_type_header = (response.headers.get("Content-Type") or "").lower()

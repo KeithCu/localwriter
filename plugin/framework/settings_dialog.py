@@ -23,11 +23,15 @@ def get_settings_field_specs(ctx):
     current_endpoint_for_specs = get_current_endpoint(ctx)
     field_specs = [
         {"name": "endpoint", "value": str(get_config(ctx, "endpoint") or "")},
+        {"name": "request_timeout", "value": str(get_config(ctx, "request_timeout")), "type": "int"},
         {"name": "text_model", "value": str(get_config(ctx, "text_model") or get_config(ctx, "model") or "")},
         {"name": "image_model", "value": str(get_image_model(ctx))},
         {"name": "stt_model", "value": str(get_config(ctx, "stt_model") or "")},
         {"name": "api_key", "value": str(get_api_key_for_endpoint(ctx, current_endpoint_for_specs))},
         {"name": "temperature", "value": str(get_config(ctx, "temperature")), "type": "float"},
+        {"name": "chat_max_tokens", "value": str(get_config(ctx, "chat_max_tokens")), "type": "int"},
+        {"name": "chat_context_length", "value": str(get_config(ctx, "chat_context_length")), "type": "int"},
+        {"name": "additional_instructions", "value": str(get_config(ctx, "additional_instructions") or "")},
         {"name": "use_aihorde", "value": "true" if get_config(ctx, "image_provider") == "aihorde" else "false", "type": "bool"},
         {"name": "aihorde_api_key", "value": str(get_config(ctx, "aihorde_api_key") or "")},
         {"name": "image_base_size", "value": str(get_config(ctx, "image_base_size")), "type": "int"},

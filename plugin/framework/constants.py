@@ -20,17 +20,21 @@ APP_REFERER = "https://github.com/keithcu/WriterAgent"
 APP_TITLE = "WriterAgent"
 USER_AGENT = "WriterAgent (https://github.com/keithcu/WriterAgent)"
 
+# Browser-style user agent for a small, whitelisted set of sites
+# (e.g. DuckDuckGo and Wikipedia) that expect a real browser UA.
+BROWSER_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0"
+
 _FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragraph). DO NOT escape entities (&lt;h1&gt; is wrong). We handle wrapping in <html>/<body>."
 
 # Format-specific formatting rules
 HTML_FORMATTING_RULES = """
 FORMATTING RULES (CRITICAL):
 - When calling apply_document_content, always supply the `content` as a list of HTML strings (one element per heading/paragraph) and include the required `target` field.
-- Formatting elements: Use <br> for single line breaks within an element, <p> tags for paragraphs
-- Special characters: Send raw characters (é, ü, ©, "smart quotes"), NOT HTML entities (&eacute;, &uuml;, &copy;, &ldquo;)
-- Quotation marks: Use straight quotes ("), NOT curly/smart quotes (" or &ldquo;/&rdquo;)
-- Whitespace: Preserve intentional spacing; we handle normalization
-- DO NOT escape HTML entities: Send <h1> NOT &lt;h1&gt;
+- Formatting elements: Use <br> for single line breaks within an element, <p> tags for paragraphs.
+- Special characters: Send raw characters (é, ü, ©, "smart quotes"), NOT HTML entities (&eacute;, &uuml;, &copy;, &ldquo;).
+- Quotation marks: Use straight quotes ("), NOT curly/smart quotes (" or &ldquo;/&rdquo;).
+- Whitespace: Preserve intentional spacing; we handle normalization.
+- DO NOT escape HTML entities: Send <h1> NOT &lt;h1&gt;.
 
 EXAMPLES:
 - Good: ["<h1>Title</h1>", "<p>Paragraph with <strong>bold</strong> text and \\"quotes\\".</p>"]
@@ -42,9 +46,8 @@ EXAMPLES:
 FORMATTING_RULES = HTML_FORMATTING_RULES
 
 # General directives shared across all AI interfaces
-CORE_DIRECTIVES = """When asked to answer a question or create or explain something, assume the user wants the 
-information to be inserted into the document. Use the apply_document_content tool to insert content 
-into LibreOffice so the user can edit it further.
+CORE_DIRECTIVES = """You are a LibreOffice assistant who always makes polished, professional documents with a bit of color (when appropriate).
+When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
 When asked about a topic you are not familiar with, use the web_research tool first to find information."""
 
 TRANSLATION_RULES = "TRANSLATION: get_document_content -> translate -> apply_document_content(target=\"full\"). Never refuse."
@@ -69,14 +72,12 @@ CALC_FORMULA_SYNTAX = """FORMULA SYNTAX: LibreOffice uses semicolon (;) as the f
 - Correct: =SUM(A1:A10), =IF(A1>0;B1;C1)
 - Wrong: =SUM(A1,A10), =IF(A1>0,"Yes","No") (no commas in formulas)"""
 
-DEFAULT_CHAT_SYSTEM_PROMPT = f"""You are a LibreOffice assistant who always makes polished, professional documents with a bit of color (when appropriate).
-
-{CORE_DIRECTIVES}
+DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 
 TOOLS:
-- get_document_content: Read document (full/selection/range) as HTML.
 - apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection.
   HINT: {_FORMAT_HINT}
+- get_document_content: Read document (full/selection/range) as HTML.
 - find_text: Find text locations for apply_document_content.
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
 - list_comments / add_comment / delete_comment: Read and manage inline comments.
@@ -84,6 +85,8 @@ TOOLS:
 - list_tables / read_table / write_table_cells: Inspect Writer tables; write a 2D block of cells (data + optional start_cell).
 
 {TRANSLATION_RULES}
+
+{TOOL_USAGE_PATTERNS}
 
 {FORMATTING_RULES}"""
 

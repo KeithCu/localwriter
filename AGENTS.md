@@ -136,7 +136,8 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
   - The synthesized answer is streamed back into the response area as `AI (web): ...`, without modifying the document.
   - When unchecked (default), the sidebar behaves as standard Chat with Document; the main model may still call `web_research` autonomously via tool-calling when appropriate.
   - The sub-agent uses smolagents' JSON-in-text parsing for tool calls; if the model returns malformed or missing JSON for a tool call, WriterAgent now falls back to the last useful text the web agent produced instead of surfacing a low-level "no JSON blob" error to the user.
-  - **Web cache (disk)**: Search and webpage results from the smolagents tools (`DuckDuckGoSearchTool`, `VisitWebpageTool` in `plugin/contrib/smolagents/default_tools.py`) are cached on disk in a SQLite DB at `{user_config_dir}/writeragent_web_cache.db` when SQLite is available. If the `sqlite3` module is not available (e.g. some bundled Python builds), web cache is disabled (no-op). Cache is shared across processes (retry on lock). Total size is bounded by config `web_cache_max_mb` (default 50, clamp 1–500; 0 disables). On cache hit the entry is touched (LRU) so it is not evicted soon. Key normalization: search = collapse whitespace; page = URL strip. All cache logic lives in `default_tools.py`; `tool_web_research` in `document_tools.py` passes `cache_path` and `cache_max_mb` from config.
+  - **User agent & web cache (disk)**: Search and webpage results from the smolagents tools (`DuckDuckGoSearchTool`, `VisitWebpageTool` in `plugin/contrib/smolagents/default_tools.py`) are cached on disk in a SQLite DB at `{user_config_dir}/writeragent_web_cache.db` when SQLite is available. If the `sqlite3` module is not available (e.g. some bundled Python builds), web cache is disabled (no-op). Cache is shared across processes (retry on lock). Total size is bounded by config `web_cache_max_mb` (default 50, clamp 1–500; 0 disables). On cache hit the entry is touched (LRU) so it is not evicted soon. Key normalization: search = collapse whitespace; page = URL strip. All cache logic lives in `default_tools.py`; `tool_web_research` in `document_tools.py` passes `cache_path` and `cache_max_mb` from config.
+    - **UA selection**: The smolagents HTTP layer uses `_get_user_agent_for_url()` to switch between two constants in `plugin/framework/constants.py`: `USER_AGENT` (WriterAgent identifier: `WriterAgent (https://github.com/keithcu/WriterAgent)`) **specifically for DuckDuckGo and Wikipedia**, and `BROWSER_USER_AGENT` (a Firefox-style UA) for all other hosts by default (on the assumption that many random sites are paranoid and block non-browser UAs). This avoids duplicating UA strings while ensuring Wikipedia/DDG see the truthful WriterAgent identity.
 
 ### HTML tool-calling (current)
 
@@ -434,6 +435,11 @@ Log paths are set in `plugin/framework/logging.py` by `init_logging(ctx)` and li
 
 ---
 
+## 5c. Chatbot REST API & Calc chart tool cleanup
+
+- **Chatbot REST API handler (optional)**: `plugin/modules/chatbot/__init__.py` now treats the legacy Chat API handler (`plugin.modules.chatbot.handler.ChatApiHandler`) as **optional**. If the handler module/class is missing, route registration for `/api/chat` is skipped with a clear warning log instead of failing module initialization, so `make test` and other entry points no longer emit repeated “Failed to load module chatbot” errors. When a handler implementation is added back in the future, the routes will be registered automatically again.
+- **Calc `create_chart` tool de-duplication**: A duplicate `create_chart` tool definition in `plugin/modules/calc/sheets.py` was removed so the canonical implementation in `plugin/modules/calc/charts.py` is the only one discovered by the tool registry. This eliminates noisy “Tool already registered, replacing: create_chart” warnings while preserving the existing chart-creation behavior.
+
 ## 6. Build and Install
 
 ```bash
@@ -516,6 +522,7 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 
 ### Chat settings in UI — DONE
 - ~~Expose `chat_context_length`, `chat_max_tokens`, `additional_instructions` in the Settings dialog~~ (implemented in SettingsDialog.xdl).
+  - *Fix:* Added missing fields into `_get_settings_field_specs()` in `settings_dialog.py` so that they are explicitly saved and applied.
 
 ### Writer Tools Expansion — DONE
 - ~~**Writer tool set expansion**~~: Added 12 new Writer tools in `plugin/modules/writer/ops.py` and wired into `plugin/modules/writer/tools.py`. Removed 7 legacy unused functions. New tools: `list_styles`, `get_style_info`, `list_comments`, `add_comment`, `delete_comment`, `set_track_changes`, `get_tracked_changes`, `accept_all_changes`, `reject_all_changes`, `list_tables`, `read_table`, `write_table_cells`. System prompt updated to mention them.

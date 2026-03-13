@@ -29,27 +29,15 @@ class ChatbotModule(ModuleBase):
     def initialize(self, services):
         self._services = services
         self._routes_registered = False
+        self._api_handler = None
 
         # Chat tool routing is now handled natively by main.py's get_tools() instead of ChatToolAdapter
         self._adapter = None
 
-        # Register API routes if enabled
-        cfg = services.config.proxy_for(self.name)
-        if cfg.get("api_enabled"):
-            self._register_routes(services)
-
-        services.events.subscribe(
-            "config:changed", self._on_config_changed)
-
-    def _on_config_changed(self, **kwargs):
-        key = kwargs.get("key", "")
-        if key != "chatbot.api_enabled":
-            return
-        enabled = kwargs.get("value")
-        if enabled and not self._routes_registered:
-            self._register_routes(self._services)
-        elif not enabled and self._routes_registered:
-            self._unregister_routes(self._services)
+        # Always register API routes (legacy Chat API) when http_routes is available.
+        # The old chatbot.api_enabled toggle was removed from the manifest, so the
+        # routes are now unconditionally enabled for the HTTP server.
+        self._register_routes(services)
 
     def _register_routes(self, services):
         routes = services.get("http_routes")
@@ -57,20 +45,25 @@ class ChatbotModule(ModuleBase):
             log.warning("http_routes service not available")
             return
 
-        from plugin.modules.chatbot.handler import ChatApiHandler
-        self._api_handler = ChatApiHandler(services)
-
-        routes.add("POST", "/api/chat",
-                    self._api_handler.handle_chat, raw=True)
-        routes.add("GET", "/api/chat",
-                    self._api_handler.handle_history)
-        routes.add("DELETE", "/api/chat",
-                    self._api_handler.handle_reset)
-        routes.add("GET", "/api/providers",
-                    self._api_handler.handle_providers)
-
-        self._routes_registered = True
-        log.info("Chat API routes registered")
+        try:
+            from plugin.modules.chatbot.handler import ChatApiHandler
+            self._api_handler = ChatApiHandler(services)
+            routes.add("POST", "/api/chat",
+                       self._api_handler.handle_chat, raw=True)
+            routes.add("GET", "/api/chat",
+                       self._api_handler.handle_history)
+            routes.add("DELETE", "/api/chat",
+                       self._api_handler.handle_reset)
+            routes.add("GET", "/api/providers",
+                       self._api_handler.handle_providers)
+            self._routes_registered = True
+            log.info("Chat API routes registered")
+        except Exception as exc:  # ImportError, AttributeError, or route add failure
+            log.warning(
+                "Chat API handler not available; skipping /api/chat routes: %s",
+                exc,
+            )
+            self._api_handler = None
 
     def _unregister_routes(self, services):
         routes = services.get("http_routes")
@@ -116,22 +109,16 @@ class ChatbotModule(ModuleBase):
             msgbox(ctx, "WriterAgent", "No document open")
             return
 
-        try:
-            provider = self._services.ai.get_provider("text")
-        except RuntimeError as e:
-            msgbox(ctx, "WriterAgent", str(e))
-            return
-
         doc_type = doc_svc.detect_doc_type(doc)
         if doc_type == "writer":
-            self._extend_writer(ctx, doc, provider)
+            self._extend_writer(ctx, doc)
         elif doc_type == "calc":
-            self._extend_calc(ctx, doc, provider)
+            self._extend_calc(ctx, doc)
         else:
             msgbox(ctx, "WriterAgent",
                    "Extend selection not supported for this document type")
 
-    def _extend_writer(self, ctx, doc, provider):
+    def _extend_writer(self, ctx, doc):
         """Extend selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async
@@ -180,7 +167,7 @@ class ChatbotModule(ModuleBase):
             max_tokens=max_tokens,
         )
 
-    def _extend_calc(self, ctx, doc, provider):
+    def _extend_calc(self, ctx, doc):
         """Extend selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async
@@ -269,17 +256,11 @@ class ChatbotModule(ModuleBase):
             msgbox(ctx, "WriterAgent", "No document open")
             return
 
-        try:
-            provider = self._services.ai.get_provider("text")
-        except RuntimeError as e:
-            msgbox(ctx, "WriterAgent", str(e))
-            return
-
         doc_type = doc_svc.detect_doc_type(doc)
         if doc_type == "writer":
-            self._edit_writer(ctx, doc, provider)
+            self._edit_writer(ctx, doc)
         elif doc_type == "calc":
-            self._edit_calc(ctx, doc, provider)
+            self._edit_calc(ctx, doc)
         else:
             msgbox(ctx, "WriterAgent",
                    "Edit selection not supported for this document type")
@@ -296,7 +277,7 @@ class ChatbotModule(ModuleBase):
         )
         return user_input, extra_instructions
 
-    def _edit_writer(self, ctx, doc, provider):
+    def _edit_writer(self, ctx, doc):
         """Edit selection in a Writer document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async
@@ -371,7 +352,7 @@ class ChatbotModule(ModuleBase):
             max_tokens=max_tokens,
         )
 
-    def _edit_calc(self, ctx, doc, provider):
+    def _edit_calc(self, ctx, doc):
         """Edit selection in a Calc document."""
         from plugin.framework.dialogs import msgbox
         from plugin.framework.async_stream import run_stream_async
