@@ -1,6 +1,6 @@
 """
-Markdown support tests — run from within LibreOffice (WriterAgent menu: Run markdown tests).
-The test runner lives in plugin.tests.format_tests.run_markdown_tests. This module re-exports
+Format support tests — run from within LibreOffice (WriterAgent menu: Run Format tests).
+The test runner lives in plugin.tests.format_tests.run_format_tests. This module re-exports
 it for local/source runs (e.g. python -m plugin.tests.run_format_tests).
 """
 
@@ -13,6 +13,10 @@ if __name__ == "__main__":
     if _root not in sys.path:
         sys.path.insert(0, _root)
 
-from plugin.tests.format_tests import run_markdown_tests
+from plugin.testing_runner import run_module_suite
+from plugin.tests import format_tests
 
-__all__ = ["run_markdown_tests"]
+def run_format_tests(ctx, doc_model=None):
+    return run_module_suite(ctx, format_tests, "writer.format_tests", doc_model)
+
+__all__ = ["run_format_tests"]

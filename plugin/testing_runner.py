@@ -43,6 +43,21 @@ def _run_suite(
     Collects functions marked with @setup, @teardown, and @native_test.
     Executes setup(ctx), then all tests(ctx), then teardown(ctx).
     """
+    passed, failed, log = run_module_suite(ctx, module, name, *args)
+    suites.append({
+        "name": name,
+        "passed": passed,
+        "failed": failed,
+        "log": log,
+    })
+
+
+def run_module_suite(ctx, module, name, doc_model=None):
+    """Monolithic entry point for running a test module (legacy/menu support).
+    Returns (passed, failed, log).
+    """
+    from plugin.framework.logging import debug_log
+    debug_log(f"run_module_suite start: {name}", context="Tests")
     total_passed = 0
     total_failed = 0
     log = []
@@ -52,7 +67,7 @@ def _run_suite(
     test_funcs = []
 
     # Discover decorators, iterating over module dict to preserve insertion (definition) order
-    for attr_name, attr in module.__dict__.items():
+    for _, attr in module.__dict__.items():
         if callable(attr):
             if getattr(attr, "_is_setup", False):
                 setup_func = attr
@@ -61,34 +76,21 @@ def _run_suite(
             elif getattr(attr, "_is_test", False):
                 test_funcs.append(attr)
 
-    # Note: For backwards compatibility, if we didn't find any @test functions,
-    # check if there's a traditional monolithic test function
+    # Discovery fallback: if no @test functions, check for old run_*_tests approach
     if not test_funcs:
-        # Fallback to the old run_*_tests approach for modules not yet migrated
         fallback_func_name = f"run_{name.split('.')[-1].replace('_tests', '').replace('test_', '')}_tests"
-        if name == "calc.tests":
+        if "calc.tests" in name:
             fallback_func_name = "run_calc_tests"
-        if name == "draw.tests":
+        elif "draw.tests" in name:
             fallback_func_name = "run_draw_tests"
 
         fallback_func = getattr(module, fallback_func_name, None)
         if fallback_func:
             try:
-                passed, failed, result_log = fallback_func(ctx, *args)
-                suites.append({
-                    "name": name,
-                    "passed": int(passed or 0),
-                    "failed": int(failed or 0),
-                    "log": list(result_log or []),
-                })
+                p, f, l = fallback_func(ctx, doc_model)
+                return int(p or 0), int(f or 0), list(l or [])
             except Exception as e:
-                suites.append({
-                    "name": name,
-                    "passed": 0,
-                    "failed": 1,
-                    "log": [f"EXCEPTION: {e}", traceback.format_exc()],
-                })
-            return
+                return 0, 1, [f"EXCEPTION in {fallback_func_name}: {e}", traceback.format_exc()]
 
     try:
         if setup_func:
@@ -98,6 +100,8 @@ def _run_suite(
         for test_func in test_funcs:
             try:
                 log.append(f"Running test: {test_func.__name__}")
+                # Pass doc_model if test_func accepts arguments, otherwise call normally
+                # (Existing tests assume global _test_doc from setup)
                 test_func()
                 total_passed += 1
                 log.append(f"OK: {test_func.__name__}")
@@ -124,12 +128,7 @@ def _run_suite(
                 log.append(f"TEARDOWN EXCEPTION: {e}")
                 log.append(traceback.format_exc())
 
-    suites.append({
-        "name": name,
-        "passed": total_passed,
-        "failed": total_failed,
-        "log": log,
-    })
+    return total_passed, total_failed, log
 
 
 def run_all_tests(ctx: Any) -> str:

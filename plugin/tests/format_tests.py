@@ -16,17 +16,17 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import json
 from plugin.modules.writer.format_support import (
-    document_to_content as document_to_markdown,
-    insert_content_at_position as _insert_markdown_at_position,
+    document_to_content,
+    insert_content_at_position as _insert_content_at_position,
     content_has_markup as _content_has_markup,
     replace_preserving_format as _replace_text_preserving_format,
     apply_content_at_search,
     replace_full_document,
     find_text_ranges,
-    _doc_text_length as _doc_text_length_raw,
     _preserving_search_replace,
     _normalize,
 )
+from plugin.framework.document import get_document_length as _doc_text_length_raw
 from plugin.framework.logging import debug_log
 from plugin.framework.uno_helpers import get_desktop
 
@@ -107,7 +107,7 @@ _test_ctx = None
 
 
 @setup
-def setup_markdown_tests(ctx):
+def setup_format_tests(ctx):
     global _test_doc, _test_ctx
     _test_ctx = ctx
 
@@ -121,11 +121,11 @@ def setup_markdown_tests(ctx):
     assert _test_doc is not None, "Could not create Writer document"
     assert hasattr(_test_doc, "getText"), "Not a valid Writer document"
 
-    debug_log(ctx, "format_tests: run start")
+    debug_log("format_tests: run start", context="Tests")
 
 
 @teardown
-def teardown_markdown_tests(ctx):
+def teardown_format_tests(ctx):
     global _test_doc, _test_ctx
     if _test_doc:
         _test_doc.close(True)
@@ -141,9 +141,9 @@ def _read_doc_text(d):
 
 
 @native_test
-def test_document_to_markdown():
-    md = document_to_markdown(_test_doc, _test_ctx, None, scope="full")
-    assert isinstance(md, str), f"document_to_markdown did not return string: {type(md)}"
+def test_document_to_content():
+    md = document_to_content(_test_doc, _test_ctx, None, scope="full")
+    assert isinstance(md, str), f"document_to_content did not return string: {type(md)}"
 
 
 @native_test
@@ -162,11 +162,11 @@ def test_get_document_content_returns_document_length():
 
 
 @native_test
-def test_apply_at_end_via_insert_markdown():
+def test_apply_at_end_via_insert_content():
     test_content = "Format test\n\nThis was inserted by the test."
     insert_needle = "Format test"
 
-    _insert_markdown_at_position(_test_doc, _test_ctx, test_content, "end")
+    _insert_content_at_position(_test_doc, _test_ctx, test_content, "end")
     full_text = _read_doc_text(_test_doc)
     assert insert_needle in full_text, "Content not found after apply at end"
 
@@ -602,3 +602,5 @@ def test_apply_document_content_target_full_preserves_colors():
             small_doc.close(True)
         except Exception:
             pass
+
+

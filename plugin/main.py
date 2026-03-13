@@ -229,10 +229,15 @@ def _run_test_suite(test_func, doc_checker, test_name):
     from plugin.framework.dialogs import msgbox
     ctx = get_ctx()
     try:
+        from plugin.framework.logging import debug_log
+        debug_log(f"_run_test_suite start: {test_name}", context="Tests")
         from plugin.framework.async_stream import run_blocking_in_thread
+        from plugin.testing_runner import run_module_suite
         model = get_active_document(ctx)
         doc_model = model if (model and doc_checker(model)) else None
-        p, f, log = run_blocking_in_thread(ctx, test_func, ctx, doc_model)
+        debug_log(f"Calling run_blocking_in_thread for {test_name}", context="Tests")
+        p, f, log = run_blocking_in_thread(ctx, run_module_suite, ctx, test_func, test_name, doc_model)
+        debug_log(f"_run_test_suite finished: {test_name}, p={p}, f={f}", context="Tests")
         msgbox(ctx, test_name, f"{test_name}: {p} passed, {f} failed.\n\n" + "\n".join(log))
     except Exception as e:
         msgbox(ctx, test_name, f"Tests failed to run: {e}")
@@ -277,21 +282,21 @@ def _dispatch_command(command):
                 logging.getLogger("writeragent.main").error("Failed to show eval dashboard: %s", e, exc_info=True)
                 pass
         elif action == "RunFormatTests":
-            from plugin.tests.format_tests import run_markdown_tests
+            from plugin.tests import format_tests
             from plugin.framework.document import is_writer
-            _run_test_suite(run_markdown_tests, is_writer, "Format tests")
+            _run_test_suite(format_tests, is_writer, "writer.format_tests")
         elif action == "RunCalcTests":
-            from plugin.tests.test_calc import run_calc_tests
+            from plugin.tests import test_calc
             from plugin.framework.document import is_calc
-            _run_test_suite(run_calc_tests, is_calc, "Calc tests")
+            _run_test_suite(test_calc, is_calc, "calc.tests")
         elif action == "RunCalcIntegrationTests":
-            from plugin.tests.test_calc import run_calc_integration_tests
+            from plugin.tests import test_calc
             from plugin.framework.document import is_calc
-            _run_test_suite(run_calc_integration_tests, is_calc, "Calc API tests")
+            _run_test_suite(test_calc, is_calc, "calc.integration_tests")
         elif action == "RunDrawTests":
-            from plugin.tests.test_draw import run_draw_tests
+            from plugin.tests import test_draw
             from plugin.framework.document import is_draw
-            _run_test_suite(run_draw_tests, is_draw, "Draw tests")
+            _run_test_suite(test_draw, is_draw, "draw.tests")
         elif action == "NoOp":
             pass
         return
@@ -638,15 +643,20 @@ class DispatchHandler(unohelper.Base, XDispatch, XDispatchProvider,
 
     def dispatch(self, url, args):
         command = url.Path
+        from plugin.framework.dialogs import msgbox
+        from plugin.framework.logging import debug_log, init_logging, log_exception
         try:
-            bootstrap(self.ctx)
             init_logging(self.ctx)
+            debug_log(f"Dispatch entered: {command}", context="Dispatch")
+            # msgbox(self.ctx, "Dispatch", f"Command: {command}") # Temporary probe
+            bootstrap(self.ctx)
             _dispatch_command(command)
             # After action, push updated menu text
             threading.Thread(target=notify_menu_update,
                              daemon=True).start()
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="Dispatch")
+            msgbox(self.ctx, "Dispatch Error", str(e))
 
     def addStatusListener(self, listener, url):
         with _status_lock:
