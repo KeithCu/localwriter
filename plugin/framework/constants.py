@@ -24,7 +24,7 @@ USER_AGENT = "WriterAgent (https://github.com/keithcu/WriterAgent)"
 # (e.g. DuckDuckGo and Wikipedia) that expect a real browser UA.
 BROWSER_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0"
 
-_FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragraph). DO NOT escape entities (&lt;h1&gt; is wrong). We handle wrapping in <html>/<body>. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further."
+_FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragraph). DO NOT escape entities (&lt;h1&gt; is wrong). We handle wrapping in <html>/<body>."
 
 # Format-specific formatting rules
 HTML_FORMATTING_RULES = """
@@ -59,9 +59,9 @@ TOOL_USAGE_PATTERNS = """TOOL USAGE PATTERNS:
 - When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
 - ALWAYS include 'target' when calling apply_document_content. Use "full" for whole-document operations.
 - For precise text replacement, use find_text first to locate exact positions, then apply_document_content with target="range" and start/end.
-- For creative rewriting or reformatting, read the full document first with get_document_content, then apply with target="full". When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- When uncertain about document structure, call get_document_content before making modifications. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- For bullet/list formatting, target each line individually using positions found via find_text. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
+- For creative rewriting or reformatting, read the full document first with get_document_content, then apply with target="full".
+- When uncertain about document structure, call get_document_content before making modifications.
+- For bullet/list formatting, target each line individually using positions found via find_text.
 - If a tool call fails, verify your arguments (especially target: full/range/search/beginning/end/selection)."""
 
 # Shared Calc instruction blocks
@@ -81,11 +81,11 @@ TOOLS:
 - apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use this tool to insert content into LibreOffice so the user can edit it further.
   HINT: {_FORMAT_HINT}
 - get_document_content: Read document (full/selection/range) as HTML.
-- find_text: Find text locations for apply_document_content. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- list_styles / get_style_info: Discover paragraph/character styles before applying them. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- list_comments / add_comment / delete_comment: Read and manage inline comments. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- set_track_changes / get_tracked_changes / accept_all_changes / reject_all_changes: Track and manage changes. When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
-- list_tables / read_table / write_table_cells: Inspect Writer tables; write a 2D block of cells (data + optional start_cell). When asked to answer a question or create or explain something, assume the user wants the information to be inserted into the document. Use the apply_document_content tool to insert content into LibreOffice so the user can edit it further.
+- find_text: Find text locations for apply_document_content.
+- list_styles / get_style_info: Discover paragraph/character styles before applying them.
+- list_comments / add_comment / delete_comment: Read and manage inline comments.
+- set_track_changes / get_tracked_changes / accept_all_changes / reject_all_changes: Track and manage changes.
+- list_tables / read_table / write_table_cells: Inspect Writer tables; write a 2D block of cells (data + optional start_cell).
 
 {TRANSLATION_RULES}
 
