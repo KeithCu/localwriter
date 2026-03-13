@@ -20,6 +20,10 @@ APP_REFERER = "https://github.com/keithcu/WriterAgent"
 APP_TITLE = "WriterAgent"
 USER_AGENT = "WriterAgent (https://github.com/keithcu/WriterAgent)"
 
+# Browser-style user agent for a small, whitelisted set of sites
+# (e.g. DuckDuckGo and Wikipedia) that expect a real browser UA.
+BROWSER_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0"
+
 _FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragraph). DO NOT escape entities (&lt;h1&gt; is wrong). We handle wrapping in <html>/<body>."
 
 # Format-specific formatting rules
@@ -73,9 +77,9 @@ CALC_FORMULA_SYNTAX = """FORMULA SYNTAX: LibreOffice uses semicolon (;) as the f
 DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 
 TOOLS:
-- get_document_content: Read document (full/selection/range) as HTML.
 - apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection.
   HINT: {_FORMAT_HINT}
+- get_document_content: Read document (full/selection/range) as HTML.
 - find_text: Find text locations for apply_document_content.
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
 - list_comments / add_comment / delete_comment: Read and manage inline comments.
