@@ -110,6 +110,10 @@ def apply_settings_result(ctx, result):
         set_config(ctx, "endpoint", effective_endpoint)
     current_endpoint = effective_endpoint or get_current_endpoint(ctx)
 
+    # Build type map so we always save int fields as integers (never float/string)
+    _field_specs = get_settings_field_specs(ctx)
+    _int_field_names = {f["name"] for f in _field_specs if f.get("type") == "int"}
+
     # Set keys from result (endpoint, api_key, use_aihorde handled below)
     for key in apply_keys:
         if key in result:
@@ -117,6 +121,13 @@ def apply_settings_result(ctx, result):
             
             # Map module__field to module.field for saving in JSON
             save_key = key.replace("__", ".")
+
+            # Always save int-type fields as Python int (support float/string on read, persist as int)
+            if key in _int_field_names:
+                try:
+                    val = int(float(val))
+                except (ValueError, TypeError):
+                    pass
             
             # Map backend_id display label back to stored value
             if save_key == "agent_backend.backend_id" and val:

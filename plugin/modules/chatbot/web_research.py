@@ -41,7 +41,7 @@ class WebResearchTool(ToolBase):
     def execute(self, ctx, query, history_text=None):
         import os
         from urllib.parse import urlparse
-        from plugin.framework.config import get_api_config, get_config, user_config_dir
+        from plugin.framework.config import get_api_config, get_config, get_config_int, user_config_dir
         from plugin.modules.http.client import LlmClient
         from plugin.framework.smol_model import WriterAgentSmolModel
         from plugin.contrib.smolagents.agents import ToolCallingAgent
@@ -66,9 +66,9 @@ class WebResearchTool(ToolBase):
             max_steps = int(config.get("search_web_max_steps", 20))
 
             udir = user_config_dir(ctx.ctx)
-            raw_mb = int(get_config(ctx.ctx, "web_cache_max_mb"))
+            raw_mb = get_config_int(ctx.ctx, "web_cache_max_mb", 50)
             cache_max_mb = 0 if raw_mb <= 0 else max(1, min(500, raw_mb))
-            cache_max_age_days = int(get_config(ctx.ctx, "web_cache_validity_days") or 7)
+            cache_max_age_days = get_config_int(ctx.ctx, "web_cache_validity_days", 7)
             cache_path = os.path.join(udir, "localwriter_web_cache.db") if (udir and cache_max_mb > 0) else None
 
             smol_model = WriterAgentSmolModel(

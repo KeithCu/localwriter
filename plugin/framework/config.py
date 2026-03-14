@@ -224,6 +224,15 @@ def get_config(ctx, key):
     return _resolve_default(key)
 
 
+def get_config_int(ctx, key, default=0):
+    """Get a config value as int. Accepts float or string (e.g. 50.0 or \"50.00\") from JSON/UI; returns int. Use for int settings like web_cache_max_mb, extend_selection_max_tokens."""
+    v = get_config(ctx, key)
+    try:
+        return int(float(v))
+    except (ValueError, TypeError):
+        return default if default is not None else 0
+
+
 def get_config_dict(ctx):
     """Return the full config as a dict. Returns {} if missing or on error."""
     config_file_path = _config_path(ctx)

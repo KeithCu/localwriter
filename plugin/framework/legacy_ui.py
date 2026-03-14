@@ -279,7 +279,10 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                         
                         field_type = field.get("type", "text")
                         if field_type == "int":
-                            result[field["name"]] = int(control_text) if control_text.isdigit() else control_text
+                            try:
+                                result[field["name"]] = int(float(control_text))
+                            except (ValueError, TypeError):
+                                result[field["name"]] = control_text
                         elif field_type == "bool":
                             val = as_bool(control_text)
                             if is_checkbox_control(ctrl):

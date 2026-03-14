@@ -139,7 +139,8 @@ class ChatbotModule(ModuleBase):
 
         config = self._services.config.proxy_for("chatbot")
         system_prompt = config.get("system_prompt") or ""
-        max_tokens = config.get("extend_selection_max_tokens") or 70
+        _mt = config.get("extend_selection_max_tokens") or 70
+        max_tokens = int(float(_mt))
 
         messages = []
         if system_prompt:
@@ -184,7 +185,8 @@ class ChatbotModule(ModuleBase):
 
         config = self._services.config.proxy_for("chatbot")
         system_prompt = config.get("system_prompt") or ""
-        max_tokens = config.get("extend_selection_max_tokens") or 70
+        _mt = config.get("extend_selection_max_tokens") or 70
+        max_tokens = int(float(_mt))
 
         # Build task list
         tasks = []
@@ -306,7 +308,8 @@ class ChatbotModule(ModuleBase):
 
         config = self._services.config.proxy_for("chatbot")
         system_prompt = extra_instructions or config.get("system_prompt") or ""
-        max_new_tokens = config.get("edit_selection_max_new_tokens") or 0
+        _mnt = config.get("edit_selection_max_new_tokens") or 0
+        max_new_tokens = int(float(_mnt))
 
         prompt = (
             "ORIGINAL VERSION:\n" + original_text +
@@ -377,7 +380,8 @@ class ChatbotModule(ModuleBase):
 
         config = self._services.config.proxy_for("chatbot")
         system_prompt = extra_instructions or config.get("system_prompt") or ""
-        max_new_tokens = config.get("edit_selection_max_new_tokens") or 0
+        _mnt = config.get("edit_selection_max_new_tokens") or 0
+        max_new_tokens = int(float(_mnt))
 
         # Build task list
         tasks = []

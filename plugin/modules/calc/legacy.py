@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Legacy operations for Calc (Extend/Edit Selection)."""
-from plugin.framework.config import get_config, get_api_config, validate_api_config
+from plugin.framework.config import get_config, get_config_int, get_api_config, validate_api_config
 from plugin.modules.http.client import format_error_message, LlmClient
 from plugin.framework.async_stream import run_stream_completion_async
 from plugin.framework.dialogs import msgbox
@@ -36,12 +36,9 @@ def do_calc_extend_edit(ctx, model, input_box_fn, is_edit):
     row_range = range(area.StartRow, area.EndRow + 1)
 
     extend_sys = get_config(ctx, "extend_selection_system_prompt")
-    extend_max = get_config(ctx, "extend_selection_max_tokens")
+    extend_max = get_config_int(ctx, "extend_selection_max_tokens", 1000)
     edit_sys = get_config(ctx, "edit_selection_system_prompt")
-    try:
-        edit_max = int(get_config(ctx, "edit_selection_max_new_tokens"))
-    except (TypeError, ValueError):
-        edit_max = 0
+    edit_max = get_config_int(ctx, "edit_selection_max_new_tokens", 1000)
 
     tasks = []
     cell_range = sheet.getCellRangeByPosition(area.StartColumn, area.StartRow, area.EndColumn, area.EndRow)
