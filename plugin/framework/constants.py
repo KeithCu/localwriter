@@ -78,7 +78,15 @@ DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 TOOLS:
 - apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection.
   HINT: {_FORMAT_HINT}
+<<<<<<< HEAD
 - get_document_content: Read document (full/selection/range) as HTML.
+=======
+<<<<<<< HEAD
+=======
+  Always aim for a professional look, using appropriate colors for headings or highlights to make the document visually appealing.
+- get_document_content: Read document (full/selection/range) as HTML.
+>>>>>>> 5077689 (docs: add professional styling hint to apply_document_content tool)
+>>>>>>> 4664f6a (docs: add professional styling hint to apply_document_content tool)
 - find_text: Find text locations for apply_document_content.
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
 - list_comments / add_comment / delete_comment: Read and manage inline comments.
