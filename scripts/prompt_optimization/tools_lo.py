@@ -12,8 +12,11 @@ _lo_queue = queue.Queue()
 _lo_thread = None
 _lo_ctx = None
 _lo_desktop = None
+# Keyed by caller thread id (set in task from LOBackend.call) so parallel eval runs don't share state.
 _lo_docs = {}
 _lo_proc = None  # headless soffice process, for cleanup
+# Thread-local on the LO worker: current caller's thread id for acquire_document().
+_caller_tid_ctx = threading.local()
 
 
 def _bootstrap_headless():
@@ -111,13 +114,17 @@ class LOBackend:
     def call(cls, func, *args, **kwargs):
         if _lo_thread is not None and threading.get_ident() == _lo_thread.ident:
             return func(*args, **kwargs)
+        caller_tid = threading.get_ident()
         evt = threading.Event()
         result_box = []
         def _task():
+            _caller_tid_ctx.tid = caller_tid
             try:
                 result_box.append((True, func(*args, **kwargs)))
             except Exception as e:
                 result_box.append((False, e))
+            finally:
+                _caller_tid_ctx.tid = None
             evt.set()
         _lo_queue.put(_task)
         evt.wait()
@@ -157,7 +164,10 @@ class LOBackend:
 
     @classmethod
     def acquire_document(cls):
-        tid = threading.get_ident()
+        if _lo_thread is not None and threading.get_ident() == _lo_thread.ident:
+            tid = getattr(_caller_tid_ctx, "tid", None) or threading.get_ident()
+        else:
+            tid = threading.get_ident()
         if tid not in _lo_docs:
             def _create():
                 from com.sun.star.beans import PropertyValue
@@ -189,6 +199,21 @@ def get_content() -> str:
         cursor.gotoStart(False)
         cursor.gotoEnd(True)
         return cursor.getString()
+    return LOBackend.call(_do)
+
+def get_content_as_html() -> str:
+    """Return the document as HTML (for eval judge). Falls back to empty string if export fails."""
+    def _do():
+        try:
+            doc = LOBackend.acquire_document()
+            from plugin.main import get_tools
+            ctx = _tool_ctx(doc)
+            res = get_tools().execute("get_document_content", ctx, scope="full")
+            if isinstance(res, dict) and res.get("status") == "ok":
+                return res.get("content", "") or ""
+            return ""
+        except Exception:
+            return ""
     return LOBackend.call(_do)
 
 def get_document_content(scope="full", max_chars=None, start=None, end=None) -> str:

@@ -191,7 +191,21 @@ MODELS: list[ModelConfig] = [
             "native tool use, and schema-aligned JSON output."
         ),
     ),
+    ModelConfig(
+        openrouter_id="anthropic/claude-sonnet-4.6",
+        display_name="Anthropic: Claude Sonnet 4.6",
+        context_window_tokens=200_000,
+        input_cost_per_million=3.0,
+        output_cost_per_million=15.0,
+        notes=(
+            "Gold-only: use for --gold-model when generating gold standards; "
+            "excluded from default multi-model eval (too expensive for repeated runs)."
+        ),
+    ),
 ]
+
+# Model IDs that are only used for gold generation, not in default multi-eval sweep.
+GOLD_ONLY_MODEL_IDS: frozenset[str] = frozenset({"anthropic/claude-sonnet-4.6"})
 
 
 MODEL_BY_ID: dict[str, ModelConfig] = {m.openrouter_id: m for m in MODELS}
@@ -201,9 +215,9 @@ def get_default_models() -> Sequence[ModelConfig]:
     """
     Return the default ordered list of models for benchmarking.
 
-    This is where you can adjust which models participate in multi-model
-    sweeps without touching other code.
+    Excludes gold-only models (e.g. Claude Sonnet) so typical multi_eval runs
+    stay cheap. Use --gold-model anthropic/claude-sonnet-4.6 when generating
+    golds; that model is in MODEL_BY_ID but not in this list.
     """
-
-    return MODELS
+    return [m for m in MODELS if m.openrouter_id not in GOLD_ONLY_MODEL_IDS]
 

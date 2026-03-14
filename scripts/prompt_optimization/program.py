@@ -12,7 +12,7 @@ if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
 import dspy
-from tools_lo import set_document, get_content, get_document_content, apply_document_content, find_text, get_tools_subset
+from tools_lo import set_document, get_content_as_html, get_document_content, apply_document_content, find_text, get_tools_subset
 from dataset import ALL_EXAMPLES
 
 # Default instruction (Writer system prompt). MIPROv2 will propose alternatives.
@@ -46,7 +46,10 @@ class WriterAssistant(dspy.Module):
         # Pass document as context so the model can read it via get_document_content (or it's already in the prompt).
         document_context = document_content
         pred = self.react(document_context=document_context, user_question=user_question)
-        pred.final_document = get_content()
+        html = get_content_as_html()
+        if not html:
+            raise RuntimeError("get_content_as_html() returned empty; document export failed.")
+        pred.final_document = html
         return pred
 
 
