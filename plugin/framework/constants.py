@@ -103,7 +103,6 @@ TOOLS:
 =======
 >>>>>>> 67de028 (docs: append redundant persona line to CORE_DIRECTIVES)
 - find_text: Find text locations for apply_document_content.
-  Always aim for a professional look, using appropriate colors for headings or highlights to make the document visually appealing.
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
   Always aim for a professional look, using appropriate colors for headings or highlights to make the document visually appealing.
 - list_comments / add_comment / delete_comment: Read and manage inline comments.
