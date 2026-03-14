@@ -19,9 +19,47 @@
 import logging
 
 from plugin.framework.tool_base import ToolBase
+from plugin.framework.document import normalize_linebreaks
 from plugin.modules.writer import format_support
 
 log = logging.getLogger("writeragent.writer")
+
+
+def _find_range_by_offset(doc, search_string):
+    """Find search_string in the document by getting full text and doing a Python
+    string find. Returns a TextRange spanning the match, or None. Use this when
+    findFirst fails because LibreOffice search does not match across paragraphs.
+    """
+    try:
+        text = doc.getText()
+        cursor = text.createTextCursor()
+        cursor.gotoStart(False)
+        cursor.gotoEnd(True)
+        full = normalize_linebreaks(cursor.getString())
+    except Exception:
+        return None
+    idx = full.find(search_string)
+    if idx < 0:
+        idx = full.lower().find(search_string.lower())
+    if idx < 0:
+        return None
+    start_idx = idx
+    end_idx = idx + len(search_string)
+    range_cursor = text.createTextCursor()
+    range_cursor.gotoStart(False)
+    if not range_cursor.goRight(start_idx, False):
+        return None
+    if not range_cursor.goRight(end_idx - start_idx, True):
+        return None
+    return range_cursor
+
+
+def _normalize_search_string_for_find(s):
+    """Collapse horizontal whitespace only; preserve newlines for literal find.
+    (LibreOffice regex search does not work across paragraphs.)
+    """
+    import re as re_mod
+    return re_mod.sub(r"[ \t]+", " ", s).strip()
 
 
 # ------------------------------------------------------------------
@@ -98,15 +136,19 @@ class GetDocumentContent(ToolBase):
 # ApplyDocumentContent
 # ------------------------------------------------------------------
 
+# Reserved values for old_content: insert at position instead of find-and-replace.
+_OLD_CONTENT_BEGIN = "_BEGIN_"
+_OLD_CONTENT_END = "_END_"
+_OLD_CONTENT_SELECTION = "_SELECTION_"
+
 class ApplyDocumentContent(ToolBase):
     """Insert or replace content in the document."""
 
     name = "apply_document_content"
     description = (
-        "Insert or replace content. Preferred for partial edits: "
-        "target='search' with search= and content=. "
-        "For whole doc: target='full'. "
-        "Use target='range' with start/end."
+        "Insert or replace content. Provide old_content and content. "
+        "Use '' or '_BEGIN_' to insert at beginning; '_END_' at end; '_SELECTION_' at cursor/selection. "
+        "Otherwise old_content is the text to find and replace. For full-doc replace, use full document text as old_content."
     )
     parameters = {
         "type": "object",
@@ -120,36 +162,19 @@ class ApplyDocumentContent(ToolBase):
                     "Do not use Markdown."
                 ),
             },
-            "target": {
+            "old_content": {
                 "type": "string",
-                "enum": ["beginning", "end", "selection", "search", "full", "range"],
                 "description": (
-                    "Where to apply: full, range (start+end), "
-                    "search (needs search), beginning, end, selection."
+                    "Text to find and replace with content; or special value: '' or '_BEGIN_' = beginning of document, "
+                    "'_END_' = end of document, '_SELECTION_' = cursor/selection. HTML in old_content is converted to plain text for matching."
                 ),
-            },
-            "start": {
-                "type": "integer",
-                "description": "Start character offset. Required for target 'range'.",
-            },
-            "end": {
-                "type": "integer",
-                "description": "End character offset. Required for target 'range'.",
-            },
-            "search": {
-                "type": "string",
-                "description": "Text to find. Required for target 'search'.",
             },
             "all_matches": {
                 "type": "boolean",
-                "description": "Replace all occurrences (true) or first only. Default false.",
-            },
-            "case_sensitive": {
-                "type": "boolean",
-                "description": "Case-sensitive search. Default true.",
+                "description": "Replace all occurrences (true) or first only. Default false. Only for find-and-replace.",
             },
         },
-        "required": ["content", "target"],
+        "required": ["content", "old_content"],
     }
     doc_types = ["writer"]
     tier = "core"
@@ -157,7 +182,9 @@ class ApplyDocumentContent(ToolBase):
 
     def execute(self, ctx, **kwargs):
         content = kwargs.get("content", "")
-        target = kwargs.get("target")
+        old_content = kwargs.get("old_content")
+        if old_content is None:
+            return {"status": "error", "message": "Provide old_content (use '' or '_BEGIN_' for beginning, '_END_' for end, '_SELECTION_' for selection, or text to find and replace)."}
 
         # Normalize content:
         # - If the model (or caller) serialized a list as a JSON string,
@@ -188,97 +215,90 @@ class ApplyDocumentContent(ToolBase):
 
         config_svc = ctx.services.get("config")
 
-        # -- search -------------------------------------------------
-        if target == "search":
-            search = kwargs.get("search")
-            all_matches = kwargs.get("all_matches", False)
-            case_sensitive = kwargs.get("case_sensitive", True)
+        # -- old_content: special values → insert at position; empty / _BEGIN_ → beginning; else find and replace ----
+        old_stripped = str(old_content).strip()
+        if old_stripped == _OLD_CONTENT_END:
+            format_support.insert_content_at_position(
+                ctx.doc, ctx.ctx, content, "end",
+                config_svc=config_svc,
+            )
+            return {"status": "ok", "message": "Inserted content at end."}
+        if old_stripped == _OLD_CONTENT_SELECTION:
+            format_support.insert_content_at_position(
+                ctx.doc, ctx.ctx, content, "selection",
+                config_svc=config_svc,
+            )
+            return {"status": "ok", "message": "Inserted content at selection."}
+        if not old_stripped or old_stripped == _OLD_CONTENT_BEGIN:
+            format_support.insert_content_at_position(
+                ctx.doc, ctx.ctx, content, "beginning",
+                config_svc=config_svc,
+            )
+            return {"status": "ok", "message": "Inserted content at beginning (old_content was empty)."}
+
+        import re as re_mod
+        search_string = old_stripped
+        if format_support.content_has_markup(search_string):
+            search_string = format_support.html_to_plain_text(
+                search_string, ctx.ctx, config_svc
+            )
+        # Normalize for literal find: single \n (e.g. from HTML wraps) -> space; \n\n -> \n. LO regex does not work across paragraphs.
+        search_string = _normalize_search_string_for_find(search_string)
+        if not search_string:
+            return {"status": "error", "message": "old_content is empty after normalization."}
+        doc = ctx.doc
+        all_matches = kwargs.get("all_matches", False)
+        if all_matches:
             if use_preserve:
                 count = format_support._preserving_search_replace(
-                    ctx.doc, ctx.ctx, raw_content, search,
-                    all_matches=all_matches,
-                    case_sensitive=case_sensitive,
+                    doc, ctx.ctx, raw_content, search_string,
+                    all_matches=True,
+                    case_sensitive=True,
                 )
             else:
                 count = format_support.apply_content_at_search(
-                    ctx.doc, ctx.ctx, content, search,
-                    all_matches=all_matches,
-                    case_sensitive=case_sensitive,
+                    doc, ctx.ctx, content, search_string,
+                    all_matches=True,
+                    case_sensitive=True,
                     config_svc=config_svc,
                 )
             msg = "Replaced %d occurrence(s)." % count
             if use_preserve and count > 0:
                 msg += " (formatting preserved)"
             if count == 0:
-                msg += (
-                    " No matches found. Try search_in_document first, then "
-                    "use target='range'."
-                )
+                msg += " No matches found. Try a shorter substring."
             return {"status": "ok", "message": msg}
-
-        # -- full ---------------------------------------------------
-        if target == "full":
-            if use_preserve:
-                # Select entire document directly
-                from plugin.framework.document import get_document_length
-                doc_len = get_document_length(ctx.doc)
-                rng = ctx.doc.getText().createTextCursor()
-                rng.gotoStart(False)
-                remaining = doc_len
-                while remaining > 0:
-                    n = min(remaining, 8192)
-                    rng.goRight(n, True)
-                    remaining -= n
-                format_support.replace_preserving_format(
-                    ctx.doc, rng, raw_content, ctx.ctx
-                )
-                return {"status": "ok", "message": "Replaced entire document. (formatting preserved)"}
-            else:
-                format_support.replace_full_document(
-                    ctx.doc, ctx.ctx, content, config_svc=config_svc
-                )
-                return {"status": "ok", "message": "Replaced entire document."}
-
-        # -- range --------------------------------------------------
-        if target == "range":
-            start_val = kwargs.get("start")
-            end_val = kwargs.get("end")
-            if use_preserve:
-                from plugin.modules.writer.ops import get_text_cursor_at_range
-                rng = get_text_cursor_at_range(
-                    ctx.doc, int(start_val), int(end_val)
-                )
-                format_support.replace_preserving_format(
-                    ctx.doc, rng, raw_content, ctx.ctx
-                )
-                return {
-                    "status": "ok",
-                    "message": "Replaced range [%s, %s). (formatting preserved)"
-                    % (start_val, end_val),
-                }
-            else:
-                format_support.apply_content_at_range(
-                    ctx.doc, ctx.ctx, content,
-                    int(start_val), int(end_val),
-                    config_svc=config_svc,
-                )
-                return {
-                    "status": "ok",
-                    "message": "Replaced range [%s, %s)." % (start_val, end_val),
-                }
-
-        # -- beginning / end / selection ----------------------------
-        if target in ("beginning", "end", "selection"):
-            format_support.insert_content_at_position(
-                ctx.doc, ctx.ctx, content, target,
-                config_svc=config_svc,
-            )
+        sd = doc.createSearchDescriptor()
+        sd.SearchRegularExpression = False
+        found = None
+        # Try literal string first (newlines preserved). If not found, try with \n collapsed to space
+        # (helps when old_content came from HTML that had \n inside tags, e.g. "veteran\nKeith").
+        for try_string in (search_string, re_mod.sub(r" +", " ", search_string.replace("\n", " ")).strip()):
+            if not try_string:
+                continue
+            sd.SearchString = try_string
+            for case_sens in (True, False):
+                sd.SearchCaseSensitive = case_sens
+                found = doc.findFirst(sd)
+                if found is not None:
+                    break
+            if found is not None:
+                break
+        # LibreOffice findFirst does not match across paragraphs; use full-text find when it fails.
+        if found is None:
+            found = _find_range_by_offset(doc, search_string)
+        if found is None:
             return {
-                "status": "ok",
-                "message": "Inserted content at %s." % target,
+                "status": "error",
+                "message": "old_content not found in document. Try a shorter, unique substring.",
             }
-
-        return {"status": "error", "message": "Unknown target: %s" % target}
+        if use_preserve:
+            format_support.replace_preserving_format(doc, found, raw_content, ctx.ctx)
+            return {"status": "ok", "message": "Replaced 1 occurrence (by old_content). (formatting preserved)"}
+        format_support.replace_single_range_with_content(
+            doc, found, content, ctx.ctx, config_svc
+        )
+        return {"status": "ok", "message": "Replaced 1 occurrence (by old_content)."}
 
 
 

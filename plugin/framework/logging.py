@@ -52,7 +52,7 @@ def init_logging(ctx):
         _agent_log_path = FALLBACK_AGENT
         _enable_agent_log = False
         try:
-            from plugin.modules.core import config
+            from plugin.framework import config
             udir = config.user_config_dir(ctx)
             if udir:
                 _debug_log_path = os.path.join(udir, DEBUG_LOG_FILENAME)

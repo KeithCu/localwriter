@@ -43,12 +43,20 @@ except ImportError:
 from plugin.modules.agent_backend.base import AgentBackend
 from plugin.framework.logging import debug_log
 
-_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][0-9]*;.*?\x1b\\")
+# CSI: ESC [ ... letter. Allow optional spaces (e.g. \x1b[2 q) and broader param chars.
+_ANSI_CSI_RE = re.compile(r"\x1b\[[0-9;? ]*[a-zA-Z]")
+# OSC and similar: ESC ] ... ESC \
+_ANSI_OSC_RE = re.compile(r"\x1b\][0-9]*;.*?\x1b\\")
+# Fallback: any ESC [ ... up to next letter (catches CPR and other controls)
+_ANSI_CSI_LOOSE_RE = re.compile(r"\x1b\[[^\x00-\x1f\x7f]*[a-zA-Z@`{|]")
 
 def strip_ansi(text):
     if not text:
         return text
-    return _ANSI_RE.sub("", text)
+    t = _ANSI_CSI_RE.sub("", text)
+    t = _ANSI_OSC_RE.sub("", t)
+    t = _ANSI_CSI_LOOSE_RE.sub("", t)
+    return t
 
 
 class CLIProcessBackend(AgentBackend):
@@ -107,6 +115,10 @@ class CLIProcessBackend(AgentBackend):
         """Return the string payload to write to stdin."""
         raise NotImplementedError
 
+    def should_forward_chunk(self, line):
+        """Return True if this line should be forwarded to the UI as response content. Subclasses may override to filter banner/echo lines."""
+        return True
+
     def _stderr_drain_loop(self, proc):
         """Drain stderr so process never blocks on a full stderr pipe."""
         try:
@@ -152,6 +164,9 @@ class CLIProcessBackend(AgentBackend):
                 self._reader_ready.set()
                 if line_count[0] <= 50 or line_count[0] % 100 == 0:
                     debug_log(f"reader_loop: saw prompt (confirming readiness)", context=self._log_prefix)
+            return
+
+        if not self.should_forward_chunk(line):
             return
 
         response_chunk_count[0] += 1

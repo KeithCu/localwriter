@@ -818,7 +818,9 @@ class ConfigService(ServiceBase):
         val = get_config(ctx, key)
         if val is not None and val != "":
             return val
-        return self._defaults.get(key, default)
+        if key not in self._defaults:
+            return default
+        return self._defaults[key]
 
     def set(self, key, value, caller_module=None):
         """Set a config value."""

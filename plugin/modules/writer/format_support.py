@@ -159,6 +159,44 @@ def _ensure_html_linebreaks(content):
     return _wrap_html_fragment("\n".join(out))
 
 
+def html_to_plain_text(html_string, ctx, config_svc=None):
+    """Convert HTML to plain text by loading it into LibreOffice and reading
+    the text out. Use this instead of regex stripping so entities, nested
+    tags, and whitespace are handled correctly.
+    """
+    if not html_string or not isinstance(html_string, str):
+        return (html_string or "").strip()
+    prepared = _wrap_html_fragment(html_string.strip())
+    temp_doc = None
+    try:
+        desktop = get_desktop(ctx)
+        load_props = (_create_property_value("Hidden", True),)
+        temp_doc = desktop.loadComponentFromURL(
+            "private:factory/swriter", "_default", 0, load_props
+        )
+        if not temp_doc or not hasattr(temp_doc, "getText"):
+            return html_string.strip()
+        with _with_temp_buffer(prepared, config_svc) as (_path, file_url):
+            filter_name, _ = _get_format_props(config_svc)
+            filter_props = (_create_property_value("FilterName", filter_name),)
+            text = temp_doc.getText()
+            cursor = text.createTextCursor()
+            cursor.gotoStart(False)
+            cursor.insertDocumentFromURL(file_url, filter_props)
+            cursor.gotoStart(False)
+            cursor.gotoEnd(True)
+            return cursor.getString().strip()
+    except Exception as exc:
+        log.debug("html_to_plain_text failed: %s", exc)
+        return html_string.strip()
+    finally:
+        if temp_doc is not None:
+            try:
+                temp_doc.close(True)
+            except Exception:
+                pass
+
+
 # ---------------------------------------------------------------------------
 # Document -> content
 # ---------------------------------------------------------------------------
@@ -418,6 +456,21 @@ def apply_content_at_search(model, ctx, content, search,
             if count > 200:
                 break
         return count
+
+
+def replace_single_range_with_content(model, text_range, content, ctx,
+                                      config_svc=None):
+    """Replace the given text range with rendered *content* (HTML path)."""
+    import html as html_mod
+    prepared = html_mod.unescape(content)
+    prepared = _ensure_html_linebreaks(prepared)
+    with _with_temp_buffer(prepared, config_svc) as (_path, file_url):
+        filter_name, _ = _get_format_props(config_svc)
+        filter_props = (_create_property_value("FilterName", filter_name),)
+        text_obj = text_range.getText()
+        cursor = text_obj.createTextCursorByRange(text_range)
+        cursor.setString("")
+        cursor.insertDocumentFromURL(file_url, filter_props)
 
 
 def _preserving_search_replace(model, uno_ctx, new_text, search_string,

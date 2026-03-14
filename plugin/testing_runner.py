@@ -19,6 +19,11 @@ from plugin.framework.uno_helpers import get_active_document
 def native_test(func):
     """Decorator to mark a function as a test in the native test runner."""
     func._is_test = True
+    try:
+        import pytest
+        func = pytest.mark.skip(reason="Run by native runner only")(func)
+    except ImportError:
+        pass
     return func
 
 def setup(func):

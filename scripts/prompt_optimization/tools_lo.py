@@ -230,17 +230,13 @@ def get_document_content(scope="full", max_chars=None, start=None, end=None) -> 
         return json.dumps(res, ensure_ascii=False)
     return LOBackend.call(_do)
 
-def apply_document_content(content: str, target="end", search=None, start=None, end=None, all_matches=False, case_sensitive=True) -> str:
+def apply_document_content(content: str, old_content: str = "", all_matches: bool = False) -> str:
     def _do():
         doc = LOBackend.acquire_document()
         from plugin.main import get_tools
-        params = {"content": content, "target": target}
-        if search is not None: params["search"] = search
-        if start is not None: params["start"] = start
-        if end is not None: params["end"] = end
-        if all_matches is not None: params["all_matches"] = all_matches
-        if case_sensitive is not None: params["case_sensitive"] = case_sensitive
-        
+        params = {"content": content, "old_content": old_content}
+        if all_matches:
+            params["all_matches"] = True
         ctx = _tool_ctx(doc)
         res = get_tools().execute("apply_document_content", ctx, **params)
         return json.dumps(res, ensure_ascii=False)
@@ -263,9 +259,9 @@ def dspy_get_document_content(scope: str = "full", max_chars: int = None, start:
     """Read the LibreOffice document. Returns JSON with content."""
     return get_document_content(scope, max_chars, start, end)
 
-def dspy_apply_document_content(content: str, target: str = "end", search: str = None, start: int = None, end: int = None, all_matches: bool = False, case_sensitive: bool = True) -> str:
+def dspy_apply_document_content(content: str, old_content: str = "", all_matches: bool = False) -> str:
     """Modify the LibreOffice document. Content can be plain text or HTML. Returns JSON status."""
-    return apply_document_content(content, target, search, start, end, all_matches, case_sensitive)
+    return apply_document_content(content, old_content, all_matches)
 
 def dspy_find_text(search: str, start: int = 0, limit: int = None, case_sensitive: bool = True) -> str:
     """Search the LibreOffice document for text. Returns JSON with ranges."""

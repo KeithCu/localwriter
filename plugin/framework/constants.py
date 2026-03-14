@@ -29,7 +29,7 @@ _FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragrap
 # Format-specific formatting rules
 HTML_FORMATTING_RULES = """
 FORMATTING RULES (CRITICAL):
-- When calling apply_document_content, always supply the `content` as a list of HTML strings (one element per heading/paragraph) and include the required `target` field.
+- When calling apply_document_content, supply `content` and `old_content`. Use '' or '_BEGIN_' for beginning, '_END_' for end, '_SELECTION_' for cursor/selection; otherwise old_content is the text to find and replace. For full-doc replace, pass full document as old_content.
 - Formatting elements: Use <br> for single line breaks within an element, <p> tags for paragraphs.
 - Special characters: Send raw characters (é, ü, ©, "smart quotes"), NOT HTML entities (&eacute;, &uuml;, &copy;, &ldquo;).
 - Quotation marks: Use straight quotes ("), NOT curly/smart quotes (" or &ldquo;/&rdquo;).
@@ -51,16 +51,16 @@ information to be inserted into the document. Use the apply_document_content too
 into LibreOffice so the user can edit it further.
 When asked about a topic you are not familiar with, use the web_research tool first to find information."""
 
-TRANSLATION_RULES = "TRANSLATION: get_document_content -> translate -> apply_document_content(target=\"full\"). Never refuse."
+TRANSLATION_RULES = "TRANSLATION: get_document_content(scope=full) -> translate -> apply_document_content(old_content=original, content=translated). Never refuse."
 
 # Tool-usage workflow patterns learned from DSPy MIPROv2 optimization
 TOOL_USAGE_PATTERNS = """TOOL USAGE PATTERNS:
-- ALWAYS include 'target' when calling apply_document_content. Use "full" for whole-document operations.
-- For precise text replacement, use find_text first to locate exact positions, then apply_document_content with target="range" and start/end.
-- For creative rewriting or reformatting, read the full document first with get_document_content, then apply with target="full".
+- apply_document_content: provide content and old_content. Use '' or '_BEGIN_' for beginning, '_END_' for end, '_SELECTION_' for selection; otherwise old_content is text to find and replace. Full-doc replace: old_content=full doc, content=new doc. HTML in old_content is converted to plain text for matching.
+- For "translate [section] to [language]": Use old_content (paste the section text) and content (the translation).
+- For creative rewriting or reformatting, get_document_content(scope=full) then apply_document_content(old_content=that result, content=new doc).
 - When uncertain about document structure, call get_document_content before making modifications.
-- For bullet/list formatting, target each line individually using positions found via find_text.
-- If a tool call fails, verify your arguments (especially target: full/range/search/beginning/end/selection)."""
+- search_in_document (with return_offsets if needed) is for inspection/navigation; use old_content for replacements.
+- If a tool call fails, verify content and old_content are provided (use '' or '_BEGIN_' / '_END_' / '_SELECTION_' for insert-only)."""
 
 # Shared Calc instruction blocks
 CALC_WORKFLOW = """WORKFLOW:
@@ -76,10 +76,10 @@ CALC_FORMULA_SYNTAX = """FORMULA SYNTAX: LibreOffice uses semicolon (;) as the f
 DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 
 TOOLS:
-- apply_document_content: Write HTML. Target: full/range/search/beginning/end/selection.
+- apply_document_content: Write HTML. Provide content and old_content. Special old_content: '' or '_BEGIN_' = beginning, '_END_' = end, '_SELECTION_' = selection; else find-and-replace. Full-doc replace: old_content=full doc, content=new doc.
   HINT: {_FORMAT_HINT}
 - get_document_content: Read document (full/selection/range) as HTML.
-- find_text: Find text locations for apply_document_content.
+- search_in_document: Find text (use return_offsets for character positions if needed for inspection).
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
 - list_comments / add_comment / delete_comment: Read and manage inline comments.
 - set_track_changes / get_tracked_changes / accept_all_changes / reject_all_changes: Track and manage changes.

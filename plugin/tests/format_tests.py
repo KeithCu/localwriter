@@ -65,23 +65,14 @@ def _get_document_content(doc, ctx, params):
 
 
 def _apply_document_content(doc, ctx, params):
-    """Call real apply_document_content tool; returns dict."""
+    """Call real apply_document_content tool; returns dict. Requires content and old_content."""
     from plugin.main import get_tools
     content = params.get("content", "")
-    target = params.get("target", "end")
     if isinstance(content, list):
         content = "\n".join(str(x) for x in content)
-    kwargs = {"content": content, "target": target}
-    if params.get("search") is not None:
-        kwargs["search"] = params["search"]
-    if params.get("start") is not None:
-        kwargs["start"] = params["start"]
-    if params.get("end") is not None:
-        kwargs["end"] = params["end"]
+    kwargs = {"content": content, "old_content": params.get("old_content", "")}
     if params.get("all_matches") is not None:
         kwargs["all_matches"] = params["all_matches"]
-    if params.get("case_sensitive") is not None:
-        kwargs["case_sensitive"] = params["case_sensitive"]
     try:
         return get_tools().execute("apply_document_content", _tool_ctx(doc, ctx), **kwargs)
     except Exception as e:
@@ -175,10 +166,12 @@ def test_apply_at_end_via_insert_content():
 def test_apply_document_content_target_end():
     test_content = "Format test\n\nThis was inserted by the test."
     insert_needle = "Format test"
+    full_doc = _read_doc_text(_test_doc)
+    new_content = (full_doc + "\n" + test_content) if full_doc else test_content
 
     result = _apply_document_content(_test_doc, _test_ctx, {
-        "content": test_content,
-        "target": "end",
+        "content": new_content,
+        "old_content": full_doc if full_doc else "",
     })
     assert result.get("status") == "ok", f"_apply_document_content failed: {result}"
     full_text = _read_doc_text(_test_doc)
@@ -188,9 +181,11 @@ def test_apply_document_content_target_end():
 @native_test
 def test_formatted_content():
     formatted_input = "<h1>Heading</h1><p><b>Bold text</b> and <i>italic text</i></p>"
+    full_doc = _read_doc_text(_test_doc)
+    new_content = (full_doc + "\n" + formatted_input) if full_doc else formatted_input
     result = _apply_document_content(_test_doc, _test_ctx, {
-        "content": formatted_input,
-        "target": "end",
+        "content": new_content,
+        "old_content": full_doc if full_doc else "",
     })
     assert result.get("status") == "ok", f"formatted content failed: {result}"
 
@@ -213,8 +208,7 @@ def test_search_and_replace():
 
     result = _apply_document_content(_test_doc, _test_ctx, {
         "content": replacement,
-        "target": "search",
-        "search": marker,
+        "old_content": marker,
     })
     full_text = _read_doc_text(_test_doc)
     assert result.get("status") == "ok", f"search-and-replace failed: {result}"
@@ -225,9 +219,11 @@ def test_search_and_replace():
 @native_test
 def test_list_input_accommodation():
     list_input = ["item_a", "item_b"]
+    full_doc = _read_doc_text(_test_doc)
+    new_content = (full_doc + "\nitem_a\nitem_b") if full_doc else "item_a\nitem_b"
     result = _apply_document_content(_test_doc, _test_ctx, {
-        "content": list_input,
-        "target": "end",
+        "content": new_content,
+        "old_content": full_doc if full_doc else "",
     })
     full_text = _read_doc_text(_test_doc)
     assert result.get("status") == "ok", f"list input failed: {result}"
@@ -237,7 +233,8 @@ def test_list_input_accommodation():
 @native_test
 def test_target_full():
     full_replacement = "<h1>Full Replace Test</h1><p>Only this content should remain.</p>"
-    result = _apply_document_content(_test_doc, _test_ctx, {"content": full_replacement, "target": "full"})
+    full_doc = _read_doc_text(_test_doc)
+    result = _apply_document_content(_test_doc, _test_ctx, {"content": full_replacement, "old_content": full_doc})
     full_text = _read_doc_text(_test_doc)
     assert result.get("status") == "ok", f"target=full failed: {result}"
     assert "Full Replace" in full_text, "'Full Replace' not found"
@@ -245,9 +242,9 @@ def test_target_full():
 
 @native_test
 def test_target_range():
-    doc_len = _doc_text_length_raw(_test_doc)
-    range_content = "<h2>Range Replace</h2><p>Replaced [0, %d).</p>" % doc_len
-    result = _apply_document_content(_test_doc, _test_ctx, {"content": range_content, "target": "range", "start": 0, "end": doc_len})
+    full_doc = _read_doc_text(_test_doc)
+    range_content = "<h2>Range Replace</h2><p>Replaced [0, %d).</p>" % len(full_doc)
+    result = _apply_document_content(_test_doc, _test_ctx, {"content": range_content, "old_content": full_doc})
     full_text = _read_doc_text(_test_doc)
     assert result.get("status") == "ok", f"target=range failed: {result}"
     assert "Range Replace" in full_text, "'Range Replace' not found"
@@ -285,9 +282,11 @@ def test_find_text():
 @native_test
 def test_html_linebreak_preservation():
     plain_input = "Line 1\nLine 2\n\nParagraph 2"
+    full_doc = _read_doc_text(_test_doc)
+    new_content = (full_doc + "\n" + plain_input) if full_doc else plain_input
     result = _apply_document_content(_test_doc, _test_ctx, {
-        "content": plain_input,
-        "target": "end",
+        "content": new_content,
+        "old_content": full_doc if full_doc else "",
     })
     full_text = _read_doc_text(_test_doc)
     assert "Line 1" in full_text and "Line 2" in full_text and "Paragraph 2" in full_text, "HTML linebreak preservation failed"
@@ -299,9 +298,11 @@ def test_crlf_normalization():
     marker_u = "UNIQUE_CRLF_TEST"
     payload = crlf_input + "\n" + marker_u
     
+    full_doc = _read_doc_text(_test_doc)
+    new_content = (full_doc + "\n" + payload) if full_doc else payload
     _apply_document_content(_test_doc, _test_ctx, {
-        "content": payload,
-        "target": "end",
+        "content": new_content,
+        "old_content": full_doc if full_doc else "",
     })
 
     res_find = _find_text(_test_doc, _test_ctx, {"search": marker_u})
@@ -523,8 +524,7 @@ def test_apply_document_content_target_search_preserves_colors():
 
     result = _apply_document_content(_test_doc, _test_ctx, {
         "content": "zBertTicklez",
-        "target": "search",
-        "search": "zBertPicklez",
+        "old_content": "zBertPicklez",
     })
     assert result.get("status") == "ok", f"tool target=search failed: {result}"
     ok_flag, detail = _check_colors_at_search("zBertTicklez", expected_colors)
@@ -539,9 +539,7 @@ def test_apply_document_content_target_range_preserves_colors():
 
     result = _apply_document_content(_test_doc, _test_ctx, {
         "content": "zNormaGlintez",
-        "target": "range",
-        "start": start_off,
-        "end": end_off,
+        "old_content": "zNormaFlintez",
     })
     assert result.get("status") == "ok", f"tool target=range failed: {result}"
     ok_flag, detail = _check_colors_at_search("zNormaGlintez", expected_colors)
@@ -570,7 +568,7 @@ def test_apply_document_content_target_full_preserves_colors():
 
         result = _apply_document_content(small_doc, _test_ctx, {
             "content": new_word,
-            "target": "full",
+            "old_content": word,
         })
         assert result.get("status") == "ok", f"tool target=full failed: {result}"
 

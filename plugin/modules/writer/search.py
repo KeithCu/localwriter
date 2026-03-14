@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Writer search tools: search_in_document, replace_in_document."""
+"""Writer search tools: search_in_document, advanced_search."""
 
 import logging
 
@@ -184,92 +184,6 @@ def _build_match(text, para_idx, ctx_paras, para_count, para_texts):
         "paragraph_index": para_idx,
         "context": context,
     }
-
-
-class ReplaceInDocument(ToolBase):
-    """Find and replace text preserving formatting."""
-
-    name = "replace_in_document"
-    description = (
-        "Find and replace text in the document with regex support. "
-        "Preserves existing formatting. Returns count of replacements."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "search": {
-                "type": "string",
-                "description": "Text or regex pattern to find.",
-            },
-            "replace": {
-                "type": "string",
-                "description": "Replacement text.",
-            },
-            "regex": {
-                "type": "boolean",
-                "description": "Use regular expression (default: false).",
-            },
-            "case_sensitive": {
-                "type": "boolean",
-                "description": "Case-sensitive matching (default: false).",
-            },
-            "replace_all": {
-                "type": "boolean",
-                "description": (
-                    "Replace all occurrences (default: true). "
-                    "Set to false to replace only the first match."
-                ),
-            },
-        },
-        "required": ["search", "replace"],
-    }
-    doc_types = ["writer"]
-    tier = "core"
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        search = kwargs.get("search", "")
-        replace = kwargs.get("replace", "")
-        if not search:
-            return {"status": "error", "message": "search is required."}
-
-        regex = kwargs.get("regex", False)
-        case_sensitive = kwargs.get("case_sensitive", False)
-        replace_all = kwargs.get("replace_all", True)
-
-        doc = ctx.doc
-
-        try:
-            replace_desc = doc.createReplaceDescriptor()
-            replace_desc.SearchString = search
-            replace_desc.ReplaceString = replace
-            replace_desc.SearchRegularExpression = bool(regex)
-            replace_desc.SearchCaseSensitive = bool(case_sensitive)
-
-            if replace_all:
-                count = doc.replaceAll(replace_desc)
-            else:
-                # Replace only the first match
-                found = doc.findFirst(replace_desc)
-                if found is not None:
-                    found.setString(replace)
-                    count = 1
-                else:
-                    count = 0
-
-            # Invalidate document cache after edits
-            if count > 0:
-                doc_svc = ctx.services.document
-                doc_svc.invalidate_cache(doc)
-
-            return {
-                "status": "ok",
-                "replacements": count,
-                "search": search,
-                "replace": replace,
-            }
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
 
 
 class AdvancedSearch(ToolBase):

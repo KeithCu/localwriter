@@ -628,6 +628,7 @@ class ToolCallingMixin:
                     result_data = json.loads(result)
                     note = result_data.get("message", result_data.get("status", "done"))
                 except Exception:
+                    result_data = {}
                     note = "done"
                 self._append_response("[%s: %s]\n" % (func_name, note))
                 if func_name == "apply_document_content" and (
@@ -640,6 +641,30 @@ class ToolCallingMixin:
                     )
                     self._append_response("[Debug: params %s]\n" % params_display)
                 self.session.add_tool_result(call_id, result)
+
+                # After a successful document-mutating tool, refresh document context
+                # so the next round sees the updated doc and does not repeat the edit.
+                try:
+                    is_success = (
+                        result_data.get("success") is True
+                        or result_data.get("status") == "ok"
+                    )
+                    doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
+                    if is_success and doc:
+                        from plugin.main import get_tools as _get_tools_registry
+                        tool = _get_tools_registry().get(func_name)
+                        if tool and tool.detects_mutation():
+                            max_ctx = get_config(self.ctx, "chat_context_length") or 8000
+                            doc_text = get_document_context_for_chat(
+                                doc,
+                                max_ctx,
+                                include_end=True,
+                                include_selection=True,
+                                ctx=self.ctx,
+                            )
+                            self.session.update_document_context(doc_text)
+                except Exception:
+                    pass
 
                 # Trigger next tool
                 q.put(("next_tool",))
