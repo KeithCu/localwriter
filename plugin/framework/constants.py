@@ -174,9 +174,9 @@ COORDINATES:
 All coordinates (x, y, width, height) are in 100ths of a millimeter.
 A typical page is roughly 21000 x 29700 (A4)."""
 
-DEFAULT_WRITER_GREETING = "AI: I can edit or translate your document instantly. Try me!"
-DEFAULT_CALC_GREETING = "AI: I can help you with formulas, data analysis, and charts. Try me!"
-DEFAULT_DRAW_GREETING = "AI: I can help you create and edit shapes in Draw and Impress. Try me!"
+DEFAULT_WRITER_GREETING = "AI: I can edit or translate your document instantly with professional formatting and color. Try me!"
+DEFAULT_CALC_GREETING = "AI: I can help you with formulas, data analysis, and colorful charts. Try me!"
+DEFAULT_DRAW_GREETING = "AI: I can help you create and edit polished, colorful shapes in Draw and Impress. Try me!"
 DEFAULT_RESEARCH_GREETING = "AI: I can do web research to answer any question, or summarize a web page, without seeing or changing your document. Let's chat."
 
 
