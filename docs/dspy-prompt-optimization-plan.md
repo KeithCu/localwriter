@@ -1,6 +1,6 @@
 ---
 name: DSPy prompt optimization plan
-overview: DSPy can optimize your Writer system prompt by treating it as the "instruction" in a DSPy program and using MIPROv2 to search for instruction variants that maximize a custom metric (correctness plus token efficiency). This plan explains how it works and how to implement it with your chosen evaluation tasks (table formatting, resume reformatting).
+overview: DSPy can optimize your Writer system prompt by treating it as the "instruction" in a DSPy program and using MIPROv2 to search for instruction variants that maximize a judge-based metric (LLM-as-a-Judge score plus token efficiency). This plan explains how it works and how to implement it with your chosen evaluation tasks (table formatting, resume reformatting).
 todos: []
 isProject: false
 ---
@@ -12,7 +12,7 @@ isProject: false
 DSPy is built for exactly this: **optimizing prompts (instructions) to maximize a metric** without hand-tuning. Its optimizers (especially **MIPROv2**) propose and search over natural-language instructions using your program, a small train/val set, and a scoring function. So your goal—find a better system prompt—maps directly onto DSPy’s instruction optimization.
 
 - **What gets optimized**: The “instruction” of a DSPy predictor. That instruction is what MIPROv2 varies; you seed it with your current `DEFAULT_CHAT_SYSTEM_PROMPT` and optional formatting rules from [core/constants.py](core/constants.py).
-- **How**: You define a **program** (e.g. a tool-using agent that mirrors Writer chat), a **metric** (correctness + token count), and a **dataset** of (document, question) pairs. MIPROv2 runs many instruction candidates and keeps the one that scores best on your metric.
+- **How**: You define a **program** (e.g. a tool-using agent that mirrors Writer chat), a **metric** (LLM-as-a-Judge score + token penalty), and a **dataset** of (document, question) pairs. MIPROv2 runs many instruction candidates and keeps the one that scores best on your metric.
 - **0-shot**: You can optimize **only the instruction** (no few-shot examples) by using MIPROv2 with `max_bootstrapped_demos=0, max_labeled_demos=0`.
 
 So: **DSPy can help you find a more optimal prompt** by systematically exploring instruction space and measuring outcomes (including token use) on fixed tasks.
@@ -74,14 +74,13 @@ Below are **15 tasks** drawn from your suite (plus your two). Use these as the p
 
 ## How to use DSPy for this
 
-### 1. Metric: correctness + token efficiency
+### 1. Metric: LLM-as-a-Judge + token penalty
 
-DSPy metrics are functions `(example, pred, trace=None) -> float` (higher = better). You can:
+The optimizer uses the **same judge-based metric** as multi-model eval (`run_eval_multi`). DSPy metrics are functions `(example, pred, trace=None) -> float` (higher = better).
 
-- **Correctness**: For “mess → table”, check that the model’s final output is a valid table (e.g. parse rows/columns, or use a small LM/judge to verify). For “reformat resume”, check headings, consistency, and that content was preserved (exact or semantic).
-- **Token usage**: Run with `dspy.settings.context(..., track_usage=True)` and no cache. After the program runs, call `pred.get_lm_usage()` (or aggregate usage from the trace if multi-step) to get `prompt_tokens` and `completion_tokens`. Penalize total tokens in the metric, e.g.:
-`score = correctness_score - lambda * (total_tokens / 1000)`
-so that fewer tokens improve the score. You can tune `lambda` to balance quality vs cost.
+- **Correctness**: An **LLM judge** (default: Grok 4.1 Fast) scores each output. The judge receives the document, user question, model answer, optional **gold reference** (from `gold_standards.json`), rubric, and task category (structural vs creative). It returns weighted sub-scores (accuracy, formatting, naturalness); these are combined into a single 0–1 score. This logic lives in [scripts/prompt_optimization/eval_core.py](scripts/prompt_optimization/eval_core.py) as **`score_with_judge()`**, shared by both `run_eval_on_examples` and the MIPROv2 metric.
+- **Token penalty**: Run with `dspy.settings.context(..., track_usage=True)` and no cache. The metric uses `pred.get_lm_usage()` to get total tokens and subtracts `lambda * (total_tokens / 1000)` (e.g. `TOKEN_PENALTY_LAMBDA = 0.01`) so that fewer tokens improve the score.
+- **Implementation**: [scripts/prompt_optimization/metric.py](scripts/prompt_optimization/metric.py) exposes **`make_judge_metric(judge_lm)`**, which returns a metric callable that calls `score_with_judge` and applies the token penalty. There is no string-match or keyword fallback; optimization is judge-only. Use the same dataset and optional `gold_standards.json` as `run_eval_multi` (run `run_eval_multi.py --generate-golds` once to populate gold).
 
 ### 2. Program: mirror Writer chat with tools
 
@@ -125,7 +124,7 @@ To optimize **only the system prompt** (no few-shot examples):
 - Pass your current `DEFAULT_CHAT_SYSTEM_PROMPT` (and any format rules) as the **initial instruction** of the predictor in your program.  
 - Set `auto="light"` (or `"medium"`) to control cost/time; `auto` sets `num_trials` and candidate counts.
 
-Result: MIPROv2 will propose alternative instructions, evaluate each on your metric (correctness − token penalty), and return the **compiled program** with the best-performing instruction. That instruction is your candidate new system prompt.
+Result: MIPROv2 will propose alternative instructions, evaluate each on your metric (judge score − token penalty), and return the **compiled program** with the best-performing instruction. That instruction is your candidate new system prompt. The judge model is configurable via `--judge` (default: `x-ai/grok-4.1-fast`).
 
 ### 5. LM and endpoint
 
@@ -148,15 +147,13 @@ Result: MIPROv2 will propose alternative instructions, evaluate each on your met
   - `dataset.py` (or JSON): 5–20 examples for “mess → table” and “reformat resume” (and optionally 1–2 more fixed tasks).
   - `tools_mock.py`: Mock `get_document_content` / `apply_document_content` on an in-memory document (and optionally other Writer tools you care about).
   - `program.py`: DSPy program (ReAct or custom Module) that takes `document_content` + `user_question`, uses your current system prompt as the predictor instruction, and runs the tool loop; expose the final document state for the metric.
-  - `metric.py`: `def metric(example, pred, trace=None)`: compute correctness (table validity / resume formatting and content), get token usage from `pred.get_lm_usage()` (or trace), return `correctness - lambda * (total_tokens / 1000)`.
-  - `run_optimize.py`: Load dataset, configure `dspy.LM` with your endpoint, create MIPROv2 with `max_bootstrapped_demos=0`, `max_labeled_demos=0`, run `compile(program, trainset=..., valset=...)`, save compiled program and optionally print the winning instruction.
+  - `metric.py`: **`make_judge_metric(judge_lm)`** returns a metric `(example, pred, trace=None) -> float`. It calls **`score_with_judge()`** from `eval_core` (shared with `run_eval_on_examples`) to get the judge’s 0–1 score, then subtracts `lambda * (total_tokens / 1000)`. No string-match fallback.
+  - `run_optimize.py`: Load dataset (same as run_eval_multi; gold from `gold_standards.json` if present). Configure `dspy.LM` for the candidate model and a separate **judge** LM (default `x-ai/grok-4.1-fast`). Build `metric = make_judge_metric(judge_lm)`, create MIPROv2 with `max_bootstrapped_demos=0`, `max_labeled_demos=0`, run `compile(program, trainset=..., valset=..., metric=metric)`, save compiled program and optionally print the winning instruction.
   - `requirements.txt`: `dspy-ai` (and any deps for your endpoint).
-2. **Correctness sub-metrics** (implement in `metric.py`):
-  - For “mess → table”: parse model output (or tool result) into a table; check it has ≥ N rows/columns and key content; or use a tiny LM/judge: “Is this a valid table that contains the same information as the source?”
-  - For “reformat resume”: check for section headings, no content loss (e.g. key names/dates present), and optionally an LM judge for “professional formatting.”
+2. **Judge and gold**: The judge (in `eval_core.JudgeModule` / `score_with_judge`) handles all task types: structural (e.g. table, cleanup) and creative (e.g. resume, rewriting). It uses weighted accuracy/formatting/naturalness and optional gold references from `gold_standards.json`. Generate gold once with `run_eval_multi.py --generate-golds` for better judge consistency.
 3. **Run optimization** (e.g. `python run_optimize.py`). Use `auto="light"` first to limit cost; inspect the winning instruction and metric scores, then try `"medium"` if needed.
 4. **Apply the result**: Copy the best instruction from the saved program into `DEFAULT_CHAT_SYSTEM_PROMPT` in [core/constants.py](core/constants.py) (or merge with `FORMAT_RULES` as you do now). Test in LocalWriter with the same evaluation tasks to confirm behavior and token usage.
-5. **(Optional) Document**: Add a short `scripts/prompt_optimization/README.md` explaining how to run the optimizer, how the metric works (correctness + token penalty), and how to update constants.py from the output.
+5. **Documentation**: See `scripts/prompt_optimization/README.md` for how to run the optimizer, the judge-based metric (`--judge`, gold standards), and how to update constants.py from the output.
 
 ---
 
@@ -190,8 +187,8 @@ So: **“How many is too many?”** is best answered by your own **sweep over to
 ## Summary
 
 - **DSPy can help** by treating your Writer system prompt as the instruction of a DSPy program and using MIPROv2 to search for a better instruction on fixed, scoreable tasks.
-- **Your evaluation tasks** (“mess → table”, “reformat resume”) are well-suited: fixed inputs, clear correctness criteria, and comparable token counts.
-- **Metric**: correctness (table/resume quality) minus a token penalty, using `get_lm_usage()` (and trace if multi-step).
-- **Implementation**: Separate script, ReAct (or custom module) with mock Writer tools, small dataset, MIPROv2 with 0-shot (instruction-only), then copy the winning instruction into [core/constants.py](core/constants.py).
+- **Your evaluation tasks** (“mess → table”, “reformat resume”, etc.) are well-suited: fixed inputs, judge-based correctness, and comparable token counts.
+- **Metric**: **LLM-as-a-Judge** score (shared `score_with_judge` in `eval_core`) minus a token penalty. No string-match fallback; optimization and multi-model eval use the same judge. Optional gold references from `gold_standards.json` improve consistency.
+- **Implementation**: Separate script under `scripts/prompt_optimization/`, ReAct with mock Writer tools, small dataset (same as run_eval_multi), **`make_judge_metric(judge_lm)`** for MIPROv2, 0-shot instruction-only, then copy the winning instruction into [core/constants.py](core/constants.py).
 
 This gives you a repeatable, data-driven way to improve `DEFAULT_CHAT_SYSTEM_PROMPT` and keep token use under control.
