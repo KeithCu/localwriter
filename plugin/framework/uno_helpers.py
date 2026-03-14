@@ -219,9 +219,34 @@ def _contrasting_text_color(rgb_int):
     return 0x000000 if _luminance(rgb_int) >= 0.5 else 0xFFFFFF
 
 
+def _color_to_int(val):
+    """Coerce a scheme color value to int; pyuno/UNO may return struct with Color member or value/Value."""
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        pass
+    try:
+        n = int(str(val))
+        if 0 <= n <= 0xFFFFFF or (n < 0 and -0xFFFFFF <= n):
+            return n & 0xFFFFFF
+    except (TypeError, ValueError):
+        pass
+    for attr in ("Color", "value", "Value"):
+        try:
+            n = getattr(val, attr, None)
+            if n is not None:
+                return int(n) & 0xFFFFFF
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
 def get_sidebar_background_color(ctx):
-    """Background color for the sidebar. Uses scheme when readable; else dark fallback 0x2B2B2B."""
+    """Background color for the sidebar. Uses FontColor from the scheme (nested node with Color); else scheme name."""
     DARK_FALLBACK = 0x2B2B2B
+    LIGHT_FALLBACK = 0xF0F0F0
     try:
         smgr = ctx.getServiceManager()
         cfg_prov = smgr.createInstanceWithContext(
@@ -231,24 +256,24 @@ def get_sidebar_background_color(ctx):
         arg.Value = "/org.openoffice.Office.UI/ColorScheme"
         cfg = cfg_prov.createInstanceWithArguments(
             "com.sun.star.configuration.ConfigurationAccess", (arg,))
-        scheme_name = cfg.getPropertyValue("CurrentColorScheme")
+        name = cfg.getPropertyValue("CurrentColorScheme")
         schemes = cfg.getByName("ColorSchemes")
-        scheme = schemes.getByName(scheme_name)
-        candidates = []
-        for key in ("DialogColor", "WindowBackground", "ApplicationBackground", "WorkspaceColor", "FontColor"):
-            try:
-                val = scheme.getPropertyValue(key)
-                candidates.append(int(val))
-            except Exception:
-                pass
-        if not candidates:
+        scheme = schemes.getByName(name)
+        # FontColor is a nested config node; read its Color property for the actual value (logs showed DialogColor etc. missing)
+        try:
+            font_node = scheme.getPropertyValue("FontColor")
+            if hasattr(font_node, "getPropertyValue"):
+                raw_color = font_node.getPropertyValue("Color")
+                val = _color_to_int(raw_color)
+                if val is not None:
+                    # Light font (high lum) => dark theme => dark sidebar; dark font => light sidebar
+                    return DARK_FALLBACK if _luminance(val) >= 0.5 else LIGHT_FALLBACK
+        except Exception:
+            pass
+        name_lower = (name or "").lower()
+        if "dark" in name_lower and "automatic" not in name_lower:
             return DARK_FALLBACK
-        darkest = min(candidates, key=lambda c: _luminance(c))
-        lum = _luminance(darkest)
-        scheme_lower = (scheme_name or "").lower()
-        if any(k in scheme_lower for k in ("dark", "nokto", "midna", "midnight", "darkness")) and lum > 0.5:
-            return DARK_FALLBACK
-        return darkest
+        return LIGHT_FALLBACK
     except Exception:
         return DARK_FALLBACK
 

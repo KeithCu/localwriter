@@ -13,6 +13,7 @@ def _apply_sidebar_theme(root_window, ctx, controls):
     """Apply theme background and contrasting text color to root and all panel controls."""
     try:
         bg_color, text_color = get_theme_colors(ctx)
+        debug_log("[SidebarTheme] apply bg=0x%06X text=0x%06X" % (bg_color & 0xFFFFFF, text_color & 0xFFFFFF), context="Chat")
     except Exception:
         return
     try:
