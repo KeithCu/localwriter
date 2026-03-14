@@ -60,6 +60,9 @@ class ApplyDocumentContent(ToolBase):
             if target in ["full", "range", "search", "selection"]:
                 cursor.setString("")
             
+            # Collapse cursor to start for insertion if it was a selection/range
+            cursor.collapseToStart()
+            
             success = insert_html_at_cursor(cursor, content)
             return {"success": success, "target": target}
         
