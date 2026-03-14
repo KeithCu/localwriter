@@ -203,28 +203,57 @@ def set_document_property(model, name, value):
             debug_log("set_document_property error: %s" % e, context="Chat")
         except Exception:
             pass
-def get_dialog_background_color(ctx):
-    """Return the BackgroundColor from the current LibreOffice color scheme.
-    
-    Falls back to 0xF0F0F0 (light gray) if the configuration cannot be read.
-    """
+
+
+def _luminance(rgb_int):
+    """Relative luminance of an RGB color (0xRRGGBB). Returns value in 0..1."""
+    v = int(rgb_int) if rgb_int is not None else 0
+    r = ((v >> 16) & 0xFF) / 255.0
+    g = ((v >> 8) & 0xFF) / 255.0
+    b = (v & 0xFF) / 255.0
+    return 0.299 * r + 0.587 * g + 0.114 * b
+
+
+def _contrasting_text_color(rgb_int):
+    """Return black or white for readable text on the given background (0xRRGGBB)."""
+    return 0x000000 if _luminance(rgb_int) >= 0.5 else 0xFFFFFF
+
+
+def get_sidebar_background_color(ctx):
+    """Background color for the sidebar. Uses scheme when readable; else dark fallback 0x2B2B2B."""
+    DARK_FALLBACK = 0x2B2B2B
     try:
         smgr = ctx.getServiceManager()
         cfg_prov = smgr.createInstanceWithContext(
             "com.sun.star.configuration.ConfigurationProvider", ctx)
-        
         arg = PropertyValue()
         arg.Name = "nodepath"
         arg.Value = "/org.openoffice.Office.UI/ColorScheme"
-        
         cfg = cfg_prov.createInstanceWithArguments(
             "com.sun.star.configuration.ConfigurationAccess", (arg,))
-        
         scheme_name = cfg.getPropertyValue("CurrentColorScheme")
         schemes = cfg.getByName("ColorSchemes")
         scheme = schemes.getByName(scheme_name)
-        
-        return scheme.getPropertyValue("DialogColor")
+        candidates = []
+        for key in ("DialogColor", "WindowBackground", "ApplicationBackground", "WorkspaceColor", "FontColor"):
+            try:
+                val = scheme.getPropertyValue(key)
+                candidates.append(int(val))
+            except Exception:
+                pass
+        if not candidates:
+            return DARK_FALLBACK
+        darkest = min(candidates, key=lambda c: _luminance(c))
+        lum = _luminance(darkest)
+        scheme_lower = (scheme_name or "").lower()
+        if any(k in scheme_lower for k in ("dark", "nokto", "midna", "midnight", "darkness")) and lum > 0.5:
+            return DARK_FALLBACK
+        return darkest
     except Exception:
-        # Fallback: standard light gray background
-        return 0xF0F0F0
+        return DARK_FALLBACK
+
+
+def get_theme_colors(ctx):
+    """Return (bg_color, text_color) for sidebar. text_color contrasts with bg_color."""
+    bg = get_sidebar_background_color(ctx)
+    return (bg, _contrasting_text_color(bg))
