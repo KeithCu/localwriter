@@ -468,7 +468,7 @@ class LlmClient:
             
         return "POST", path, json_data, self._headers()
             
-    def make_image_request(self, prompt, model=None, width=1024, height=1024, source_image=None, image_url=None):
+    def make_image_request(self, prompt, model=None, width=1024, height=1024, steps=None, source_image=None, image_url=None):
         """Build an image generation request (OpenAI-compatible /images/generations).
         When source_image (base64 str) or image_url is provided, include image_url in the body for img2img (e.g. Together, FLUX)."""
         endpoint = self._endpoint()
@@ -484,6 +484,8 @@ class LlmClient:
         }
         if model_name:
             data["model"] = model_name
+        if steps:
+            data["steps"] = steps
         if image_url:
             data["image_url"] = image_url
         elif source_image:
