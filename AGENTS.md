@@ -416,18 +416,20 @@ We implemented a custom engine in `plugin/modules/writer/format_support.py` that
 
 ## 5b. Log Files
 
-- **Unified debug log**: `~/.config/libreoffice/4/user/config/writeragent_debug.log` (exact path; fallback `~/writeragent_debug.log` if user config dir not found). Written by `debug_log(msg, context=...)` with prefixes `[API]`, `[Chat]`, `[Markdown]`, `[AIHorde]`. Paths set once via `init_logging(ctx)`; no ctx needed at call sites.
-- **Agent log** (NDJSON, optional): `writeragent_agent.log` in user config (or `~/`). Written by `agent_log(...)` only when config key `enable_agent_log` is true (default false). Used for hypothesis/debug tracking.
+- **Unified debug log**: Written by `debug_log(msg, context=...)` with prefixes `[API]`, `[Chat]`, `[Markdown]`, `[AIHorde]`. Paths set once via `init_logging(ctx)`; no ctx needed at call sites.
+- **Agent log** (NDJSON, optional): `writeragent_agent.log` in the same directory. Written by `agent_log(...)` only when config key `enable_agent_log` is true (default false). Used for hypothesis/debug tracking.
 - **Watchdog**: If no activity for the threshold (e.g. 30s), a line is written to the debug log and the status control shows "Hung: ...".
 
 ### Finding log files (and image generation debugging)
 
-Log paths are set in `plugin/framework/logging.py` by `init_logging(ctx)` and live in the **same directory as `writeragent.json`** (from `PathSettings.UserConfig` in `plugin/framework/config.py`). Locations to check, in order:
+Debug log path is the **same directory as `writeragent.json`** (LibreOffice user config from `PathSettings.UserConfig`). Filename: `writeragent_debug.log`. If the user config dir is unavailable at init, fallback is `~/writeragent_debug.log`. Typical locations (check the one that matches your LibreOffice version):
 
-- `~/.config/libreoffice/4/user/writeragent_debug.log` and `writeragent_agent.log`
-- `~/.config/libreoffice/24/user/` (same filenames; version-dependent)
-- `~/.config/libreoffice/4/user/config/` and `24/user/config/` (some installs)
-- **Fallback** (if user config dir unavailable at init): `~/writeragent_debug.log` and `~/writeragent_agent.log`
+- Linux: `~/.config/libreoffice/4/user/writeragent_debug.log` or `~/.config/libreoffice/24/user/writeragent_debug.log`
+- macOS: `~/Library/Application Support/LibreOffice/4/user/writeragent_debug.log` (or `24/user/`)
+- Windows: `%APPDATA%\LibreOffice\4\user\writeragent_debug.log` (or `24\user\`)
+- **Fallback**: `~/writeragent_debug.log` (and `~/writeragent_agent.log` for the agent log)
+
+If logs appear empty, check both versioned user dirs (e.g. `4/user` and `24/user`) and your home directory for the fallback file. Write failures (e.g. permissions) are silent; the code does not surface them.
 
 **Which logs show image generation failures:**
 

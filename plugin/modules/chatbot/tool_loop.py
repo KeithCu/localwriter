@@ -681,12 +681,19 @@ class ToolCallingMixin:
             self._set_status("Stopped")
             self._append_response("\n[Stopped by user]\n")
 
+        def _is_400_input_validation(err):
+            """Treat HTTP 400 with 'input validation' or 'bad request' as likely audio-format rejection (e.g. Together AI)."""
+            msg = str(err).lower()
+            return "400" in msg and ("input validation" in msg or "bad request" in msg)
+
         def on_error(e):
             current_model = get_text_model(self.ctx)
             current_endpoint = get_current_endpoint(self.ctx)
 
             # If native audio failed, cache it and try STT fallback
-            if self.audio_wav_path and is_audio_unsupported_error(e):
+            if self.audio_wav_path and (
+                is_audio_unsupported_error(e) or _is_400_input_validation(e)
+            ):
                 debug_log(
                     "Model %s failed native audio, caching and falling back to STT"
                     % current_model,
