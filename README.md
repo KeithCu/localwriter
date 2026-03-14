@@ -1,5 +1,7 @@
 # WriterAgent
 
+![WriterAgent logo](https://raw.githubusercontent.com/KeithCu/writeragent/master/extension/assets/logo.jpg)
+
 A LibreOffice extension (Python + UNO) that adds generative AI editing to Writer, Calc, and Draw.
 
 **Development story:** Read the writeup of how WriterAgent was built [here](https://keithcu.com/wordpress/?p=5060).
