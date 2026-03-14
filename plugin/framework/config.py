@@ -161,7 +161,7 @@ _CONFIG_DEFAULTS = {
     "image_base_size": 512,
     "image_default_aspect": "Square",
     "image_cfg_scale": 7.5,
-    "image_steps": 30,
+    "image_steps": -1,
     "image_nsfw": False,
     "image_censor_nsfw": True,
     "image_max_wait": 5,

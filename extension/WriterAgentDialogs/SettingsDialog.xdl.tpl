@@ -65,6 +65,9 @@
   <dlg:text dlg:id="label_seed" dlg:page="2" dlg:left="8" dlg:top="92" dlg:width="150" dlg:height="10" dlg:value="Seed (for reproducibility):" dlg:align="left"/>
   <dlg:textfield dlg:id="seed" dlg:page="2" dlg:left="165" dlg:top="90" dlg:width="120" dlg:height="14" dlg:tabstop="true" dlg:value=""/>
 
+  <dlg:text dlg:id="label_image_steps" dlg:page="2" dlg:left="290" dlg:top="92" dlg:width="50" dlg:height="10" dlg:value="Steps:" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_steps" dlg:page="2" dlg:left="325" dlg:top="90" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:value="-1"/>
+
   <!-- Visual separator line (no label so line is visible), then label and section below -->
   <dlg:fixedline dlg:id="fixedline_horde" dlg:page="2" dlg:left="8" dlg:top="108" dlg:width="424" dlg:height="6" dlg:value=""/>
   <dlg:checkbox dlg:id="use_aihorde" dlg:page="2" dlg:left="8" dlg:top="116" dlg:width="250" dlg:height="10" dlg:value="Use AI Horde for Image Generation" dlg:checked="false"/>
@@ -75,10 +78,8 @@
 
   <dlg:text dlg:id="label_image_cfg_scale" dlg:page="2" dlg:left="8" dlg:top="148" dlg:width="60" dlg:height="10" dlg:value="CFG Scale:" dlg:align="left"/>
   <dlg:textfield dlg:id="image_cfg_scale" dlg:page="2" dlg:left="70" dlg:top="146" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="7.5"/>
-  <dlg:text dlg:id="label_image_steps" dlg:page="2" dlg:left="130" dlg:top="148" dlg:width="50" dlg:height="10" dlg:value="Steps:" dlg:align="left"/>
-  <dlg:textfield dlg:id="image_steps" dlg:page="2" dlg:left="182" dlg:top="146" dlg:width="50" dlg:height="14" dlg:tabstop="true" dlg:value="30"/>
-  <dlg:text dlg:id="label_image_max_wait" dlg:page="2" dlg:left="242" dlg:top="148" dlg:width="60" dlg:height="10" dlg:value="Max Wait (s):" dlg:align="left"/>
-  <dlg:textfield dlg:id="image_max_wait" dlg:page="2" dlg:left="304" dlg:top="146" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:value="5"/>
+  <dlg:text dlg:id="label_image_max_wait" dlg:page="2" dlg:left="130" dlg:top="148" dlg:width="60" dlg:height="10" dlg:value="Max Wait (s):" dlg:align="left"/>
+  <dlg:textfield dlg:id="image_max_wait" dlg:page="2" dlg:left="192" dlg:top="146" dlg:width="40" dlg:height="14" dlg:tabstop="true" dlg:value="5"/>
 
   <dlg:checkbox dlg:id="image_nsfw" dlg:page="2" dlg:left="8" dlg:top="166" dlg:width="100" dlg:height="10" dlg:value="Allow NSFW" dlg:checked="false"/>
   <dlg:checkbox dlg:id="image_censor_nsfw" dlg:page="2" dlg:left="120" dlg:top="166" dlg:width="100" dlg:height="10" dlg:value="Censor NSFW" dlg:checked="true"/>

@@ -51,7 +51,7 @@ class EndpointImageProvider(ImageProvider):
             tmp.write(sync_request(url, parse_json=False))
             return [tmp.name]
 
-    def generate(self, prompt, width=512, height=512, model=None, **kwargs):
+    def generate(self, prompt, width=512, height=512, model=None, steps=None, **kwargs):
         """Request image via the configured endpoint (modalities=['image'] where supported)."""
         model = model or self.model
         # For OpenRouter edit (img2img): send multimodal message with text + source image
@@ -75,6 +75,8 @@ class EndpointImageProvider(ImageProvider):
             method, path, body, headers = self.client.make_chat_request(messages, max_tokens=1000)
             body_dict = json.loads(body)
             body_dict["modalities"] = ["image"]
+            if steps is not None and steps > 0:
+                body_dict["steps"] = steps
             if "max_tokens" in kwargs:
                 body_dict["max_tokens"] = kwargs["max_tokens"]
 
@@ -101,8 +103,9 @@ class EndpointImageProvider(ImageProvider):
                     return self._save_url(url)
         else:
             # Use standard /images/generations endpoint (Together, OpenAI, etc.). Optional source_image for img2img.
+            valid_steps = steps if (steps is not None and steps > 0) else None
             method, path, body, headers = self.client.make_image_request(
-                prompt, model=model, width=width, height=height,
+                prompt, model=model, width=width, height=height, steps=valid_steps,
                 source_image=kwargs.get("source_image"),
             )
 
@@ -221,7 +224,7 @@ class AIHordeImageProvider(ImageProvider):
             "api_key": self.api_key,
             "max_wait_minutes": kwargs.get("max_wait", 5),
             "prompt_strength": kwargs.get("strength", 0.6), # LOSHD uses 1 - init_strength
-            "steps": kwargs.get("steps", 30),
+            "steps": kwargs.get("steps") if kwargs.get("steps") is not None and kwargs.get("steps") > 0 else 30,
             "seed": kwargs.get("seed", ""),
             "nsfw": kwargs.get("nsfw", False),
             "censor_nsfw": kwargs.get("censor_nsfw", True),
@@ -279,11 +282,16 @@ class ImageService:
         except (ValueError, TypeError):
             base_size = 512
             
+        try:
+            steps = int(self.config.get("image_steps", -1))
+        except (ValueError, TypeError):
+            steps = -1
+
         defaults = {
             "width": base_size,
             "height": base_size,
             "strength": self.config.get("image_cfg_scale", 7.5),
-            "steps": self.config.get("image_steps", 30),
+            "steps": steps,
             "nsfw": self.config.get("image_nsfw", False),
             "censor_nsfw": self.config.get("image_censor_nsfw", True),
             "max_wait": self.config.get("image_max_wait", 5),
