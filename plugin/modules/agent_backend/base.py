@@ -42,6 +42,7 @@ class AgentBackend:
         document_context,
         document_url,
         system_prompt=None,
+        mcp_url=None,
         selection_text=None,
         stop_checker=None,
         **kwargs

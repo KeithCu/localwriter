@@ -24,27 +24,37 @@ class AiderBackend(CLIProcessBackend):
     display_name = "Aider"
 
     def get_default_cmd(self):
-        return "aider"
+        return "aider --no-fancy-input --map-tokens 0"
 
     def is_ready_prompt(self, line):
-        # Aider usually shows something like "> " or "aider> "
+        # Aider usually shows something like "> ", "aider> " or "You: "
         if not line:
             return False
+            
+        # Strip all ANSI and whitespace
         s = strip_ansi(line).strip()
-        return s.endswith(">")
+        
+        # Must be EXACTLY one of these prompts. 
+        # This prevents matching text in the middle of a line or in context.
+        return s in (">", "You:", "aider>", "aider")
 
     def is_end_of_response(self, line):
+        # We only treat a prompt as the end of a response if it's an exact match.
         return self.is_ready_prompt(line)
 
-    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, **kwargs):
+    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, mcp_url=None, **kwargs):
         # Aider has specific slash commands and expects typical conversational input.
         # It's primarily for coding, but we can pass it arbitrary prompts.
         parts = []
         if system_prompt:
             parts.append(system_prompt)
             parts.append("\n\n")
+        if document_url:
+            parts.append(f"Current Document URL: {document_url}\n")
+        if mcp_url:
+            parts.append(f"WriterAgent MCP Server: {mcp_url}\n")
         if document_context:
-            parts.append("Context:\n")
+            parts.append("\nExcerpt of document context (for quick reference):\n")
             parts.append(document_context)
             parts.append("\n\n")
         parts.append(user_message)

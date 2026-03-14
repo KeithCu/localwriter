@@ -43,7 +43,7 @@ except ImportError:
 from plugin.modules.agent_backend.base import AgentBackend
 from plugin.framework.logging import debug_log
 
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m|\x1b\]8;;.*?\x1b\\")
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][0-9]*;.*?\x1b\\")
 
 def strip_ansi(text):
     if not text:
@@ -81,7 +81,12 @@ class CLIProcessBackend(AgentBackend):
             path = str(get_config(ctx, "agent_backend.path") or "").strip()
             if path:
                 return os.path.isfile(path) or bool(shutil.which(path))
-            return bool(shutil.which(self.get_default_cmd()))
+            cmd = self.get_default_cmd()
+            if not cmd:
+                return False
+            # Split to get just the executable name for which()
+            exe = shlex.split(cmd)[0]
+            return bool(shutil.which(exe))
         except Exception:
             pass
         return False
@@ -98,7 +103,7 @@ class CLIProcessBackend(AgentBackend):
         """Return True if the line indicates the CLI has finished responding to the current input."""
         raise NotImplementedError
 
-    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, **kwargs):
+    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, mcp_url=None, **kwargs):
         """Return the string payload to write to stdin."""
         raise NotImplementedError
 
@@ -134,11 +139,19 @@ class CLIProcessBackend(AgentBackend):
             return
 
         if self.is_end_of_response(line):
-            debug_log(f"reader_loop: saw end prompt, pushing stream_done (chunks pushed={response_chunk_count[0]})", context=self._log_prefix)
-            self._current_queue.put(("stream_done", None))
-            self._current_queue = None
-            self._response_done.set()
-            response_chunk_count[0] = 0
+            # Only count as 'end of response' if we were currently waiting for one.
+            # If we were already in 'between turns' state, this prompt is just confirming readiness.
+            if self._current_queue is not None:
+                debug_log(f"reader_loop: saw end prompt, pushing stream_done (chunks pushed={response_chunk_count[0]})", context=self._log_prefix)
+                self._current_queue.put(("stream_done", None))
+                self._current_queue = None
+                self._response_done.set()
+                self._reader_ready.set()
+                response_chunk_count[0] = 0
+            else:
+                self._reader_ready.set()
+                if line_count[0] <= 50 or line_count[0] % 100 == 0:
+                    debug_log(f"reader_loop: saw prompt (confirming readiness)", context=self._log_prefix)
             return
 
         response_chunk_count[0] += 1
@@ -220,7 +233,7 @@ class CLIProcessBackend(AgentBackend):
             self._response_done.set()
             self._current_queue = None
 
-    def _ensure_process(self, path, args_str, queue, stop_checker):
+    def _ensure_process(self, path, args_str, queue, stop_checker, cwd=None, env=None):
         with self._lock:
             if self._process is not None and self._process.poll() is None:
                 debug_log(f"ensure_process: reusing existing process (pid={getattr(self._process, 'pid', None)})", context=self._log_prefix)
@@ -238,7 +251,11 @@ class CLIProcessBackend(AgentBackend):
                     pass
                 self._pty_master_write = None
 
-            base_cmd = [path if path else self.get_default_cmd()]
+            if path:
+                base_cmd = [path]
+            else:
+                base_cmd = shlex.split(self.get_default_cmd())
+
             if args_str:
                 base_cmd.extend(shlex.split(args_str))
 
@@ -250,9 +267,13 @@ class CLIProcessBackend(AgentBackend):
                     master_fd, slave_fd = pty.openpty()
                     if _WINSIZE_AVAILABLE:
                         try:
+                            # Set terminal size and disable echo
+                            attr = termios.tcgetattr(slave_fd)
+                            attr[3] = attr[3] & ~termios.ECHO
+                            termios.tcsetattr(slave_fd, termios.TCSANOW, attr)
                             fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
                         except Exception as e:
-                            debug_log(f"ensure_process: set PTY winsize failed {e} (continuing)", context=self._log_prefix)
+                            debug_log(f"ensure_process: PTY config failed {e} (continuing)", context=self._log_prefix)
 
                     master_read_fd = os.dup(master_fd)
                     master_read = open(master_read_fd, "r", encoding="utf-8", errors="replace", newline="\n")
@@ -264,7 +285,8 @@ class CLIProcessBackend(AgentBackend):
                             stdin=slave_fd,
                             stdout=slave_fd,
                             stderr=subprocess.PIPE,
-                            env=os.environ.copy(),
+                            env=env if env else os.environ.copy(),
+                            cwd=cwd,
                             start_new_session=True,
                         )
                         os.close(slave_fd)
@@ -275,7 +297,7 @@ class CLIProcessBackend(AgentBackend):
                         raise
 
                     stdout_stream = master_read
-                    debug_log(f"ensure_process: Popen with PTY ok, pid={self._process.pid}", context=self._log_prefix)
+                    debug_log(f"ensure_process: Popen with PTY ok (echo disabled), pid={self._process.pid}", context=self._log_prefix)
                 except Exception as e:
                     debug_log(f"ensure_process: PTY spawn failed {e}, falling back to pipes", context=self._log_prefix)
                     if master_read is not None:
@@ -303,7 +325,8 @@ class CLIProcessBackend(AgentBackend):
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
-                        env=os.environ.copy(),
+                        env=env if env else os.environ.copy(),
+                        cwd=cwd,
                         bufsize=1,
                         start_new_session=True,
                     )
@@ -350,6 +373,41 @@ class CLIProcessBackend(AgentBackend):
                 pass
         self._response_done.set()
 
+    def _get_agent_env(self, ctx):
+        env = os.environ.copy()
+        try:
+            from plugin.framework.config import get_api_config
+            api_cfg = get_api_config(ctx)
+            if api_cfg.apiKey:
+                # Common aider/proxy env vars
+                env["OPENAI_API_KEY"] = api_cfg.apiKey
+                env["OPENROUTER_API_KEY"] = api_cfg.apiKey
+                env["ANTHROPIC_API_KEY"] = api_cfg.apiKey
+                env["AIDER_OPENROUTER_API_KEY"] = api_cfg.apiKey
+            if api_cfg.model:
+                env["AIDER_MODEL"] = api_cfg.model
+            if api_cfg.endpoint:
+                env["OPENAI_API_BASE"] = api_cfg.endpoint
+        except Exception:
+            pass
+        return env
+
+    def _get_agent_cwd(self, document_url):
+        if not document_url:
+            return None
+            
+        try:
+            if document_url.startswith("file://"):
+                path = document_url[7:]
+                # Handle encoded URLs if necessary, but UNO usually gives us straight paths
+                if os.path.isfile(path):
+                    return os.path.dirname(path)
+                elif os.path.isdir(path):
+                    return path
+        except Exception:
+            pass
+        return None
+
     def send(
         self,
         queue,
@@ -357,6 +415,7 @@ class CLIProcessBackend(AgentBackend):
         document_context,
         document_url,
         system_prompt=None,
+        mcp_url=None,
         selection_text=None,
         stop_checker=None,
         **kwargs
@@ -372,16 +431,21 @@ class CLIProcessBackend(AgentBackend):
             args_str = ""
 
         stdin_payload = self.format_input(
-            user_message, document_context, document_url, system_prompt, selection_text, **kwargs
+            user_message, document_context, document_url, system_prompt, selection_text, mcp_url=mcp_url, **kwargs
         )
+        
+        cwd = self._get_agent_cwd(document_url)
+        if not cwd:
+            cwd = os.path.expanduser("~")
+        env = self._get_agent_env(self._ctx)
 
         with self._lock:
             need_start = self._process is None or (self._process and self._process.poll() is not None)
 
-        debug_log(f"send(): entry, path={path or self.get_default_cmd()}, need_start={need_start}", context=self._log_prefix)
+        debug_log(f"send(): entry, path={path or self.get_default_cmd()}, need_start={need_start}, cwd={cwd}", context=self._log_prefix)
         queue.put(("status", f"Starting {self.display_name}..." if need_start else "Sending..."))
 
-        proc, ok = self._ensure_process(path, args_str, queue, stop_checker)
+        proc, ok = self._ensure_process(path, args_str, queue, stop_checker, cwd=cwd, env=env)
         if not ok:
             debug_log(f"send(): _ensure_process returned not ok, proc={proc}", context=self._log_prefix)
             if proc is None:
@@ -395,9 +459,26 @@ class CLIProcessBackend(AgentBackend):
                 queue.put(("error", RuntimeError(f"{self.display_name} did not start correctly within 30s.")))
             return
 
+        queue.put(("status", f"Waiting for {self.display_name}..."))
+        debug_log(f"send(): checking if {self.display_name} is ready...", context=self._log_prefix)
+        # Always wait for the initial or previous turn's prompt
+        if not self._reader_ready.wait(timeout=30.0):
+            debug_log(f"send(): timed out waiting for {self.display_name} ready prompt", context=self._log_prefix)
+            # Check if it died while we were waiting
+            if proc.poll() is not None:
+                debug_log(f"send(): {self.display_name} died during wait, code={proc.returncode}", context=self._log_prefix)
+                # Fall through to the error handler logic at the end of send() or handle here
+                self._current_queue = None
+                queue.put(("error", RuntimeError(f"{self.display_name} exited with code {proc.returncode} before turn started.")))
+                return
+            # We'll try to proceed anyway, but it might fail
+        else:
+            debug_log(f"send(): {self.display_name} is ready", context=self._log_prefix)
+
         queue.put(("status", f"Sending to {self.display_name}..."))
         debug_log(f"send(): process ready, pid={getattr(proc, 'pid', None)}, writing payload ({len(stdin_payload)} bytes)", context=self._log_prefix)
         self._response_done.clear()
+        self._reader_ready.clear()
         self._current_queue = queue
 
         try:

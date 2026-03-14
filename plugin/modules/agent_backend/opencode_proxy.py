@@ -36,13 +36,17 @@ class OpenCodeBackend(CLIProcessBackend):
     def is_end_of_response(self, line):
         return self.is_ready_prompt(line)
 
-    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, **kwargs):
+    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, mcp_url=None, **kwargs):
         parts = []
         if system_prompt:
             parts.append(system_prompt)
             parts.append("\n\n")
+        if document_url:
+            parts.append(f"Current Document URL: {document_url}\n")
+        if mcp_url:
+            parts.append(f"WriterAgent MCP Server: {mcp_url}\n")
         if document_context:
-            parts.append("Context:\n")
+            parts.append("\nExcerpt of document context (for quick reference):\n")
             parts.append(document_context)
             parts.append("\n\n")
         parts.append(user_message)

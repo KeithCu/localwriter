@@ -47,10 +47,14 @@ class HermesBackend(CLIProcessBackend):
         # Hermes usually ends its response with the prompt char again, or "Goodbye"
         return self.is_ready_prompt(line) or "Goodbye" in line
 
-    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, **kwargs):
+    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, mcp_url=None, **kwargs):
         parts = []
+        if document_url:
+            parts.append(f"Current Document URL: {document_url}\n")
+        if mcp_url:
+            parts.append(f"WriterAgent MCP Server: {mcp_url}\n")
         if document_context:
-            parts.append("Document context:\n\n")
+            parts.append("\nExcerpt of document context (for quick reference):\n")
             parts.append(document_context)
             parts.append("\n\n")
         if system_prompt:

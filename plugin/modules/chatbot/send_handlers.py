@@ -260,14 +260,41 @@ class SendHandlersMixin:
 
         def run_agent():
             try:
+                from plugin.framework.constants import CORE_DIRECTIVES
+                from plugin.framework.config import as_bool
+
+                # Lean system prompt for external agents: instructions + MCP connection info
+                mcp_url = self._get_mcp_url()
+                
+                # Check if MCP is enabled; if so, tell the agent about it.
+                mcp_instructions = ""
+                if mcp_url and as_bool(get_config(self.ctx, "http.mcp_enabled")):
+                    mcp_instructions = (
+                        f"\n\n[MCP SERVER AVAILABLE]\n"
+                        f"A Model Context Protocol (MCP) server is running at: {mcp_url}\n"
+                        f"You can discover and use all LibreOffice tools (Writer, Calc, Draw) via this server.\n"
+                        f"Target the current document by passing the 'X-Document-URL' header: {document_url}\n"
+                    )
+
+                lean_system_prompt = (
+                    f"{CORE_DIRECTIVES}\n\n"
+                    f"You are currently interacting with a LibreOffice document.\n"
+                    f"{mcp_instructions}\n"
+                    f"Please proceed with the user's request."
+                )
+                
+                # Add optional instructions from settings
+                extra = str(get_config(self.ctx, "additional_instructions") or "").strip()
+                if extra:
+                    lean_system_prompt += "\n\n" + extra
+
                 adapter.send(
                     queue=q,
                     user_message=query_text,
                     document_context=doc_context,
                     document_url=document_url,
-                    system_prompt=self.session.messages[0].get("content", "")
-                    if self.session.messages
-                    else "",
+                    system_prompt=lean_system_prompt,
+                    mcp_url=mcp_url,
                     stop_checker=lambda: self.stop_requested,
                 )
             except Exception as e:
@@ -485,4 +512,17 @@ class SendHandlersMixin:
             ctx=self.ctx,
             stop_checker=lambda: self.stop_requested,
         )
+
+    def _get_mcp_url(self):
+        """Construct the local MCP server URL from config."""
+        try:
+            from plugin.framework.config import get_config
+            
+            port = get_config(self.ctx, "http.mcp_port") or 8765
+            host = get_config(self.ctx, "http.host") or "localhost"
+            use_ssl = get_config(self.ctx, "http.use_ssl")
+            scheme = "https" if use_ssl else "http"
+            return f"{scheme}://{host}:{port}"
+        except Exception:
+            return None
 
