@@ -29,13 +29,12 @@ import datetime
 
 # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
 REPEATED_STREAMING_CHUNK_LIMIT = 20
-from collections import deque
 
 # accumulate_delta is required for tool-calling: it merges streaming deltas into message_snapshot so full tool_calls (with function.arguments) are available.
 from plugin.framework.streaming_deltas import accumulate_delta
 from plugin.framework.constants import APP_REFERER, APP_TITLE, USER_AGENT
 
-from plugin.framework.logging import debug_log, update_activity_state, init_logging
+from plugin.framework.logging import debug_log, init_logging
 
 
 def format_error_message(e):
