@@ -502,8 +502,10 @@ class MCPProtocolHandler:
         return result
 
     def _execute_tool_on_main(self, tool_name, arguments, document_url=None):
+        doc = None
+        doc_type = "writer"
         try:
-            doc_svc = svc_registry.document
+            doc_svc = self.services.document
             if document_url:
                 doc, doc_type = doc_svc.resolve_document_by_url(document_url)
                 if doc is None:
@@ -528,16 +530,17 @@ class MCPProtocolHandler:
         except Exception:
             pass
 
+        from plugin.framework.tool_context import ToolContext
         context = ToolContext(
             doc=doc,
             ctx=ctx,
             doc_type=doc_type,
-            services=svc_registry,
+            services=self.services,
             caller="mcp",
         )
 
         t0 = time.perf_counter()
-        result = registry.execute(tool_name, context, **arguments)
+        result = self.tool_registry.execute(tool_name, context, **arguments)
         elapsed = time.perf_counter() - t0
 
         if isinstance(result, dict):
