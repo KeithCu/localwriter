@@ -14,7 +14,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import json
 from plugin.framework.tool_base import ToolBase
 
 class WebResearchTool(ToolBase):
@@ -41,7 +40,7 @@ class WebResearchTool(ToolBase):
     def execute(self, ctx, query, history_text=None):
         import os
         from urllib.parse import urlparse
-        from plugin.framework.config import get_api_config, get_config, get_config_int, user_config_dir
+        from plugin.framework.config import get_api_config, get_config_int, user_config_dir
         from plugin.modules.http.client import LlmClient
         from plugin.framework.smol_model import WriterAgentSmolModel
         from plugin.contrib.smolagents.agents import ToolCallingAgent
@@ -97,7 +96,8 @@ class WebResearchTool(ToolBase):
                     status_msg = ""
                     if step.name == "web_search":
                         q = str(step.arguments.get("query", "")) if isinstance(step.arguments, dict) else ""
-                        if len(q) > 25: q = q[:22] + "..."
+                        if len(q) > 25:
+                            q = q[:22] + "..."
                         status_msg = f"Search: {q}"
                     elif step.name == "visit_webpage":
                         url = str(step.arguments.get("url", "")) if isinstance(step.arguments, dict) else ""
