@@ -15,8 +15,8 @@ import unittest
 from io import BytesIO
 from unittest.mock import MagicMock, patch, PropertyMock
 
+from plugin.modules.agent_backend.acp_connection import ACPConnection
 from plugin.modules.agent_backend.hermes_proxy import (
-    HermesACPConnection,
     HermesBackend,
     _find_hermes_binary,
 )
@@ -76,7 +76,7 @@ class TestACPConnection(unittest.TestCase):
 
     def test_reader_parses_json_response(self):
         """Reader loop correctly parses a JSON-RPC response."""
-        conn = HermesACPConnection(cmd="/bin/echo")
+        conn = ACPConnection(cmd_line=["/bin/echo"])
 
         # Simulate a response
         response = {"jsonrpc": "2.0", "id": 1, "result": {"session_id": "test-123"}}
@@ -110,7 +110,7 @@ class TestACPConnection(unittest.TestCase):
 
     def test_reader_dispatches_notifications(self):
         """Reader loop dispatches notifications to callback."""
-        conn = HermesACPConnection(cmd="/bin/echo")
+        conn = ACPConnection(cmd_line=["/bin/echo"])
 
         received = []
         conn.set_notification_callback(lambda method, params, msg_id=None: received.append((method, params)))
