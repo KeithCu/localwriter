@@ -186,6 +186,25 @@ def sync_request(url, data=None, headers=None, timeout=10, parse_json=True):
         raise
 
 
+def iterate_sse(stream):
+    """
+    Iterate over SSE (Server-Sent Events) data payloads from a stream of lines (bytes).
+    Yields the payload string (everything after 'data:').
+    """
+    for line in stream:
+        line_str = line.strip()
+        if not line_str or line_str.startswith(b":"):
+            continue
+
+        if not line_str.startswith(b"data:"):
+            continue
+        
+        # Payload is everything after the first ":"
+        idx = line_str.find(b":") + 1
+        payload = line_str[idx:].decode("utf-8").strip()
+        yield payload
+
+
 def _extract_thinking_from_delta(chunk_delta):
     """Extract reasoning/thinking text from a stream delta for display in UI."""
     # Try direct fields first
@@ -634,21 +653,7 @@ class LlmClient:
                 content_finished = False
                 # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
                 last_contents = collections.deque(maxlen=REPEATED_STREAMING_CHUNK_LIMIT)
-                for line in response:
-                    line_str = line.strip()
-                    if not line_str:
-                        continue
-
-                    # SSE comments (like : OPENROUTER PROCESSING) or heartbeats
-                    if line_str.startswith(b":"):
-                        continue
-
-                    if not line_str.startswith(b"data:"):
-                        continue
-                    
-                    # Payload is everything after "data:" (with or without space)
-                    idx = line_str.find(b":") + 1
-                    payload = line_str[idx:].decode("utf-8").strip()
+                for payload in iterate_sse(response):
                     
                     if payload == "[DONE]":
                         debug_log("streaming_loop: [DONE] received", context="API")
