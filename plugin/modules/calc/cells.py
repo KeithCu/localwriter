@@ -100,7 +100,7 @@ class ReadCellRange(ToolBase):
                 return {"status": "error", "error": "range_name is required"}
             if len(rn) == 1:
                 result = inspector.read_range(rn[0])
-                return {"status": "ok", "result": result}
+                return {"status": "ok", "result": [result]}
             results = [inspector.read_range(r) for r in rn]
             return {"status": "ok", "result": results}
         except Exception as e:

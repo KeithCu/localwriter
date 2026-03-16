@@ -352,7 +352,7 @@ class ErrorDetector:
 
         if code == "#REF!":
             return (
-                "Invalid cell reference. The reference may be broken due to a "
+                "#REF! error: Invalid cell reference. The reference may be broken due to a "
                 "deleted cell, row, or column. Check the formula and update "
                 "the references."
             )
