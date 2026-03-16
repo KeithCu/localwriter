@@ -535,6 +535,12 @@ class ClearButtonListener(unohelper.Base, XActionListener):
 
     def __init__(self, session, response_control, status_control, greeting=""):
         self.session = session
+        # NOTE: When enabling the experimental planning/todo tool, consider
+        # attaching a session-scoped TodoStore to the SendButtonListener and
+        # resetting it here on Clear so each conversation starts with an empty
+        # task list, e.g.:
+        #   from plugin.contrib.todo_store import TodoStore
+        #   send_listener._todo_store = TodoStore()
         self.response_control = response_control
         self.status_control = status_control
         self.greeting = greeting

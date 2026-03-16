@@ -70,6 +70,19 @@ class ToolCallingMixin:
                 from plugin.framework.tool_context import ToolContext
                 from plugin.main import get_tools as _get_tools
 
+                # NOTE: Experimental planning/TodoStore wiring is intentionally
+                # commented out. When enabling the hermes-style todo tool,
+                # you can attach a session-scoped TodoStore here and expose it
+                # via ToolContext.services, e.g.:
+                #
+                # from plugin.contrib.todo_store import TodoStore
+                # if not hasattr(self, "_todo_store"):
+                #     self._todo_store = TodoStore()
+                # services = dict(_get_tools()._services)
+                # services["todo_store"] = self._todo_store
+                #
+                # and then pass `services=services` into ToolContext below.
+
                 tctx = ToolContext(
                     doc=doc,
                     ctx=ctx,

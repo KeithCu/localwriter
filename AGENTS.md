@@ -443,6 +443,17 @@ For the DSPy/OpenRouter prompt evaluation framework under `scripts/prompt_optimi
 
 ---
 
+### 7d. Experimental Planning Todo Store (Hermes-style) — March 2026
+
+- Added `plugin/contrib/todo_store.py`, an internal in-memory `TodoStore` adapted from `hermes-agent`'s `tools/todo_tool.py`. It provides a session-scoped task list with items `{id, content, status}` and helper `todo_tool()` that returns a JSON payload mirroring Hermes's schema. It intentionally lives under `plugin/contrib/` because the logic originates from an external project.
+- Added `plugin/modules/chatbot/tools/` with `__init__.py` and an **inert** `todo.py`. The file contains a commented-out `TodoTool(ToolBase)` example that wraps `TodoStore` (importing from `plugin.contrib.todo_store`) but lives entirely inside a module docstring, so the tool registry does **not** discover or register it yet.
+- Added comments in `plugin/modules/chatbot/tool_loop.py` and `panel.py` that show where to:
+  - Attach a `TodoStore` instance to `SendButtonListener` / `ToolContext.services` (key `"todo_store"`).
+  - Reset the store on Clear so each chat session starts with an empty task list.
+- Added a commented planning block below `DEFAULT_CHAT_SYSTEM_PROMPT` in `plugin/framework/constants.py` describing how to use a `todo` tool for multi-step planning. This guidance is not currently part of the live prompt; when we decide to expose the planning tool, that comment can be inlined into the prompt and the `TodoTool` code can be uncommented.
+
+Net effect: the code for a Hermes-compatible planning todo tool is present and documented, but **no new tools are exposed to LLMs yet**. Enabling it will be a small, explicit change: uncomment the `TodoTool` implementation in `chatbot/tools/todo.py`, wire `TodoStore` into `ToolContext.services`, and move the commented planning section into the active Writer chat system prompt.
+
 ## 7c. Sidebar theming (dark mode) — March 2026 cleanup
 
 - **What we tried**:

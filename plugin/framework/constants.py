@@ -89,7 +89,19 @@ TOOLS:
 
 {TOOL_USAGE_PATTERNS}
 
-{FORMATTING_RULES}"""
+{FORMATTING_RULES}
+"""
+# NOTE: Experimental planning/todo guidance (commented out).
+# When the hermes-style `todo` tool is enabled, you can append guidance like:
+#
+# TASK PLANNING:
+# - For complex requests (3+ steps or multiple tasks), call the `todo` tool
+#   to create a task list before editing the document.
+# - Each item: {id: string, content: string, status: pending|in_progress|completed|cancelled}.
+# - Only ONE item should be in_progress at a time.
+# - Mark items completed immediately when done; cancel tasks that are no longer needed.
+# - For simple, one-off edits, you may skip the todo tool and act directly.
+
 
 # Calc spreadsheet prompt (structure inspired by libre_calc_ai prompt_templates.py:
 # workflow, grouped tools, "do not explain—do the operation", specify addresses).
