@@ -4,47 +4,13 @@ from plugin.framework.logging import debug_log
 from plugin.framework.uno_helpers import (
     get_optional as get_optional_control,
     get_checkbox_state,
-    get_theme_colors,
 )
 from plugin.modules.chatbot.panel_resize import _PanelResizeListener
 
 
-def _apply_sidebar_theme(root_window, ctx, controls):
-    """Apply theme background and contrasting text color to root and all panel controls."""
-    try:
-        bg_color, text_color = get_theme_colors(ctx)
-        debug_log("[SidebarTheme] apply bg=0x%06X text=0x%06X" % (bg_color & 0xFFFFFF, text_color & 0xFFFFFF), context="Chat")
-    except Exception:
-        return
-    try:
-        if root_window and hasattr(root_window, "getModel"):
-            model = root_window.getModel()
-            if hasattr(model, "BackgroundColor"):
-                model.BackgroundColor = bg_color
-    except Exception:
-        pass
-    for name, ctrl in controls.items():
-        if not ctrl:
-            continue
-        try:
-            model = ctrl.getModel()
-            if hasattr(model, "BackgroundColor"):
-                model.BackgroundColor = bg_color
-            if hasattr(model, "TextColor"):
-                model.TextColor = text_color
-            if name in ("response", "query"):
-                try:
-                    model.setPropertyValue("BackgroundColor", bg_color)
-                    model.setPropertyValue("TextColor", text_color)
-                    for prop, val in (("HighlightColor", bg_color), ("HighlightTextColor", text_color)):
-                        try:
-                            model.setPropertyValue(prop, val)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-        except Exception:
-            pass
+def _apply_sidebar_theme(root_window, ctx):
+    """Temporarily disabled: rely on LibreOffice's own theming for the sidebar."""
+    debug_log("[SidebarTheme] skipping custom theming; using LibreOffice defaults", context="Chat")
 
 
 def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
@@ -78,7 +44,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
         "backend_indicator": get_optional("backend_indicator"),
     }
 
-    _apply_sidebar_theme(root_window, self.ctx, controls)
+    _apply_sidebar_theme(root_window, self.ctx)
 
     # Helper to show errors visibly in the response area
     def _show_init_error(msg):
@@ -131,7 +97,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
 
     self._render_session_history(self.session, controls["response"], model, active_greeting)
 
-    _apply_sidebar_theme(root_window, self.ctx, controls)
+    _apply_sidebar_theme(root_window, self.ctx)
 
     # 4. Buttons
     self._wire_buttons(controls, model, active_greeting, set_control_enabled)

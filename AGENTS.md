@@ -584,6 +584,21 @@ For the DSPy/OpenRouter prompt evaluation framework under `scripts/prompt_optimi
 
 ---
 
+## 7c. Sidebar theming (dark mode) — March 2026 cleanup
+
+- **What we tried**:
+  - Ported nelson-mcp's idea of reading dialog colors from `/org.openoffice.Office.UI/ColorScheme` → `ColorSchemes` → current scheme, probing keys like `DialogColor`, `WindowColor`, `AppBackground`, and nested `Color` nodes.
+  - Added a lot of logging and fallbacks (scheme-name heuristics, hierarchical names, direct leaf paths) in `get_sidebar_background_color` and wired it into the chat sidebar via `_apply_sidebar_theme`.
+- **What we observed**:
+  - On a modern LibreOffice build with `COLOR_SCHEME_LIBREOFFICE_AUTOMATIC`, all of those configuration APIs returned `None` for the actual RGB values (even though `Color` showed up as a property/element name).
+  - Meanwhile, LibreOffice itself was already theming the sidebar **controls** correctly in both light and dark mode; our only visible regression was the root container occasionally being forced to a hard-coded light gray.
+- **Final decision**:
+  - **Disable custom theming for the chat sidebar**: `_apply_sidebar_theme` in `plugin/modules/chatbot/panel_wiring.py` is now a no-op that just logs and returns.
+  - **Remove `get_sidebar_background_color` entirely** from `plugin/framework/uno_helpers.py`; no callers remain.
+  - Rely on LibreOffice's own VCL theming for both the sidebar container and all controls. This matches what users actually see working in practice and avoids fragile, version-specific ColorScheme probing.
+
+**Takeaway for future work**: Before adding ColorScheme-based theming, confirm that the configuration API actually returns usable RGB values on the target LibreOffice versions. If not, prefer letting LibreOffice handle dark/light mode by default and only layer on minimal, well-tested overrides.
+
 ## 8. Gotchas
 
 - **Settings dialog fields**: The list of settings is defined in **`MainJob._get_settings_field_specs()`** (single source); `_apply_settings_result` derives apply keys from it. Settings dialog field list in XDL must match the names in that method.
