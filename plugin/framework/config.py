@@ -288,6 +288,9 @@ def remove_config(ctx, key):
 
 # Listeners are called when config is changed (e.g. after Settings dialog).
 # Sidebar uses weakref in its callback so panels can be GC'd without unregistering.
+# FIXME: These duplicated pieces of functionality (add_config_listener / notify_config_changed)
+# could be combined into the shared EventBus. This custom pub/sub code can be removed
+# and changed to use EventBus. When that happens, update dependent UI code and remove the test code.
 _config_listeners = []
 
 

@@ -75,3 +75,49 @@ def test_emit_swallows_exception():
 
     # Exception was swallowed, good handler still ran
     assert received == ["good"]
+
+def test_emit_no_subscribers():
+    bus = EventBus()
+    # Should simply return without error
+    bus.emit("nonexistent:event", data=123)
+
+def test_unsubscribe_nonexistent_event():
+    bus = EventBus()
+    def handler():
+        pass
+
+    # Should simply return without error
+    bus.unsubscribe("nonexistent:event", handler)
+
+def test_unsubscribe_nonexistent_handler():
+    bus = EventBus()
+    def handler1():
+        pass
+    def handler2():
+        pass
+
+    bus.subscribe("test:event", handler1)
+    # Should simply return without error, not touching handler1
+    bus.unsubscribe("test:event", handler2)
+
+    # Verify handler1 is still subscribed
+    assert len(bus._subscribers.get("test:event", [])) == 1
+
+def test_multiple_subscribers():
+    bus = EventBus()
+    received1 = []
+    received2 = []
+
+    def handler1(event_data):
+        received1.append(event_data)
+
+    def handler2(event_data):
+        received2.append(event_data)
+
+    bus.subscribe("test:event", handler1)
+    bus.subscribe("test:event", handler2)
+
+    bus.emit("test:event", event_data="hello")
+
+    assert received1 == ["hello"]
+    assert received2 == ["hello"]
