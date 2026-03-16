@@ -228,5 +228,122 @@ def test_add_row_and_column():
 
 
 @native_test
-def test_calc_integration_tests():
-    pass
+def test_read_cell_range():
+    active_sheet = _test_doc.getCurrentController().getActiveSheet()
+
+    # Populate a 3x3 grid (A1:C3)
+    # Row 1: Strings
+    active_sheet.getCellByPosition(0, 0).setString("Col1")
+    active_sheet.getCellByPosition(1, 0).setString("Col2")
+    active_sheet.getCellByPosition(2, 0).setString("Col3")
+
+    # Row 2: Numbers
+    active_sheet.getCellByPosition(0, 1).setValue(1.0)
+    active_sheet.getCellByPosition(1, 1).setValue(2.5)
+    active_sheet.getCellByPosition(2, 1).setValue(3.14)
+
+    # Row 3: Mixed (String, Empty, Formula)
+    active_sheet.getCellByPosition(0, 2).setString("End")
+    # Leave B3 empty
+    active_sheet.getCellByPosition(2, 2).setFormula("=A2+B2")
+
+    res = _execute_calc_tool("read_cell_range", {"range_name": ["A1:C3"]})
+    assert res.get("status") == "ok", f"read_cell_range failed: {res}"
+
+    result_data = res.get("result", [])
+    assert len(result_data) == 1, "Expected list of 1 result for 1 range"
+
+    grid = result_data[0]
+    assert len(grid) == 3, "Expected 3 rows"
+    assert len(grid[0]) == 3, "Expected 3 columns per row"
+
+    # Check Row 1
+    assert grid[0][0]["value"] == "Col1"
+    assert grid[0][1]["value"] == "Col2"
+    assert grid[0][2]["value"] == "Col3"
+
+    # Check Row 2
+    assert grid[1][0]["value"] == 1.0
+    assert grid[1][1]["value"] == 2.5
+    assert grid[1][2]["value"] == 3.14
+
+    # Check Row 3
+    assert grid[2][0]["value"] == "End"
+    assert grid[2][1]["value"] is None
+    # Formula value depends on evaluation but formula property should be set
+    assert grid[2][2]["formula"] == "=A2+B2"
+
+
+@native_test
+def test_cross_sheet_formula():
+    doc = _test_doc
+    sheets = doc.getSheets()
+
+    # Create Sheet2 if it doesn't exist
+    if not sheets.hasByName("Sheet2"):
+        sheets.insertNewByName("Sheet2", sheets.getCount())
+
+    sheet2 = sheets.getByName("Sheet2")
+    # Set a target value
+    sheet2.getCellByPosition(0, 0).setValue(100.0) # Sheet2.A1 = 100
+
+    # Active sheet is usually Sheet1
+    active_sheet = doc.getCurrentController().getActiveSheet()
+
+    res = _execute_calc_tool("write_formula_range", {
+        "range_name": ["D1"],
+        "formula_or_values": "=Sheet2.A1 * 2"
+    })
+
+    assert res.get("status") == "ok", f"write_formula_range failed: {res}"
+
+    # Verify the formula is set and evaluates properly
+    cell = active_sheet.getCellByPosition(3, 0) # D1
+    assert cell.getFormula() == "=Sheet2.A1*2" or cell.getFormula() == "=Sheet2.A1 * 2"
+
+    # Wait for formula recalculation or force if necessary.
+    # Usually in LibreOffice UNO it computes immediately, but we can verify formula strings safely.
+    assert cell.getValue() == 200.0, f"Cross-sheet formula did not compute to 200.0, got {cell.getValue()}"
+
+
+@native_test
+def test_import_csv_from_string():
+    doc = _test_doc
+    active_sheet = doc.getCurrentController().getActiveSheet()
+
+    # Test case 1: Standard comma-separated
+    csv_1 = "Name,Age\nAlice,30\nBob,25"
+    res1 = _execute_calc_tool("import_csv_from_string", {
+        "csv_data": csv_1,
+        "target_cell": "E1"
+    })
+    assert res1.get("status") == "ok", f"CSV import failed: {res1}"
+    assert active_sheet.getCellByPosition(4, 0).getString() == "Name" # E1
+    assert active_sheet.getCellByPosition(5, 0).getString() == "Age"  # F1
+    assert active_sheet.getCellByPosition(4, 1).getString() == "Alice" # E2
+    assert active_sheet.getCellByPosition(5, 1).getValue() == 30.0    # F2
+    assert active_sheet.getCellByPosition(5, 2).getValue() == 25.0    # F3
+
+    # Test case 2: Semicolon-separated
+    csv_2 = "Item;Price\nApple;1.5\nBanana;0.75"
+    res2 = _execute_calc_tool("import_csv_from_string", {
+        "csv_data": csv_2,
+        "target_cell": "G1"
+    })
+    assert res2.get("status") == "ok", f"Semicolon CSV import failed: {res2}"
+    assert active_sheet.getCellByPosition(6, 0).getString() == "Item" # G1
+    assert active_sheet.getCellByPosition(7, 0).getString() == "Price"# H1
+    assert active_sheet.getCellByPosition(6, 1).getString() == "Apple"# G2
+    assert active_sheet.getCellByPosition(7, 1).getValue() == 1.5     # H2
+
+    # Test case 3: CSV with quoted commas
+    csv_3 = "Person,Description\nCarol,\"Smart, Funny, Tall\"\nDave,Cool"
+    res3 = _execute_calc_tool("import_csv_from_string", {
+        "csv_data": csv_3,
+        "target_cell": "E5"
+    })
+    assert res3.get("status") == "ok", f"Quoted CSV import failed: {res3}"
+    assert active_sheet.getCellByPosition(4, 5).getString() == "Carol" # E6
+    # The cell at F6 (5, 5) should contain the comma text
+    desc = active_sheet.getCellByPosition(5, 5).getString()
+    assert desc == "Smart, Funny, Tall", f"Quoted comma parsed incorrectly: {desc}"
