@@ -193,7 +193,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
         self._send_busy = False
         self.client = None
         self.audio_wav_path = None
-        self._current_agent_backend = None  # Set during _do_send_via_agent_backend for Stop button
+        self._current_acp = None  # Set during _do_send_via_acp for Stop button
         # Subscribe to MCP/tool bus events
         try:
             from plugin.main import get_tools
@@ -447,11 +447,11 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
 
         # Agent backend (Aider, Hermes): use external agent instead of built-in LLM
         try:
-            from plugin.framework.config import get_config, as_bool
-            agent_backend_id = str(get_config(self.ctx, "agent_backend.backend_id") or "builtin").strip().lower()
-            if agent_backend_id and agent_backend_id != "builtin":
-                debug_log("_do_send: using agent backend %s" % agent_backend_id, context="Chat")
-                self._do_send_via_agent_backend(query_text, model, doc_type_str.lower())
+            from plugin.framework.config import get_config
+            acp_id = str(get_config(self.ctx, "acp.backend_id") or "builtin").strip().lower()
+            if acp_id and acp_id != "builtin":
+                debug_log("_do_send: using agent backend %s" % acp_id, context="Chat")
+                self._do_send_via_acp(query_text, model, doc_type_str.lower())
                 return
         except Exception as e:
             debug_log("_do_send: agent backend check failed: %s" % e, context="Chat")
@@ -463,7 +463,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
 
     # _do_send_chat_with_tools is provided by ToolCallingMixin.
 
-    # _do_send_via_agent_backend is provided by SendHandlersMixin.
+    # _do_send_via_acp is provided by SendHandlersMixin.
 
     # Future work: Undo grouping for AI edits (user can undo all edits from one turn with Ctrl+Z).
     # Previous attempt used enterUndoContext("AI Edit") / leaveUndoContext() but leaveUndoContext
@@ -513,7 +513,7 @@ class StopButtonListener(unohelper.Base, XActionListener):
                     pass
 
             # 2. If an external agent backend is running, tell it to stop
-            adapter = getattr(self.send_listener, "_current_agent_backend", None)
+            adapter = getattr(self.send_listener, "_current_acp", None)
             if adapter and hasattr(adapter, "stop"):
                 try:
                     adapter.stop()

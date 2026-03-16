@@ -273,7 +273,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             if not root or not hasattr(root, "getControl"):
                 return
             
-            backend_id = str(get_config(self.ctx, "agent_backend.backend_id") or "builtin").strip().lower()
+            backend_id = str(get_config(self.ctx, "acp.backend_id") or "builtin").strip().lower()
             is_external = bool(backend_id and backend_id != "builtin")
             
             ctrl = get_optional_control(root, "backend_indicator")

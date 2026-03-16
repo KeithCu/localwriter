@@ -14,33 +14,39 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""OpenHands agent backend adapter. Wraps the OpenHands CLI in a long-lived process."""
+"""Aider agent backend adapter. Wraps the Aider CLI in a long-lived process."""
 
-from plugin.modules.agent_backend.cli_backend import CLIProcessBackend, strip_ansi
+from plugin.modules.acp.cli_backend import CLIProcessBackend, strip_ansi
 
 
-class OpenHandsBackend(CLIProcessBackend):
-    backend_id = "openhands"
-    display_name = "OpenHands"
+class AiderBackend(CLIProcessBackend):
+    backend_id = "aider"
+    display_name = "Aider"
 
     def get_default_cmd(self):
-        return "openhands"
+        return "aider --no-fancy-input --map-tokens 0"
 
     def is_ready_prompt(self, line):
-        # Depending on how OpenHands exposes its interactive CLI, we watch for its prompt.
+        # Aider usually shows something like "> ", "aider> " or "You: "
         if not line:
             return False
+            
+        # Strip all ANSI and whitespace
         s = strip_ansi(line).strip()
-        # Common pattern: "User> " or "OpenHands> "
-        return s.endswith(">") or "Please enter your message" in s
+        
+        # Must be EXACTLY one of these prompts. 
+        # This prevents matching text in the middle of a line or in context.
+        return s in (">", "You:", "aider>", "aider")
 
     def is_end_of_response(self, line):
+        # We only treat a prompt as the end of a response if it's an exact match.
         return self.is_ready_prompt(line)
 
     def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, mcp_url=None, **kwargs):
+        # Aider has specific slash commands and expects typical conversational input.
+        # It's primarily for coding, but we can pass it arbitrary prompts.
         parts = []
         if system_prompt:
-            parts.append("System Instructions:\n")
             parts.append(system_prompt)
             parts.append("\n\n")
         if document_url:

@@ -14,10 +14,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Claude agent backend adapter using the Agent Client Protocol (ACP).
+"""Hermes agent backend adapter using the Agent Communication Protocol (ACP).
 
-Communicates with Claude Code (or compatible adapters) via standard stdio JSON-RPC.
-Requires an ACP adapter like `claude-code-acp` or `claude-code-acp-rs` installed.
+Communicates with Hermes via the ACP **stdio JSON-RPC** transport: we spawn
+``hermes acp`` (or ``hermes-acp``) as a subprocess and exchange newline-
+delimited JSON-RPC messages over stdin/stdout.
+
+Protocol flow:
+  1. Initialize handshake
+  2. NewSession(cwd, mcp_servers) → session_id
+  3. Prompt(session_id, content_blocks) → streaming notifications → PromptResponse
+
+ACP spec: https://agentcommunicationprotocol.dev
+Hermes docs: https://github.com/NousResearch/hermes-agent
 """
 
 import json
@@ -26,97 +35,118 @@ import shutil
 import threading
 import time
 
-from plugin.modules.agent_backend.base import AgentBackend
-from plugin.modules.agent_backend.acp_connection import ACPConnection
+from plugin.modules.acp.base import AgentBackend
+from plugin.modules.acp.acp_connection import ACPConnection
 from plugin.framework.logging import debug_log
 
-_LOG = "ClaudeACP"
+_LOG = "HermesACP"
 
+# Default hermes binary name (auto-discovered via PATH)
+_DEFAULT_HERMES_CMD = "hermes"
+
+# JSON-RPC protocol version
+_JSONRPC_VERSION = "2.0"
+
+# ACP protocol version (integer per SDK)
 _ACP_PROTOCOL_VERSION = 1
 
 
-def _find_claude_binary():
-    """Find the claude-code-acp binary in PATH or common locations."""
-    for name in ("claude-code-acp-rs", "claude-code-acp"):
+def _find_hermes_binary():
+    """Find the hermes binary in PATH or common locations."""
+    # Try hermes-acp first (dedicated ACP binary)
+    for name in ("hermes-acp", "hermes"):
         path = shutil.which(name)
         if path:
-            return path
+            return path, name
     # Check common install locations
     home = os.path.expanduser("~")
     for candidate in (
-        os.path.join(home, ".local", "bin", "claude-code-acp-rs"),
-        os.path.join(home, ".local", "bin", "claude-code-acp"),
+        os.path.join(home, ".local", "bin", "hermes-acp"),
+        os.path.join(home, ".local", "bin", "hermes"),
     ):
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-            return candidate
-    return None
+            return candidate, os.path.basename(candidate)
+    return None, None
 
 
-class ClaudeBackend(AgentBackend):
-    """ACP-based Claude backend via stdio JSON-RPC subprocess."""
 
-    backend_id = "claude"
-    display_name = "Claude Code (ACP)"
+
+class HermesBackend(AgentBackend):
+    """ACP-based Hermes backend via stdio JSON-RPC subprocess."""
+
+    backend_id = "hermes"
+    display_name = "Hermes"
 
     def __init__(self, ctx=None):
         self._ctx = ctx
         self._conn = None
         self._session_id = None
         self._stop_requested = False
-        self._claude_cmd = None
-        self._claude_args = []
+        self._hermes_cmd = None
+        self._hermes_args = []
         self._prompt_done = threading.Event()
 
     def _load_config(self):
-        """Read claude path and args from WriterAgent config."""
+        """Read hermes path and args from WriterAgent config."""
         try:
             from plugin.framework.config import get_config
-            path = str(get_config(self._ctx, "agent_backend.path") or "").strip()
-            if path and not path.startswith("http") and ("hermes" not in path.lower()):
-                self._claude_cmd = path
+            path = str(get_config(self._ctx, "acp.path") or "").strip()
+            if path and not path.startswith("http"):
+                self._hermes_cmd = path
             else:
-                self._claude_cmd = _find_claude_binary()
+                cmd, _ = _find_hermes_binary()
+                self._hermes_cmd = cmd
 
-            args_str = str(get_config(self._ctx, "agent_backend.args") or "").strip()
-            # If there are arguments like URL or anything that doesn't fit claude directly,
-            # you might need to filter. But simple space splitting generally works.
-            self._claude_args = args_str.split() if args_str else []
+            args_str = str(get_config(self._ctx, "acp.args") or "").strip()
+            self._hermes_args = args_str.split() if args_str else []
         except Exception:
-            self._claude_cmd = _find_claude_binary()
+            cmd, _ = _find_hermes_binary()
+            self._hermes_cmd = cmd
 
     def is_available(self, ctx):
-        """Check if claude-code-acp is installed."""
+        """Check if hermes is installed (binary found in PATH)."""
         self._load_config()
-        if self._claude_cmd and os.path.isfile(self._claude_cmd):
-            debug_log(f"Claude acp binary found: {self._claude_cmd}", context=_LOG)
+        if self._hermes_cmd and os.path.isfile(self._hermes_cmd):
+            debug_log(f"Hermes binary found: {self._hermes_cmd}", context=_LOG)
             return True
-        cmd = _find_claude_binary()
+        # Fallback: search PATH
+        cmd, name = _find_hermes_binary()
         if cmd:
-            self._claude_cmd = cmd
-            debug_log(f"Claude acp found via PATH: {cmd}", context=_LOG)
+            self._hermes_cmd = cmd
+            debug_log(f"Hermes found via PATH: {cmd}", context=_LOG)
             return True
-        debug_log("Claude acp binary not found", context=_LOG)
+        debug_log("Hermes binary not found", context=_LOG)
         return False
 
     def _ensure_connection(self):
         """Start the ACP subprocess if not already running."""
         if self._conn and self._conn.is_alive:
             return
-        if not self._claude_cmd:
-            raise RuntimeError("Claude ACP binary not found. Install `@zed-industries/claude-code-acp` or `claude-code-acp-rs` and ensure it is in PATH.")
+        if not self._hermes_cmd:
+            raise RuntimeError("Hermes binary not found. Install hermes-agent and ensure 'hermes' is in PATH.")
 
-        cmd_line = [self._claude_cmd] + self._claude_args
+        cmd_line = [self._hermes_cmd]
+        if os.path.basename(self._hermes_cmd) == "hermes":
+            cmd_line.append("acp")
+        cmd_line.extend(self._hermes_args)
 
         env = dict(os.environ)
-        # Handle ANTHROPIC_API_KEY from general settings fallback as helper
-        if "ANTHROPIC_API_KEY" not in env:
+        # Ensure hermes knows where its home is
+        if "HERMES_HOME" not in env:
+            hermes_home = os.path.join(os.path.expanduser("~"), ".hermes")
+            if os.path.isdir(hermes_home):
+                env["HERMES_HOME"] = hermes_home
+
+        # Forward API key to Hermes
+        if "OPENROUTER_API_KEY" not in env:
             try:
                 from plugin.framework.config import get_api_key_for_endpoint, get_config
                 endpoint = str(get_config(self._ctx, "ai.endpoint") or "")
                 key = get_api_key_for_endpoint(self._ctx, endpoint)
                 if key:
-                    env["ANTHROPIC_API_KEY"] = key
-                    debug_log("Using fallback ANTHROPIC_API_KEY from general settings", context=_LOG)
+                    env["OPENROUTER_API_KEY"] = key
+                    env["OPENAI_API_KEY"] = key
+                    debug_log("Using fallback OPENROUTER_API_KEY from general settings", context=_LOG)
             except Exception:
                 pass
 
@@ -126,7 +156,7 @@ class ClaudeBackend(AgentBackend):
         # Wait a moment for the process to start
         time.sleep(0.5)
         if not self._conn.is_alive:
-            raise RuntimeError("Claude ACP process failed to start. Verify your API key and installation.")
+            raise RuntimeError("Hermes ACP process failed to start. Check hermes installation.")
 
         # Initialize handshake
         try:
@@ -138,9 +168,9 @@ class ClaudeBackend(AgentBackend):
                 },
                 "clientInfo": {"name": "WriterAgent", "version": "1.0"},
             }, timeout=15)
-            debug_log(f"Claude ACP initialized: {result}", context=_LOG)
+            debug_log(f"ACP initialized: {result}", context=_LOG)
         except Exception as e:
-            debug_log(f"Claude ACP initialize failed: {e}", context=_LOG)
+            debug_log(f"ACP initialize failed: {e}", context=_LOG)
             self._conn.stop()
             self._conn = None
             raise
@@ -150,7 +180,7 @@ class ClaudeBackend(AgentBackend):
         if self._session_id:
             return
 
-        # mcp_servers is required by the ACP schema
+        # mcp_servers is required by the ACP schema (even if empty)
         mcp_servers = []
         if mcp_url:
             mcp_servers.append({
@@ -168,9 +198,9 @@ class ClaudeBackend(AgentBackend):
         try:
             result = self._conn.send_request("session/new", params, timeout=30)
             self._session_id = result.get("sessionId", "") if result else ""
-            debug_log(f"Claude ACP session created: {self._session_id}", context=_LOG)
+            debug_log(f"ACP session created: {self._session_id}", context=_LOG)
         except Exception as e:
-            debug_log(f"Claude ACP session creation failed: {e}", context=_LOG)
+            debug_log(f"ACP session creation failed: {e}", context=_LOG)
             raise
 
     def send(
@@ -185,7 +215,7 @@ class ClaudeBackend(AgentBackend):
         stop_checker=None,
         **kwargs
     ):
-        """Send a message to Claude via ACP stdio."""
+        """Send a message to Hermes via ACP stdio."""
         self._stop_requested = False
         self._prompt_done.clear()
         self._load_config()
@@ -197,7 +227,7 @@ class ClaudeBackend(AgentBackend):
         except Exception as e:
             queue.put(("error", RuntimeError(
                 f"Cannot start {self.display_name} ACP. "
-                f"Is adapter installed? Error: {e}"
+                f"Is hermes installed? Error: {e}"
             )))
             return
 
@@ -211,37 +241,66 @@ class ClaudeBackend(AgentBackend):
 
         # Build prompt content blocks
         prompt_blocks = []
-        if system_prompt:
-            prompt_blocks.append({"type": "text", "text": system_prompt})
-        if document_context:
-            prompt_blocks.append({"type": "text", "text": f"[DOCUMENT CONTENT]\n{document_context}"})
-        if selection_text:
-            prompt_blocks.append({"type": "text", "text": f"[SELECTED TEXT]\n{selection_text}"})
-        if document_url:
-            prompt_blocks.append({"type": "text", "text": f"Document URL: {document_url}"})
-        
-        prompt_blocks.append({"type": "text", "text": user_message})
+        is_slash_command = user_message.strip().startswith("/")
 
+        if is_slash_command:
+            # For slash commands, only send the command itself so that Hermes'
+            # ACP adapter (`user_text.startswith("/")`) can intercept it cleanly,
+            # and we avoid polluting the command with document context.
+            prompt_blocks.append({
+                "type": "text",
+                "text": user_message,
+            })
+        else:
+            if system_prompt:
+                prompt_blocks.append({
+                    "type": "text",
+                    "text": system_prompt,
+                })
+            if document_context:
+                prompt_blocks.append({
+                    "type": "text",
+                    "text": f"[DOCUMENT CONTENT]\n{document_context}",
+                })
+            if selection_text:
+                prompt_blocks.append({
+                    "type": "text",
+                    "text": f"[SELECTED TEXT]\n{selection_text}",
+                })
+            if document_url:
+                prompt_blocks.append({
+                    "type": "text",
+                    "text": f"Document URL: {document_url}",
+                })
+            # Always add the user message last
+            prompt_blocks.append({
+                "type": "text",
+                "text": user_message,
+            })
+
+        # Set up notification handler for streaming updates
         def on_notification(method, params, msg_id=None):
             if self._stop_requested:
                 return
             if method == "session/request_permission":
-                description = params.get("description", "Claude requests permission")
+                description = params.get("description", "Agent requests permission")
                 queue.put(("approval_required", description, "", {}, msg_id))
             else:
                 self._handle_notification(method, params, queue)
 
         self._conn.set_notification_callback(on_notification)
 
+        # Send the prompt request
         try:
             result = self._conn.send_request("session/prompt", {
                 "sessionId": self._session_id,
                 "prompt": prompt_blocks,
             }, timeout=600)
 
+            # Process the final response
             if result:
                 stop_reason = result.get("stopReason", result.get("stop_reason", ""))
-                debug_log(f"Claude prompt completed: stop_reason={stop_reason}", context=_LOG)
+                debug_log(f"Prompt completed: stop_reason={stop_reason}", context=_LOG)
 
             queue.put(("stream_done", None))
 
@@ -251,7 +310,7 @@ class ClaudeBackend(AgentBackend):
             if self._stop_requested:
                 queue.put(("stopped",))
             else:
-                debug_log(f"Claude prompt error: {e}", context=_LOG)
+                debug_log(f"Prompt error: {e}", context=_LOG)
                 queue.put(("error", e))
         finally:
             self._conn.set_notification_callback(None)
@@ -270,9 +329,12 @@ class ClaudeBackend(AgentBackend):
             debug_log(f"Unhandled notification: {method}", context=_LOG)
 
     def _handle_session_update(self, update, queue):
+        """Handle a session update notification."""
         session_update = update.get("session_update", update.get("sessionUpdate", ""))
+        debug_log(f"session_update: {session_update}, payload: {update}", context=_LOG)
 
-        if session_update in ("text", "agent_thought_chunk"):
+        if session_update in ("text", "agent_thought_chunk", "agent_message_chunk"):
+            # Streaming text or thought from the agent
             text = update.get("chunk", update.get("text", update.get("content", "")))
             if isinstance(text, dict):
                 text = text.get("text", text.get("content", str(text)))
@@ -280,8 +342,11 @@ class ClaudeBackend(AgentBackend):
                 queue.put(("chunk", str(text)))
 
         elif session_update in ("tool_call", "tool_call_update"):
+            # Tool call update
             status = update.get("status", "")
             title = update.get("title", "")
+            tool_id = update.get("tool_call_id", update.get("toolCallId", ""))
+
             if status == "in_progress":
                 thinking = f"[Tool: {title}]"
                 raw_input = update.get("raw_input", update.get("rawInput"))
@@ -297,36 +362,68 @@ class ClaudeBackend(AgentBackend):
                 queue.put(("thinking", f"[Tool failed: {title}]\n"))
 
         elif session_update == "plan":
+            # Agent plan update
             entries = update.get("entries", [])
             if entries:
-                plan_text = "\n".join(f"  {'✓' if e.get('done') else '○'} {e.get('text', '')}" for e in entries)
+                plan_text = "\n".join(
+                    f"  {'✓' if e.get('done') else '○'} {e.get('text', '')}"
+                    for e in entries
+                )
                 queue.put(("thinking", f"[Plan]\n{plan_text}\n"))
 
+        elif session_update == "usage":
+            cost = update.get("cost")
+            if cost:
+                debug_log(f"Usage: cost={cost}", context=_LOG)
+
+        elif session_update == "info":
+            title = update.get("title", "")
+            if title:
+                debug_log(f"Session info: {title}", context=_LOG)
+
+        else:
+            debug_log(f"Unhandled session_update type: {session_update}", context=_LOG)
+
     def _handle_agent_update(self, update, queue):
+        """Handle an agent-level update."""
+        # Agent approval / permission request
         if "permission" in update or "approval" in update:
             description = json.dumps(update)
             queue.put(("approval_required", description, "", {}, self._session_id or ""))
 
     def stop(self):
+        """Cancel the current prompt."""
         self._stop_requested = True
         if self._conn and self._conn.is_alive and self._session_id:
             try:
-                self._conn.send_notification("session/cancel", {"sessionId": self._session_id})
+                self._conn.send_notification("session/cancel", {
+                    "sessionId": self._session_id,
+                })
                 debug_log("Cancel notification sent", context=_LOG)
             except Exception as e:
                 debug_log(f"Cancel failed: {e}", context=_LOG)
 
     def submit_approval(self, request_id, approved):
+        """Submit approval for a permission request."""
         if not self._conn or not self._conn.is_alive or not request_id:
             return
-        msg = {"jsonrpc": "2.0", "id": request_id, "result": {"approved": approved}}
+        
+        # Send a JSON-RPC response back to the agent's permission request
+        msg = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": {"approved": approved}
+        }
+        line = json.dumps(msg) + "\n"
         try:
-            self._conn._proc.stdin.write((json.dumps(msg) + "\n").encode("utf-8"))
+            self._conn._proc.stdin.write(line.encode("utf-8"))
             self._conn._proc.stdin.flush()
-        except Exception:
-            pass
+            debug_log(f"Approval responded (id={request_id}): approved={approved}", context=_LOG)
+        except Exception as e:
+            debug_log(f"Approval response failed: {e}", context=_LOG)
 
     def cleanup(self):
+        """Shutdown the ACP subprocess."""
         if self._conn:
             self._conn.stop()
             self._conn = None

@@ -16,12 +16,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Registry of agent backends. Backend ids: builtin, aider, hermes."""
 
-from plugin.modules.agent_backend.builtin import BuiltinBackend
-# from plugin.modules.agent_backend.aider_proxy import AiderBackend
-from plugin.modules.agent_backend.hermes_proxy import HermesBackend
-from plugin.modules.agent_backend.claude_proxy import ClaudeBackend
-# from plugin.modules.agent_backend.openhands_proxy import OpenHandsBackend
-# from plugin.modules.agent_backend.opencode_proxy import OpenCodeBackend
+from plugin.modules.acp.builtin import BuiltinBackend
+# from plugin.modules.acp.aider_proxy import AiderBackend
+from plugin.modules.acp.hermes_proxy import HermesBackend
+from plugin.modules.acp.claude_proxy import ClaudeBackend
+# from plugin.modules.acp.openhands_proxy import OpenHandsBackend
+# from plugin.modules.acp.opencode_proxy import OpenCodeBackend
 
 AGENT_BACKEND_REGISTRY = {
     "builtin": ("Built-in", BuiltinBackend),

@@ -251,7 +251,7 @@ To improve UI responsiveness and AI navigation in complex documents, we ported p
  - Created `plugin/framework/process_manager.py` with `AsyncProcess` to handle `subprocess.Popen` lifecycles, stream draining (stdout/stderr), and exit callbacks asynchronously.
  - Refactored `plugin/modules/http/mcp_protocol.py`, `plugin/main.py`, `plugin/framework/dialogs.py`, `plugin/modules/chatbot/send_handlers.py`, and `plugin/modules/chatbot/tool_loop.py` to use `run_in_background` instead of bare `threading.Thread`.
  - Refactored `plugin/modules/launcher/__init__.py` and `plugin/modules/tunnel/__init__.py` to manage their external CLIs using `AsyncProcess`.
- - Refactored `plugin/modules/agent_backend/cli_backend.py` to use `run_in_background` for its reader loops.
+ - Refactored `plugin/modules/acp/cli_backend.py` to use `run_in_background` for its reader loops.
  
  **Result**: Threading and process management are now centralized in the framework, making the system more robust and easier to maintain.
  

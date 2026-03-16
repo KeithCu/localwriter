@@ -27,7 +27,7 @@ The plugin runs an embedded HTTP server to provide a local API and support the M
     *   **Synchronization:** It implements its own simple `_Future` class wrapping a `threading.Event` to wait for main-thread execution, similar to `main_thread.py`.
     *   **Concurrency limits:** A `threading.Semaphore(1)` (`_tool_semaphore`) is used to enforce backpressure, ensuring only one tool execution runs concurrently.
 
-### 3. Agent Backends and CLI Management (`plugin/modules/agent_backend/`)
+### 3. Agent Backends and CLI Management (`plugin/modules/acp/`)
 
 When interacting with external CLI-based agent tools (like Hermes), WriterAgent spawns background processes and needs to monitor their streams asynchronously.
 
@@ -65,7 +65,7 @@ The core chatbot interaction relies heavily on threads to handle streaming LLM r
 The threading model has recently been refactored to eliminate duplicate concurrency patterns that had evolved independently. 
 
 ### 1. Unified Background Process Monitoring (`AsyncProcess`)
-Multiple modules previously spawned `subprocess.Popen` manually and wrapped them in custom `threading.Thread` implementations to monitor stdout/stderr loops. This has been consolidated into an `AsyncProcess` class in `plugin/framework/process_manager.py`. It encapsulates process spawning, thread-based stream monitoring (via asynchronous readers), and exit handling. It provides cleaner process lifecycle monitoring in `launcher`, `tunnel`, and `agent_backend/cli_backend`.
+Multiple modules previously spawned `subprocess.Popen` manually and wrapped them in custom `threading.Thread` implementations to monitor stdout/stderr loops. This has been consolidated into an `AsyncProcess` class in `plugin/framework/process_manager.py`. It encapsulates process spawning, thread-based stream monitoring (via asynchronous readers), and exit handling. It provides cleaner process lifecycle monitoring in `launcher`, `tunnel`, and `acp/cli_backend`.
 
 ### 2. Main Thread Execution (`main_thread.py` vs `mcp_protocol.py`)
 Both `mcp_protocol.py` and `main_thread.py` previously contained duplicate logic for pushing execution callbacks back to the LibreOffice UI thread. These have been consolidated: `mcp_protocol` now relies on standard main thread dispatch mechanisms, eliminating redundant `_Future` wait implementations.

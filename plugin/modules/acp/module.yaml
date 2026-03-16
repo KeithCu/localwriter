@@ -1,4 +1,4 @@
-name: agent_backend
+name: acp
 title: Agent backends (Aider, Hermes)
 requires: [config, document]
 

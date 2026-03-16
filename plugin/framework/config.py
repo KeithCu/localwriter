@@ -107,7 +107,7 @@ def _get_schema_default(key):
         from plugin._manifest import MODULES
     except ImportError:
         return None
-    # Dotted key (e.g. agent_backend.backend_id)
+    # Dotted key (e.g. acp.backend_id)
     if "." in key:
         mod_name, field_name = key.split(".", 1)
         for m in MODULES:

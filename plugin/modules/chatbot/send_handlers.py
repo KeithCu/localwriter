@@ -10,7 +10,6 @@ alternate send flows that would otherwise bloat that class:
 """
 
 import queue
-import threading
 
 
 class SendHandlersMixin:
@@ -203,11 +202,11 @@ class SendHandlersMixin:
         if self._terminal_status != "Error":
             self._terminal_status = "Ready"
 
-    def _do_send_via_agent_backend(self, query_text, model, doc_type_str):
+    def _do_send_via_acp(self, query_text, model, doc_type_str):
         """Send via external agent backend (Aider, Hermes). No fallback to built-in on failure."""
         from plugin.framework.config import get_config
         from plugin.framework.document import get_document_context_for_chat
-        from plugin.modules.agent_backend import get_backend
+        from plugin.modules.acp import get_backend
 
         self.session.add_user_message(query_text)
         self._append_response("\nYou: %s\n" % query_text)
@@ -238,7 +237,7 @@ class SendHandlersMixin:
             return
 
         backend_id = str(
-            get_config(self.ctx, "agent_backend.backend_id") or "builtin"
+            get_config(self.ctx, "acp.backend_id") or "builtin"
         ).strip().lower()
         adapter = get_backend(backend_id, ctx=self.ctx)
         if not adapter:
@@ -257,7 +256,7 @@ class SendHandlersMixin:
 
         q = queue.Queue()
         job_done = [False]
-        self._current_agent_backend = adapter
+        self._current_acp = adapter
 
         def run_agent():
             try:
@@ -301,7 +300,7 @@ class SendHandlersMixin:
             except Exception as e:
                 q.put(("error", e))
             finally:
-                self._current_agent_backend = None
+                self._current_acp = None
 
         from plugin.framework.worker_pool import run_in_background
         run_in_background(run_agent)
@@ -313,7 +312,7 @@ class SendHandlersMixin:
         except Exception as e:
             self._append_response("\n[Error: %s]\n" % str(e))
             self._terminal_status = "Error"
-            self._current_agent_backend = None
+            self._current_acp = None
             return
 
         def apply_chunk(text, is_thinking=False):
@@ -369,7 +368,7 @@ class SendHandlersMixin:
         )
         if self._terminal_status not in ("Error", "Stopped"):
             self._terminal_status = "Ready"
-        self._current_agent_backend = None
+        self._current_acp = None
 
     def _run_web_research(self, query_text, model):
         """Run the web_research tool via the sub-agent and stream its result into the response area."""

@@ -40,7 +40,7 @@ try:
 except ImportError:
     _WINSIZE_AVAILABLE = False
 
-from plugin.modules.agent_backend.base import AgentBackend
+from plugin.modules.acp.base import AgentBackend
 from plugin.framework.logging import debug_log
 
 # CSI: ESC [ ... letter. Allow optional spaces (e.g. \x1b[2 q) and broader param chars.
@@ -86,7 +86,7 @@ class CLIProcessBackend(AgentBackend):
     def is_available(self, ctx):
         try:
             from plugin.framework.config import get_config
-            path = str(get_config(ctx, "agent_backend.path") or "").strip()
+            path = str(get_config(ctx, "acp.path") or "").strip()
             if path:
                 return os.path.isfile(path) or bool(shutil.which(path))
             cmd = self.get_default_cmd()
@@ -163,7 +163,7 @@ class CLIProcessBackend(AgentBackend):
             else:
                 self._reader_ready.set()
                 if line_count[0] <= 50 or line_count[0] % 100 == 0:
-                    debug_log(f"reader_loop: saw prompt (confirming readiness)", context=self._log_prefix)
+                    debug_log("reader_loop: saw prompt (confirming readiness)", context=self._log_prefix)
             return
 
         if not self.should_forward_chunk(line):
@@ -442,8 +442,8 @@ class CLIProcessBackend(AgentBackend):
 
         try:
             from plugin.framework.config import get_config
-            path = str(get_config(self._ctx, "agent_backend.path") or "").strip()
-            args_str = str(get_config(self._ctx, "agent_backend.args") or "").strip()
+            path = str(get_config(self._ctx, "acp.path") or "").strip()
+            args_str = str(get_config(self._ctx, "acp.args") or "").strip()
         except Exception:
             path = ""
             args_str = ""

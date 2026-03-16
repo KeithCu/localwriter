@@ -130,7 +130,7 @@ def apply_settings_result(ctx, result):
                     pass
             
             # Map backend_id display label back to stored value
-            if save_key == "agent_backend.backend_id" and val:
+            if save_key == "acp.backend_id" and val:
                 _label_to_id = {"Built-in": "builtin", "Aider": "aider", "Hermes": "hermes"}
                 val = _label_to_id.get(str(val).strip(), val)
 

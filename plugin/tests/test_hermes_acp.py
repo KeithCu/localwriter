@@ -8,15 +8,13 @@
 """Tests for the Hermes ACP backend adapter (stdio JSON-RPC transport)."""
 
 import json
-import os
 import queue
 import threading
 import unittest
-from io import BytesIO
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
-from plugin.modules.agent_backend.acp_connection import ACPConnection
-from plugin.modules.agent_backend.hermes_proxy import (
+from plugin.modules.acp.acp_connection import ACPConnection
+from plugin.modules.acp.hermes_proxy import (
     HermesBackend,
     _find_hermes_binary,
 )

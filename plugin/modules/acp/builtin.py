@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Built-in backend: no-op. Sidebar uses the existing in-process LlmClient path."""
 
-from plugin.modules.agent_backend.base import AgentBackend
+from plugin.modules.acp.base import AgentBackend
 
 
 class BuiltinBackend(AgentBackend):
