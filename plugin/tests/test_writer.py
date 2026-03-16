@@ -190,6 +190,72 @@ def test_resolve_locator():
 
 
 @native_test
+def test_writer_structural_and_tree_service():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
+
+    from plugin.modules.writer.tree import TreeService
+    from plugin.modules.writer.bookmarks import BookmarkService
+    from plugin.framework.events import EventBus
+    from plugin.framework.document import DocumentService
+    from plugin.modules.writer.structural import ListBookmarks, ListSections
+
+    events = EventBus()
+    doc_svc = DocumentService()
+    bm_svc = BookmarkService(doc_svc, events)
+    tree_svc = TreeService(doc_svc, bm_svc, events)
+
+    # 1. Test build_heading_tree from TreeService natively
+    tree = tree_svc.build_heading_tree(_test_doc)
+    assert tree is not None, "TreeService.build_heading_tree returned None"
+    assert "children" in tree and len(tree["children"]) == 2, f"Expected 2 root children, got {len(tree.get('children', []))}"
+
+    h1 = tree["children"][0]
+    assert h1["text"] == "H1", "First child should be H1"
+    assert len(h1["children"]) == 1, "H1 should have 1 child"
+    assert h1["children"][0]["text"] == "H1.1", "H1 child should be H1.1"
+
+    # 2. Test resolve_writer_locator from TreeService natively
+    # H1 is index 0, P1 is index 1, H1.1 is index 2
+    res = tree_svc.resolve_writer_locator(_test_doc, "heading", "1.1")
+    assert res is not None and res.get("para_index") == 2, f"Failed to resolve heading:1.1, got {res}"
+
+    res = tree_svc.resolve_writer_locator(_test_doc, "heading_text", "H1.1")
+    assert res is not None and res.get("para_index") == 2, f"Failed to resolve heading_text:H1.1, got {res}"
+
+    # 3. Test structural.py tools natively
+    class MockCtx:
+        def __init__(self, doc, services):
+            self.doc = doc
+            self.services = services
+
+    class MockServices:
+        def __init__(self, bm_svc, doc_svc):
+            self.writer_bookmarks = bm_svc
+            self.document = doc_svc
+
+    mock_ctx = MockCtx(_test_doc, MockServices(bm_svc, doc_svc))
+
+    # Test ListBookmarks
+    list_bm_tool = ListBookmarks()
+    bm_res = list_bm_tool.execute(mock_ctx)
+    assert bm_res["status"] == "ok", f"ListBookmarks failed: {bm_res}"
+    # Initially we might have 0 bookmarks unless they were created by ensure_heading_bookmarks in previous test
+    # but the API call itself should succeed
+    assert isinstance(bm_res["bookmarks"], list), "ListBookmarks should return a list"
+
+    # Test ListSections
+    list_sec_tool = ListSections()
+    sec_res = list_sec_tool.execute(mock_ctx)
+    assert sec_res["status"] == "ok", f"ListSections failed: {sec_res}"
+    assert isinstance(sec_res["sections"], list), "ListSections should return a list"
+
+
+@native_test
 def test_document_cache_length_tracking():
     try:
         import pytest
