@@ -190,6 +190,72 @@ def test_resolve_locator():
 
 
 @native_test
+def test_writer_structural_and_tree_service():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
+
+    from plugin.modules.writer.tree import TreeService
+    from plugin.modules.writer.bookmarks import BookmarkService
+    from plugin.framework.events import EventBus
+    from plugin.framework.document import DocumentService
+    from plugin.modules.writer.structural import ListBookmarks, ListSections
+
+    events = EventBus()
+    doc_svc = DocumentService()
+    bm_svc = BookmarkService(doc_svc, events)
+    tree_svc = TreeService(doc_svc, bm_svc, events)
+
+    # 1. Test build_heading_tree from TreeService natively
+    tree = tree_svc.build_heading_tree(_test_doc)
+    assert tree is not None, "TreeService.build_heading_tree returned None"
+    assert "children" in tree and len(tree["children"]) == 2, f"Expected 2 root children, got {len(tree.get('children', []))}"
+
+    h1 = tree["children"][0]
+    assert h1["text"] == "H1", "First child should be H1"
+    assert len(h1["children"]) == 1, "H1 should have 1 child"
+    assert h1["children"][0]["text"] == "H1.1", "H1 child should be H1.1"
+
+    # 2. Test resolve_writer_locator from TreeService natively
+    # H1 is index 0, P1 is index 1, H1.1 is index 2
+    res = tree_svc.resolve_writer_locator(_test_doc, "heading", "1.1")
+    assert res is not None and res.get("para_index") == 2, f"Failed to resolve heading:1.1, got {res}"
+
+    res = tree_svc.resolve_writer_locator(_test_doc, "heading_text", "H1.1")
+    assert res is not None and res.get("para_index") == 2, f"Failed to resolve heading_text:H1.1, got {res}"
+
+    # 3. Test structural.py tools natively
+    class MockCtx:
+        def __init__(self, doc, services):
+            self.doc = doc
+            self.services = services
+
+    class MockServices:
+        def __init__(self, bm_svc, doc_svc):
+            self.writer_bookmarks = bm_svc
+            self.document = doc_svc
+
+    mock_ctx = MockCtx(_test_doc, MockServices(bm_svc, doc_svc))
+
+    # Test ListBookmarks
+    list_bm_tool = ListBookmarks()
+    bm_res = list_bm_tool.execute(mock_ctx)
+    assert bm_res["status"] == "ok", f"ListBookmarks failed: {bm_res}"
+    # Initially we might have 0 bookmarks unless they were created by ensure_heading_bookmarks in previous test
+    # but the API call itself should succeed
+    assert isinstance(bm_res["bookmarks"], list), "ListBookmarks should return a list"
+
+    # Test ListSections
+    list_sec_tool = ListSections()
+    sec_res = list_sec_tool.execute(mock_ctx)
+    assert sec_res["status"] == "ok", f"ListSections failed: {sec_res}"
+    assert isinstance(sec_res["sections"], list), "ListSections should return a list"
+
+
+@native_test
 def test_document_cache_length_tracking():
     try:
         import pytest
@@ -211,3 +277,100 @@ def test_document_cache_length_tracking():
     cache3_new = DocumentCache.get(_test_doc)
     new_len = cache3_new.length
     assert new_len is not None and new_len > prev_len, "DocumentCache length did not update"
+
+
+@native_test
+def test_get_text_cursor_at_range():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
+    from plugin.modules.writer.ops import get_text_cursor_at_range
+
+    text = _test_doc.getText()
+    full_text_str = text.getString()
+
+    # Just grab a known length from the doc string
+    start_idx = 0
+    end_idx = min(3, len(full_text_str))
+
+    cursor = get_text_cursor_at_range(_test_doc, start_idx, end_idx)
+    assert cursor is not None, "get_text_cursor_at_range returned None"
+
+    selected_text = cursor.getString()
+    expected_text = full_text_str[start_idx:end_idx]
+
+    assert selected_text == expected_text, f"get_text_cursor_at_range mismatch. Expected '{expected_text}', got '{selected_text}'"
+
+
+@native_test
+def test_find_paragraph_for_range():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
+    from plugin.modules.writer.ops import find_paragraph_for_range
+
+    para_ranges = get_paragraph_ranges(_test_doc)
+    text = _test_doc.getText()
+
+    assert len(para_ranges) >= 2, "Test document doesn't have enough paragraphs."
+
+    # Take the start of the second paragraph
+    p1 = para_ranges[1]
+
+    # We create a cursor at the start of p1
+    cursor = text.createTextCursorByRange(p1.getStart())
+
+    idx = find_paragraph_for_range(cursor, para_ranges, text)
+    assert idx == 1, f"find_paragraph_for_range expected index 1, got {idx}"
+
+
+@native_test
+def test_get_selection_range():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
+    from plugin.modules.writer.ops import get_selection_range
+
+    controller = _test_doc.getCurrentController()
+    view_cursor = controller.getViewCursor()
+    view_cursor.gotoStart(False)
+    view_cursor.goRight(3, True)
+
+    start_offset, end_offset = get_selection_range(_test_doc)
+
+    # Start should be 0, end should be 3
+    assert start_offset == 0, f"Expected start_offset 0, got {start_offset}"
+    assert end_offset == 3, f"Expected end_offset 3, got {end_offset}"
+
+
+@native_test
+def test_insert_html_at_cursor():
+    try:
+        import pytest
+        if _test_doc is None:
+            pytest.skip("Requires LibreOffice document from native runner")
+    except ImportError:
+        pass
+    from plugin.modules.writer.ops import insert_html_at_cursor
+
+    text = _test_doc.getText()
+    cursor = text.createTextCursor()
+    cursor.gotoEnd(False)
+
+    html_content = "<b>Test HTML Insert</b>"
+
+    success = insert_html_at_cursor(cursor, html_content)
+    assert success is True, "insert_html_at_cursor failed to return True"
+
+    # Verify content was inserted. HTML tags shouldn't appear but the text should.
+    doc_text = text.getString()
+    assert "Test HTML Insert" in doc_text, "Inserted HTML text not found in document"
