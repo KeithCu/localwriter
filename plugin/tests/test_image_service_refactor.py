@@ -33,10 +33,11 @@ class TestEndpointImageProvider(unittest.TestCase):
         self.mock_client.request_with_tools.return_value = mock_resp
         mock_sync.return_value = b"fake-image-data"
 
-        result = self.provider.generate("test prompt")
+        paths, err = self.provider.generate("test prompt")
         
-        self.assertEqual(len(result), 1)
-        self.assertTrue(result[0].endswith(".webp"))
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(err, "")
+        self.assertTrue(paths[0].endswith(".webp"))
         mock_sync.assert_called_once_with("http://example.com/image.png", parse_json=False)
 
     def test_generate_openrouter_b64(self):
@@ -50,13 +51,14 @@ class TestEndpointImageProvider(unittest.TestCase):
         }
         self.mock_client.request_with_tools.return_value = mock_resp
 
-        result = self.provider.generate("test prompt")
+        paths, err = self.provider.generate("test prompt")
         
-        self.assertEqual(len(result), 1)
-        self.assertTrue(result[0].endswith(".png"))
-        with open(result[0], 'rb') as f:
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(err, "")
+        self.assertTrue(paths[0].endswith(".png"))
+        with open(paths[0], 'rb') as f:
             self.assertEqual(f.read(), b"fake-image-data-b64")
-        os.unlink(result[0])
+        os.unlink(paths[0])
 
     def test_generate_standard_b64(self):
         self.mock_client.config.get.return_value = False # Not OpenRouter
@@ -69,13 +71,14 @@ class TestEndpointImageProvider(unittest.TestCase):
         mock_http_resp = create_mock_http_response(200, {"data": [{"b64_json": b64_data}]})
         mock_conn.getresponse.return_value = mock_http_resp
 
-        result = self.provider.generate("test prompt")
+        paths, err = self.provider.generate("test prompt")
         
-        self.assertEqual(len(result), 1)
-        self.assertTrue(result[0].endswith(".png"))
-        with open(result[0], 'rb') as f:
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(err, "")
+        self.assertTrue(paths[0].endswith(".png"))
+        with open(paths[0], 'rb') as f:
             self.assertEqual(f.read(), b"standard-b64-data")
-        os.unlink(result[0])
+        os.unlink(paths[0])
 
     @patch('plugin.framework.image_utils.sync_request')
     def test_fallback_logic_url(self, mock_sync):
@@ -90,11 +93,12 @@ class TestEndpointImageProvider(unittest.TestCase):
         self.mock_client.request_with_tools.return_value = mock_resp
         mock_sync.return_value = b"fallback-image-data"
 
-        result = self.provider.generate("test prompt")
+        paths, err = self.provider.generate("test prompt")
         
-        self.assertEqual(len(result), 1)
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(err, "")
         mock_sync.assert_called_with("http://fallback.com/image.png", parse_json=False)
-        os.unlink(result[0])
+        os.unlink(paths[0])
 
     def test_fallback_logic_b64(self):
         self.mock_client.config.get.side_effect = lambda k, d=None: True if k == "is_openrouter" else d
@@ -108,12 +112,13 @@ class TestEndpointImageProvider(unittest.TestCase):
         }
         self.mock_client.request_with_tools.return_value = mock_resp
 
-        result = self.provider.generate("test prompt")
+        paths, err = self.provider.generate("test prompt")
         
-        self.assertEqual(len(result), 1)
-        with open(result[0], 'rb') as f:
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(err, "")
+        with open(paths[0], 'rb') as f:
             self.assertEqual(f.read(), b"fallback-b64-data")
-        os.unlink(result[0])
+        os.unlink(paths[0])
 
     def test_scoping_bug_fix_verification(self):
         """
@@ -134,7 +139,7 @@ class TestEndpointImageProvider(unittest.TestCase):
         # It should just return [].
         try:
             result = self.provider.generate("test prompt")
-            self.assertEqual(result, [])
+            self.assertEqual(result, ([], ""))
         except AttributeError as e:
             self.fail(f"Scoping bug still present! AttributeError: {e}")
 

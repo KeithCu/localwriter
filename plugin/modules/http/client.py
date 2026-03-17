@@ -372,6 +372,13 @@ class LlmClient:
             if api_key:
                 h["Authorization"] = "Bearer %s" % api_key
 
+        # Backwards-compatible behavior for simple/local endpoints:
+        # if the user configured an api_key but provider-specific auth did not
+        # attach an Authorization header, add the legacy Bearer header.
+        api_key = self.config.get("api_key", "")
+        if api_key and "Authorization" not in h:
+            h["Authorization"] = "Bearer %s" % api_key
+
         h["HTTP-Referer"] = APP_REFERER
         h["X-Title"] = APP_TITLE
 
