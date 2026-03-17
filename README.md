@@ -1,5 +1,7 @@
 # WriterAgent
 
+> **Note:** We are excited to announce an official release of the extension! However, the [version on the LibreOffice site](`https://extensions.libreoffice.org/en/extensions/show/99526`) is **updated less frequently** than this repository. For the **newest builds with the latest features and fixes**, please use the GitHub release from this repo instead.
+
 ![WriterAgent logo](https://raw.githubusercontent.com/KeithCu/writeragent/master/extension/assets/logo.jpg)
 
 A LibreOffice extension (Python + UNO) that adds generative AI editing to Writer, Calc, and Draw.
