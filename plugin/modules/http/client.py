@@ -572,19 +572,28 @@ class LlmClient:
             "stream": stream,
         }
 
-        # Inject date into the first system message if present, or add one
+        # Inject date into the first system message if present, or add one.
+        # This is idempotent: if the first system message already starts with
+        # the date line, we do not prepend it again.
         today = datetime.date.today().strftime("%A, %Y-%m-%d")
         date_msg = f"Today's date is {today}."
-        
+
         system_msg = None
         for m in messages:
             if m.get("role") == "system":
                 system_msg = m
                 break
-        
+
         if system_msg:
             old_content = system_msg.get("content") or ""
-            system_msg["content"] = f"{date_msg}\n\n{old_content}"
+            if not (
+                old_content.startswith(date_msg)
+                or old_content.startswith("Today's date is ")
+            ):
+                if old_content:
+                    system_msg["content"] = f"{date_msg}\n\n{old_content}"
+                else:
+                    system_msg["content"] = date_msg
         else:
             messages.insert(0, {"role": "system", "content": date_msg})
 
