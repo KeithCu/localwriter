@@ -36,7 +36,7 @@ CONFIG_FILENAME = "writeragent.json"
 # MCP server: mcp_enabled (bool, default False), mcp_port (int, default 8765)
 
 # Max items for all LRU lists (model_lru, prompt_lru, image_model_lru, endpoint_lru).
-LRU_MAX_ITEMS = 6
+LRU_MAX_ITEMS = 10
 
 # Endpoint presets: local first, then FOSS-friendly / open-model providers, proprietary last. Base URLs only; api.py adds /v1 (or /api for OpenWebUI).
 # Uncomment any FOSS-focused line below once the base URL is verified OpenAI-compatible.
@@ -407,6 +407,33 @@ def set_native_audio_support(ctx, model_id, endpoint, supported):
     set_config(ctx, "audio_support_map", cache)
 
 
+_model_fetch_cache = {}
+
+def fetch_available_models(endpoint):
+    """Fetch available models from endpoint/v1/models. Returns list of IDs or None on error."""
+    if not endpoint:
+        return None
+    url = f"{endpoint.rstrip('/')}/v1/models"
+    if url in _model_fetch_cache:
+        return _model_fetch_cache[url]
+
+    from plugin.modules.http.client import sync_request
+    try:
+        data = sync_request(url, parse_json=True)
+        if data and isinstance(data, dict) and "data" in data:
+            models = []
+            for m in data["data"]:
+                mid = m.get("id")
+                if mid:
+                    models.append(mid)
+            _model_fetch_cache[url] = models
+            return models
+    except Exception as e:
+        from plugin.framework.logging import debug_log
+        debug_log(f"fetch_available_models failed for {url}: {e}", context="Config")
+    _model_fetch_cache[url] = None
+    return None
+
 def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint):
     """Helper to populate a combobox with values from an LRU list in config.
     LRU is scoped to the provided endpoint.
@@ -420,15 +447,28 @@ def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint):
     provider = get_provider_from_endpoint(endpoint)
     req_cap = "image" if "image" in lru_key.lower() else "audio" if "audio" in lru_key.lower() or "stt" in lru_key.lower() else "text"
     
-    # Merge defaults into the list
     to_show = list(lru)
-    if provider:
-        for m in DEFAULT_MODELS:
-            caps = [c.strip() for c in m.get("capability", "text").split(",")]
-            if req_cap in caps:
-                effective_id = resolve_model_id(m, provider)
-                if effective_id and effective_id not in to_show:
-                    to_show.append(effective_id)
+
+    # For text models, determine if we should fetch from the API.
+    # We do NOT fetch for known massive providers (openrouter, together).
+    massive_providers = {"openrouter", "together"}
+    fetched_models = None
+    if req_cap == "text" and endpoint and (not provider or provider not in massive_providers):
+        fetched_models = fetch_available_models(endpoint)
+
+    if fetched_models is not None:
+        for mid in fetched_models:
+            if mid not in to_show:
+                to_show.append(mid)
+    else:
+        # Merge defaults into the list if no fetching was done or fetching failed
+        if provider:
+            for m in DEFAULT_MODELS:
+                caps = [c.strip() for c in m.get("capability", "text").split(",")]
+                if req_cap in caps:
+                    effective_id = resolve_model_id(m, provider)
+                    if effective_id and effective_id not in to_show:
+                        to_show.append(effective_id)
 
     curr_val_str = str(current_val).strip()
     if curr_val_str and curr_val_str not in to_show:
