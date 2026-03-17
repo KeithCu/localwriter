@@ -216,11 +216,14 @@ def run_all_tests(ctx: Any) -> str:
     try:
         from plugin.framework.document import is_draw  # local import
         import plugin.tests.test_draw as test_draw
+        import plugin.tests.test_impress as test_impress
 
         draw_doc = model if (model is not None and is_draw(model)) else None
         _run_suite(ctx, suites, "draw.tests", test_draw, draw_doc)
+        _run_suite(ctx, suites, "impress.tests", test_impress, draw_doc)
     except ImportError:
         pass
+
 
     for suite in suites:
         total_passed += int(suite.get("passed", 0) or 0)
