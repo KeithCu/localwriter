@@ -5,7 +5,7 @@
 
 """Undo/redo tools for all document types via XUndoManager."""
 
-from plugin.framework.tool_base import ToolBase
+from plugin.framework.tool_base import ToolBaseDummy
 
 
 def _get_undo_manager(doc):
@@ -15,7 +15,7 @@ def _get_undo_manager(doc):
     raise RuntimeError("Document does not support undo.")
 
 
-class Undo(ToolBase):
+class Undo(ToolBaseDummy):
     """Undo the last action."""
 
     name = "undo"
@@ -56,7 +56,7 @@ class Undo(ToolBase):
             return {"status": "error", "error": str(e)}
 
 
-class Redo(ToolBase):
+class Redo(ToolBaseDummy):
     """Redo the last undone action."""
 
     name = "redo"

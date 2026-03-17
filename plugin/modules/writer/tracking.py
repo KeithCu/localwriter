@@ -50,7 +50,7 @@ class SetTrackChanges(ToolBaseDummy):
         return {"status": "ok", "record_changes": bool(enabled)}
 
 
-class GetTrackedChanges(ToolBase):
+class GetTrackedChanges(ToolBaseDummy):
     """List all tracked changes (redlines) in the document."""
 
     name = "get_tracked_changes"

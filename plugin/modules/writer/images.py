@@ -29,7 +29,7 @@ import hashlib
 import os
 import tempfile
 
-from plugin.framework.tool_base import ToolBase
+from plugin.framework.tool_base import ToolBase, ToolBaseDummy
 from plugin.framework.image_tools import (
     insert_image, replace_image_in_place, get_selected_image_base64,
 )
@@ -213,7 +213,7 @@ _IMAGE_CACHE_DIR = os.path.join(tempfile.gettempdir(), "writeragent_images")
 # ListImages
 # ------------------------------------------------------------------
 
-class ListImages(ToolBase):
+class ListImages(ToolBaseDummy):
     """List all images/graphic objects in the document."""
 
     name = "list_images"
@@ -298,7 +298,7 @@ class ListImages(ToolBase):
 # GetImageInfo
 # ------------------------------------------------------------------
 
-class GetImageInfo(ToolBase):
+class GetImageInfo(ToolBaseDummy):
     """Get detailed info about a specific image."""
 
     name = "get_image_info"
@@ -412,7 +412,7 @@ class GetImageInfo(ToolBase):
 # SetImageProperties
 # ------------------------------------------------------------------
 
-class SetImageProperties(ToolBase):
+class SetImageProperties(ToolBaseDummy):
     """Resize, reposition, crop, or update caption/alt-text for an image."""
 
     name = "set_image_properties"
@@ -542,7 +542,7 @@ class SetImageProperties(ToolBase):
 # DownloadImage
 # ------------------------------------------------------------------
 
-class DownloadImage(ToolBase):
+class DownloadImage(ToolBaseDummy):
     """Download an image from URL to local cache."""
 
     name = "download_image"
@@ -589,7 +589,7 @@ class DownloadImage(ToolBase):
 # InsertImage
 # ------------------------------------------------------------------
 
-class InsertImage(ToolBase):
+class InsertImage(ToolBaseDummy):
     """Insert an image from local path or URL into the document."""
 
     name = "insert_image"
@@ -707,7 +707,7 @@ class InsertImage(ToolBase):
 # DeleteImage
 # ------------------------------------------------------------------
 
-class DeleteImage(ToolBase):
+class DeleteImage(ToolBaseDummy):
     """Delete an image from the document."""
 
     name = "delete_image"
@@ -752,7 +752,7 @@ class DeleteImage(ToolBase):
 # ReplaceImage
 # ------------------------------------------------------------------
 
-class ReplaceImage(ToolBase):
+class ReplaceImage(ToolBaseDummy):
     """Replace an image's source file keeping position and frame."""
 
     name = "replace_image"

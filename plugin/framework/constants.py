@@ -81,8 +81,6 @@ TOOLS:
 - get_document_content: Read document (full/selection/range) as HTML.
 - search_in_document: Find text (use return_offsets for character positions if needed for inspection).
 - list_styles / get_style_info: Discover paragraph/character styles before applying them.
-- get_tracked_changes: List tracked changes (read-only).
-- list_tables / read_table / write_table_cells: Inspect Writer tables; write a 2D block of cells (data + optional start_cell).
 
 {TRANSLATION_RULES}
 
