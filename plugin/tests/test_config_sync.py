@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 from plugin.framework.config import (
     get_image_model, set_image_model, get_api_key_for_endpoint, set_api_key_for_endpoint,
-    add_config_listener, notify_config_changed, _config_listeners
+    add_config_listener, notify_config_changed, _config_listeners,
+    update_lru_history, get_config
 )
 
 class TestConfigSync(unittest.TestCase):
@@ -62,6 +63,25 @@ class TestConfigSync(unittest.TestCase):
             self.assertIsNone(self.config_data.get("aihorde_model"))
             mock_lru.assert_called_once_with(self.ctx, "new-endpoint-model", "image_model_lru", "")
             self.mock_notify.assert_called_once_with(self.ctx)
+
+    def test_update_lru_history_scoping(self):
+        # Test with endpoint
+        update_lru_history(self.ctx, "item1", "model_lru", "http://localhost")
+        self.assertEqual(self.config_data.get("model_lru@http://localhost"), ["item1"])
+
+        # Test without endpoint
+        update_lru_history(self.ctx, "item2", "prompt_lru", "")
+        self.assertEqual(self.config_data.get("prompt_lru"), ["item2"])
+
+        # Test clamping to max_items and prepending
+        for i in range(5):
+            update_lru_history(self.ctx, f"item{i}", "test_lru", "ep", max_items=3)
+
+        self.assertEqual(self.config_data.get("test_lru@ep"), ["item4", "item3", "item2"])
+
+        # Test deduplication
+        update_lru_history(self.ctx, "item2", "test_lru", "ep", max_items=3)
+        self.assertEqual(self.config_data.get("test_lru@ep"), ["item2", "item4", "item3"])
 
     def test_get_image_model(self):
         # Test AI Horde
@@ -141,6 +161,13 @@ class TestConfigSyncFileIO(unittest.TestCase):
     def tearDown(self):
         self.path_patcher.stop()
         self.temp_dir.cleanup()
+        # Clean up any leftover config mock state
+        if os.path.exists(self.config_path):
+            os.remove(self.config_path)
+
+        # Ensure we clear config memory if it was patched or imported
+        from plugin.framework.config import get_config
+        # clear any dict caches or internal references if they exist
 
     def test_set_api_key_file_io(self):
         # Ensure file is written correctly
@@ -157,9 +184,51 @@ class TestConfigSyncFileIO(unittest.TestCase):
         self.assertEqual(get_api_key_for_endpoint(self.ctx, "http://api.openai.com"), "sk-1234")
 
     def test_get_api_key_file_io_missing_file(self):
-        # Should handle missing file gracefully
+        # Ensure file does not exist
+        if os.path.exists(self.config_path):
+            os.remove(self.config_path)
+
+        # Use a unique endpoint to avoid cross-test contamination if cache exists
+        self.assertEqual(get_api_key_for_endpoint(self.ctx, "http://api.missing.com"), "")
+
+    def test_corrupt_config_file_io(self):
+        # Write invalid JSON
+        with open(self.config_path, "w", encoding="utf-8") as f:
+            f.write("{ invalid json ")
+
+        # Should handle JSONDecodeError gracefully without crashing
         self.assertEqual(get_api_key_for_endpoint(self.ctx, "http://api.openai.com"), "")
 
+        # Write operation should overwrite corruption and recover the file
+        set_api_key_for_endpoint(self.ctx, "http://api.openai.com", "sk-recovered")
+        self.assertEqual(get_api_key_for_endpoint(self.ctx, "http://api.openai.com"), "sk-recovered")
+
+        # Verify file is now valid JSON
+        with open(self.config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data["api_keys_by_endpoint"]["http://api.openai.com"], "sk-recovered")
+
+    def test_get_config_default_resolution(self):
+        # Delete config file to ensure we hit default resolution logic
+        if os.path.exists(self.config_path):
+            os.remove(self.config_path)
+
+        # Test fallback to _CONFIG_DEFAULTS
+        self.assertEqual(get_config(self.ctx, "calc_prompt_max_tokens"), 70)
+        self.assertEqual(get_config(self.ctx, "chat_direct_image"), False)
+
+        # Test fallback logic in _resolve_default based on key patterns
+        # Unknown string key -> ""
+        self.assertEqual(get_config(self.ctx, "unknown_key"), "")
+
+        # Keys ending in _lru -> []
+        self.assertEqual(get_config(self.ctx, "some_new_lru"), [])
+
+        # Keys containing by_endpoint -> {}
+        self.assertEqual(get_config(self.ctx, "custom_by_endpoint"), {})
+
+        # Keys containing _map -> {}
+        self.assertEqual(get_config(self.ctx, "some_custom_map"), {})
 
 if __name__ == '__main__':
     unittest.main()

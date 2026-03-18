@@ -234,16 +234,44 @@ class SetCellStyle(ToolBase):
         rn = kwargs.get("range_name") or []
         rn = [rn] if isinstance(rn, str) else (rn or [])
 
+        # Strict color validation: callers/tests expect invalid color strings
+        # to produce a consistent `{status:"error"}` payload rather than
+        # silently treating unparseable values as "no change".
+        def _parse_or_error(color_key: str):
+            raw = kwargs.get(color_key)
+            if raw is None:
+                return None
+            if isinstance(raw, str) and raw.strip() == "":
+                return None
+            if not isinstance(raw, str):
+                return None  # schema should be string, but don't hard-fail
+            parsed = _parse_color(raw)
+            if parsed is None:
+                return {"__error__": f"Invalid {color_key}: '{raw}'"}
+            return parsed
+
+        bg_color = _parse_or_error("bg_color")
+        if isinstance(bg_color, dict) and "__error__" in bg_color:
+            return {"status": "error", "error": bg_color["__error__"]}
+
+        font_color = _parse_or_error("font_color")
+        if isinstance(font_color, dict) and "__error__" in font_color:
+            return {"status": "error", "error": font_color["__error__"]}
+
+        border_color = _parse_or_error("border_color")
+        if isinstance(border_color, dict) and "__error__" in border_color:
+            return {"status": "error", "error": border_color["__error__"]}
+
         style_kwargs = {
             "bold": kwargs.get("bold"),
             "italic": kwargs.get("italic"),
-            "bg_color": _parse_color(kwargs.get("bg_color")),
-            "font_color": _parse_color(kwargs.get("font_color")),
+            "bg_color": bg_color,
+            "font_color": font_color,
             "font_size": kwargs.get("font_size"),
             "h_align": kwargs.get("h_align"),
             "v_align": kwargs.get("v_align"),
             "wrap_text": kwargs.get("wrap_text"),
-            "border_color": _parse_color(kwargs.get("border_color")),
+            "border_color": border_color,
             "number_format": kwargs.get("number_format"),
         }
 

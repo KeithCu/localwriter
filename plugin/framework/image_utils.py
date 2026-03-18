@@ -80,6 +80,7 @@ class EndpointImageProvider(ImageProvider):
             fallback_content = chat_resp.get("content") or ""
 
             # Parse response: OpenRouter etc. may put image in message.images[].image_url.url
+            paths = []
             for img in (chat_resp.get("images") or []):
                 url = None
                 if isinstance(img, dict):
@@ -94,9 +95,12 @@ class EndpointImageProvider(ImageProvider):
                 if "data:image" in url:
                     match = re.search(r'base64,([A-Za-z0-9+/=]+)', url)
                     if match:
-                        return self._save_b64(match.group(1)), ""
+                        paths.extend(self._save_b64(match.group(1)))
                 elif url.startswith("http"):
-                    return self._save_url(url), ""
+                    paths.extend(self._save_url(url))
+
+            if paths:
+                return paths, ""
         else:
             # Use standard /images/generations endpoint (Together, OpenAI, etc.). Optional source_image for img2img.
             valid_steps = steps if (steps is not None and steps > 0) else None
@@ -119,15 +123,20 @@ class EndpointImageProvider(ImageProvider):
                 debug_log("=== Image Response: %s" % json.dumps(result, indent=2), context="API")
 
                 # Standard OpenAI format: {"data": [{"url": "...", "b64_json": "..."}]}
+                paths = []
                 for img in (result.get("data") or []):
                     if b64 := img.get("b64_json"):
-                        return self._save_b64(b64), ""
-                    if url := img.get("url"):
+                        paths.extend(self._save_b64(b64))
+                    elif url := img.get("url"):
                         if "data:image" in url:
                             match = re.search(r'base64,([A-Za-z0-9+/=]+)', url)
                             if match:
-                                return self._save_b64(match.group(1)), ""
-                        return self._save_url(url), ""
+                                paths.extend(self._save_b64(match.group(1)))
+                        else:
+                            paths.extend(self._save_url(url))
+
+                if paths:
+                    return paths, ""
             except Exception:
                 logger.exception("Image generation failed")
                 raise

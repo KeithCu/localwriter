@@ -212,6 +212,13 @@ def run_all_tests(ctx: Any) -> str:
     except ImportError:
         pass
 
+    # History DB tests (native-only, UNO-based)
+    try:
+        import plugin.tests.test_history_db as test_history_db
+        _run_suite(ctx, suites, "history.test_history_db", test_history_db)
+    except ImportError:
+        pass
+
     # Draw / Impress tests
     try:
         from plugin.framework.document import is_draw  # local import
@@ -285,6 +292,13 @@ def main() -> int:
             desktop.terminate()
     except Exception:
         pass
+
+    # Print a compact "tail" summary so callers can scan results quickly
+    # even when the output above includes verbose tracebacks/log spam.
+    total_passed = int(summary.get("total_passed", 0) or 0)
+    total_failed = int(summary.get("total_failed", 0) or 0)
+    print(f'"total_passed": {total_passed},', flush=True)
+    print(f'"total_failed": {total_failed},', flush=True)
 
     return 0 if int(summary.get("total_failed", 0) or 0) == 0 else 1
 

@@ -143,6 +143,72 @@ class TestEndpointImageProvider(unittest.TestCase):
         except AttributeError as e:
             self.fail(f"Scoping bug still present! AttributeError: {e}")
 
+    def test_generate_error_handling_missing_fields(self):
+        """When provider response lacks expected image fields, ensure we return ([], '')."""
+        self.mock_client.config.get.side_effect = lambda k, d=None: True if k == "is_openrouter" else d
+        self.mock_client.make_chat_request.return_value = ("POST", "/chat", "{}", {})
+
+        # Missing image_url key
+        mock_resp = {
+            "images": [{"wrong_key": "http://example.com/image.png"}]
+        }
+        self.mock_client.request_with_tools.return_value = mock_resp
+
+        paths, err = self.provider.generate("test prompt")
+        self.assertEqual(paths, [])
+        self.assertEqual(err, "")
+
+    @patch('plugin.framework.image_utils.sync_request')
+    def test_generate_multi_image(self, mock_sync):
+        """If provider returns multiple images, ensure paths preserves ordering and all paths are created/cleaned."""
+        self.mock_client.config.get.return_value = False # Not OpenRouter
+        self.mock_client.make_image_request.return_value = ("POST", "/images", "{}", {})
+
+        # Mock standard connection and response with multiple images
+        mock_conn = MagicMock()
+        self.mock_client._get_connection.return_value = mock_conn
+
+        b64_data = base64.b64encode(b"multi-image-b64-data").decode()
+        mock_sync.return_value = b"multi-image-url-data"
+
+        mock_http_resp = create_mock_http_response(200, {"data": [
+            {"b64_json": b64_data},
+            {"url": "http://example.com/multi_image.png"}
+        ]})
+        mock_conn.getresponse.return_value = mock_http_resp
+
+        paths, err = self.provider.generate("test prompt")
+
+        self.assertEqual(len(paths), 2)
+        self.assertEqual(err, "")
+
+        self.assertTrue(paths[0].endswith(".png"))
+        with open(paths[0], 'rb') as f:
+            self.assertEqual(f.read(), b"multi-image-b64-data")
+
+        self.assertTrue(paths[1].endswith(".webp"))
+        mock_sync.assert_called_once_with("http://example.com/multi_image.png", parse_json=False)
+
+        os.unlink(paths[0])
+        os.unlink(paths[1])
+
+    def test_fallback_logic_invalid_data_url(self):
+        """For OpenRouter fallback content path, verify behavior when content contains a partial/invalid data URL string."""
+        self.mock_client.config.get.side_effect = lambda k, d=None: True if k == "is_openrouter" else d
+        self.mock_client.make_chat_request.return_value = ("POST", "/chat", "{}", {})
+
+        # Invalid data URL
+        mock_resp = {
+            "content": "Check this out: data:image/png;invalid",
+            "images": []
+        }
+        self.mock_client.request_with_tools.return_value = mock_resp
+
+        paths, err = self.provider.generate("test prompt")
+
+        self.assertEqual(paths, [])
+        self.assertEqual(err, "")
+
     @patch('plugin.framework.image_utils.LlmClient')
     def test_edit_image_openrouter_sends_multimodal_message(self, mock_client_cls):
         """When OpenRouter and source_image are set, make_chat_request receives message content with text + image_url."""

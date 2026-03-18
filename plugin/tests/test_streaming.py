@@ -321,5 +321,158 @@ class TestFinishReasonRemap(unittest.TestCase):
         self.assertIsNotNone(result.get("tool_calls"))
 
 
+class TestStreamingComplexDeltas(unittest.TestCase):
+    """Mixed content and tool_calls, and chunking irregularities."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
+    def test_mixed_content_and_tool_calls_ordering(self, mock_init_logging, mock_debug_log):
+        """Provider emits partial content before tool_calls; ensure both are accumulated correctly."""
+        chunks = [
+            {
+                "choices": [{
+                    "delta": {"role": "assistant", "content": "I will use "},
+                }],
+            },
+            {
+                "choices": [{
+                    "delta": {"content": "the tool now."},
+                }],
+            },
+            {
+                "choices": [{
+                    "delta": {
+                        "tool_calls": [
+                            {"index": 0, "id": "call_1", "type": "function", "function": {"name": "foo", "arguments": "{\""}},
+                        ],
+                    },
+                }],
+            },
+            {
+                "choices": [{
+                    "delta": {
+                        "tool_calls": [
+                            {"index": 0, "function": {"arguments": "arg\": \"val\"}"}},
+                        ],
+                    },
+                }],
+            },
+            _make_chat_chunk(content="", finish_reason="tool_calls"),
+        ]
+        lines = _make_sse_lines(*chunks)
+        client = LlmClient(self.config, self.ctx)
+        client._get_connection = lambda: _mock_connection_with_sse_lines(lines)
+
+        result = client.stream_request_with_tools(
+            [{"role": "user", "content": "do something"}],
+            max_tokens=100,
+            tools=[{"type": "function", "function": {"name": "foo", "description": "x"}}],
+        )
+
+        self.assertEqual(result["content"], "I will use the tool now.")
+        self.assertEqual(result["finish_reason"], "tool_calls")
+        self.assertIsNotNone(result.get("tool_calls"))
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(result["tool_calls"][0]["function"]["name"], "foo")
+        self.assertEqual(result["tool_calls"][0]["function"]["arguments"], '{"arg": "val"}')
+
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
+    def test_tool_call_arguments_split_across_chunks(self, mock_init_logging, mock_debug_log):
+        """Tool-call argument strings split mid-JSON across multiple SSE chunks concatenate correctly."""
+        chunks = [
+            {
+                "choices": [{
+                    "delta": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {"index": 0, "id": "call_1", "type": "function", "function": {"name": "foo", "arguments": "{\""}},
+                        ],
+                    },
+                }],
+            },
+            {
+                "choices": [{
+                    "delta": {
+                        "tool_calls": [
+                            {"index": 0, "function": {"arguments": "arg\": \"val\"}"}},
+                        ],
+                    },
+                }],
+            },
+            _make_chat_chunk(content="", finish_reason="tool_calls"),
+        ]
+        lines = _make_sse_lines(*chunks)
+        client = LlmClient(self.config, self.ctx)
+        client._get_connection = lambda: _mock_connection_with_sse_lines(lines)
+
+        result = client.stream_request_with_tools(
+            [{"role": "user", "content": "do something"}],
+            max_tokens=100,
+            tools=[{"type": "function", "function": {"name": "foo", "description": "x"}}],
+        )
+
+        self.assertEqual(result["finish_reason"], "tool_calls")
+        self.assertIsNotNone(result.get("tool_calls"))
+        self.assertEqual(len(result["tool_calls"]), 1)
+        self.assertEqual(result["tool_calls"][0]["function"]["name"], "foo")
+        self.assertEqual(result["tool_calls"][0]["function"]["arguments"], '{"arg": "val"}')
+
+
+def _mock_error_connection(status, reason, body):
+    """Return a mock HTTPConnection that simulates a non-200 response with a body."""
+    conn = MagicMock()
+    response = MagicMock()
+    response.status = status
+    response.reason = reason
+    response.getheader.return_value = None
+    response.read.return_value = body
+    conn.getresponse.return_value = response
+    return conn
+
+
+class TestStreamingHttpErrors(unittest.TestCase):
+    """Test non-200 HTTP error envelope parsing."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+
+    @patch("plugin.modules.http.client.debug_log")
+    @patch("plugin.modules.http.client.init_logging")
+    def test_http_error_envelope_parsing(self, mock_init_logging, mock_debug_log):
+        """Confirm HTTP error bodies are converted into friendly UI exception messages."""
+        client = LlmClient(self.config, self.ctx)
+
+        # Scenario 1: JSON body with detailed error
+        json_error_body = b'{"error": {"message": "Model not found"}}'
+        client._get_connection = lambda: _mock_error_connection(404, "Not Found", json_error_body)
+
+        with self.assertRaises(Exception) as ctx:
+            client.stream_request(
+                "POST", "/v1/chat/completions", b"{}", {},
+                lambda t: None,
+            )
+        # `format_error_message` operates on the string for generic Exception,
+        # meaning it outputs what `_format_http_error_response` built, which is
+        # "HTTP Error <status>: <reason>. <detail>"
+        self.assertEqual(str(ctx.exception), "HTTP Error 404: Not Found. Model not found")
+
+        # Scenario 2: Non-JSON body (e.g., HTML or plain text)
+        plain_error_body = b"Internal Server Error: Database Down"
+        client._get_connection = lambda: _mock_error_connection(500, "Internal Server Error", plain_error_body)
+
+        with self.assertRaises(Exception) as ctx:
+            client.stream_request(
+                "POST", "/v1/chat/completions", b"{}", {},
+                lambda t: None,
+            )
+        self.assertEqual(str(ctx.exception), "HTTP Error 500: Internal Server Error. Internal Server Error: Database Down")
+
+
 if __name__ == "__main__":
     unittest.main()
