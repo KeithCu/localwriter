@@ -181,6 +181,7 @@ def run_all_tests(ctx: Any) -> str:
 
     import os
     import importlib.util
+    import sys
 
     tests_dir = os.path.join(os.path.dirname(__file__), "tests", "uno")
 
