@@ -171,7 +171,7 @@ class QueryTextListener(unohelper.Base, XTextListener):
 class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XActionListener):
     """Listener for the Send button - runs chat with document, supports tool-calling."""
 
-    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None, web_research_checkbox=None, ensure_path_fn=None):
+    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None, web_research_checkbox=None, ensure_path_fn=None, controls=None):
         self.ctx = ctx
         self.frame = frame
         self.send_control = send_control
@@ -182,6 +182,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
         self.model_selector = model_selector
         self.status_control = status_control
         self.session = session
+        self.controls = controls or {}
         self.direct_image_checkbox = direct_image_checkbox
         self.aspect_ratio_selector = aspect_ratio_selector
         self.base_size_input = base_size_input
@@ -238,15 +239,43 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
         except Exception:
             pass
 
-    def _append_response(self, text, is_thinking=False):
-        """Append text to the response area."""
+    def _append_response(self, text, is_thinking=False, role=None):
+        """Append text to the response area or rich text document."""
         try:
-            if self.response_control and self.response_control.getModel():
+            rich_doc = self.controls.get("rich_response_doc") if hasattr(self, "controls") else None
+            if rich_doc:
+                from plugin.modules.chatbot.rich_text import append_rich_text
+                # Determine role automatically if not provided, based on text hints
+                if not role:
+                    if text.startswith("\nYou: "):
+                        role = "user"
+                        text = text[len("\nYou: "):]
+                    elif text.startswith("You: "):
+                        role = "user"
+                        text = text[len("You: "):]
+                    elif text.startswith("\nAssistant: "):
+                        role = "assistant"
+                        text = text[len("\nAssistant: "):]
+                    elif text.startswith("Assistant: "):
+                        role = "assistant"
+                        text = text[len("Assistant: "):]
+                    elif text.startswith("\nAI: "):
+                        role = "assistant"
+                        text = text[len("\nAI: "):]
+                    elif text.startswith("AI: "):
+                        role = "assistant"
+                        text = text[len("AI: "):]
+                    elif text.startswith("[") or text.startswith("\n["):
+                        role = "system"
+
+                if text:
+                    append_rich_text(rich_doc, text, role)
+            elif self.response_control and self.response_control.getModel():
                 current = self.response_control.getModel().Text or ""
                 self.response_control.getModel().Text = current + text
                 self._scroll_response_to_bottom()
-        except Exception:
-            pass
+        except Exception as e:
+            debug_log(f"_append_response error: {e}", context="Chat")
 
     def _on_mcp_request(self, tool="", args=None, method=None, **kwargs):
         """Handle MCP request events from the bus (background thread)."""
@@ -533,7 +562,7 @@ class StopButtonListener(unohelper.Base, XActionListener):
 class ClearButtonListener(unohelper.Base, XActionListener):
     """Listener for the Clear button - resets conversation history."""
 
-    def __init__(self, session, response_control, status_control, greeting=""):
+    def __init__(self, session, controls, status_control, greeting=""):
         self.session = session
         # NOTE: When enabling the experimental planning/todo tool, consider
         # attaching a session-scoped TodoStore to the SendButtonListener and
@@ -541,7 +570,7 @@ class ClearButtonListener(unohelper.Base, XActionListener):
         # task list, e.g.:
         #   from plugin.contrib.todo_store import TodoStore
         #   send_listener._todo_store = TodoStore()
-        self.response_control = response_control
+        self.controls = controls
         self.status_control = status_control
         self.greeting = greeting
 
@@ -553,9 +582,20 @@ class ClearButtonListener(unohelper.Base, XActionListener):
 
     def actionPerformed(self, evt):
         self.session.clear()
-        if self.response_control and self.response_control.getModel():
-            text = self.greeting + "\n" if self.greeting else ""
-            self.response_control.getModel().Text = text
+
+        rich_doc = self.controls.get("rich_response_doc")
+        if rich_doc:
+            try:
+                from plugin.modules.chatbot.rich_text import clear_rich_text
+                clear_rich_text(rich_doc, self.greeting)
+            except Exception as e:
+                debug_log(f"ClearButtonListener rich text error: {e}", context="Chat")
+        else:
+            response_control = self.controls.get("response")
+            if response_control and response_control.getModel():
+                text = self.greeting + "\n" if self.greeting else ""
+                response_control.getModel().Text = text
+
         if self.status_control:
             self.status_control.setText("")
 
