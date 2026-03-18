@@ -62,6 +62,7 @@ def insert_image(ctx, model, img_path, width_px, height_px, title="", descriptio
         add_image_to_gallery(ctx, img_path, f"{title}\n\n{description}")
 
 def _insert_image_to_writer(model, img_path, width, height, title, description, add_frame):
+    doc_text = model.getText()
     image = model.createInstance("com.sun.star.text.GraphicObject")
     image.GraphicURL = uno.systemPathToFileUrl(img_path)
     image.AnchorType = AS_CHARACTER
@@ -71,18 +72,26 @@ def _insert_image_to_writer(model, img_path, width, height, title, description, 
     image.Description = description
     
     view_cursor = model.CurrentController.ViewCursor
+    
+    def to_text_cursor(vc):
+        # LibreOffice's Text.insertTextContent expects a TextCursor tied to the
+        # document's text (not a ViewCursor from the controller).
+        return doc_text.createTextCursorByRange(vc.getStart())
 
     if add_frame:
         _insert_frame(model, view_cursor, image, width, height, title)
     else:
         try:
-            model.Text.insertTextContent(view_cursor, image, False)
+            text_cursor = to_text_cursor(view_cursor)
+            doc_text.insertTextContent(text_cursor, image, False)
         except Exception:
             # Fallback if cursor position is invalid (e.g. inside a field)
             view_cursor.jumpToStartOfPage()
-            model.Text.insertTextContent(view_cursor, image, False)
+            text_cursor = to_text_cursor(view_cursor)
+            doc_text.insertTextContent(text_cursor, image, False)
 
 def _insert_frame(model, cursor, image, width, height, title):
+    doc_text = model.getText()
     text_frame = model.createInstance("com.sun.star.text.TextFrame")
     frame_size = Size()
     frame_size.Height = height + 150 # Small padding for title
@@ -91,10 +100,13 @@ def _insert_frame(model, cursor, image, width, height, title):
     text_frame.setPropertyValue("AnchorType", AT_FRAME)
     
     try:
-        model.getText().insertTextContent(cursor, text_frame, False)
+        # `cursor` comes from the view layer; convert to a TextCursor.
+        text_cursor = doc_text.createTextCursorByRange(cursor.getStart())
+        doc_text.insertTextContent(text_cursor, text_frame, False)
     except Exception:
         cursor.jumpToStartOfPage()
-        model.getText().insertTextContent(cursor, text_frame, False)
+        text_cursor = doc_text.createTextCursorByRange(cursor.getStart())
+        doc_text.insertTextContent(text_cursor, text_frame, False)
 
     frame_text = text_frame.getText()
     frame_cursor = frame_text.createTextCursor()
