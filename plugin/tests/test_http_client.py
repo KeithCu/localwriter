@@ -237,3 +237,116 @@ def test_make_chat_request_system_content_can_be_list():
 
     decoded = json.loads(body.decode("utf-8"))
     assert decoded["messages"][0]["content"] == structured_system_content
+
+
+def test_stream_request_with_tools_tls_retry():
+    import ssl
+    ctx = MockContext()
+    # Using a local HTTPS endpoint triggers the verified/unverified retry logic
+    client = LlmClient({"endpoint": "https://localhost:11434"}, ctx)
+
+    mock_responses = [
+        b'data: {"choices": [{"delta": {"role": "assistant", "content": "Success"}}]}\n\n',
+        b"data: [DONE]\n\n",
+    ]
+
+    with patch("http.client.HTTPSConnection") as mock_https, \
+         patch("plugin.modules.http.client.get_unverified_ssl_context") as mock_unverified_ssl:
+        mock_unverified_ssl.return_value = "unverified_context"
+
+        # We need two connection objects: one for the first try, one for the retry
+        mock_conn1 = MagicMock()
+        mock_conn2 = MagicMock()
+        mock_https.side_effect = [mock_conn1, mock_conn2]
+
+        # The first request raises an SSLCertVerificationError
+        mock_conn1.request.side_effect = ssl.SSLCertVerificationError("self-signed certificate")
+
+        # The second request succeeds and returns a mock response
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.__iter__.return_value = iter(mock_responses)
+        mock_conn2.getresponse.return_value = mock_response
+
+        messages = [{"role": "user", "content": "Hello"}]
+
+        result = client.stream_request_with_tools(
+            messages=messages,
+            max_tokens=100
+        )
+
+        assert mock_https.call_count == 2
+
+        # The first connection was created with the default (verified) context
+        _, kwargs1 = mock_https.call_args_list[0]
+        # The second connection was created with the unverified context
+        _, kwargs2 = mock_https.call_args_list[1]
+        assert kwargs2["context"] == "unverified_context"
+
+        assert result["content"] == "Success"
+
+def test_stream_request_with_tools_malformed_tool_arguments():
+    ctx = MockContext()
+    # Explicitly instantiate with an HTTPS endpoint so the HTTPSConnection mock is hit
+    client = LlmClient({"endpoint": "https://api.openai.com", "model": "gpt-4"}, ctx)
+
+    # This simulates a provider sending deltas that concatenate to a malformed
+    # JSON string (missing closing brace/quote) inside the tool function arguments.
+    mock_responses = [
+        b'data: {"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_123", "type": "function", "function": {"name": "get_weather", "arguments": "{\\"loc"}}]}}]}\n\n',
+        b'data: {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "ation\\": \\"NY"}}]}}]}\n\n',
+        b'data: {"choices": [{"finish_reason": "tool_calls", "delta": {}}]}\n\n',
+        b"data: [DONE]\n\n",
+    ]
+
+    with patch("http.client.HTTPSConnection") as mock_https:
+        mock_conn = MagicMock()
+        mock_https.return_value = mock_conn
+
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.__iter__.return_value = iter(mock_responses)
+        mock_conn.getresponse.return_value = mock_response
+
+        messages = [{"role": "user", "content": "What is the weather?"}]
+        tools = [{"type": "function", "function": {"name": "get_weather"}}]
+
+        result = client.stream_request_with_tools(
+            messages=messages,
+            max_tokens=100,
+            tools=tools,
+        )
+
+        assert len(result["tool_calls"]) == 1
+        # It shouldn't crash trying to parse it as JSON, it should just emit
+        # the literal concatenated string so downstream layers handle it.
+        assert result["tool_calls"][0]["function"]["arguments"] == '{"location": "NY'
+        assert result["finish_reason"] == "tool_calls"
+
+def test_make_chat_request_mixed_structured_blocks():
+    """
+    Ensure make_chat_request properly serializes a list of structured message
+    parts (e.g., text, input_audio, image_url) as the user message content.
+    """
+    ctx = MockContext()
+    client = LlmClient({"endpoint": "http://test", "model": "test-model"}, ctx)
+
+    mixed_user_content = [
+        {"type": "text", "text": "What is this?"},
+        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,12345"}}
+    ]
+
+    messages = [
+        {"role": "user", "content": mixed_user_content}
+    ]
+
+    method, path, body, headers = client.make_chat_request(messages, max_tokens=100)
+
+    decoded = json.loads(body.decode("utf-8"))
+
+    # We expect length 2: the auto-injected system message for the date,
+    # and the user message containing our mixed block list.
+    assert len(decoded["messages"]) == 2
+    assert decoded["messages"][0]["role"] == "system"
+    assert decoded["messages"][1]["role"] == "user"
+    assert decoded["messages"][1]["content"] == mixed_user_content
