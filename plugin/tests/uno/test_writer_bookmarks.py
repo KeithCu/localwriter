@@ -61,7 +61,7 @@ def test_ensure_heading_bookmarks_and_map():
         pass
 
     events = EventBus()
-    doc_svc = DocumentService(events)
+    doc_svc = DocumentService()
     bookmark_svc = BookmarkService(doc_svc, events)
 
     # Initially no bookmarks
@@ -95,7 +95,7 @@ def test_find_nearest_heading_bookmark():
         pass
 
     events = EventBus()
-    doc_svc = DocumentService(events)
+    doc_svc = DocumentService()
     bookmark_svc = BookmarkService(doc_svc, events)
 
     bookmark_map = bookmark_svc.ensure_heading_bookmarks(_test_doc)
@@ -122,7 +122,7 @@ def test_cleanup_mcp_bookmarks():
         pass
 
     events = EventBus()
-    doc_svc = DocumentService(events)
+    doc_svc = DocumentService()
     bookmark_svc = BookmarkService(doc_svc, events)
 
     # Ensure we have some bookmarks

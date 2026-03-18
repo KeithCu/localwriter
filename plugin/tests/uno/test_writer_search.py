@@ -70,7 +70,9 @@ class MockServices:
         from plugin.framework.document import DocumentService
         from plugin.framework.events import EventBus
         self.events = EventBus()
-        self.document = DocumentService(self.events)
+        # DocumentService does not take constructor arguments; it uses the
+        # active UNO context when needed.
+        self.document = DocumentService()
         self.writer_index = MockWriterIndexService()
 
 @native_test
@@ -96,7 +98,10 @@ def test_search_in_document_basic():
     assert match1["paragraph_index"] == 1
 
     match2 = res["matches"][1]
-    assert match2["text"] == "needle"
+    # SearchInDocument returns the matched substring with original casing
+    # from the paragraph text. The second match comes from "Needles..."
+    # so the 6-letter substring is "Needle".
+    assert match2["text"] == "Needle"
     assert match2["paragraph_index"] == 2
 
 @native_test

@@ -73,11 +73,13 @@ def run_module_suite(ctx, module, name, doc_model=None):
     # Discover decorators, iterating over module dict to preserve insertion (definition) order
     for _, attr in module.__dict__.items():
         if callable(attr):
-            if getattr(attr, "_is_setup", False):
+            # `MagicMock` returns truthy values for any attribute access, so we must
+            # check for an explicit boolean marker set by our decorators.
+            if getattr(attr, "_is_setup", False) is True:
                 setup_func = attr
-            elif getattr(attr, "_is_teardown", False):
+            elif getattr(attr, "_is_teardown", False) is True:
                 teardown_func = attr
-            elif getattr(attr, "_is_test", False):
+            elif getattr(attr, "_is_test", False) is True:
                 test_funcs.append(attr)
 
     # Discovery fallback: if no @test functions, check for old run_*_tests approach
@@ -98,8 +100,21 @@ def run_module_suite(ctx, module, name, doc_model=None):
 
     try:
         if setup_func:
-            log.append(f"Running setup: {setup_func.__name__}")
-            setup_func(ctx)
+            setup_name = getattr(setup_func, "__name__", repr(setup_func))
+            log.append(f"Running setup: {setup_name}")
+            import inspect
+            try:
+                sig = inspect.signature(setup_func)
+                expects_ctx = any(
+                    p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+                    for p in sig.parameters.values()
+                ) or any(p.kind == p.VAR_POSITIONAL for p in sig.parameters.values())
+            except Exception:
+                expects_ctx = True
+            if expects_ctx:
+                setup_func(ctx)
+            else:
+                setup_func()
 
         for test_func in test_funcs:
             try:
@@ -109,6 +124,15 @@ def run_module_suite(ctx, module, name, doc_model=None):
                 test_func()
                 total_passed += 1
                 log.append(f"OK: {test_func.__name__}")
+            except ModuleNotFoundError as e:
+                # Some "native" tests attempt to use pytest.skip, but LibreOffice's
+                # Python may not have pytest installed.
+                if getattr(e, "name", None) == "pytest":
+                    log.append(f"SKIP: {test_func.__name__} (pytest not available)")
+                    continue
+                total_failed += 1
+                log.append(f"FAIL: {test_func.__name__} (ModuleNotFoundError: {e})")
+                log.append(traceback.format_exc())
             except AssertionError as e:
                 total_failed += 1
                 log.append(f"FAIL: {test_func.__name__} (AssertionError: {e})")
@@ -125,8 +149,23 @@ def run_module_suite(ctx, module, name, doc_model=None):
     finally:
         if teardown_func:
             try:
-                log.append(f"Running teardown: {teardown_func.__name__}")
-                teardown_func(ctx)
+                teardown_name = getattr(teardown_func, "__name__", repr(teardown_func))
+                log.append(f"Running teardown: {teardown_name}")
+                import inspect
+                try:
+                    sig = inspect.signature(teardown_func)
+                    expects_ctx = any(
+                        p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+                        for p in sig.parameters.values()
+                    ) or any(
+                        p.kind == p.VAR_POSITIONAL for p in sig.parameters.values()
+                    )
+                except Exception:
+                    expects_ctx = True
+                if expects_ctx:
+                    teardown_func(ctx)
+                else:
+                    teardown_func()
             except Exception as e:
                 total_failed += 1
                 log.append(f"TEARDOWN EXCEPTION: {e}")
@@ -187,12 +226,44 @@ def run_all_tests(ctx: Any) -> str:
 
     if os.path.isdir(tests_dir):
         # Discover and run all test modules in the tests/uno directory
+        # Some "native" test modules are actually designed for plain Python and
+        # temporarily replace sys.modules entries like `com.sun.star.*` with
+        # MagicMocks. Since this runner imports multiple test modules into the
+        # same interpreter, those mocks must not leak across module boundaries.
+        _SYS_MODULE_KEYS_TO_RESTORE = [
+            # UNO / bridge related (used by multiple uno test modules)
+            "uno",
+            "unohelper",
+            # UNO "com.sun.star.*" namespaces
+            "com",
+            "com.sun",
+            "com.sun.star",
+            "com.sun.star.awt",
+            "com.sun.star.ui",
+            "com.sun.star.ui.UIElementType",
+            "com.sun.star.task",
+            # Some test modules also mock the project "core.*" modules.
+            "core",
+            "core.logging",
+            "core.async_stream",
+            "core.config",
+            "core.api",
+            "core.document",
+            "core.document_tools",
+            "core.constants",
+        ]
+        _MISSING = object()
+
         for filename in sorted(os.listdir(tests_dir)):
             if (filename.startswith("test_") or filename.endswith("_tests.py")) and filename.endswith(".py"):
                 module_name = filename[:-3]
                 module_path = os.path.join(tests_dir, filename)
 
                 try:
+                    restore_snapshot = None
+                    restore_snapshot = {
+                        k: sys.modules.get(k, _MISSING) for k in _SYS_MODULE_KEYS_TO_RESTORE
+                    }
                     spec = importlib.util.spec_from_file_location(f"plugin.tests.uno.{module_name}", module_path)
                     if spec is None or spec.loader is None:
                         continue
@@ -216,6 +287,14 @@ def run_all_tests(ctx: Any) -> str:
                     print(f"Skipping {filename} due to ImportError: {e}")
                 except Exception as e:
                     print(f"Error loading {filename}: {e}")
+                finally:
+                    # Prevent sys.modules mocking from polluting later native tests.
+                    if restore_snapshot is not None:
+                        for k, v in restore_snapshot.items():
+                            if v is _MISSING:
+                                sys.modules.pop(k, None)
+                            else:
+                                sys.modules[k] = v
 
     for suite in suites:
         total_passed += int(suite.get("passed", 0) or 0)
