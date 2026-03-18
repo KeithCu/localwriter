@@ -134,3 +134,95 @@ def test_send_cors_headers_rejected():
 
         headers_dict = dict(handler.sent_headers)
         assert "Access-Control-Allow-Origin" not in headers_dict
+
+def test_handle_mcp_post_missing_content_length():
+    """Test missing Content-Length header returns a structured JSON-RPC error."""
+    services = MagicMock()
+    mcp_protocol = MCPProtocolHandler(services)
+
+    # Missing Content-Length means _read_body returns {}
+    # and _handle_mcp processes {} which results in a 400 JSON-RPC error.
+    body_bytes = b'{"jsonrpc": "2.0", "method": "test"}'
+    headers = {}  # No Content-Length
+    handler = MockHandler(headers, body_bytes)
+
+    mcp_protocol.handle_mcp_post(handler)
+
+    assert 400 in handler.sent_responses
+    response_data = json.loads(handler.wfile.getvalue().decode("utf-8"))
+    assert response_data.get("jsonrpc") == "2.0"
+    assert response_data.get("id") is None
+    assert "error" in response_data
+    assert response_data["error"].get("code") == -32600
+    assert "Invalid JSON-RPC" in response_data["error"].get("message", "")
+
+def test_handle_mcp_post_truncated_json():
+    """Test when Content-Length is larger than body (truncated JSON).
+    Should hit invalid-json path and not call _handle_mcp."""
+    services = MagicMock()
+    mcp_protocol = MCPProtocolHandler(services)
+
+    with patch.object(mcp_protocol, '_handle_mcp') as mock_handle_mcp:
+        # A valid json but we say it's much longer than it is.
+        # Wait, if we use a valid json but rfile.read returns it, it might still parse valid!
+        # Let's provide an actual truncated json.
+        body_bytes = b'{"jsonrpc": "2.0", "method":'
+        headers = {"Content-Length": "100"}  # Claiming it's 100 bytes long
+        handler = MockHandler(headers, body_bytes)
+
+        mcp_protocol.handle_mcp_post(handler)
+
+        mock_handle_mcp.assert_not_called()
+        assert 400 in handler.sent_responses
+
+        response_data = json.loads(handler.wfile.getvalue().decode("utf-8"))
+        assert "error" in response_data
+        assert response_data["error"] == "Invalid JSON"
+
+def test_handle_mcp_invalid_json_rpc():
+    """Test when JSON-RPC method format is unknown or invalid.
+    Ensure invalid JSON-RPC method formats return the expected error shape."""
+    services = MagicMock()
+    mcp_protocol = MCPProtocolHandler(services)
+
+    # Valid JSON but unknown method
+    body_data = {"jsonrpc": "2.0", "method": "invalid/method", "id": 1}
+    body_bytes = json.dumps(body_data).encode("utf-8")
+    headers = {"Content-Length": str(len(body_bytes))}
+    handler = MockHandler(headers, body_bytes)
+
+    mcp_protocol.handle_mcp_post(handler)
+
+    assert 400 in handler.sent_responses
+
+    response_data = json.loads(handler.wfile.getvalue().decode("utf-8"))
+    assert response_data.get("jsonrpc") == "2.0"
+    assert response_data.get("id") == 1
+    assert "error" in response_data
+    assert response_data["error"].get("code") == -32601  # Method not found
+    assert "Unknown method" in response_data["error"].get("message", "")
+
+def test_handle_mcp_raises():
+    """Ensure when _handle_mcp raises or its internal handler raises,
+    the server returns a stable error envelope (500)."""
+    services = MagicMock()
+    mcp_protocol = MCPProtocolHandler(services)
+
+    # We patch _mcp_ping (a valid method) to raise an exception
+    with patch.object(mcp_protocol, '_mcp_ping', side_effect=Exception("Test Internal Error")):
+        body_data = {"jsonrpc": "2.0", "method": "ping", "id": 42}
+        body_bytes = json.dumps(body_data).encode("utf-8")
+        headers = {"Content-Length": str(len(body_bytes))}
+        handler = MockHandler(headers, body_bytes)
+
+        mcp_protocol.handle_mcp_post(handler)
+
+        # 500 status code is sent
+        assert 500 in handler.sent_responses
+
+        response_data = json.loads(handler.wfile.getvalue().decode("utf-8"))
+        assert response_data.get("jsonrpc") == "2.0"
+        assert response_data.get("id") == 42
+        assert "error" in response_data
+        assert response_data["error"].get("code") == -32603  # Internal error
+        assert "Test Internal Error" in response_data["error"].get("message", "")
