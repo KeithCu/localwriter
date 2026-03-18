@@ -27,7 +27,7 @@ class DummyChatbotPanel(SendHandlersMixin):
         self.base_size_input = MagicMock()
         self.base_size_input.getText.return_value = "1024"
 
-    def _append_response(self, text):
+    def _append_response(self, text, is_thinking=False, role=None):
         self.responses.append(text)
 
     def _set_status(self, text):

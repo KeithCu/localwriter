@@ -252,7 +252,9 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
         # Second pass: stretch response area to fill remaining vertical gap
         resp_orig = self._initial["ctrls"].get("response")
         resp_ctrl = self._c.get("response")
-        if resp_orig and resp_ctrl:
+        rich_resp_win = self._c.get("rich_response_win")
+
+        if resp_orig:
             rx, ry, rw, rh = resp_orig
             gap = gap_below_response
             if gap < 0:
@@ -263,12 +265,26 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
             fixed_margin = 6
             new_rw = max(10, w - rx - fixed_margin)
 
-            cur = resp_ctrl.getPosSize()
-            if (
-                cur.X != rx
-                or cur.Y != ry
-                or cur.Width != new_rw
-                or cur.Height != new_rh
-            ):
-                resp_ctrl.setPosSize(rx, ry, new_rw, new_rh, 15)
+            if resp_ctrl:
+                cur = resp_ctrl.getPosSize()
+                if (
+                    cur.X != rx
+                    or cur.Y != ry
+                    or cur.Width != new_rw
+                    or cur.Height != new_rh
+                ):
+                    resp_ctrl.setPosSize(rx, ry, new_rw, new_rh, 15)
+
+            if rich_resp_win:
+                try:
+                    cur = rich_resp_win.getPosSize()
+                    if (
+                        cur.X != rx
+                        or cur.Y != ry
+                        or cur.Width != new_rw
+                        or cur.Height != new_rh
+                    ):
+                        rich_resp_win.setPosSize(rx, ry, new_rw, new_rh, 15)
+                except Exception as e:
+                    debug_log(f"Resize rich_resp_win error: {e}", context="Chat")
 

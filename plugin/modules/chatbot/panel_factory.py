@@ -194,10 +194,26 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 parent_rect.Width, parent_rect.Height), context="Chat")
         return self.m_panelRootWindow
 
-    def _render_session_history(self, session, response_ctrl, model, greeting=""):
+    def _render_session_history(self, session, controls, model, greeting=""):
         """Update the response control with the contents of the given session."""
         try:
-            if response_ctrl and response_ctrl.getModel():
+            from plugin.modules.chatbot.rich_text import clear_rich_text, append_rich_text
+            rich_doc = controls.get("rich_response_doc")
+            response_ctrl = controls.get("response")
+
+            if rich_doc:
+                clear_rich_text(rich_doc, greeting)
+                for msg in session.messages:
+                    role = msg.get("role", "")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        append_rich_text(rich_doc, content, "user")
+                    elif role == "assistant":
+                        if content:
+                            append_rich_text(rich_doc, content, "assistant")
+                        elif msg.get("tool_calls"):
+                            append_rich_text(rich_doc, "[Thinking...]", "assistant")
+            elif response_ctrl and response_ctrl.getModel():
                 text = greeting + "\n" if greeting else ""
                 
                 # Append loaded history (skipping system context)
@@ -484,7 +500,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 aspect_ratio_selector=controls["aspect_ratio_selector"],
                 base_size_input=controls["base_size_input"],
                 web_research_checkbox=controls["web_research_check"],
-                ensure_path_fn=_ensure_extension_on_path)
+                ensure_path_fn=_ensure_extension_on_path,
+                controls=controls)
 
             if model:
                 if is_calc(model): send_listener.initial_doc_type = "Calc"
@@ -505,7 +522,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         clear_listener = None
         if controls["clear"]:
             try:
-                clear_listener = ClearButtonListener(self.session, controls["response"], controls["status"], greeting=active_greeting)
+                clear_listener = ClearButtonListener(self.session, controls, controls["status"], greeting=active_greeting)
                 controls["clear"].addActionListener(clear_listener)
             except Exception: pass
 
@@ -542,7 +559,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                         debug_log("Research Chat listener error: %s" % e, context="Chat")
                 def disposing(self, ev): pass
             controls["web_research_check"].addItemListener(ResearchChatToggledListener(
-                self, controls["response"], model, send_listener, clear_listener, controls["direct_image_check"], set_control_enabled))
+                self, controls, model, send_listener, clear_listener, controls["direct_image_check"], set_control_enabled))
 
 
 

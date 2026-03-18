@@ -214,18 +214,18 @@ class ToolCallingMixin:
                     if query_text
                     else "[Audio Message]"
                 )
-                self._append_response("\nYou: %s\n" % display_text)
+                self._append_response("\nYou: %s\n" % display_text, role="user")
                 # Note: We do NOT delete the audio file yet, in case native call fails and we need STT fallback
             except Exception as e:
                 debug_log("_do_send: Error reading audio: %s" % e, context="Chat")
                 self.session.add_user_message(query_text)
-                self._append_response("\nYou: %s\n" % query_text)
+                self._append_response("\nYou: %s\n" % query_text, role="user")
                 self.audio_wav_path = None
         else:
             self.session.add_user_message(query_text)
-            self._append_response("\nYou: %s\n" % query_text)
+            self._append_response("\nYou: %s\n" % query_text, role="user")
 
-        self._append_response("\n[Using chat model.]\n")
+        self._append_response("\n[Using chat model.]\n", role="system")
         debug_log("_do_send: using chat model", context="Chat")
 
         self._set_status("Connecting to AI (tools=%s)..." % use_tools)
@@ -292,7 +292,7 @@ class ToolCallingMixin:
         """Spawn a background thread for a final no-tools stream into q."""
         update_activity_state("exhausted_rounds")
         self._set_status("Finishing...")
-        self._append_response("\nAI: ")
+        self._append_response("\nAI: ", role="assistant")
 
         def run_final():
             last_streamed = []
@@ -344,7 +344,7 @@ class ToolCallingMixin:
             % max_tool_rounds,
             context="Chat",
         )
-        self._append_response("\nAI: ")
+        self._append_response("\nAI: ", role="assistant")
 
         q = queue.Queue()
         round_num = 0
@@ -769,7 +769,7 @@ class ToolCallingMixin:
         """Start simple streaming (no tools) via async helper; returns immediately."""
         debug_log("=== Simple stream START ===", context="Chat")
         self._set_status("Thinking...")
-        self._append_response("\nAI: ")
+        self._append_response("\nAI: ", role="assistant")
 
         last_user = ""
         doc_context = ""

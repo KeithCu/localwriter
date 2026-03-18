@@ -70,11 +70,32 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
         extra_instructions = ""
         set_control_enabled = lambda ctrl, en: None
 
-    # 2. Setup Sessions
+    # 2. Setup embedded rich text document if we have a response control
+    try:
+        from plugin.modules.chatbot.rich_text import create_embedded_writer_doc
+        if controls["response"]:
+            # Create our embedded Writer document in the same position.
+            # If this fails, keep the old plain text response visible as a fallback.
+            doc_info = create_embedded_writer_doc(self.ctx, root_window, controls["response"])
+            if doc_info:
+                # Hide the old plain text field only if we created a separate
+                # container window for the rich Writer document.
+                controls["response"].setVisible(False)
+                controls["rich_response_doc"] = doc_info["doc"]
+                controls["rich_response_win"] = doc_info["win"]
+            else:
+                debug_log(
+                    "Rich embedded doc creation failed; leaving plain response control visible",
+                    context="Chat",
+                )
+    except Exception as e:
+        debug_log("Failed to create rich text embedded document: %s" % e, context="Chat")
+
+    # 3. Setup Sessions
     model = self._get_document_model()
     self._setup_sessions(model, extra_instructions)
 
-    # 3. Determine Mode & Greeting
+    # 4. Determine Mode & Greeting
     from plugin.framework.constants import get_greeting_for_document, DEFAULT_RESEARCH_GREETING
     web_checked = False
     if controls["web_research_check"]:
@@ -88,9 +109,9 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
         self.session = self.doc_session
         active_greeting = get_greeting_for_document(model)
 
-    self._render_session_history(self.session, controls["response"], model, active_greeting)
+    self._render_session_history(self.session, controls, model, active_greeting)
 
-    # 4. Buttons
+    # 5. Buttons
     self._wire_buttons(controls, model, active_greeting, set_control_enabled)
 
     # Wire query listener to update Record/Send button label

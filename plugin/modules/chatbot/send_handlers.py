@@ -68,9 +68,9 @@ class SendHandlersMixin:
             self._set_status("Error")
 
     def _do_send_direct_image(self, query_text, model):
-        self._append_response("\nYou: %s\n" % query_text)
-        self._append_response("\n[Using image model (direct).]\n")
-        self._append_response("AI: Creating image...\n")
+        self._append_response("\nYou: %s\n" % query_text, role="user")
+        self._append_response("\n[Using image model (direct).]\n", role="system")
+        self._append_response("AI: Creating image...\n", role="assistant")
         self._set_status("Creating image...")
         q = queue.Queue()
         job_done = [False]
@@ -210,9 +210,9 @@ class SendHandlersMixin:
         from plugin.modules.agent_backend import get_backend
 
         self.session.add_user_message(query_text)
-        self._append_response("\nYou: %s\n" % query_text)
-        self._append_response("\n[Using external agent backend.]\n")
-        self._append_response("AI: ")
+        self._append_response("\nYou: %s\n" % query_text, role="user")
+        self._append_response("\n[Using external agent backend.]\n", role="system")
+        self._append_response("AI: ", role="assistant")
         self._set_status("Starting agent...")
 
         document_url = ""
@@ -380,8 +380,8 @@ class SendHandlersMixin:
         from plugin.main import get_tools
         from plugin.framework.document import is_calc, is_draw
 
-        self._append_response("\nYou: %s\n" % query_text)
-        self._append_response("\n[Using research chat.]\n")
+        self._append_response("\nYou: %s\n" % query_text, role="user")
+        self._append_response("\n[Using research chat.]\n", role="system")
         self._set_status("Starting research...")
 
         # Persist user message to the research session
