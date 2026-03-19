@@ -37,21 +37,6 @@ def teardown_framework_tests(ctx):
 
 
 @native_test
-def test_document_cache():
-    cache1 = DocumentCache.get(_test_doc1)
-    cache1_again = DocumentCache.get(_test_doc1)
-    assert cache1 is cache1_again, "DocumentCache returned different instances for same model"
-
-    cache2 = DocumentCache.get(_test_doc2)
-    assert cache1 is not cache2, "DocumentCache returned same instance for different model"
-
-    DocumentCache.invalidate(_test_doc1)
-    DocumentCache.invalidate(_test_doc2)
-    cache1_new = DocumentCache.get(_test_doc1)
-    assert cache1 is not cache1_new, "DocumentCache.invalidate failed"
-
-
-@native_test
 def test_event_bus():
     from plugin.framework.event_bus import EventBus
     events = EventBus()

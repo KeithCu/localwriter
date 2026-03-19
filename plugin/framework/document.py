@@ -146,28 +146,28 @@ def normalize_linebreaks(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\n\r", "\n").replace("\r", "\n")
 
 
-class DocumentCache:
-    """Cache for expensive UNO calls, tied to a document model."""
-    _instances = {}  # {id(model): cache}
-
-    def __init__(self):
-        self.length = None
-        self.para_ranges = None
-        self.page_cache = {}  # (search_key) -> page_number
-        self.last_invalidated = time.time()
-
-    @classmethod
-    def get(cls, model):
-        mid = id(model)
-        if mid not in cls._instances:
-            cls._instances[mid] = DocumentCache()
-        return cls._instances[mid]
-
-    @classmethod
-    def invalidate(cls, model):
-        mid = id(model)
-        if mid in cls._instances:
-            del cls._instances[mid]
+# class DocumentCache:
+#     """Cache for expensive UNO calls, tied to a document model."""
+#     _instances = {}  # {id(model): cache}
+#
+#     def __init__(self):
+#         self.length = None
+#         self.para_ranges = None
+#         self.page_cache = {}  # (search_key) -> page_number
+#         self.last_invalidated = time.time()
+#
+#     @classmethod
+#     def get(cls, model):
+#         mid = id(model)
+#         if mid not in cls._instances:
+#             cls._instances[mid] = DocumentCache()
+#         return cls._instances[mid]
+#
+#     @classmethod
+#     def invalidate(cls, model):
+#         mid = id(model)
+#         if mid in cls._instances:
+#             del cls._instances[mid]
 
 
 
@@ -285,16 +285,12 @@ _GO_RIGHT_CHUNK = 8192
 
 def get_document_length(model):
     """Return total character length of the document. Returns 0 on error."""
-    cache = DocumentCache.get(model)
-    if cache.length is not None:
-        return cache.length
     try:
         text = model.getText()
         cursor = text.createTextCursor()
         cursor.gotoStart(False)
         cursor.gotoEnd(True)
         length = len(normalize_linebreaks(cursor.getString()))
-        cache.length = length
         return length
     except Exception as e:
         logging.getLogger(__name__).warning("get_document_length exception: %s", type(e).__name__)
@@ -552,17 +548,12 @@ def _inject_markers_into_excerpt(excerpt_text, excerpt_start, excerpt_end, sel_s
 import uuid
 
 def get_paragraph_ranges(model):
-    """Return list of top-level paragraph elements. Uses DocumentCache."""
-    cache = DocumentCache.get(model)
-    if cache.para_ranges is not None:
-        return cache.para_ranges
-    
+    """Return list of top-level paragraph elements."""
     text = model.getText()
     enum = text.createEnumeration()
     ranges = []
     while enum.hasMoreElements():
         ranges.append(enum.nextElement())
-    cache.para_ranges = ranges
     return ranges
 
 
@@ -626,8 +617,6 @@ def build_heading_tree(model):
 
 def ensure_heading_bookmarks(model):
     """Ensure every heading has an _mcp_ bookmark. Returns {para_index: bookmark_name}."""
-    cache = DocumentCache.get(model)
-    
     text = model.getText()
     para_ranges = get_paragraph_ranges(model)
     
@@ -730,9 +719,6 @@ class DocumentService(ServiceBase):
         if is_calc(doc): return "calc"
         if is_draw(doc): return "draw"
         return "writer"
-
-    def invalidate_cache(self, doc):
-        DocumentCache.invalidate(doc)
 
     def is_writer(self, doc): return is_writer(doc)
     def is_calc(self, doc): return is_calc(doc)

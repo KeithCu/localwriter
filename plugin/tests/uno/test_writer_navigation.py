@@ -28,23 +28,12 @@ except ImportError:
 
 from plugin.tests.testing_utils import ElementStub, WriterDocStub
 from plugin.framework.document import (
-    DocumentCache,
     build_heading_tree,
     resolve_locator,
     get_paragraph_ranges
 )
 
 class TestWriterNavigation(unittest.TestCase):
-    def test_document_cache(self):
-        model = WriterDocStub([])
-        cache1 = DocumentCache.get(model)
-        cache2 = DocumentCache.get(model)
-        self.assertIs(cache1, cache2)
-        
-        DocumentCache.invalidate(model)
-        cache3 = DocumentCache.get(model)
-        self.assertIsNot(cache1, cache3)
-
     def test_build_heading_tree(self):
         elements = [
             ElementStub("H1", outline_level=1),
@@ -66,21 +55,6 @@ class TestWriterNavigation(unittest.TestCase):
         h2 = tree["children"][1]
         self.assertEqual(h2["text"], "H2")
         self.assertEqual(h2["body_paragraphs"], 0) # H2 is at end
-
-    def test_get_paragraph_ranges_caching(self):
-        doc = WriterDocStub([ElementStub("P1"), ElementStub("P2")])
-        ranges1 = get_paragraph_ranges(doc)
-        self.assertEqual(len(ranges1), 2)
-        
-        # Change underlying elements, but cache should remain
-        doc.elements = [ElementStub("P3")]
-        ranges2 = get_paragraph_ranges(doc)
-        self.assertEqual(len(ranges2), 2)
-        self.assertEqual(ranges1, ranges2)
-        
-        DocumentCache.invalidate(doc)
-        ranges3 = get_paragraph_ranges(doc)
-        self.assertEqual(len(ranges3), 1)
 
     def test_resolve_locator(self):
         doc = WriterDocStub([

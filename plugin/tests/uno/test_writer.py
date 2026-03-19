@@ -256,30 +256,6 @@ def test_writer_structural_and_tree_service():
 
 
 @native_test
-def test_document_cache_length_tracking():
-    try:
-        import pytest
-        if _test_doc is None:
-            pytest.skip("Requires LibreOffice document from native runner")
-    except ImportError:
-        pass
-    cache3 = DocumentCache.get(_test_doc)
-    _ = get_document_length(_test_doc)
-    prev_len = cache3.length
-    assert prev_len is not None and prev_len > 0, "DocumentCache length not properly initialized"
-
-    text = _test_doc.getText()
-    cursor = text.createTextCursor()
-    text.insertControlCharacter(cursor, 0, False)
-    text.insertString(cursor, "More text", False)
-    DocumentCache.invalidate(_test_doc)
-    _ = get_document_length(_test_doc)
-    cache3_new = DocumentCache.get(_test_doc)
-    new_len = cache3_new.length
-    assert new_len is not None and new_len > prev_len, "DocumentCache length did not update"
-
-
-@native_test
 def test_get_text_cursor_at_range():
     try:
         import pytest
