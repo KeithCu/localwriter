@@ -529,7 +529,7 @@ class LlmClient:
         if parsed.query:
             path += "?" + parsed.query
 
-        debug_log("Request data: %s" % json.dumps(data, indent=2, level=logging.DEBUG), context="API")
+        debug_log("Request data: %s" % json.dumps(data, indent=2), context="API", level=logging.DEBUG)
         return "POST", path, json_data, self._headers()
 
     def extract_content_from_response(self, chunk):
@@ -618,7 +618,7 @@ class LlmClient:
             context="API",
         )
         debug_log("URL: %s" % url, context="API", level=logging.DEBUG)
-        debug_log("Messages: %s" % json.dumps(messages, indent=2, level=logging.DEBUG), context="API")
+        debug_log("Messages: %s" % json.dumps(messages, indent=2), context="API", level=logging.DEBUG)
         
         parsed = urllib.parse.urlparse(url)
         path = parsed.path
@@ -654,7 +654,7 @@ class LlmClient:
         init_logging(self.ctx)
         debug_log("=== Image Request ===", context="API", level=logging.DEBUG)
         debug_log("URL: %s" % url, context="API", level=logging.DEBUG)
-        debug_log("Data: %s" % json.dumps(data, indent=2, level=logging.DEBUG), context="API")
+        debug_log("Data: %s" % json.dumps(data, indent=2), context="API", level=logging.DEBUG)
         
         parsed = urllib.parse.urlparse(url)
         path = parsed.path
