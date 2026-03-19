@@ -24,6 +24,7 @@ import hashlib
 import uuid
 import uno
 import unohelper
+import logging
 
 # Ensure the extension's install directory is on sys.path
 # so that "plugin.xxx" imports work correctly. This file lives at
@@ -100,7 +101,7 @@ def _ensure_extension_on_path(ctx):
             debug_log("Extension path already on sys.path: %s" % ext_path, context="Chat")
     except Exception as e:
         init_logging(ctx)
-        debug_log("_ensure_extension_on_path ERROR: %s" % e, context="Chat")
+        debug_log("_ensure_extension_on_path ERROR: %s" % e, context="Chat", level=logging.ERROR)
 
 
 
@@ -167,9 +168,9 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 wire_chatpanel_controls(self, root_window, HAS_RECORDING, _ensure_extension_on_path)
                 debug_log("getRealInterface completed successfully", context="Chat")
             except Exception as e:
-                debug_log("getRealInterface ERROR: %s" % e, context="Chat")
+                debug_log("getRealInterface ERROR: %s" % e, context="Chat", level=logging.ERROR)
                 import traceback
-                debug_log(traceback.format_exc(), context="Chat")
+                debug_log(traceback.format_exc(), context="Chat", level=logging.ERROR)
                 raise
         return self.toolpanel
 
@@ -222,7 +223,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                     import uno
                     response_ctrl.setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", length, length))
         except Exception as e:
-            debug_log("_render_session_history error: %s" % e, context="Chat")
+            debug_log("_render_session_history error: %s" % e, context="Chat", level=logging.ERROR)
 
     def _refresh_controls_from_config(self):
         """Reload model and prompt selectors from config (e.g. after user changes Settings)."""
@@ -310,7 +311,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 web_research_check.getModel().Enabled = not is_external
                 
         except Exception as e:
-            debug_log("_update_backend_indicator error: %s" % e, context="Chat")
+            debug_log("_update_backend_indicator error: %s" % e, context="Chat", level=logging.ERROR)
 
     def _get_document_model(self):
         """Helper to get the current document model."""
@@ -435,18 +436,18 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                                 self.toggle_cb(is_checked)
                                 set_control_enabled(self.web_check, not is_checked)
                             except Exception as e:
-                                debug_log("Image checkbox listener error: %s" % e, context="Chat")
+                                debug_log("Image checkbox listener error: %s" % e, context="Chat", level=logging.ERROR)
                         def disposing(self, ev): pass
                     direct_image_check.addItemListener(DirectImageCheckListener(self.ctx, toggle_image_ui, web_research_check))
             except Exception as e:
-                debug_log("direct_image_check wire error: %s" % e, context="Chat")
+                debug_log("direct_image_check wire error: %s" % e, context="Chat", level=logging.ERROR)
 
         if web_research_check:
             try:
                 if get_checkbox_state(web_research_check) == 1:
                     set_control_enabled(direct_image_check, False)
             except Exception as e:
-                debug_log("web_research_check initial wire error: %s" % e, context="Chat")
+                debug_log("web_research_check initial wire error: %s" % e, context="Chat", level=logging.ERROR)
                 
         return set_control_enabled
 
@@ -502,7 +503,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 controls["stop"].addActionListener(StopButtonListener(send_listener))
             send_listener._set_button_states(send_enabled=True, stop_enabled=False)
         except Exception as e:
-            debug_log("Send/Stop button error: %s" % e, context="Chat")
+            debug_log("Send/Stop button error: %s" % e, context="Chat", level=logging.ERROR)
 
         clear_listener = None
         if controls["clear"]:
@@ -541,7 +542,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                             self.clear_listener.set_session(self.panel.session, greeting=greeting)
                         self.panel._render_session_history(self.panel.session, self.response_ctrl, self.model, greeting)
                     except Exception as e:
-                        debug_log("Research Chat listener error: %s" % e, context="Chat")
+                        debug_log("Research Chat listener error: %s" % e, context="Chat", level=logging.ERROR)
                 def disposing(self, ev): pass
             controls["web_research_check"].addItemListener(ResearchChatToggledListener(
                 self, controls["response"], model, send_listener, clear_listener, controls["direct_image_check"], set_control_enabled))

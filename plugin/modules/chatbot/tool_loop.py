@@ -7,6 +7,7 @@ multi-round tool-calling loop plus simple streaming fallback.
 import inspect
 import json
 import queue
+import logging
 
 from plugin.framework.async_stream import (
     run_stream_completion_async,
@@ -45,7 +46,7 @@ class ToolCallingMixin:
 
             debug_log("_do_send: core modules imported OK", context="Chat")
         except Exception as e:
-            debug_log("_do_send: core import FAILED: %s" % e, context="Chat")
+            debug_log("_do_send: core import FAILED: %s" % e, context="Chat", level=logging.ERROR)
             self._append_response("\n[Import error - core: %s]\n" % e)
             self._terminal_status = "Error"
             return
@@ -99,7 +100,7 @@ class ToolCallingMixin:
                     return json.dumps({"status": "error", "message": str(e)})
 
         except Exception as e:
-            debug_log("_do_send: tool import FAILED: %s" % e, context="Chat")
+            debug_log("_do_send: tool import FAILED: %s" % e, context="Chat", level=logging.ERROR)
             self._append_response("\n[Import error - tools: %s]\n" % e)
             self._terminal_status = "Error"
             return
@@ -182,7 +183,7 @@ class ToolCallingMixin:
             self.session.update_document_context(doc_text)
         except Exception as e:
             debug_log(
-                "_do_send: document context FAILED: %s" % e, context="Chat"
+                "_do_send: document context FAILED: %s" % e, context="Chat", level=logging.ERROR
             )
             self._append_response("\n[Document unavailable or closed.]\n")
             self._terminal_status = "Error"
@@ -217,7 +218,7 @@ class ToolCallingMixin:
                 self._append_response("\nYou: %s\n" % display_text)
                 # Note: We do NOT delete the audio file yet, in case native call fails and we need STT fallback
             except Exception as e:
-                debug_log("_do_send: Error reading audio: %s" % e, context="Chat")
+                debug_log("_do_send: Error reading audio: %s" % e, context="Chat", level=logging.ERROR)
                 self.session.add_user_message(query_text)
                 self._append_response("\nYou: %s\n" % query_text)
                 self.audio_wav_path = None
@@ -282,6 +283,7 @@ class ToolCallingMixin:
                 debug_log(
                     "Tool loop round %d: API ERROR: %s" % (round_num, e),
                     context="Chat",
+                    level=logging.ERROR
                 )
                 q.put(("error", e))
 
@@ -713,6 +715,7 @@ class ToolCallingMixin:
                     "Model %s failed native audio, caching and falling back to STT"
                     % current_model,
                     context="Chat",
+                    level=logging.WARNING
                 )
                 set_native_audio_support(
                     self.ctx, current_model, current_endpoint, supported=False

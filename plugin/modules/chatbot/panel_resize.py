@@ -1,4 +1,5 @@
 import unohelper
+import logging
 
 from com.sun.star.awt import XWindowListener
 
@@ -48,7 +49,7 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
             self._in_relayout = True
             self._relayout(evt.Source)
         except Exception as e:
-            debug_log("windowResized error: %s" % e, context="Chat")
+            debug_log("windowResized error: %s" % e, context="Chat", level=logging.ERROR)
         finally:
             self._in_relayout = False
 

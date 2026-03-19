@@ -27,6 +27,7 @@ import time
 import uuid
 
 from plugin.framework.main_thread import execute_on_main_thread
+from plugin.framework.logging import debug_log
 
 log = logging.getLogger("writeragent.mcp.protocol")
 
@@ -343,11 +344,10 @@ class MCPProtocolHandler:
         if not tool_name:
             raise ValueError("Missing 'name' in tools/call params")
 
-        from plugin.framework.logging import debug_log
-        debug_log(f"*** tools/call: {tool_name}, event_bus={self.event_bus} ***", context="MCP Protocol")
+        debug_log(f"*** tools/call: {tool_name}, event_bus={self.event_bus} ***", context="MCP Protocol", level=logging.DEBUG)
 
         if self.event_bus:
-            from plugin.framework.logging import debug_log
+            pass
         # Fire event for MCP request
         if getattr(self, "event_bus", None) is not None:
             self.event_bus.emit(
@@ -411,8 +411,7 @@ class MCPProtocolHandler:
             "prompts/list":    self._mcp_prompts_list,
         }.get(method)
 
-        from plugin.framework.logging import debug_log
-        debug_log(f"*** MCP INCOMING METHOD: {method} (id={req_id}) ***", context="MCP Protocol")
+        debug_log(f"*** MCP INCOMING METHOD: {method} (id={req_id}) ***", context="MCP Protocol", level=logging.DEBUG)
 
         if handler is None:
             return (400, _jsonrpc_error(
@@ -424,7 +423,7 @@ class MCPProtocolHandler:
                 result = handler(params, document_url=document_url)
             else:
                 result = handler(params)
-            debug_log(f"*** MCP RESULT: {str(result)[:100]} ***", context="MCP Protocol")
+            debug_log(f"*** MCP RESULT: {str(result)[:100]} ***", context="MCP Protocol", level=logging.DEBUG)
             return (200, _jsonrpc_ok(req_id, result))
         except BusyError as e:
             log.warning("MCP %s: busy (%s)", method, e)

@@ -1,4 +1,5 @@
 import weakref
+import logging
 
 from plugin.framework.logging import debug_log
 from plugin.framework.dialogs import (
@@ -41,7 +42,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
 
     # Helper to show errors visibly in the response area
     def _show_init_error(msg):
-        debug_log("_wireControls ERROR: %s" % msg, context="Chat")
+        debug_log("_wireControls ERROR: %s" % msg, context="Chat", level=logging.ERROR)
         try:
             if controls["response"] and controls["response"].getModel():
                 current = controls["response"].getModel().Text or ""
@@ -66,7 +67,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
     except Exception as e:
         import traceback
         _show_init_error("Config: %s" % e)
-        debug_log(traceback.format_exc(), context="Chat")
+        debug_log(traceback.format_exc(), context="Chat", level=logging.ERROR)
         extra_instructions = ""
         set_control_enabled = lambda ctrl, en: None
 
@@ -103,7 +104,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
             else:
                 controls["send"].getModel().Label = "Record" if has_recording else "Send"
         except Exception as e:
-            debug_log("QueryTextListener setup error: %s" % e, context="Chat")
+            debug_log("QueryTextListener setup error: %s" % e, context="Chat", level=logging.ERROR)
 
     if controls["status"] and hasattr(controls["status"], "setText"):
         try: controls["status"].setText("Ready")
@@ -126,7 +127,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
         root_window.addWindowListener(_resize)
         _resize._relayout(root_window)
     except Exception as e:
-        debug_log("Resize listener error: %s" % e, context="Chat")
+        debug_log("Resize listener error: %s" % e, context="Chat", level=logging.ERROR)
 
     # Backend indicator (Aider / Hermes when external agent enabled)
     self._update_backend_indicator(root_window)
