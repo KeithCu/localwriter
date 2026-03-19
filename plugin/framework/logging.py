@@ -74,6 +74,11 @@ def init_logging(ctx):
             
             logger = log
             logger.setLevel(numeric_level)
+            # Ensure unrelated loggers (e.g. logging.getLogger(__name__) inside
+            # UNO panel/tool modules) still reach the same debug log.
+            #
+            # We attach the handler to the root logger as well and then disable
+            # propagation from the "writeragent" logger to avoid duplicates.
             
             has_matching_handler = False
             for handler in list(logger.handlers):
@@ -93,6 +98,27 @@ def init_logging(ctx):
                 formatter = logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
                 handler.setFormatter(formatter)
                 logger.addHandler(handler)
+            
+            # Attach the same debug file handler to root if needed.
+            root_logger = logging.getLogger()
+            root_logger.setLevel(numeric_level)
+            root_has_matching_handler = False
+            for rh in list(root_logger.handlers):
+                if not isinstance(rh, logging.FileHandler):
+                    continue
+                if getattr(rh, "baseFilename", "") == _debug_log_path:
+                    root_has_matching_handler = True
+                    continue
+            if not root_has_matching_handler:
+                root_handler = logging.FileHandler(_debug_log_path, encoding='utf-8')
+                root_handler.setFormatter(
+                    logging.Formatter('%(asctime)s | %(name)s | %(levelname)s | %(message)s')
+                )
+                root_logger.addHandler(root_handler)
+
+            # Prevent double-logging for loggers under "writeragent.*" since
+            # they are handled by `logger` above.
+            logger.propagate = False
         except Exception:
             pass
 
