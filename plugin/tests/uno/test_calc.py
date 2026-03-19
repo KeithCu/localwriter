@@ -393,16 +393,17 @@ def test_consistent_error_payloads():
     #
     # res_range = _execute_calc_tool("read_cell_range", {"range_name": "Invalid!!Range"})
     # assert res_range.get("status") == "error", f"Expected error for invalid range, got {res_range.get('status')}"
-    # assert "error" in res_range, f"Expected 'error' key in payload: {res_range}"
-    # assert isinstance(res_range["error"], str), "Error message should be a string"
-    # assert len(res_range["error"]) > 0, "Error message should not be empty"
+    # assert "message" in res_range, f"Expected 'message' key in payload: {res_range}"
+    # assert isinstance(res_range["message"], str), "Error message should be a string"
+    # assert len(res_range["message"]) > 0, "Error message should not be empty"
 
-    # 2. Invalid color string
+    # 2. Invalid color string (standardized tool error: status/code/message/details)
     res_color = _execute_calc_tool("set_cell_style", {"range_name": "A1", "bg_color": "not_a_real_color"})
     assert res_color.get("status") == "error", f"Expected error for invalid color, got {res_color.get('status')}"
-    assert "error" in res_color, f"Expected 'error' key in payload: {res_color}"
-    assert isinstance(res_color["error"], str), "Error message should be a string"
-    assert len(res_color["error"]) > 0, "Error message should not be empty"
+    assert "message" in res_color, f"Expected 'message' key in payload: {res_color}"
+    assert isinstance(res_color["message"], str), "Error message should be a string"
+    assert len(res_color["message"]) > 0, "Error message should not be empty"
+    assert "code" in res_color, f"Expected 'code' key in payload: {res_color}"
 
 
 @native_test
