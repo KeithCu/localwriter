@@ -183,10 +183,17 @@ class ToolRegistry:
         if props:
             kwargs = {k: v for k, v in kwargs.items() if k in props}
 
+        from plugin.framework.errors import format_error_payload, WriterAgentException
+
         # Validate parameters
         ok, err = tool.validate(**kwargs)
         if not ok:
-            return {"status": "error", "code": "VALIDATION_ERROR", "message": err}
+            return {
+                "status": "error",
+                "code": "VALIDATION_ERROR",
+                "message": err,
+                "details": {"tool_name": tool_name}
+            }
 
         # Emit executing event
         bus = self._services.get("events")
@@ -205,12 +212,12 @@ class ToolRegistry:
             log.exception("Tool execution failed (ToolExecutionError): %s", tool_name)
             if bus:
                 bus.emit("tool:failed", name=tool_name, error=str(exc), caller=ctx.caller)
-            return {"status": "error", "code": exc.code, "message": str(exc), "details": exc.context}
+            return {"status": "error", "code": exc.code, "message": exc.message, "details": exc.details}
         except Exception as exc:
             log.exception("Tool execution failed: %s", tool_name)
             if bus:
                 bus.emit("tool:failed", name=tool_name, error=str(exc), caller=ctx.caller)
-            return {"status": "error", "code": "TOOL_ERROR", "message": str(exc)}
+            return format_error_payload(exc)
 
         if bus:
             bus.emit("tool:completed", name=tool_name, caller=ctx.caller)

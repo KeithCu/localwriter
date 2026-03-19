@@ -421,6 +421,7 @@ class MCPProtocolHandler:
                 req_id, _METHOD_NOT_FOUND,
                 "Unknown method: %s" % method))
 
+        from plugin.framework.errors import WriterAgentException, format_error_payload
         try:
             if method in ("tools/list", "tools/call"):
                 result = handler(params, document_url=document_url)
@@ -437,10 +438,14 @@ class MCPProtocolHandler:
             log.error("MCP %s: timeout (%s)", method, e)
             return (504, _jsonrpc_error(
                 req_id, _EXECUTION_TIMEOUT, str(e)))
+        except WriterAgentException as e:
+            log.error("MCP %s error: %s", method, e, exc_info=True)
+            return (500, _jsonrpc_error(
+                req_id, _INTERNAL_ERROR, e.message, data=format_error_payload(e)))
         except Exception as e:
             log.error("MCP %s error: %s", method, e, exc_info=True)
             return (500, _jsonrpc_error(
-                req_id, _INTERNAL_ERROR, str(e)))
+                req_id, _INTERNAL_ERROR, str(e), data=format_error_payload(e)))
 
     # ── Backpressure execution ───────────────────────────────────────
 
@@ -480,9 +485,18 @@ class MCPProtocolHandler:
         doc, doc_type, ctx = execute_on_main_thread(_get_context, timeout=10.0)
 
         if doc is None and not document_url:
-            return {"status": "error", "message": "No document open in LibreOffice."}
+            return {
+                "status": "error",
+                "code": "NO_DOCUMENT_OPEN",
+                "message": "No document open in LibreOffice."
+            }
         elif doc is None:
-            return {"status": "error", "message": "No document open matching X-Document-URL: %s" % document_url}
+            return {
+                "status": "error",
+                "code": "DOCUMENT_NOT_FOUND",
+                "message": "No document open matching X-Document-URL: %s" % document_url,
+                "details": {"document_url": document_url}
+            }
 
         from plugin.framework.tool_context import ToolContext
         context = ToolContext(
@@ -510,8 +524,12 @@ class MCPProtocolHandler:
             if document_url:
                 doc, doc_type = doc_svc.resolve_document_by_url(document_url)
                 if doc is None:
-                    return {"status": "error",
-                            "message": "No document open matching X-Document-URL: %s" % (document_url or "")}
+                    return {
+                        "status": "error",
+                        "code": "DOCUMENT_NOT_FOUND",
+                        "message": "No document open matching X-Document-URL: %s" % (document_url or ""),
+                        "details": {"document_url": document_url}
+                    }
             else:
                 doc = doc_svc.get_active_document()
                 if doc:
@@ -520,8 +538,11 @@ class MCPProtocolHandler:
             pass
 
         if doc is None:
-            return {"status": "error",
-                    "message": "No document open in LibreOffice."}
+            return {
+                "status": "error",
+                "code": "NO_DOCUMENT_OPEN",
+                "message": "No document open in LibreOffice."
+            }
 
         # Get UNO context
         ctx = None

@@ -102,6 +102,18 @@ def _format_http_error_response(status, reason, err_body):
 
 def format_error_for_display(e):
     """Return user-friendly error string for display in cells or dialogs."""
+    from plugin.framework.errors import WriterAgentException
+    if isinstance(e, WriterAgentException):
+        return "Error: %s" % e.message
+
+    msg = str(e)
+    try:
+        data = json.loads(msg)
+        if isinstance(data, dict) and data.get("status") == "error":
+            return "Error: %s" % data.get("message", msg)
+    except Exception:
+        pass
+
     return "Error: %s" % format_error_message(e)
 
 

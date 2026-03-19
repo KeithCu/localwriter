@@ -84,7 +84,8 @@ class GenericRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(status, data)
         except Exception as e:
             log.error("%s %s error: %s", method, path, e, exc_info=True)
-            self._send_json(500, {"error": str(e)})
+            from plugin.framework.errors import format_error_payload
+            self._send_json(500, format_error_payload(e))
 
     def _read_body(self):
         content_length = int(self.headers.get("Content-Length", 0))

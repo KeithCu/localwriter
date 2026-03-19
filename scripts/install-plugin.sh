@@ -250,7 +250,7 @@ install_to_cache() {
     deployed=$((deployed + 1))
 
     # extension/ resources -> .oxt root
-    for item in Addons.xcu Accelerators.xcu Jobs.xcu description.xml XPromptFunction.rdb; do
+    for item in Addons.xcu Accelerators.xcu description.xml XPromptFunction.rdb; do
         if [ -f "$PROJECT_ROOT/extension/$item" ]; then
             cp "$PROJECT_ROOT/extension/$item" "$ext_dir/$item"
             echo "    $item"
