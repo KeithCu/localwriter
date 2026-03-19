@@ -285,19 +285,19 @@ def _dispatch_command(command):
                 logging.getLogger("writeragent.main").error("Failed to show eval dashboard: %s", e, exc_info=True)
                 pass
         elif action == "RunFormatTests":
-            from plugin.tests import format_tests
+            from plugin.tests.uno import format_tests
             from plugin.framework.document import is_writer
             _run_test_suite(format_tests, is_writer, "writer.format_tests")
         elif action == "RunCalcTests":
-            from plugin.tests import test_calc
+            from plugin.tests.uno import test_calc
             from plugin.framework.document import is_calc
             _run_test_suite(test_calc, is_calc, "calc.tests")
         elif action == "RunCalcIntegrationTests":
-            from plugin.tests import test_calc
+            from plugin.tests.uno import test_calc
             from plugin.framework.document import is_calc
             _run_test_suite(test_calc, is_calc, "calc.integration_tests")
         elif action == "RunDrawTests":
-            from plugin.tests import test_draw
+            from plugin.tests.uno import test_draw
             from plugin.framework.document import is_draw
             _run_test_suite(test_draw, is_draw, "draw.tests")
         elif action == "NoOp":

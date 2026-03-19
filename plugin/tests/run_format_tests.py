@@ -14,7 +14,7 @@ if __name__ == "__main__":
         sys.path.insert(0, _root)
 
 from plugin.testing_runner import run_module_suite
-from plugin.tests import format_tests
+from plugin.tests.uno import format_tests
 
 def run_format_tests(ctx, doc_model=None):
     return run_module_suite(ctx, format_tests, "writer.format_tests", doc_model)
