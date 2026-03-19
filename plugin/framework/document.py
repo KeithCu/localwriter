@@ -15,6 +15,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import logging
 import uno
 import time
 from plugin.modules.calc.bridge import CalcBridge
@@ -96,7 +97,6 @@ def set_document_property(model, name, value):
         # We log richer context here to help diagnose benign startup errors
         # like the commonly-seen "-1" when setting UserDefinedProperties.
         try:
-            from plugin.framework.logging import debug_log
             doc_url = ""
             readonly = ""
             try:
@@ -109,10 +109,9 @@ def set_document_property(model, name, value):
                     readonly = str(model.isReadonly())
             except Exception:
                 pass
-            debug_log(
+            logging.getLogger(__name__).warning(
                 "set_document_property error: %r (type=%s, url=%s, readonly=%s)"
-                % (e, type(e).__name__, doc_url, readonly),
-                context="Chat",
+                % (e, type(e).__name__, doc_url, readonly)
             )
         except Exception:
             pass

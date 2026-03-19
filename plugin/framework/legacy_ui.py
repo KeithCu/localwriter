@@ -14,29 +14,32 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import logging
 from plugin.framework.uno_context import get_desktop, get_active_document, get_extension_url
 from plugin.framework.dialogs import TabListener, is_checkbox_control, get_checkbox_state, set_checkbox_state, get_optional
 from plugin.framework.config import get_config, get_current_endpoint, get_text_model, populate_combobox_with_lru, set_config, update_lru_history
-from plugin.framework.logging import init_logging, debug_log, agent_log
+from plugin.framework.logging import init_logging, agent_log
 from plugin.framework.history_db import HAS_SQLITE
 import uno
+
+log = logging.getLogger(__name__)
 
 def input_box(ctx, message, title="", default="", x=None, y=None):
     """ Shows input dialog (EditInputDialog.xdl). Returns (result_text, extra_prompt) if OK, else ("", ""). """
     init_logging(ctx)
-    debug_log("input_box: opening Edit Input dialog (message=%r)" % (message[:40] + "..." if len(message) > 40 else message), context="Chat")
+    log.debug("input_box: opening Edit Input dialog (message=%r, level=logging.DEBUG)" % (message[:40] + "..." if len(message) > 40 else message))
     try:
         smgr = ctx.getServiceManager()
         base_url = get_extension_url()
-        debug_log("input_box: base_url=%s" % (base_url or ""), context="Chat")
+        log.debug("input_box: base_url=%s" % (base_url or ""))
         dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
         dlg_url = base_url + "/WriterAgentDialogs/EditInputDialog.xdl"
         dlg = dp.createDialog(dlg_url)
-        debug_log("input_box: dialog created successfully", context="Chat")
+        log.info("input_box: dialog created successfully")
     except Exception as e:
         import traceback
-        debug_log("input_box: failed to create dialog: %s" % e, context="Chat")
-        debug_log("input_box: traceback: %s" % traceback.format_exc(), context="Chat")
+        log.error("input_box: failed to create dialog: %s" % e)
+        log.error("input_box: traceback: %s" % traceback.format_exc())
         raise
     try:
         dlg.getControl("label").getModel().Label = str(message)
@@ -57,7 +60,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
         dlg.getControl("edit").setFocus()
         dlg.getControl("edit").setSelection(uno.createUnoStruct("com.sun.star.awt.Selection", 0, len(str(default))))
         
-        debug_log("input_box: showing dialog (execute)", context="Chat")
+        log.debug("input_box: showing dialog (execute, level=logging.DEBUG)")
         if dlg.execute():
             ret_text = dlg.getControl("edit").getModel().Text
             ret_prompt = prompt_ctrl.getText()
@@ -66,14 +69,14 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
                 if chosen:
                     set_config(ctx, "text_model", chosen)
                     update_lru_history(ctx, chosen, "model_lru", get_current_endpoint(ctx))
-            debug_log("input_box: user clicked OK, returning (text len=%d)" % len(ret_text or ""), context="Chat")
+            log.debug("input_box: user clicked OK, returning (text len=%d, level=logging.DEBUG)" % len(ret_text or ""))
             return ret_text, ret_prompt
-        debug_log("input_box: user cancelled", context="Chat")
+        log.debug("input_box: user cancelled")
         return "", ""
     except Exception as e:
         import traceback
-        debug_log("input_box: error while showing or reading dialog: %s" % e, context="Chat")
-        debug_log("input_box: traceback: %s" % traceback.format_exc(), context="Chat")
+        log.error("input_box: error while showing or reading dialog: %s" % e)
+        log.error("input_box: traceback: %s" % traceback.format_exc())
         raise
     finally:
         try:
@@ -85,15 +88,14 @@ def settings_box(ctx, title="Settings", x=None, y=None):
     from plugin.framework.settings_dialog import get_settings_field_specs, apply_settings_result
     from plugin.framework.config import populate_combobox_with_lru, populate_image_model_selector, endpoint_from_selector_text, get_api_key_for_endpoint, populate_endpoint_selector, as_bool
 
-    from plugin.framework.logging import debug_log
-    debug_log("settings_box entry", context="Settings")
+        log.debug("settings_box entry")
     import unohelper
     from com.sun.star.awt import XItemListener, XTextListener
 
     smgr = ctx.getServiceManager()
-    debug_log("Calling get_settings_field_specs", context="Settings")
+    log.debug("Calling get_settings_field_specs")
     field_specs = get_settings_field_specs(ctx)
-    debug_log(f"get_settings_field_specs returned {len(field_specs)} fields", context="Settings")
+    log.debug(f"get_settings_field_specs returned {len(field_specs)} fields")
 
     base_url = get_extension_url()
     dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
@@ -155,9 +157,8 @@ def settings_box(ctx, title="Settings", x=None, y=None):
     current_endpoint = get_current_endpoint(ctx)
 
     try:
-        from plugin.framework.logging import debug_log
-        for field in field_specs:
-            debug_log(f"Processing setting field: {field['name']} (options: {'yes' if 'options' in field else 'no'})", context="Settings")
+                for field in field_specs:
+            log.info(f"Processing setting field: {field['name']} (options: {'yes' if 'options' in field else 'no'})")
             ctrl = dlg.getControl(field["name"])
             if ctrl:
                 if field["name"] == "text_model":
@@ -241,12 +242,12 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                                 labels = tuple(o.get("label", o.get("value", "")) for o in opts)
                                 model = ctrl.getModel()
                                 if hasattr(model, "StringItemList"):
-                                    debug_log(f"Populating {field['name']} with {len(labels)} options: {labels}", context="Settings")
+                                    log.debug(f"Populating {field['name']} with {len(labels)} options: {labels}")
                                     model.StringItemList = labels
                                 else:
-                                    debug_log(f"Control {field['name']} model does NOT have StringItemList", context="Settings")
+                                    log.debug(f"Control {field['name']} model does NOT have StringItemList")
                             except Exception as e:
-                                debug_log(f"Failed to set StringItemList for {field['name']}: {e}", context="Settings")
+                                log.error(f"Failed to set StringItemList for {field['name']}: {e}")
                         
                         ctrl.setText(field["value"])
                     else:

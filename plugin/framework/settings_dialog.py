@@ -16,10 +16,13 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from plugin.framework.config import get_config, set_config, get_current_endpoint, as_bool, endpoint_from_selector_text, get_image_model, set_image_model, get_api_key_for_endpoint, set_api_key_for_endpoint, notify_config_changed
 
+import logging
+
+log = logging.getLogger(__name__)
+
 def get_settings_field_specs(ctx):
     """Return field specs for Settings dialog (single source for dialog and apply keys)."""
-    from plugin.framework.logging import debug_log
-    debug_log("get_settings_field_specs entry", context="Settings")
+        log.debug("get_settings_field_specs entry")
     current_endpoint_for_specs = get_current_endpoint(ctx)
     field_specs = [
         {"name": "endpoint", "value": str(get_config(ctx, "endpoint") or "")},
@@ -77,9 +80,8 @@ def get_settings_field_specs(ctx):
                 if provider_path:
                     try:
                         field["options"] = _call_options_provider(ctx, provider_path)
-                    except Exception:
-                        from plugin.framework.logging import debug_log
-                        debug_log(f"Failed to resolve options_provider: {provider_path}", context="Settings")
+                    except Exception as e:
+                                                log.error(f"Failed to resolve options_provider: {provider_path} {e}")
                 elif schema.get("options"):
                     field["options"] = schema["options"]
 
@@ -182,8 +184,7 @@ def _call_options_provider(ctx, provider_path):
     provider_path format: "plugin.framework.ai:get_text_instance_options"
     The function receives the ServiceRegistry as its argument.
     """
-    from plugin.framework.logging import debug_log
-    debug_log(f"_call_options_provider: {provider_path}", context="Settings")
+        log.debug(f"_call_options_provider: {provider_path}")
     try:
         module_path, func_name = provider_path.rsplit(":", 1)
         import importlib
@@ -193,10 +194,10 @@ def _call_options_provider(ctx, provider_path):
         from plugin.main import get_services
         services = get_services()
         options = func(services)
-        debug_log(f"_call_options_provider success: {len(options)} options returned", context="Settings")
+        log.debug(f"_call_options_provider success: {len(options)} options returned")
         return options
     except Exception as e:
-        debug_log(f"_call_options_provider FAILED for {provider_path}: {e}", context="Settings")
+        log.error(f"_call_options_provider FAILED for {provider_path}: {e}")
         import traceback
-        debug_log(traceback.format_exc(), context="Settings")
+        log.error(traceback.format_exc())
         raise

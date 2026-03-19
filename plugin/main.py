@@ -16,6 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import sys
 import os
+import logging
 
 # Ensure the extension's install directory is on sys.path
 # so that "plugin.xxx" imports work correctly.
@@ -36,7 +37,6 @@ import officehelper
 
 from plugin.framework.logging import init_logging
 import uno
-import logging
 
 from com.sun.star.task import XJobExecutor, XJob
 from com.sun.star.frame import XDispatch, XDispatchProvider
@@ -54,6 +54,8 @@ from plugin.framework.uno_context import get_active_document, get_extension_url
 
 import threading
 _services = None
+log = logging.getLogger(__name__)
+
 _tools = None
 _modules = []
 _init_lock = threading.Lock()
@@ -231,16 +233,15 @@ def _run_test_suite(test_func, doc_checker, test_name):
     from plugin.framework.dialogs import msgbox
     ctx = get_ctx()
     try:
-        from plugin.framework.logging import debug_log
-        debug_log(f"_run_test_suite start: {test_name}", context="Tests")
+        log.info(f"_run_test_suite start: {test_name}")
         from plugin.framework.async_stream import run_blocking_in_thread
         from plugin.testing_runner import run_module_suite
         model = get_active_document(ctx)
         doc_model = model if (model and doc_checker(model)) else None
-        debug_log(f"Calling run_blocking_in_thread for {test_name}", context="Tests")
-        p, f, log = run_blocking_in_thread(ctx, run_module_suite, ctx, test_func, test_name, doc_model)
-        debug_log(f"_run_test_suite finished: {test_name}, p={p}, f={f}", context="Tests")
-        msgbox(ctx, test_name, f"{test_name}: {p} passed, {f} failed.\n\n" + "\n".join(log))
+        log.debug(f"Calling run_blocking_in_thread for {test_name}")
+        p, f, suite_log = run_blocking_in_thread(ctx, run_module_suite, ctx, test_func, test_name, doc_model)
+        log.info(f"_run_test_suite finished: {test_name}, p={p}, f={f}")
+        msgbox(ctx, test_name, f"{test_name}: {p} passed, {f} failed.\n\n" + "\n".join(suite_log))
     except Exception as e:
         msgbox(ctx, test_name, f"Tests failed to run: {e}")
 
@@ -644,10 +645,10 @@ class DispatchHandler(unohelper.Base, XDispatch, XDispatchProvider,
     def dispatch(self, url, args):
         command = url.Path
         from plugin.framework.dialogs import msgbox
-        from plugin.framework.logging import debug_log, init_logging, log_exception
+        from plugin.framework.logging import init_logging, log_exception
         try:
             init_logging(self.ctx)
-            debug_log(f"Dispatch entered: {command}", context="Dispatch")
+            log.info(f"Dispatch entered: {command}")
             # msgbox(self.ctx, "Dispatch", f"Command: {command}") # Temporary probe
             bootstrap(self.ctx)
             _dispatch_command(command)

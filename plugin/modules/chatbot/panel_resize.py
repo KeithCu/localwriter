@@ -1,8 +1,9 @@
 import unohelper
+import logging
 
 from com.sun.star.awt import XWindowListener
 
-from plugin.framework.logging import debug_log
+log = logging.getLogger(__name__)
 
 
 # Minimum sane widths (in dialog Map AppFont / pixel units) for key controls.
@@ -40,15 +41,15 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
 
     def windowResized(self, evt):
         r = evt.Source.getPosSize()
-        debug_log("windowResized: W=%d H=%d" % (r.Width, r.Height), context="Chat")
+        log.debug("windowResized: W=%d H=%d" % (r.Width, r.Height))
         if self._in_relayout:
-            debug_log("windowResized: skipped (in_relayout)", context="Chat")
+            log.debug("windowResized: skipped (in_relayout)")
             return
         try:
             self._in_relayout = True
             self._relayout(evt.Source)
         except Exception as e:
-            debug_log("windowResized error: %s" % e, context="Chat")
+            log.error("windowResized error: %s" % e)
         finally:
             self._in_relayout = False
 
@@ -73,10 +74,7 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
         r = win.getPosSize()
         if r.Width <= 0 or r.Height <= 0:
             return
-        debug_log(
-            "_capture_initial: starting snapshot for win W=%d H=%d" % (r.Width, r.Height),
-            context="Chat",
-        )
+        log.debug("_capture_initial: starting snapshot for win W=%d H=%d" % (r.Width, r.Height))
         info = {"win_w": r.Width, "win_h": r.Height, "ctrls": {}}
         resp = self._c.get("response")
         if resp:
@@ -113,7 +111,7 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
                 info["bottom_bottom"] = info["resp_bottom"]
                 info["gap_below_response"] = 2
 
-        debug_log(
+        log.debug(
             "_capture_initial: win=(%d,%d) resp_bottom=%s bottom_top=%s gap=%s"
             % (
                 info["win_w"],
@@ -121,8 +119,7 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
                 str(info.get("resp_bottom")),
                 str(info.get("bottom_top")),
                 str(info.get("gap_below_response")),
-            ),
-            context="Chat",
+            )
         )
         # Lightweight per-control width summary for debugging GTK issues.
         try:
@@ -132,10 +129,7 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
                 for n in summary_names
                 if n in info["ctrls"]
             }
-            debug_log(
-                "_capture_initial ctrl_widths=%s" % width_summary,
-                context="Chat",
-            )
+            log.debug("_capture_initial ctrl_widths=%s" % width_summary)
         except Exception:
             # Logging must never break layout; ignore any issues here.
             pass
@@ -147,17 +141,16 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
         if w <= 0 or h <= 0:
             return
 
-        debug_log(
+        log.debug(
             "_relayout: win W=%d H=%d (have_initial=%s)"
-            % (w, h, bool(self._initial)),
-            context="Chat",
+            % (w, h, bool(self._initial))
         )
 
         if self._initial is None:
             self._capture_initial(win)
 
         if self._initial is None:
-            debug_log("_relayout: no initial state, skip", context="Chat")
+            log.warning("_relayout: no initial state, skip")
             return
 
         iw = self._initial["win_w"]
@@ -271,4 +264,3 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
                 or cur.Height != new_rh
             ):
                 resp_ctrl.setPosSize(rx, ry, new_rw, new_rh, 15)
-

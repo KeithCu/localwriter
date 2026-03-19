@@ -14,8 +14,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import json
 import logging
+import json
 import os
 
 try:
@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 from plugin.framework.config import user_config_dir
 from plugin.framework.uno_context import get_ctx
 
+log = logging.getLogger(__name__)
+
 def _get_db_path():
     ctx = get_ctx()
     config_dir = user_config_dir(ctx)
@@ -38,11 +40,9 @@ def _get_db_path():
             if not os.path.exists(config_dir):
                 os.makedirs(config_dir, exist_ok=True)
         except Exception as e:
-            from plugin.framework.logging import debug_log
-            debug_log(f"Error creating config directory: {e}", context="HistoryDB")
+            log.error(f"Error creating config directory: {e}")
         path = os.path.join(config_dir, "writeragent_history.db")
-        from plugin.framework.logging import debug_log
-        debug_log(f"Using database path: {path}", context="HistoryDB")
+        log.info(f"Using database path: {path}")
         return path
     return "writeragent_history.db"
 
@@ -100,8 +100,7 @@ class SQLite3History:
                 (self.session_id, json.dumps(msg_dict))
             )
             conn.commit()
-            from plugin.framework.logging import debug_log
-            debug_log(f"SQLite3: Added message for session {self.session_id}", context="HistoryDB")
+            log.info(f"SQLite3: Added message for session {self.session_id}")
 
     def get_messages(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -110,8 +109,7 @@ class SQLite3History:
                 (self.session_id,)
             )
             msgs = [json.loads(row[0]) for row in cursor.fetchall()]
-            from plugin.framework.logging import debug_log
-            debug_log(f"SQLite3: Retreived {len(msgs)} messages for session {self.session_id}", context="HistoryDB")
+            log.debug(f"SQLite3: Retreived {len(msgs)} messages for session {self.session_id}")
             return msgs
 
     def clear(self):
@@ -130,11 +128,9 @@ class JSONHistory:
         try:
             if not os.path.exists(self.history_dir):
                 os.makedirs(self.history_dir, exist_ok=True)
-            from plugin.framework.logging import debug_log
-            debug_log(f"JSONHistory: Using directory {self.history_dir}", context="HistoryDB")
+            log.info(f"JSONHistory: Using directory {self.history_dir}")
         except Exception as e:
-            from plugin.framework.logging import debug_log
-            debug_log(f"JSONHistory: Error creating directory: {e}", context="HistoryDB")
+            log.error(f"JSONHistory: Error creating directory: {e}")
         
         self.file_path = os.path.join(self.history_dir, f"{session_id}.json")
 
@@ -145,11 +141,9 @@ class JSONHistory:
         try:
             with open(self.file_path, "w", encoding="utf-8") as f:
                 json.dump(messages, f, indent=2)
-            from plugin.framework.logging import debug_log
-            debug_log(f"JSONHistory: Added message for session {self.session_id}", context="HistoryDB")
+            log.info(f"JSONHistory: Added message for session {self.session_id}")
         except Exception as e:
-            from plugin.framework.logging import debug_log
-            debug_log(f"JSONHistory: Error saving message: {e}", context="HistoryDB")
+            log.error(f"JSONHistory: Error saving message: {e}")
 
     def get_messages(self):
         if not os.path.exists(self.file_path):
@@ -157,12 +151,10 @@ class JSONHistory:
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 msgs = json.load(f)
-            from plugin.framework.logging import debug_log
-            debug_log(f"JSONHistory: Retreived {len(msgs)} messages for session {self.session_id}", context="HistoryDB")
+            log.debug(f"JSONHistory: Retreived {len(msgs)} messages for session {self.session_id}")
             return msgs
         except Exception as e:
-            from plugin.framework.logging import debug_log
-            debug_log(f"JSONHistory: Error reading messages: {e}", context="HistoryDB")
+            log.error(f"JSONHistory: Error reading messages: {e}")
             return []
 
     def clear(self):
@@ -170,8 +162,7 @@ class JSONHistory:
             try:
                 os.remove(self.file_path)
             except Exception as e:
-                from plugin.framework.logging import debug_log
-                debug_log(f"JSONHistory: Error clearing history: {e}", context="HistoryDB")
+                                log.error(f"JSONHistory: Error clearing history: {e}")
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -181,15 +172,11 @@ def get_chat_history(session_id, db_path=None):
         db_path = _get_db_path()
 
     if not HAS_SQLITE:
-        from plugin.framework.logging import debug_log
-        debug_log("SQLite not available; using JSON fallback for chat history", context="HistoryDB")
+        log.warning("SQLite not available; using JSON fallback for chat history")
         return JSONHistory(session_id, db_path)
     try:
-        from plugin.framework.logging import debug_log
-        debug_log(f"Using SQLite for chat history at {db_path}", context="HistoryDB")
+        log.info(f"Using SQLite for chat history at {db_path}")
         return SQLite3History(session_id, db_path)
     except Exception as e:
-        from plugin.framework.logging import debug_log
-        debug_log(f"SQLite failed, falling back to JSON: {e}", context="HistoryDB")
+        log.error(f"SQLite failed, falling back to JSON: {e}")
         return JSONHistory(session_id, db_path)
-

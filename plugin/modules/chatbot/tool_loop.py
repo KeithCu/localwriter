@@ -4,6 +4,7 @@ This mixin is used by SendButtonListener in panel.py and contains the
 multi-round tool-calling loop plus simple streaming fallback.
 """
 
+import logging
 import inspect
 import json
 import queue
@@ -12,7 +13,7 @@ from plugin.framework.async_stream import (
     run_stream_completion_async,
     run_stream_drain_loop,
 )
-from plugin.framework.logging import agent_log, debug_log, update_activity_state
+from plugin.framework.logging import agent_log, update_activity_state
 from plugin.modules.http.client import (
     format_error_message,
     is_audio_unsupported_error,
@@ -33,6 +34,8 @@ from plugin.framework.document import get_document_context_for_chat
 from plugin.modules.http.client import LlmClient
 from plugin.framework.config import as_bool
 
+log = logging.getLogger(__name__)
+
 # Default max tool rounds when not in config (get_api_config supplies chat_max_tool_rounds)
 DEFAULT_MAX_TOOL_ROUNDS = 5
 
@@ -40,20 +43,18 @@ DEFAULT_MAX_TOOL_ROUNDS = 5
 class ToolCallingMixin:
     def _do_send_chat_with_tools(self, query_text, model, doc_type_str):
         try:
-            debug_log("_do_send: importing core modules...", context="Chat")
+            log.debug("_do_send: importing core modules...")
             from plugin.main import get_tools
 
-            debug_log("_do_send: core modules imported OK", context="Chat")
+            log.debug("_do_send: core modules imported OK")
         except Exception as e:
-            debug_log("_do_send: core import FAILED: %s" % e, context="Chat")
+            log.error("_do_send: core import FAILED: %s" % e)
             self._append_response("\n[Import error - core: %s]\n" % e)
             self._terminal_status = "Error"
             return
 
         try:
-            debug_log(
-                "_do_send: loading %s schema..." % doc_type_str, context="Chat"
-            )
+            log.debug("_do_send: loading %s schema..." % doc_type_str)
             active_tools = get_tools().get_openai_schemas(doc_type=doc_type_str)
 
             def execute_fn(
@@ -99,7 +100,7 @@ class ToolCallingMixin:
                     return json.dumps({"status": "error", "message": str(e)})
 
         except Exception as e:
-            debug_log("_do_send: tool import FAILED: %s" % e, context="Chat")
+            log.error("_do_send: tool import FAILED: %s" % e)
             self._append_response("\n[Import error - tools: %s]\n" % e)
             self._terminal_status = "Error"
             return
@@ -119,25 +120,18 @@ class ToolCallingMixin:
                 update_lru_history(
                     self.ctx, selected_model, "model_lru", current_endpoint
                 )
-                debug_log(
-                    "_do_send: text model updated to %s" % selected_model,
-                    context="Chat",
-                )
+                log.debug("_do_send: text model updated to %s" % selected_model)
         if self.image_model_selector:
             selected_image_model = self.image_model_selector.getText()
             if selected_image_model:
                 set_image_model(self.ctx, selected_image_model)
-                debug_log(
-                    "_do_send: image model updated to %s" % selected_image_model,
-                    context="Chat",
-                )
+                log.debug("_do_send: image model updated to %s" % selected_image_model)
 
         max_context = int(get_config(self.ctx, "chat_context_length"))
         max_tokens = int(get_config(self.ctx, "chat_max_tokens"))
-        debug_log(
+        log.debug(
             "_do_send: config loaded: max_tokens=%d, max_context=%d"
-            % (max_tokens, max_context),
-            context="Chat",
+            % (max_tokens, max_context)
         )
 
         use_tools = True
@@ -165,10 +159,7 @@ class ToolCallingMixin:
                 include_selection=True,
                 ctx=self.ctx,
             )
-            debug_log(
-                "_do_send: document context length=%d" % len(doc_text),
-                context="Chat",
-            )
+            log.debug("_do_send: document context length=%d" % len(doc_text))
             agent_log(
                 "chat_panel.py:doc_context",
                 "Document context for AI",
@@ -181,9 +172,7 @@ class ToolCallingMixin:
             )
             self.session.update_document_context(doc_text)
         except Exception as e:
-            debug_log(
-                "_do_send: document context FAILED: %s" % e, context="Chat"
-            )
+            log.error("_do_send: document context FAILED: %s" % e)
             self._append_response("\n[Document unavailable or closed.]\n")
             self._terminal_status = "Error"
             self._set_status("Error")
@@ -217,7 +206,7 @@ class ToolCallingMixin:
                 self._append_response("\nYou: %s\n" % display_text)
                 # Note: We do NOT delete the audio file yet, in case native call fails and we need STT fallback
             except Exception as e:
-                debug_log("_do_send: Error reading audio: %s" % e, context="Chat")
+                log.error("_do_send: Error reading audio: %s" % e)
                 self.session.add_user_message(query_text)
                 self._append_response("\nYou: %s\n" % query_text)
                 self.audio_wav_path = None
@@ -226,13 +215,12 @@ class ToolCallingMixin:
             self._append_response("\nYou: %s\n" % query_text)
 
         self._append_response("\n[Using chat model.]\n")
-        debug_log("_do_send: using chat model", context="Chat")
+        log.info("_do_send: using chat model")
 
         self._set_status("Connecting to AI (tools=%s)..." % use_tools)
-        debug_log(
+        log.debug(
             "_do_send: calling AI, use_tools=%s, messages=%d"
-            % (use_tools, len(self.session.messages)),
-            context="Chat",
+            % (use_tools, len(self.session.messages))
         )
 
         max_tool_rounds = api_config.get(
@@ -248,15 +236,14 @@ class ToolCallingMixin:
             query_text=query_text,
         )
 
-        debug_log("=== _do_send END (async started) ===", context="Chat")
+        log.debug("=== _do_send END (async started, level=logging.INFO) ===")
 
     def _spawn_llm_worker(self, q, client, max_tokens, tools, round_num, query_text=None):
         """Spawn a background thread that streams the LLM response into q."""
         update_activity_state("tool_loop", round_num=round_num)
-        debug_log(
+        log.debug(
             "Tool loop round %d: sending %d messages to API..."
-            % (round_num, len(self.session.messages)),
-            context="Chat",
+            % (round_num, len(self.session.messages))
         )
         self._set_status(
             "Thinking..." if round_num == 0 else "Thinking (round %d)..."
@@ -279,10 +266,7 @@ class ToolCallingMixin:
                     update_activity_state("tool_loop", round_num=round_num)
                     q.put(("stream_done", response))
             except Exception as e:
-                debug_log(
-                    "Tool loop round %d: API ERROR: %s" % (round_num, e),
-                    context="Chat",
-                )
+                log.error("Tool loop round %d: API ERROR: %s" % (round_num, e))
                 q.put(("error", e))
 
         from plugin.framework.worker_pool import run_in_background
@@ -339,10 +323,9 @@ class ToolCallingMixin:
         """
         if max_tool_rounds is None:
             max_tool_rounds = DEFAULT_MAX_TOOL_ROUNDS
-        debug_log(
+        log.info(
             "=== Tool-calling loop START (max %d rounds) ==="
-            % max_tool_rounds,
-            context="Chat",
+            % max_tool_rounds
         )
         self._append_response("\nAI: ")
 
@@ -437,10 +420,7 @@ class ToolCallingMixin:
                         hypothesis_id="A",
                     )
                     if content:
-                        debug_log(
-                            "Tool loop: Adding assistant message to session",
-                            context="Chat",
-                        )
+                        log.debug("Tool loop: Adding assistant message to session")
                         self.session.add_assistant_message(content=content)
                         self._append_response("\n")
                     elif finish_reason == "length":
@@ -519,9 +499,7 @@ class ToolCallingMixin:
                     data={"tool": func_name, "round": round_num},
                     hypothesis_id="C,D,E",
                 )
-                debug_log(
-                    "Tool call: %s(%s)" % (func_name, func_args_str), context="Chat"
-                )
+                log.debug("Tool call: %s(%s)" % (func_name, func_args_str))
 
                 image_model_override = (
                     self.image_model_selector.getText()
@@ -630,7 +608,7 @@ class ToolCallingMixin:
                     item[4],
                 )
 
-                debug_log("Tool result: %s" % result, context="Chat")
+                log.debug("Tool result: %s" % result)
                 try:
                     result_data = json.loads(result)
                     note = result_data.get("message", result_data.get("status", "done"))
@@ -709,10 +687,9 @@ class ToolCallingMixin:
             if self.audio_wav_path and (
                 is_audio_unsupported_error(e) or _is_400_input_validation(e)
             ):
-                debug_log(
+                log.warning(
                     "Model %s failed native audio, caching and falling back to STT"
-                    % current_model,
-                    context="Chat",
+                    % current_model
                 )
                 set_native_audio_support(
                     self.ctx, current_model, current_endpoint, supported=False
@@ -767,7 +744,7 @@ class ToolCallingMixin:
 
     def _start_simple_stream_async(self, client, max_tokens):
         """Start simple streaming (no tools) via async helper; returns immediately."""
-        debug_log("=== Simple stream START ===", context="Chat")
+        log.info("=== Simple stream START ===")
         self._set_status("Thinking...")
         self._append_response("\nAI: ")
 
@@ -827,4 +804,3 @@ class ToolCallingMixin:
             on_status_fn=self._set_status,
             stop_checker=lambda: self.stop_requested,
         )
-
