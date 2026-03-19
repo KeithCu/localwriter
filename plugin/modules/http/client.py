@@ -19,6 +19,7 @@ LLM API client for WriterAgent.
 Takes a config dict (from plugin.framework.config.get_api_config) and UNO ctx.
 """
 import collections
+import logging
 import json
 import ssl
 import urllib.request
@@ -234,7 +235,7 @@ def sync_request(url, data=None, headers=None, timeout=10, parse_json=True):
             err_body = ""
         
         msg = _format_http_error_response(status, reason, err_body)
-        debug_log(f"HTTP Error: {msg}", context="API")
+        debug_log(f"HTTP Error: {msg}", context="API", level=logging.ERROR)
         raise Exception(msg) from e
     except Exception as e:
         if is_local_https and _is_certificate_verify_error(e):
@@ -252,12 +253,12 @@ def sync_request(url, data=None, headers=None, timeout=10, parse_json=True):
                 except Exception:
                     err_body = ""
                 msg = _format_http_error_response(status, reason, err_body)
-                debug_log(f"HTTP Error: {msg}", context="API")
+                debug_log(f"HTTP Error: {msg}", context="API", level=logging.ERROR)
                 raise Exception(msg) from retry_http_e
             except Exception as retry_e:
-                debug_log(f"Request failed: {format_error_message(retry_e)}", context="API")
+                debug_log(f"Request failed: {format_error_message(retry_e)}", context="API", level=logging.ERROR)
                 raise
-        debug_log(f"Request failed: {format_error_message(e)}", context="API")
+        debug_log(f"Request failed: {format_error_message(e)}", context="API", level=logging.ERROR)
         raise
 
 
@@ -447,7 +448,7 @@ class LlmClient:
             h.update(auth_headers)
         except AuthError as e:
             # Fall back to the previous behavior: simple Bearer header from config.
-            debug_log(f"Auth resolution error ({e.provider or 'unknown'}): {e}", context="API")
+            debug_log(f"Auth resolution error ({e.provider or 'unknown'}): {e}", context="API", level=logging.ERROR)
             api_key = self.config.get("api_key", "")
             if api_key:
                 h["Authorization"] = "Bearer %s" % api_key
@@ -692,7 +693,7 @@ class LlmClient:
                 # Using synchronous chat completion with model override
                 return self.chat_completion_sync(messages, max_tokens=16384, model=model_name)
             except Exception as e:
-                debug_log("Multimodal transcription failed: %s. Falling back to stt endpoint." % e, context="API")
+                debug_log("Multimodal transcription failed: %s. Falling back to stt endpoint." % e, context="API", level=logging.WARNING)
 
         # 2. Standard multipart fallback (Whisper, etc.)
         boundary = "Boundary-%s" % uuid.uuid4().hex
@@ -783,7 +784,7 @@ class LlmClient:
             
             if response.status != 200:
                 err_body = response.read().decode("utf-8", errors="replace")
-                debug_log("API Error %d: %s" % (response.status, err_body), context="API")
+                debug_log("API Error %d: %s" % (response.status, err_body), context="API", level=logging.ERROR)
                 # Close on error to be safe
                 self._close_connection()
                 raise Exception(_format_http_error_response(response.status, response.reason, err_body))
@@ -803,7 +804,7 @@ class LlmClient:
                     try:
                         chunk = json.loads(payload)
                     except json.JSONDecodeError:
-                        debug_log("streaming_loop: JSON decode error in payload: %s" % payload, context="API")
+                        debug_log("streaming_loop: JSON decode error in payload: %s" % payload, context="API", level=logging.ERROR)
                         continue
                     if chunk is None:
                         continue
@@ -872,12 +873,12 @@ class LlmClient:
                     self._close_connection()
 
         except (http.client.HTTPException, socket.error, OSError) as e:
-            debug_log("Connection error, closing: %s" % e, context="API")
+            debug_log("Connection error, closing: %s" % e, context="API", level=logging.ERROR)
             self._close_connection()
             # If the user requested a stop, don't retry. The connection error
             # might be a side-effect of us closing the connection in stop().
             if stop_checker and stop_checker():
-                debug_log("Connection error during stop; exiting streaming loop", context="API")
+                debug_log("Connection error during stop; exiting streaming loop", context="API", level=logging.ERROR)
                 return "stop"
             if self._enable_local_ssl_fallback(e):
                 return self._run_streaming_loop(
@@ -900,12 +901,12 @@ class LlmClient:
                     stop_checker=stop_checker,
                     _retry=False,
                 )
-            debug_log("Connection retry failed: %s" % err_msg, context="API")
+            debug_log("Connection retry failed: %s" % err_msg, context="API", level=logging.ERROR)
             raise Exception(err_msg)
         except Exception as e:
             self._close_connection() # Reset on any other error too
             err_msg = format_error_message(e)
-            debug_log("ERROR in _run_streaming_loop: %s -> %s" % (e, err_msg), context="API")
+            debug_log("ERROR in _run_streaming_loop: %s -> %s" % (e, err_msg), context="API", level=logging.ERROR)
             raise Exception(err_msg)
 
         return last_finish_reason
@@ -966,24 +967,24 @@ class LlmClient:
                 response = conn.getresponse()
                 if response.status != 200:
                     err_body = response.read().decode("utf-8", errors="replace")
-                    debug_log("API Error %d: %s" % (response.status, err_body), context="API")
+                    debug_log("API Error %d: %s" % (response.status, err_body), context="API", level=logging.ERROR)
                     self._close_connection()
                     raise Exception(_format_http_error_response(response.status, response.reason, err_body))
                 result = json.loads(response.read().decode("utf-8"))
                 break
             except (http.client.HTTPException, socket.error, OSError) as e:
-                debug_log("Connection error, closing: %s" % e, context="API")
+                debug_log("Connection error, closing: %s" % e, context="API", level=logging.ERROR)
                 self._close_connection()
                 if self._enable_local_ssl_fallback(e):
                     continue
                 if attempt == 0:
                     debug_log("Retrying request_with_tools once on fresh connection", context="API")
                     continue
-                debug_log("Connection retry failed: %s" % format_error_message(e), context="API")
+                debug_log("Connection retry failed: %s" % format_error_message(e), context="API", level=logging.ERROR)
                 raise Exception(format_error_message(e))
             except Exception as e:
                 err_msg = format_error_message(e)
-                debug_log("request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")
+                debug_log("request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API", level=logging.ERROR)
                 raise Exception(err_msg)
 
         debug_log("=== Tool response: %s" % json.dumps(result, indent=2), context="API")
@@ -1052,7 +1053,7 @@ class LlmClient:
             )
         except Exception as e:
             err_msg = format_error_message(e)
-            debug_log("stream_request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API")
+            debug_log("stream_request_with_tools ERROR: %s -> %s" % (e, err_msg), context="API", level=logging.ERROR)
             raise Exception(err_msg)
 
         # LiteLLM: streaming_handler.py ~L970 finish_reason_handler() "## if tool use"

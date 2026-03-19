@@ -29,6 +29,7 @@ ACP spec: https://agentcommunicationprotocol.dev
 Hermes docs: https://github.com/NousResearch/hermes-agent
 """
 
+import logging
 import json
 import os
 import shutil
@@ -170,7 +171,7 @@ class HermesBackend(AgentBackend):
             }, timeout=15)
             debug_log(f"ACP initialized: {result}", context=_LOG)
         except Exception as e:
-            debug_log(f"ACP initialize failed: {e}", context=_LOG)
+            debug_log(f"ACP initialize failed: {e}", context=_LOG, level=logging.ERROR)
             self._conn.stop()
             self._conn = None
             raise
@@ -200,7 +201,7 @@ class HermesBackend(AgentBackend):
             self._session_id = result.get("sessionId", "") if result else ""
             debug_log(f"ACP session created: {self._session_id}", context=_LOG)
         except Exception as e:
-            debug_log(f"ACP session creation failed: {e}", context=_LOG)
+            debug_log(f"ACP session creation failed: {e}", context=_LOG, level=logging.ERROR)
             raise
 
     def send(
@@ -310,7 +311,7 @@ class HermesBackend(AgentBackend):
             if self._stop_requested:
                 queue.put(("stopped",))
             else:
-                debug_log(f"Prompt error: {e}", context=_LOG)
+                debug_log(f"Prompt error: {e}", context=_LOG, level=logging.ERROR)
                 queue.put(("error", e))
         finally:
             self._conn.set_notification_callback(None)
@@ -401,7 +402,7 @@ class HermesBackend(AgentBackend):
                 })
                 debug_log("Cancel notification sent", context=_LOG)
             except Exception as e:
-                debug_log(f"Cancel failed: {e}", context=_LOG)
+                debug_log(f"Cancel failed: {e}", context=_LOG, level=logging.ERROR)
 
     def submit_approval(self, request_id, approved):
         """Submit approval for a permission request."""
@@ -420,7 +421,7 @@ class HermesBackend(AgentBackend):
             self._conn._proc.stdin.flush()
             debug_log(f"Approval responded (id={request_id}): approved={approved}", context=_LOG)
         except Exception as e:
-            debug_log(f"Approval response failed: {e}", context=_LOG)
+            debug_log(f"Approval response failed: {e}", context=_LOG, level=logging.ERROR)
 
     def cleanup(self):
         """Shutdown the ACP subprocess."""

@@ -24,6 +24,7 @@ remain in panel_factory.py.
 
 import uno
 import unohelper
+import logging
 from plugin.framework.uno_context import get_active_document
 from plugin.framework.dialogs import get_checkbox_state
 from com.sun.star.awt import XActionListener
@@ -61,7 +62,7 @@ class ChatSession:
                 self.db = get_chat_history(session_id)
                 self.messages = self.db.get_messages()
             except Exception as e:
-                debug_log("ChatSession history load error: %s" % e, context="Chat")
+                debug_log("ChatSession history load error: %s" % e, context="Chat", level=logging.ERROR)
 
         # If no history, or system prompt forced
         if not self.messages and system_prompt:
@@ -160,7 +161,7 @@ class QueryTextListener(unohelper.Base, XTextListener):
             else:
                 debug_log("QueryTextListener: label already '%s'" % new_label, context="Chat")
         except Exception as e:
-            debug_log("QueryTextListener error: %s" % e, context="Chat")
+            debug_log("QueryTextListener error: %s" % e, context="Chat", level=logging.ERROR)
 
     def disposing(self, ev):
         pass
@@ -206,7 +207,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
                 debug_log(f"*** SendButtonListener subscribed to MCP events on services.events (id={id(event_bus)}) ***", context="Chat")
         except Exception as e:
             from plugin.framework.logging import debug_log
-            debug_log("MCP subscribe error: %s" % e, context="Chat")
+            debug_log("MCP subscribe error: %s" % e, context="Chat", level=logging.ERROR)
 
     def set_session(self, session):
         """Update the active session (e.g. when switching between Document and Research chat)."""
@@ -257,7 +258,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
             debug_log(f"MCP Request (hidden from UI): {fmt_str}", context="Chat")
         except Exception as e:
             from plugin.framework.logging import debug_log
-            debug_log("_on_mcp_request error: %s" % e, context="Chat")
+            debug_log("_on_mcp_request error: %s" % e, context="Chat", level=logging.ERROR)
 
     def _on_mcp_result(self, tool="", result_snippet="", **kwargs):
         """Handle MCP result events from the bus (background thread)."""
@@ -270,13 +271,13 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
                 self._append_response(f"[MCP Result] {fmt_str}\n")
             except Exception as e:
                 from plugin.framework.logging import debug_log
-                debug_log("_on_mcp_result UI update error: %s" % e, context="Chat")
+                debug_log("_on_mcp_result UI update error: %s" % e, context="Chat", level=logging.ERROR)
 
         try:
             execute_on_main_thread(_update_ui)
         except Exception as e:
             from plugin.framework.logging import debug_log
-            debug_log("_on_mcp_result post error: %s" % e, context="Chat")
+            debug_log("_on_mcp_result post error: %s" % e, context="Chat", level=logging.ERROR)
 
     def _get_document_model(self):
         """Get the Writer document model."""
@@ -329,7 +330,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
             import traceback
             tb = traceback.format_exc()
             self._append_response("\n\n[Error: %s]\n%s\n" % (str(e), tb))
-            debug_log("SendButton error: %s\n%s" % (e, tb), context="Chat")
+            debug_log("SendButton error: %s\n%s" % (e, tb), context="Chat", level=logging.ERROR)
         finally:
             self._send_busy = False
             debug_log("actionPerformed finally: resetting UI", context="Chat")
@@ -376,14 +377,14 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
         
         if self.initial_doc_type and doc_type_str != self.initial_doc_type:
             err_msg = "[Internal Error: Document type changed from %s to %s! Please file an error.]" % (self.initial_doc_type, doc_type_str)
-            debug_log("_do_send ERROR: %s" % err_msg, context="Chat")
+            debug_log("_do_send ERROR: %s" % err_msg, context="Chat", level=logging.ERROR)
             self._append_response("\n%s\n" % err_msg)
             self._terminal_status = "Error"
             return
 
         if doc_type_str == "Unknown":
             err_msg = "[Internal Error: Could not identify document type for %s. Please report this!]" % (model.getImplementationName() if hasattr(model, "getImplementationName") else "Unknown")
-            debug_log("_do_send ERROR: %s" % err_msg, context="Chat")
+            debug_log("_do_send ERROR: %s" % err_msg, context="Chat", level=logging.ERROR)
             self._append_response("\n%s\n" % err_msg)
             self._terminal_status = "Error"
             return
@@ -440,7 +441,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
             try:
                 direct_image_checked = (get_checkbox_state(self.direct_image_checkbox) == 1)
             except Exception as e:
-                debug_log("_do_send: Use Image model checkbox read error: %s" % e, context="Chat")
+                debug_log("_do_send: Use Image model checkbox read error: %s" % e, context="Chat", level=logging.ERROR)
         if direct_image_checked:
             debug_log("_do_send: using image model (direct) — skip chat model", context="Chat")
             self._do_send_direct_image(query_text, model)
@@ -455,7 +456,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
                 self._do_send_via_agent_backend(query_text, model, doc_type_str.lower())
                 return
         except Exception as e:
-            debug_log("_do_send: agent backend check failed: %s" % e, context="Chat")
+            debug_log("_do_send: agent backend check failed: %s" % e, context="Chat", level=logging.ERROR)
 
         # Regular Chat with Tools or Streams
         self._do_send_chat_with_tools(query_text, model, doc_type_str.lower())
