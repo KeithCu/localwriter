@@ -39,7 +39,61 @@ class WriterModule(ModuleBase):
         prox = ProximityService(doc_svc, tree, bm, events)
         idx = IndexService(doc_svc, tree, bm, events)
 
-        services.register_instance("writer_bookmarks", bm)
-        services.register_instance("writer_tree", tree)
-        services.register_instance("writer_proximity", prox)
-        services.register_instance("writer_index", idx)
+        services.register("writer_bookmarks", bm)
+        services.register("writer_tree", tree)
+        services.register("writer_proximity", prox)
+        services.register("writer_index", idx)
+
+        # Register tools
+        from .outline import GetDocumentTree
+        from .styles import ListStyles, GetStyleInfo
+        from .images import GenerateImage
+        from .content import GetDocumentContent, ApplyDocumentContent, ReadParagraphs, InsertAtParagraph, ModifyParagraph, DeleteParagraph, DuplicateParagraph, CloneHeadingBlock, InsertParagraphsBatch, GetDocumentStats
+        from .search import SearchInDocument, GetIndexStats
+        from .comments import ListComments, AddComment, DeleteComment
+        from .tables import ListTables, ReadTable, WriteTableCells, CreateTable, DeleteTable, SetTableProperties, AddTableRows, AddTableColumns, DeleteTableRows, DeleteTableColumns, WriteTableRow
+        from .structural import ReplaceSection, FindParagraphForRange, FindTableForRange
+        from .tracking import SetTrackChanges, GetTrackedChanges, AcceptAllChanges, RejectAllChanges
+        from .frames import GetTextFrameContent
+
+        tools = [
+            GetDocumentTree(),
+            ListStyles(),
+            GetStyleInfo(),
+            GenerateImage(),
+            GetDocumentContent(),
+            ApplyDocumentContent(),
+            ReadParagraphs(),
+            InsertAtParagraph(),
+            ModifyParagraph(),
+            DeleteParagraph(),
+            DuplicateParagraph(),
+            CloneHeadingBlock(),
+            InsertParagraphsBatch(),
+            GetDocumentStats(),
+            SearchInDocument(),
+            GetIndexStats(),
+            ListComments(),
+            AddComment(),
+            DeleteComment(),
+            ListTables(),
+            ReadTable(),
+            WriteTableCells(),
+            CreateTable(),
+            DeleteTable(),
+            SetTableProperties(),
+            AddTableRows(),
+            AddTableColumns(),
+            DeleteTableRows(),
+            DeleteTableColumns(),
+            WriteTableRow(),
+            ReplaceSection(),
+            FindParagraphForRange(),
+            FindTableForRange(),
+            SetTrackChanges(),
+            GetTrackedChanges(),
+            AcceptAllChanges(),
+            RejectAllChanges(),
+            GetTextFrameContent()
+        ]
+        services.tools.register_many(tools)

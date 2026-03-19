@@ -54,7 +54,7 @@ class ToolCallingMixin:
             debug_log(
                 "_do_send: loading %s schema..." % doc_type_str, context="Chat"
             )
-            active_tools = get_tools().get_openai_schemas(doc_type=doc_type_str)
+            active_tools = get_tools().get_schemas("openai", doc_type=doc_type_str)
 
             def execute_fn(
                 name,

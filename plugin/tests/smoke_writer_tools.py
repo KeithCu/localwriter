@@ -7,7 +7,7 @@ from plugin.main import get_tools
 class TestWriterToolsSmoke(unittest.TestCase):
     def test_registration(self):
         registry = get_tools()
-        writer_tools = {t.name for t in registry.tools_for_doc_type("writer")}
+        writer_tools = {t.name for t in registry.get_tools(doc_type="writer")}
         # Core / navigation
         self.assertIn("get_document_tree", writer_tools)
         # Content
@@ -27,7 +27,7 @@ class TestWriterToolsSmoke(unittest.TestCase):
 
     def test_schemas(self):
         registry = get_tools()
-        schemas = registry.get_openai_schemas(doc_type="writer")
+        schemas = registry.get_schemas("openai", doc_type="writer")
         names = {s["function"]["name"] for s in schemas}
         for name in ("get_document_tree", "read_paragraphs", "get_document_stats", "modify_paragraph"):
             self.assertIn(name, names, f"Schema missing for {name}")
