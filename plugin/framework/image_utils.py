@@ -134,7 +134,10 @@ class EndpointImageProvider(ImageProvider):
                 if http_resp.status != 200:
                     err_body = http_resp.read().decode("utf-8", errors="replace")
                     logger.error("Image API Error %d: %s", http_resp.status, err_body)
-                    raise Exception(_format_http_error_response(http_resp.status, http_resp.reason, err_body))
+                    err_msg = _format_http_error_response(
+                        http_resp.status, http_resp.reason, err_body
+                    )
+                    return [], err_msg
 
                 result = json.loads(http_resp.read().decode("utf-8"))
                 log_result = _trim_images(result) if TRIM_IMAGES_IN_LOG else result
@@ -155,9 +158,9 @@ class EndpointImageProvider(ImageProvider):
 
                 if paths:
                     return paths, ""
-            except Exception:
+            except Exception as e:
                 logger.exception("Image generation failed")
-                raise
+                return [], str(e)
 
         # Fallback: image in content string (some endpoints)
         if "data:image" in fallback_content:

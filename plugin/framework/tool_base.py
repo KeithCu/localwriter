@@ -102,7 +102,12 @@ class ToolBase(ABC):
         """
         if not hasattr(doc, getter_name):
             msg = missing_msg or f"Document does not support {getter_name}."
-            return {"status": "error", "message": msg}
+            return {
+                "status": "error",
+                "code": "UNO_OBJECT_ERROR",
+                "message": msg,
+                "details": {"getter_name": getter_name},
+            }
         return getattr(doc, getter_name)()
 
     def get_item(self, doc, getter_name, item_name, missing_msg=None, not_found_msg=None):
@@ -127,8 +132,10 @@ class ToolBase(ABC):
             msg = not_found_msg or f"Item '{item_name}' not found."
             return {
                 "status": "error",
+                "code": "UNO_OBJECT_ERROR",
                 "message": msg,
                 "available": available,
+                "details": {"item_name": item_name, "getter_name": getter_name},
             }
 
         return collection.getByName(item_name)
@@ -148,7 +155,12 @@ class ToolBaseDummy:
         """Helper to safely fetch a named collection from a document."""
         if not hasattr(doc, getter_name):
             msg = missing_msg or f"Document does not support {getter_name}."
-            return {"status": "error", "message": msg}
+            return {
+                "status": "error",
+                "code": "UNO_OBJECT_ERROR",
+                "message": msg,
+                "details": {"getter_name": getter_name},
+            }
         return getattr(doc, getter_name)()
 
     def get_item(self, doc, getter_name, item_name, missing_msg=None, not_found_msg=None):
@@ -159,6 +171,12 @@ class ToolBaseDummy:
         if not collection.hasByName(item_name):
             available = list(collection.getElementNames())
             msg = not_found_msg or f"Item '{item_name}' not found."
-            return {"status": "error", "message": msg, "available": available}
+            return {
+                "status": "error",
+                "code": "UNO_OBJECT_ERROR",
+                "message": msg,
+                "available": available,
+                "details": {"item_name": item_name, "getter_name": getter_name},
+            }
         return collection.getByName(item_name)
 

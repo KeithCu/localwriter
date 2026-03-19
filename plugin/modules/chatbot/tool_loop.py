@@ -31,6 +31,7 @@ from plugin.framework.config import (
 )
 from plugin.framework.constants import get_chat_system_prompt_for_document
 from plugin.framework.document import get_document_context_for_chat
+from plugin.framework.errors import format_error_payload
 from plugin.modules.http.client import LlmClient
 from plugin.framework.config import as_bool
 
@@ -97,7 +98,7 @@ class ToolCallingMixin:
                     res = _get_tools().execute(name, tctx, **args)
                     return json.dumps(res) if isinstance(res, dict) else str(res)
                 except Exception as e:
-                    return json.dumps({"status": "error", "message": str(e)})
+                    return json.dumps(format_error_payload(e))
 
         except Exception as e:
             log.error("_do_send: tool import FAILED: %s" % e)
@@ -554,9 +555,7 @@ class ToolCallingMixin:
                                     call_id,
                                     func_name,
                                     func_args_str,
-                                    json.dumps(
-                                        {"status": "error", "message": str(e)}
-                                    ),
+                                    json.dumps(format_error_payload(e)),
                                 )
                             )
 
@@ -593,9 +592,7 @@ class ToolCallingMixin:
                                 call_id,
                                 func_name,
                                 func_args_str,
-                                json.dumps(
-                                    {"status": "error", "message": str(e)}
-                                ),
+                                json.dumps(format_error_payload(e)),
                             )
                         )
                 return False
