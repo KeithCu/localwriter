@@ -48,13 +48,12 @@ class WriterModule(ModuleBase):
         from .outline import GetDocumentTree
         from .styles import ListStyles, GetStyleInfo
         from .images import GenerateImage
-        from .content import GetDocumentContent, ApplyDocumentContent, ReadParagraphs, InsertAtParagraph, ModifyParagraph, DeleteParagraph, DuplicateParagraph, CloneHeadingBlock, InsertParagraphsBatch, GetDocumentStats
+        from .content import GetDocumentContent, ApplyDocumentContent, GetDocumentStats
         from .search import SearchInDocument, GetIndexStats
         from .comments import ListComments, AddComment, DeleteComment
-        from .tables import ListTables, ReadTable, WriteTableCells, CreateTable, DeleteTable, SetTableProperties, AddTableRows, AddTableColumns, DeleteTableRows, DeleteTableColumns, WriteTableRow
+        from .tables import ListTables, ReadTable, WriteTableCells
         from .structural import ReplaceSection, FindParagraphForRange, FindTableForRange
         from .tracking import SetTrackChanges, GetTrackedChanges, AcceptAllChanges, RejectAllChanges
-        from .frames import GetTextFrameContent
 
         tools = [
             GetDocumentTree(),
@@ -63,13 +62,6 @@ class WriterModule(ModuleBase):
             GenerateImage(),
             GetDocumentContent(),
             ApplyDocumentContent(),
-            ReadParagraphs(),
-            InsertAtParagraph(),
-            ModifyParagraph(),
-            DeleteParagraph(),
-            DuplicateParagraph(),
-            CloneHeadingBlock(),
-            InsertParagraphsBatch(),
             GetDocumentStats(),
             SearchInDocument(),
             GetIndexStats(),
@@ -79,14 +71,6 @@ class WriterModule(ModuleBase):
             ListTables(),
             ReadTable(),
             WriteTableCells(),
-            CreateTable(),
-            DeleteTable(),
-            SetTableProperties(),
-            AddTableRows(),
-            AddTableColumns(),
-            DeleteTableRows(),
-            DeleteTableColumns(),
-            WriteTableRow(),
             ReplaceSection(),
             FindParagraphForRange(),
             FindTableForRange(),
@@ -94,6 +78,5 @@ class WriterModule(ModuleBase):
             GetTrackedChanges(),
             AcceptAllChanges(),
             RejectAllChanges(),
-            GetTextFrameContent()
         ]
         services.tools.register_many(tools)

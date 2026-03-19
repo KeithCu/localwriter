@@ -51,9 +51,8 @@ class ServiceRegistry:
     def __getattr__(self, name):
         if name.startswith("_"):
             raise AttributeError(name)
-        svc = self._services.get(name)
-        if svc is not None:
-            return svc
+        if name in self._services:
+            return self._services[name]
         raise AttributeError(f"No service registered: {name}")
 
     def __contains__(self, name):
