@@ -34,7 +34,7 @@ class WriterModule(ModuleBase):
         doc_svc = services.document
         events = services.events
 
-        bm = BookmarkService(doc_svc, events)
+        bm = BookmarkService(doc_svc)
         tree = TreeService(doc_svc, bm, events)
         prox = ProximityService(doc_svc, tree, bm, events)
         idx = IndexService(doc_svc, tree, bm, events)

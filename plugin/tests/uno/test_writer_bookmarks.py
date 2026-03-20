@@ -60,9 +60,8 @@ def test_ensure_heading_bookmarks_and_map():
     except ImportError:
         pass
 
-    events = EventBus()
     doc_svc = DocumentService()
-    bookmark_svc = BookmarkService(doc_svc, events)
+    bookmark_svc = BookmarkService(doc_svc)
 
     # Initially no bookmarks
     bms = _test_doc.getBookmarks().getElementNames()
@@ -94,9 +93,8 @@ def test_find_nearest_heading_bookmark():
     except ImportError:
         pass
 
-    events = EventBus()
     doc_svc = DocumentService()
-    bookmark_svc = BookmarkService(doc_svc, events)
+    bookmark_svc = BookmarkService(doc_svc)
 
     bookmark_map = bookmark_svc.ensure_heading_bookmarks(_test_doc)
 
@@ -121,9 +119,8 @@ def test_cleanup_mcp_bookmarks():
     except ImportError:
         pass
 
-    events = EventBus()
     doc_svc = DocumentService()
-    bookmark_svc = BookmarkService(doc_svc, events)
+    bookmark_svc = BookmarkService(doc_svc)
 
     # Ensure we have some bookmarks
     bookmark_svc.ensure_heading_bookmarks(_test_doc)
@@ -137,6 +134,6 @@ def test_cleanup_mcp_bookmarks():
     mcp_bms = [b for b in bms if b.startswith("_mcp_")]
     assert len(mcp_bms) == 0
 
-    # Verify cache is cleared implicitly on next read
+    # Verify map is empty on next read
     empty_map = bookmark_svc.get_mcp_bookmark_map(_test_doc)
     assert len(empty_map) == 0

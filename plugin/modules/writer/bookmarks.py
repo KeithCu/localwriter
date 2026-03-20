@@ -28,24 +28,11 @@ log = logging.getLogger("writeragent.writer.nav.bookmarks")
 class BookmarkService:
     """Manage _mcp_ bookmarks on headings for stable addressing."""
 
-    def __init__(self, doc_svc, events):
+    def __init__(self, doc_svc):
         self._doc_svc = doc_svc
-        self._bookmark_cache = {}  # doc_key -> {para_index: bookmark_name}
-        events.subscribe("document:cache_invalidated",
-                         self._on_cache_invalidated)
-
-    def _on_cache_invalidated(self, doc=None, **_kw):
-        if doc is None:
-            self._bookmark_cache.clear()
-        else:
-            self._bookmark_cache.pop(self._doc_svc.doc_key(doc), None)
 
     def get_mcp_bookmark_map(self, doc):
         """Return {para_index: bookmark_name} for all _mcp_ bookmarks."""
-        key = self._doc_svc.doc_key(doc)
-        if key in self._bookmark_cache:
-            return self._bookmark_cache[key]
-
         result = {}
         try:
             if not hasattr(doc, "getBookmarks"):
@@ -68,7 +55,6 @@ class BookmarkService:
         except Exception as e:
             log.error("Failed to get MCP bookmark map: %s", e)
 
-        self._bookmark_cache[key] = result
         return result
 
     def ensure_heading_bookmarks(self, doc):
@@ -112,8 +98,6 @@ class BookmarkService:
             except Exception:
                 pass
 
-        key = self._doc_svc.doc_key(doc)
-        self._bookmark_cache[key] = bookmark_map
         return bookmark_map
 
     def find_nearest_heading_bookmark(self, para_index, bookmark_map):
@@ -145,8 +129,6 @@ class BookmarkService:
                     except Exception:
                         pass
             if removed:
-                key = self._doc_svc.doc_key(doc)
-                self._bookmark_cache.pop(key, None)
                 try:
                     if doc.hasLocation():
                         doc.store()
