@@ -1,5 +1,4 @@
 from plugin.framework.document import (
-    DocumentCache,
     build_heading_tree,
     resolve_locator,
     get_paragraph_ranges,
@@ -88,13 +87,12 @@ def test_proximity_service():
     from plugin.modules.writer.ops import find_paragraph_for_range as ops_find_paragraph_for_range
 
     events = EventBus()
-    cache3 = DocumentCache.get(_test_doc)
 
     class DocSvcAdapter:
         def doc_key(self, doc):
             return id(doc)
         def get_document_length(self, model):
-            return cache3.length
+            return get_document_length(model)
         def resolve_locator(self, doc, locator):
             return resolve_locator(doc, locator)
         def get_paragraph_ranges(self, doc):
@@ -253,30 +251,6 @@ def test_writer_structural_and_tree_service():
     sec_res = list_sec_tool.execute(mock_ctx)
     assert sec_res["status"] == "ok", f"ListSections failed: {sec_res}"
     assert isinstance(sec_res["sections"], list), "ListSections should return a list"
-
-
-@native_test
-def test_document_cache_length_tracking():
-    try:
-        import pytest
-        if _test_doc is None:
-            pytest.skip("Requires LibreOffice document from native runner")
-    except ImportError:
-        pass
-    cache3 = DocumentCache.get(_test_doc)
-    _ = get_document_length(_test_doc)
-    prev_len = cache3.length
-    assert prev_len is not None and prev_len > 0, "DocumentCache length not properly initialized"
-
-    text = _test_doc.getText()
-    cursor = text.createTextCursor()
-    text.insertControlCharacter(cursor, 0, False)
-    text.insertString(cursor, "More text", False)
-    DocumentCache.invalidate(_test_doc)
-    _ = get_document_length(_test_doc)
-    cache3_new = DocumentCache.get(_test_doc)
-    new_len = cache3_new.length
-    assert new_len is not None and new_len > prev_len, "DocumentCache length did not update"
 
 
 @native_test

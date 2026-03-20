@@ -1,4 +1,3 @@
-from plugin.framework.document import DocumentCache
 from plugin.framework.uno_context import get_desktop
 from plugin.testing_runner import setup, teardown, native_test
 
@@ -34,21 +33,6 @@ def teardown_framework_tests(ctx):
     _test_doc1 = None
     _test_doc2 = None
     _test_ctx = None
-
-
-@native_test
-def test_document_cache():
-    cache1 = DocumentCache.get(_test_doc1)
-    cache1_again = DocumentCache.get(_test_doc1)
-    assert cache1 is cache1_again, "DocumentCache returned different instances for same model"
-
-    cache2 = DocumentCache.get(_test_doc2)
-    assert cache1 is not cache2, "DocumentCache returned same instance for different model"
-
-    DocumentCache.invalidate(_test_doc1)
-    DocumentCache.invalidate(_test_doc2)
-    cache1_new = DocumentCache.get(_test_doc1)
-    assert cache1 is not cache1_new, "DocumentCache.invalidate failed"
 
 
 @native_test

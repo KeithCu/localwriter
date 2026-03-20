@@ -163,22 +163,15 @@ class TestSchemas:
 
 
 class TestExecuteEventsAndInvalidation:
-    """Tests that execute() emits events and invalidates document cache (from test_registry)."""
+    """Tests that execute() emits events."""
 
-    def test_execute_emits_events_and_invalidates_cache(self):
+    def test_execute_emits_events(self):
         class MockEventBus:
             def __init__(self):
                 self.events = []
 
             def emit(self, event, **kwargs):
                 self.events.append((event, kwargs))
-
-        class MockDocumentService:
-            def __init__(self):
-                self.invalidated = []
-
-            def invalidate_cache(self, doc):
-                self.invalidated.append(doc)
 
         class ToolWithParams(ToolBase):
             name = "tool_with_params"
@@ -191,9 +184,7 @@ class TestExecuteEventsAndInvalidation:
 
         services = ServiceRegistry()
         events = MockEventBus()
-        doc_svc = MockDocumentService()
         services.register("events", events)
-        services.register("document", doc_svc)
 
         reg = ToolRegistry(services)
         reg.register(ToolWithParams())
@@ -205,23 +196,14 @@ class TestExecuteEventsAndInvalidation:
         assert len(events.events) == 2
         assert events.events[0][0] == "tool:executing"
         assert events.events[1][0] == "tool:completed"
-        assert len(doc_svc.invalidated) == 1
-        assert doc_svc.invalidated[0] is ctx.doc
 
-    def test_execute_failure_emits_events_and_invalidates_cache(self):
+    def test_execute_failure_emits_events(self):
         class MockEventBus:
             def __init__(self):
                 self.events = []
 
             def emit(self, event, **kwargs):
                 self.events.append((event, kwargs))
-
-        class MockDocumentService:
-            def __init__(self):
-                self.invalidated = []
-
-            def invalidate_cache(self, doc):
-                self.invalidated.append(doc)
 
         class FailingToolWithParams(ToolBase):
             name = "failing_tool_with_params"
@@ -234,9 +216,7 @@ class TestExecuteEventsAndInvalidation:
 
         services = ServiceRegistry()
         events = MockEventBus()
-        doc_svc = MockDocumentService()
         services.register("events", events)
-        services.register("document", doc_svc)
 
         reg = ToolRegistry(services)
         reg.register(FailingToolWithParams())
@@ -251,7 +231,4 @@ class TestExecuteEventsAndInvalidation:
         assert events.events[0][0] == "tool:executing"
         assert events.events[1][0] == "tool:failed"
         assert events.events[1][1]["error"] == "something went wrong"
-
-        assert len(doc_svc.invalidated) == 1
-        assert doc_svc.invalidated[0] is ctx.doc
 

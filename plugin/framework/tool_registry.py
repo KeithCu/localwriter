@@ -182,12 +182,6 @@ class ToolRegistry:
         if bus:
             bus.emit("tool:executing", name=tool_name, caller=ctx.caller)
 
-        # Invalidate document cache on mutations (skipped in batch mode)
-        if tool.detects_mutation() and not self.batch_mode:
-            doc_svc = self._services.get("document")
-            if doc_svc:
-                doc_svc.invalidate_cache(ctx.doc)
-
         try:
             result = tool.execute(ctx, **kwargs)
             # Ensure any returned dict with status='error' includes full context details

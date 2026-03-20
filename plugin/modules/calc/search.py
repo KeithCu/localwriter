@@ -202,10 +202,6 @@ class ReplaceInSpreadsheet(ToolBase):
                 rd.SearchCaseSensitive = bool(case_sensitive)
                 total += sheet.replaceAll(rd)
 
-            if total > 0:
-                doc_svc = ctx.services.document
-                doc_svc.invalidate_cache(doc)
-
             return {
                 "status": "ok",
                 "replacements": total,
