@@ -656,86 +656,7 @@ class LlmClient:
             stop_checker=stop_checker,
         )
 
-    def request_with_tools(self, messages, max_tokens=512, tools=None, body_override=None, model=None):
-        """Non-streaming chat request. Returns parsed response dict. body_override: optional str/bytes to use as request body (e.g. for modalities)."""
-        method, path, body, headers = self.make_chat_request(
-            messages, max_tokens, tools=tools, stream=False, model=model
-        )
-        if body_override is not None:
-            body = body_override.encode("utf-8") if isinstance(body_override, str) else body_override
-
-        result = None
-        for attempt in (0, 1):
-            try:
-                conn = self._get_connection()
-                conn.request(method, path, body=body, headers=headers)
-                response = conn.getresponse()
-                if response.status != 200:
-                    err_body = response.read().decode("utf-8", errors="replace")
-                    log.error("API Error %d: %s" % (response.status, err_body))
-                    self._close_connection()
-                    raise NetworkError(
-                        _format_http_error_response(response.status, response.reason, err_body),
-                        code="HTTP_ERROR",
-                        context={"url": path, "status": response.status}
-                    )
-                result = json.loads(response.read().decode("utf-8"))
-                break
-            except (http.client.HTTPException, socket.error, OSError) as e:
-                log.error("Connection error, closing: %s" % e)
-                self._close_connection()
-                if self._enable_local_ssl_fallback(e):
-                    continue
-                if attempt == 0:
-                    log.warning("Retrying request_with_tools once on fresh connection")
-                    continue
-                log.error("Connection retry failed: %s" % format_error_message(e))
-                raise NetworkError(format_error_message(e), code="CONNECTION_ERROR", context={"url": path}) from e
-            except NetworkError:
-                raise
-            except Exception as e:
-                err_msg = format_error_message(e)
-                log.error("request_with_tools ERROR: %s -> %s" % (type(e).__name__, err_msg))
-                raise NetworkError(err_msg, context={"url": path}) from e
-
-        log.debug("=== Tool response: %s" % json.dumps(result, indent=2))
-
-        choice = result.get("choices", [{}])[0] if result.get("choices") else {}
-        message = choice.get("message") or result.get("message") or {}
-        # LiteLLM: same Mistral/Azure compat as _normalize_delta (streaming_handler.py ~L820, ~L847, ~L853)
-        _normalize_delta(message)
-        finish_reason = choice.get("finish_reason") or result.get("done_reason")
-
-        raw_content = message.get("content")
-        content = _normalize_message_content(raw_content)
-        images = message.get("images") or []
-        tool_calls = message.get("tool_calls")
-
-        # LiteLLM: streaming_handler.py ~L970 finish_reason_handler() "## if tool use"
-        if finish_reason == "stop" and tool_calls:
-            finish_reason = "tool_calls"
-
-        if not tool_calls and content:
-            from plugin.contrib.tool_call_parsers import get_parser_for_model
-            parser = get_parser_for_model(model or self.config.get("model", ""))
-            if parser:
-                p_content, p_tool_calls = parser.parse(content)
-                if p_tool_calls:
-                    tool_calls = p_tool_calls
-                    content = p_content
-                    if finish_reason != "tool_calls":
-                        finish_reason = "tool_calls"
-
-        return {
-            "role": "assistant",
-            "content": content,
-            "tool_calls": tool_calls,
-            "finish_reason": finish_reason,
-            "images": images,
-            "usage": result.get("usage", {}),
-        }
-
-    def stream_request_with_tools(
+    def request_with_tools(
         self,
         messages,
         max_tokens=512,
@@ -743,46 +664,110 @@ class LlmClient:
         append_callback=None,
         append_thinking_callback=None,
         stop_checker=None,
+        body_override=None,
         model=None,
+        stream=False,
     ):
-        """Streaming chat request with tools. Returns same shape as request_with_tools."""
+        """Chat request with support for tools and streaming.
+        
+        If stream=True, uses callbacks to stream deltas & accumulates tool_calls.
+        If stream=False, makes a standard blocking call.
+        
+        Returns a dict: {role, content, tool_calls, finish_reason, images, usage}
+        """
         init_logging(self.ctx)
-        log.debug("stream_request_with_tools: building request (%d messages, level=logging.DEBUG)..." % len(messages))
         method, path, body, headers = self.make_chat_request(
-            messages, max_tokens, tools=tools, stream=True, model=model
+            messages, max_tokens, tools=tools, stream=stream, model=model
         )
+        if body_override is not None:
+            body = body_override.encode("utf-8") if isinstance(body_override, str) else body_override
 
         message_snapshot = {}
         last_finish_reason = None
+        images = []
+        usage = {}
+        content = ""
+        tool_calls = None
 
-        append_callback = append_callback or (lambda t: None)
-        append_thinking_callback = append_thinking_callback or (lambda t: None)
+        if stream:
+            append_callback = append_callback or (lambda t: None)
+            append_thinking_callback = append_thinking_callback or (lambda t: None)
 
-        try:
-            last_finish_reason = self._run_streaming_loop(
-                method,
-                path,
-                body,
-                headers,
-                on_content=append_callback,
-                on_thinking=append_thinking_callback,
-                on_delta=lambda d: accumulate_delta(message_snapshot, d),
-                stop_checker=stop_checker,
-            )
-        except NetworkError:
-            raise
-        except Exception as e:
-            err_msg = format_error_message(e)
-            log.error("stream_request_with_tools ERROR: %s -> %s" % (type(e).__name__, err_msg))
-            raise NetworkError(err_msg, context={"url": path}) from e
+            log.debug("stream_request_with_tools: building request (%d messages)..." % len(messages))
+            try:
+                last_finish_reason = self._run_streaming_loop(
+                    method,
+                    path,
+                    body,
+                    headers,
+                    on_content=append_callback,
+                    on_thinking=append_thinking_callback,
+                    on_delta=lambda d: accumulate_delta(message_snapshot, d),
+                    stop_checker=stop_checker,
+                )
+            except NetworkError:
+                raise
+            except Exception as e:
+                err_msg = format_error_message(e)
+                log.error("stream_request_with_tools ERROR: %s -> %s" % (type(e).__name__, err_msg))
+                raise NetworkError(err_msg, context={"url": path}) from e
 
-        # LiteLLM: streaming_handler.py ~L970 finish_reason_handler() "## if tool use"
-        if last_finish_reason == "stop" and message_snapshot.get("tool_calls"):
+            raw_content = message_snapshot.get("content")
+            content = _normalize_message_content(raw_content)
+            tool_calls = message_snapshot.get("tool_calls")
+            usage = message_snapshot.get("usage", {})
+        else:
+            # Sync path
+            result = None
+            for attempt in (0, 1):
+                try:
+                    conn = self._get_connection()
+                    conn.request(method, path, body=body, headers=headers)
+                    response = conn.getresponse()
+                    if response.status != 200:
+                        err_body = response.read().decode("utf-8", errors="replace")
+                        log.error("API Error %d: %s" % (response.status, err_body))
+                        self._close_connection()
+                        raise NetworkError(
+                            _format_http_error_response(response.status, response.reason, err_body),
+                            code="HTTP_ERROR",
+                            context={"url": path, "status": response.status}
+                        )
+                    result = json.loads(response.read().decode("utf-8"))
+                    break
+                except (http.client.HTTPException, socket.error, OSError) as e:
+                    log.error("Connection error, closing: %s" % e)
+                    self._close_connection()
+                    if self._enable_local_ssl_fallback(e):
+                        continue
+                    if attempt == 0:
+                        log.warning("Retrying request_with_tools once on fresh connection")
+                        continue
+                    log.error("Connection retry failed: %s" % format_error_message(e))
+                    raise NetworkError(format_error_message(e), code="CONNECTION_ERROR", context={"url": path}) from e
+                except NetworkError:
+                    raise
+                except Exception as e:
+                    err_msg = format_error_message(e)
+                    log.error("request_with_tools ERROR: %s -> %s" % (type(e).__name__, err_msg))
+                    raise NetworkError(err_msg, context={"url": path}) from e
+
+            log.debug("=== Sync response: %s" % json.dumps(result, indent=2))
+
+            choice = result.get("choices", [{}])[0] if result.get("choices") else {}
+            message = choice.get("message") or result.get("message") or {}
+            _normalize_delta(message)
+            last_finish_reason = choice.get("finish_reason") or result.get("done_reason")
+
+            raw_content = message.get("content")
+            content = _normalize_message_content(raw_content)
+            images = message.get("images") or []
+            tool_calls = message.get("tool_calls")
+            usage = result.get("usage", {})
+
+        # Shared post-processing
+        if last_finish_reason == "stop" and tool_calls:
             last_finish_reason = "tool_calls"
-
-        raw_content = message_snapshot.get("content")
-        content = _normalize_message_content(raw_content)
-        tool_calls = message_snapshot.get("tool_calls")
 
         if not tool_calls and content:
             from plugin.contrib.tool_call_parsers import get_parser_for_model
@@ -792,7 +777,6 @@ class LlmClient:
                 if p_tool_calls:
                     tool_calls = p_tool_calls
                     content = p_content
-                    # If we parsed tool calls, finish reason should be 'tool_calls'
                     if last_finish_reason != "tool_calls":
                         last_finish_reason = "tool_calls"
 
@@ -801,8 +785,15 @@ class LlmClient:
             "content": content,
             "tool_calls": tool_calls,
             "finish_reason": last_finish_reason,
-            "usage": message_snapshot.get("usage", {}),
+            "images": images,
+            "usage": usage,
         }
+
+    def stream_request_with_tools(self, *args, **kwargs):
+        """Streaming chat request with tools. Wrapper around request_with_tools."""
+        kwargs["stream"] = True
+        return self.request_with_tools(*args, **kwargs)
+
 
     def chat_completion_sync(self, messages, max_tokens=512, model=None):
         """
