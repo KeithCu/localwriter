@@ -61,6 +61,7 @@ from plugin.modules.chatbot.panel_wiring import _wireControls as wire_chatpanel_
 
 from com.sun.star.ui import XUIElementFactory, XUIElement, XToolPanel, XSidebarPanel
 from com.sun.star.ui.UIElementType import TOOLPANEL
+from plugin.framework.listeners import BaseItemListener
 from com.sun.star.awt import XItemListener
 
 log = logging.getLogger(__name__)
@@ -399,25 +400,19 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 set_image_model(self.ctx, set_image_val, update_lru=False)
 
         if model_selector and hasattr(model_selector, "addItemListener"):
-            class ModelSyncListener(unohelper.Base, XItemListener):
+            class ModelSyncListener(BaseItemListener):
                 def __init__(self, ctx): self.ctx = ctx
-                def itemStateChanged(self, ev):
-                    try:
-                        txt = model_selector.getText()
-                        if txt: set_config(self.ctx, "text_model", txt)
-                    except Exception: pass
-                def disposing(self, ev): pass
+                def on_item_state_changed(self, ev):
+                    txt = model_selector.getText()
+                    if txt: set_config(self.ctx, "text_model", txt)
             model_selector.addItemListener(ModelSyncListener(self.ctx))
 
         if image_model_selector and hasattr(image_model_selector, "addItemListener"):
-            class ImageModelSyncListener(unohelper.Base, XItemListener):
+            class ImageModelSyncListener(BaseItemListener):
                 def __init__(self, ctx): self.ctx = ctx
-                def itemStateChanged(self, ev):
-                    try:
-                        txt = image_model_selector.getText()
-                        if txt: set_image_model(self.ctx, txt, update_lru=False)
-                    except Exception: pass
-                def disposing(self, ev): pass
+                def on_item_state_changed(self, ev):
+                    txt = image_model_selector.getText()
+                    if txt: set_image_model(self.ctx, txt, update_lru=False)
             image_model_selector.addItemListener(ImageModelSyncListener(self.ctx))
 
     def _wire_image_ui(self, aspect_ratio_selector, base_size_input, base_size_label, 
@@ -446,14 +441,11 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         if aspect_ratio_selector:
             update_base_size_label(aspect_ratio_selector.getText())
             if hasattr(aspect_ratio_selector, "addItemListener"):
-                class AspectListener(unohelper.Base, XItemListener):
-                    def itemStateChanged(self, ev):
-                        try:
-                            idx = getattr(ev, "Selected", -1)
-                            if idx >= 0:
-                                update_base_size_label(aspect_ratio_selector.getItem(idx))
-                        except Exception: pass
-                    def disposing(self, ev): pass
+                class AspectListener(BaseItemListener):
+                    def on_item_state_changed(self, ev):
+                        idx = getattr(ev, "Selected", -1)
+                        if idx >= 0:
+                            update_base_size_label(aspect_ratio_selector.getItem(idx))
                 aspect_ratio_selector.addItemListener(AspectListener())
 
         def set_control_enabled(ctrl, enabled):
@@ -488,20 +480,16 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                     set_control_enabled(web_research_check, False)
                     
                 if hasattr(direct_image_check, "addItemListener"):
-                    class DirectImageCheckListener(unohelper.Base, XItemListener):
+                    class DirectImageCheckListener(BaseItemListener):
                         def __init__(self, ctx, toggle_cb, web_check):
                             self.ctx = ctx
                             self.toggle_cb = toggle_cb
                             self.web_check = web_check
-                        def itemStateChanged(self, ev):
-                            try:
-                                is_checked = (getattr(ev, "Selected", 0) == 1)
-                                set_config(self.ctx, "chat_direct_image", is_checked)
-                                self.toggle_cb(is_checked)
-                                set_control_enabled(self.web_check, not is_checked)
-                            except Exception as e:
-                                log.error("Image checkbox listener error: %s" % e)
-                        def disposing(self, ev): pass
+                        def on_item_state_changed(self, ev):
+                            is_checked = (getattr(ev, "Selected", 0) == 1)
+                            set_config(self.ctx, "chat_direct_image", is_checked)
+                            self.toggle_cb(is_checked)
+                            set_control_enabled(self.web_check, not is_checked)
                     direct_image_check.addItemListener(DirectImageCheckListener(self.ctx, toggle_image_ui, web_research_check))
             except Exception as e:
                 log.error("direct_image_check wire error: %s" % e)
@@ -578,7 +566,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
 
         if controls["web_research_check"] and hasattr(controls["web_research_check"], "addItemListener"):
             from plugin.framework.constants import get_greeting_for_document, DEFAULT_RESEARCH_GREETING
-            class ResearchChatToggledListener(unohelper.Base, XItemListener):
+            class ResearchChatToggledListener(BaseItemListener):
                 def __init__(self, panel, response_ctrl, model, send_listener, clear_listener, img_check, set_control_enabled):
                     self.panel = panel
                     self.response_ctrl = response_ctrl
@@ -588,26 +576,23 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                     self.img_check = img_check
                     self.set_control_enabled = set_control_enabled
 
-                def itemStateChanged(self, ev):
-                    try:
-                        is_research = (getattr(ev, "Selected", 0) == 1)
-                        self.set_control_enabled(self.img_check, not is_research)
-                        
-                        if is_research:
-                            self.panel.session = self.panel.web_session
-                            greeting = DEFAULT_RESEARCH_GREETING
-                        else:
-                            self.panel.session = self.panel.doc_session
-                            greeting = get_greeting_for_document(self.model)
-                        
-                        if self.send_listener:
-                            self.send_listener.set_session(self.panel.session)
-                        if self.clear_listener:
-                            self.clear_listener.set_session(self.panel.session, greeting=greeting)
-                        self.panel._render_session_history(self.panel.session, self.response_ctrl, self.model, greeting)
-                    except Exception as e:
-                        log.error("Research Chat listener error: %s" % e)
-                def disposing(self, ev): pass
+                def on_item_state_changed(self, ev):
+                    is_research = (getattr(ev, "Selected", 0) == 1)
+                    self.set_control_enabled(self.img_check, not is_research)
+
+                    if is_research:
+                        self.panel.session = self.panel.web_session
+                        greeting = DEFAULT_RESEARCH_GREETING
+                    else:
+                        self.panel.session = self.panel.doc_session
+                        greeting = get_greeting_for_document(self.model)
+
+                    if self.send_listener:
+                        self.send_listener.set_session(self.panel.session)
+                    if self.clear_listener:
+                        self.clear_listener.set_session(self.panel.session, greeting=greeting)
+                    self.panel._render_session_history(self.panel.session, self.response_ctrl, self.model, greeting)
+
             controls["web_research_check"].addItemListener(ResearchChatToggledListener(
                 self, controls["response"], model, send_listener, clear_listener, controls["direct_image_check"], set_control_enabled))
 

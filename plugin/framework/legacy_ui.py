@@ -90,7 +90,7 @@ def settings_box(ctx, title="Settings", x=None, y=None):
     from plugin.framework.config import populate_combobox_with_lru, populate_image_model_selector, endpoint_from_selector_text, get_api_key_for_endpoint, populate_endpoint_selector, as_bool
 
     log.debug("settings_box entry")
-    import unohelper
+    from plugin.framework.listeners import BaseListener
     from com.sun.star.awt import XItemListener, XTextListener
 
     smgr = ctx.getServiceManager()
@@ -174,7 +174,7 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                 elif field["name"] == "endpoint":
                     populate_endpoint_selector(ctx, ctrl, field["value"])
                     if hasattr(ctrl, "addItemListener"):
-                        class EndpointCombinedListener(unohelper.Base, XItemListener, XTextListener):
+                        class EndpointCombinedListener(BaseListener, XItemListener, XTextListener):
                             def __init__(self, dialog, context, combo_ctrl):
                                 self._dlg = dialog
                                 self._ctx = context
@@ -199,8 +199,8 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                                     api_key_ctrl = self._dlg.getControl("api_key")
                                     if api_key_ctrl:
                                         api_key_ctrl.getModel().Text = get_api_key_for_endpoint(self._ctx, resolved)
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    log.error("EndpointCombinedListener error updating dropdowns: %s", e, exc_info=True)
 
                             def itemStateChanged(self, ev):
                                 try:
@@ -211,15 +211,15 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                                         url = endpoint_from_selector_text(item_text)
                                         if url: self._ctrl.setText(url)
                                         self.update_dropdowns()
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    log.error("EndpointCombinedListener error in itemStateChanged: %s", e, exc_info=True)
 
                             def textChanged(self, ev):
-                                self.update_dropdowns()
+                                try:
+                                    self.update_dropdowns()
+                                except Exception as e:
+                                    log.error("EndpointCombinedListener error in textChanged: %s", e, exc_info=True)
 
-                            def disposing(self, ev):
-                                pass
-                        
                         listener = EndpointCombinedListener(dlg, ctx, ctrl)
                         ctrl.addItemListener(listener)
                         if hasattr(ctrl, "addTextListener"):
@@ -316,8 +316,7 @@ def settings_box(ctx, title="Settings", x=None, y=None):
         dlg.dispose()
 
 def show_eval_dashboard(ctx):
-    import unohelper
-    from com.sun.star.awt import XActionListener
+    from plugin.framework.listeners import BaseActionListener
     from plugin.tests.eval_runner import run_benchmark_suite
 
     smgr = ctx.getServiceManager()
@@ -334,14 +333,14 @@ def show_eval_dashboard(ctx):
         current_endpoint = str(get_config(ctx, "endpoint") or "").strip()
         populate_combobox_with_lru(ctx, model_ctrl, current_model, "model_lru", current_endpoint)
 
-        class EvalRunListener(unohelper.Base, XActionListener):
+        class EvalRunListener(BaseActionListener):
             def __init__(self, ctx, dialog, toolkit):
                 self.ctx = ctx
                 self.dialog = dialog
                 self.toolkit = toolkit
                 self.is_running = False
 
-            def actionPerformed(self, ev):
+            def on_action_performed(self, ev):
                 if self.is_running: return
                 self.is_running = True
                 try:
@@ -375,15 +374,12 @@ def show_eval_dashboard(ctx):
                 self.dialog.getControl("log_area").setText(log_text)
                 self.dialog.getControl("status").setText("Finished")
 
-            def disposing(self, ev): pass
-
         toolkit = smgr.createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
         dlg.getControl("btn_run").addActionListener(EvalRunListener(ctx, dlg, toolkit))
         
-        class CloseListener(unohelper.Base, XActionListener):
+        class CloseListener(BaseActionListener):
             def __init__(self, dialog): self.dialog = dialog
-            def actionPerformed(self, ev): self.dialog.endDialog(0)
-            def disposing(self, ev): pass
+            def on_action_performed(self, ev): self.dialog.endDialog(0)
         dlg.getControl("btn_close").addActionListener(CloseListener(dlg))
 
         dlg.execute()

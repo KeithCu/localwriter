@@ -40,6 +40,7 @@ XDL dialog loading (used by ModuleBase helpers)::
 import logging
 import threading
 import unohelper
+from plugin.framework.listeners import BaseActionListener
 from com.sun.star.awt import XActionListener
 from plugin.framework.uno_context import get_desktop, get_extension_url
 
@@ -233,22 +234,19 @@ def msgbox_with_copy(ctx, title, message, copy_text):
             "com.sun.star.awt.Toolkit", ctx)
         dlg.createPeer(toolkit, None)
 
-        class _CopyListener(unohelper.Base, XActionListener):
+        class _CopyListener(BaseActionListener):
             def __init__(self, dialog, context, text):
                 self._dlg = dialog
                 self._ctx = context
                 self._text = text
 
-            def actionPerformed(self, ev):
+            def on_action_performed(self, ev):
                 if copy_to_clipboard(self._ctx, self._text):
                     try:
                         self._dlg.getModel().getByName("CopyBtn").Label = \
                             "Copied!"
                     except Exception as e:
                         log.debug("Failed to set CopyBtn Label: %s", e)
-
-            def disposing(self, ev):
-                pass
 
         dlg.getControl("CopyBtn").addActionListener(
             _CopyListener(dlg, ctx, copy_text))
@@ -310,13 +308,13 @@ def status_dialog(ctx, title, build_status_fn, copy_url_fn=None):
 
         # Wire copy button
         if has_copy:
-            class _CopyListener(unohelper.Base, XActionListener):
+            class _CopyListener(BaseActionListener):
                 def __init__(self, dialog, context, url_fn):
                     self._dlg = dialog
                     self._ctx = context
                     self._url_fn = url_fn
 
-                def actionPerformed(self, ev):
+                def on_action_performed(self, ev):
                     url = self._url_fn()
                     if url and copy_to_clipboard(self._ctx, url):
                         try:
@@ -324,9 +322,6 @@ def status_dialog(ctx, title, build_status_fn, copy_url_fn=None):
                                 "Copied!"
                         except Exception as e:
                             log.debug("Failed to set CopyBtn Label: %s", e)
-
-                def disposing(self, ev):
-                    pass
 
             dlg.getControl("CopyBtn").addActionListener(
                 _CopyListener(dlg, ctx, copy_url_fn))
@@ -505,7 +500,7 @@ def set_checkbox_state(ctrl, value):
         log.debug("set_checkbox_state error: %s", e)
 
 
-class TabListener(unohelper.Base, XActionListener):
+class TabListener(BaseActionListener):
     """Listener for tab buttons in multi-page XDL dialogs.
 
     Usage: dlg.getControl("btn_tab_name").addActionListener(TabListener(dlg, page_number))
@@ -517,10 +512,6 @@ class TabListener(unohelper.Base, XActionListener):
         self._dlg = dialog
         self._page = page
 
-    def actionPerformed(self, ev):
+    def on_action_performed(self, ev):
         """Switch to the specified page when button is clicked."""
         self._dlg.getModel().Step = self._page
-
-    def disposing(self, ev):
-        """Required by XActionListener interface."""
-        pass
