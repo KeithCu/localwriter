@@ -1,3 +1,4 @@
+from plugin.framework.errors import ToolExecutionError
 # WriterAgent - AI Writing Assistant for LibreOffice
 # Copyright (c) 2024 John Balis
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
@@ -123,7 +124,7 @@ class ProximityService:
         resolved = self._doc_svc.resolve_locator(doc, locator)
         para_index = resolved.get("para_index")
         if para_index is None:
-            raise ValueError("Cannot resolve locator: %s" % locator)
+            raise ToolExecutionError("Cannot resolve locator: %s" % locator)
 
         tree = self._tree_svc.build_heading_tree(doc)
         bookmark_map = self._bm_svc.ensure_heading_bookmarks(doc)
@@ -206,7 +207,7 @@ class ProximityService:
                     error_msg = "No previous sibling heading"
 
         else:
-            raise ValueError(
+            raise ToolExecutionError(
                 "Unknown direction: %s. Use: next, previous, parent, "
                 "first_child, next_sibling, previous_sibling" % direction)
 
@@ -255,7 +256,7 @@ class ProximityService:
         resolved = self._doc_svc.resolve_locator(doc, locator)
         center_idx = resolved.get("para_index")
         if center_idx is None:
-            raise ValueError("Cannot resolve locator: %s" % locator)
+            raise ToolExecutionError("Cannot resolve locator: %s" % locator)
 
         radius = max(1, min(50, radius))
         if include is None:
@@ -266,7 +267,7 @@ class ProximityService:
         total = len(para_ranges)
 
         if center_idx >= total:
-            raise ValueError(
+            raise ToolExecutionError(
                 "Paragraph %d out of range (document has %d paragraphs)"
                 % (center_idx, total))
 

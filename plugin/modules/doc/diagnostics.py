@@ -253,7 +253,7 @@ class SetDocumentProtection(ToolBaseDummy):
         try:
             sections = doc.getTextSections()
         except Exception as exc:
-            return {"status": "error", "error": str(exc)}
+            return self._tool_error(str(exc))
 
         count = sections.getCount()
         if count == 0:

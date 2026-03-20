@@ -5,6 +5,7 @@
 
 """Calc cell annotation (comment) tools."""
 
+from plugin.framework.errors import UnoObjectError
 import logging
 
 from plugin.framework.tool_base import ToolBase
@@ -21,7 +22,7 @@ def _resolve_sheet(doc, sheet_name=None):
     if sheet_name:
         sheets = doc.getSheets()
         if not sheets.hasByName(sheet_name):
-            raise ValueError("Sheet not found: %s" % sheet_name)
+            raise UnoObjectError("Sheet not found: %s" % sheet_name)
         return sheets.getByName(sheet_name)
     controller = doc.getCurrentController()
     if hasattr(controller, "getActiveSheet"):

@@ -1,3 +1,4 @@
+from plugin.framework.errors import ToolExecutionError
 # WriterAgent - AI Writing Assistant for LibreOffice
 # Copyright (c) 2024 John Balis
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
@@ -419,7 +420,7 @@ def insert_content_at_position(model, ctx, content, position,
             except Exception:
                 cursor.gotoEnd(False)
         else:
-            raise ValueError("Unknown position: %s" % position)
+            raise ToolExecutionError("Unknown position: %s" % position)
 
         filter_name, _ = _get_format_props(config_svc)
         filter_props = (_create_property_value("FilterName", filter_name),)
@@ -451,7 +452,7 @@ def apply_content_at_range(model, ctx, content, start, end,
 
     cursor = get_text_cursor_at_range(model, start, end)
     if cursor is None:
-        raise ValueError(
+        raise ToolExecutionError(
             "Invalid range or could not create cursor for (%d, %d)" % (start, end)
         )
 

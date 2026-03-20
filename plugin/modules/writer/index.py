@@ -1,3 +1,4 @@
+from plugin.framework.errors import ToolExecutionError
 # WriterAgent - AI Writing Assistant for LibreOffice
 # Copyright (c) 2024 John Balis
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
@@ -369,7 +370,7 @@ class IndexService:
         parsed = self._parse_query(query, stemmer, stop_words)
 
         if parsed["error"]:
-            raise ValueError(parsed["error"])
+            raise ToolExecutionError(parsed["error"])
 
         mode = parsed["mode"]
         and_stems = parsed["and_stems"]
@@ -394,7 +395,7 @@ class IndexService:
         elif and_stems:
             hits = idx.query_and(and_stems)
         else:
-            raise ValueError("No search terms after stop-word filtering")
+            raise ToolExecutionError("No search terms after stop-word filtering")
 
         if not_stems:
             hits = idx.query_not(hits, not_stems)

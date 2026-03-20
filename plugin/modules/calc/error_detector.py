@@ -1,3 +1,4 @@
+from plugin.framework.errors import ToolExecutionError
 # WriterAgent - AI Writing Assistant for LibreOffice
 # Copyright (c) 2024 John Balis
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
@@ -239,7 +240,7 @@ class ErrorDetector:
             return errors
         except Exception as e:
             logger.error("Error detection failure: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def explain_error(self, address: str) -> dict:
         """Explain the error in the specified cell in detail.
@@ -295,7 +296,7 @@ class ErrorDetector:
             }
         except Exception as e:
             logger.error("Error explanation failure (%s): %s", address, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def detect_and_explain(self, range_str: str = None) -> dict:
         """Detect formula errors in a range and return them with explanations.

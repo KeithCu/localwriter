@@ -1,3 +1,4 @@
+from plugin.framework.errors import ToolExecutionError
 # WriterAgent - AI Writing Assistant for LibreOffice
 # Copyright (c) 2024 John Balis
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
@@ -96,4 +97,4 @@ class SheetAnalyzer:
             }
         except Exception as e:
             logger.error("Error creating sheet summary: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e

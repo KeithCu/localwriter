@@ -75,4 +75,4 @@ class PrintDocument(ToolBaseDummy):
                 "copies": copies,
             }
         except Exception as e:
-            return {"status": "error", "error": str(e)}
+            return self._tool_error(str(e))

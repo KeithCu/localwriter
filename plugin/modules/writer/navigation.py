@@ -55,10 +55,10 @@ class NavigateHeading(ToolBaseDummy):
             result = prox_svc.navigate_heading(
                 ctx.doc, kwargs["locator"], kwargs["direction"])
             if "error" in result:
-                return {"status": "error", **result}
+                return self._tool_error(result["error"])
             return {"status": "ok", **result}
         except ValueError as e:
-            return {"status": "error", "error": str(e)}
+            return self._tool_error(str(e))
 
 
 class GetSurroundings(ToolBaseDummy):
@@ -102,4 +102,4 @@ class GetSurroundings(ToolBaseDummy):
                 include=kwargs.get("include"))
             return {"status": "ok", **result}
         except ValueError as e:
-            return {"status": "error", "error": str(e)}
+            return self._tool_error(str(e))

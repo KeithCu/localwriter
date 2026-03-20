@@ -53,7 +53,7 @@ class Undo(ToolBaseDummy):
                 "can_redo": um.isRedoPossible(),
             }
         except Exception as e:
-            return {"status": "error", "error": str(e)}
+            return self._tool_error(str(e))
 
 
 class Redo(ToolBaseDummy):
@@ -94,4 +94,4 @@ class Redo(ToolBaseDummy):
                 "can_redo": um.isRedoPossible(),
             }
         except Exception as e:
-            return {"status": "error", "error": str(e)}
+            return self._tool_error(str(e))

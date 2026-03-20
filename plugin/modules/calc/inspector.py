@@ -1,3 +1,4 @@
+from plugin.framework.errors import ToolExecutionError
 # WriterAgent - AI Writing Assistant for LibreOffice
 # Copyright (c) 2024 John Balis
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
@@ -111,7 +112,7 @@ class CellInspector:
             }
         except Exception as e:
             logger.error("Cell reading error (%s): %s", address, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def get_cell_details(self, address: str) -> dict:
         """Return all detailed cell information.
@@ -157,7 +158,7 @@ class CellInspector:
             }
         except Exception as e:
             logger.error("Cell detailed reading error (%s): %s", address, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def read_range(self, range_name: str) -> list[list[dict]]:
         """Read values and formulas in a cell range.
@@ -219,7 +220,7 @@ class CellInspector:
             return result
         except Exception as e:
             logger.error("Range reading error (%s): %s", range_name, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def get_all_formulas(self, sheet_name: str = None) -> list[dict]:
         """List all formulas in a sheet.
@@ -279,4 +280,4 @@ class CellInspector:
             return formulas
         except Exception as e:
             logger.error("Formula listing error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
