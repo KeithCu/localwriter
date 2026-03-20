@@ -132,11 +132,11 @@ class ChatSession:
 # QueryTextListener - dynamic button toggling
 # ---------------------------------------------------------------------------
 
-from com.sun.star.awt import XTextListener
+from plugin.framework.listeners import BaseTextListener, BaseActionListener
 
 log = logging.getLogger(__name__)
 
-class QueryTextListener(unohelper.Base, XTextListener):
+class QueryTextListener(BaseTextListener):
     def __init__(self, send_button):
         self.send_button = send_button
         # Pixel width measured for Record/Send/Stop Rec; stops sidebar width creep on GTK.
@@ -145,46 +145,41 @@ class QueryTextListener(unohelper.Base, XTextListener):
     def set_fixed_send_width(self, width_px):
         self._fixed_send_width = width_px
 
-    def textChanged(self, ev):
-        try:
-            model = getattr(ev.Source, "Model", None)
-            if not model:
-                model = ev.Source.getModel()
-            text = model.Text.strip()
+    def on_text_changed(self, ev):
+        model = getattr(ev.Source, "Model", None)
+        if not model:
+            model = ev.Source.getModel()
+        text = model.Text.strip()
 
-            btn_model = self.send_button.getModel()
-            # If currently recording, do not toggle back to Record
-            if btn_model.Label == "Stop Rec":
-                return
+        btn_model = self.send_button.getModel()
+        # If currently recording, do not toggle back to Record
+        if btn_model.Label == "Stop Rec":
+            return
 
-            if text:
-                new_label = "Send"
-            else:
-                new_label = "Record" if HAS_RECORDING else "Send"
+        if text:
+            new_label = "Send"
+        else:
+            new_label = "Record" if HAS_RECORDING else "Send"
 
-            if btn_model.Label != new_label:
-                log.debug("QueryTextListener: toggle label '%s' -> '%s'" % (btn_model.Label, new_label))
-                btn_model.Label = new_label
-            if self._fixed_send_width:
-                try:
-                    r = self.send_button.getPosSize()
-                    if r.Width != self._fixed_send_width:
-                        self.send_button.setPosSize(
-                            r.X, r.Y, self._fixed_send_width, r.Height, 15
-                        )
-                except Exception:
-                    pass
-        except Exception as e:
-            log.error("QueryTextListener error: %s" % e)
+        if btn_model.Label != new_label:
+            log.debug("QueryTextListener: toggle label '%s' -> '%s'" % (btn_model.Label, new_label))
+            btn_model.Label = new_label
+        if self._fixed_send_width:
+            try:
+                r = self.send_button.getPosSize()
+                if r.Width != self._fixed_send_width:
+                    self.send_button.setPosSize(
+                        r.X, r.Y, self._fixed_send_width, r.Height, 15
+                    )
+            except Exception:
+                pass
 
-    def disposing(self, ev):
-        pass
 
 # ---------------------------------------------------------------------------
 # SendButtonListener - handles Send button click with tool-calling loop
 # ---------------------------------------------------------------------------
 
-class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XActionListener):
+class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener):
     """Listener for the Send button - runs chat with document, supports tool-calling."""
 
     def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None, web_research_checkbox=None, ensure_path_fn=None):
@@ -306,7 +301,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
         set_control_enabled(self.send_control, send_enabled)
         set_control_enabled(self.stop_control, stop_enabled)
 
-    def actionPerformed(self, evt):
+    def on_action_performed(self, evt):
         try:
             btn_model = self.send_control.getModel()
             if HAS_RECORDING and btn_model.Label == "Record":
@@ -344,6 +339,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
             log.error("SendButton unhandled exception [doc: %s]: %s\n%s", doc_type_for_log, e, tb)
 
             self._append_response("\n\n[Error: %s]\n" % str(e))
+            raise
         finally:
             self._send_busy = False
             log.debug("actionPerformed finally: resetting UI")
@@ -509,46 +505,40 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, unohelper.Base, XA
 # StopButtonListener - allows user to cancel the AI request
 # ---------------------------------------------------------------------------
 
-class StopButtonListener(unohelper.Base, XActionListener):
+class StopButtonListener(BaseActionListener):
     """Listener for the Stop button - sets a flag in SendButtonListener to halt loops."""
 
     def __init__(self, send_listener):
         self.send_listener = send_listener
 
-    def actionPerformed(self, evt):
-        try:
-            if self.send_listener:
-                self.send_listener.stop_requested = True
+    def on_action_performed(self, evt):
+        if self.send_listener:
+            self.send_listener.stop_requested = True
 
-                # 1. Stop the HTTP client immediately (breaks hanging reads)
-                client = getattr(self.send_listener, "client", None)
-                if client and hasattr(client, "stop"):
-                    try:
-                        client.stop()
-                    except Exception as e:
-                        log.error("StopButton error stopping client: %s", e)
+            # 1. Stop the HTTP client immediately (breaks hanging reads)
+            client = getattr(self.send_listener, "client", None)
+            if client and hasattr(client, "stop"):
+                try:
+                    client.stop()
+                except Exception as e:
+                    log.error("StopButton error stopping client: %s", e)
 
-                # 2. If an external agent backend is running, tell it to stop
-                adapter = getattr(self.send_listener, "_current_agent_backend", None)
-                if adapter and hasattr(adapter, "stop"):
-                    try:
-                        adapter.stop()
-                    except Exception as e:
-                        log.error("StopButton error stopping agent backend: %s", e)
-                # Update status immediately
-                self.send_listener._set_status("Stopping...")
-        except Exception as e:
-            log.error("StopButton unhandled exception: %s", e)
-
-    def disposing(self, evt):
-        pass
+            # 2. If an external agent backend is running, tell it to stop
+            adapter = getattr(self.send_listener, "_current_agent_backend", None)
+            if adapter and hasattr(adapter, "stop"):
+                try:
+                    adapter.stop()
+                except Exception as e:
+                    log.error("StopButton error stopping agent backend: %s", e)
+            # Update status immediately
+            self.send_listener._set_status("Stopping...")
 
 
 # ---------------------------------------------------------------------------
 # ClearButtonListener - resets the conversation
 # ---------------------------------------------------------------------------
 
-class ClearButtonListener(unohelper.Base, XActionListener):
+class ClearButtonListener(BaseActionListener):
     """Listener for the Clear button - resets conversation history."""
 
     def __init__(self, session, response_control, status_control, greeting=""):
@@ -569,16 +559,10 @@ class ClearButtonListener(unohelper.Base, XActionListener):
         if greeting is not None:
             self.greeting = greeting
 
-    def actionPerformed(self, evt):
-        try:
-            self.session.clear()
-            if self.response_control and self.response_control.getModel():
-                text = self.greeting + "\n" if self.greeting else ""
-                self.response_control.getModel().Text = text
-            if self.status_control:
-                self.status_control.setText("")
-        except Exception as e:
-            log.error("ClearButton error: %s", e)
-
-    def disposing(self, evt):
-        pass
+    def on_action_performed(self, evt):
+        self.session.clear()
+        if self.response_control and self.response_control.getModel():
+            text = self.greeting + "\n" if self.greeting else ""
+            self.response_control.getModel().Text = text
+        if self.status_control:
+            self.status_control.setText("")

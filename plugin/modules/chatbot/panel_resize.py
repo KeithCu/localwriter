@@ -1,7 +1,6 @@
-import unohelper
 import logging
 
-from com.sun.star.awt import XWindowListener
+from plugin.framework.listeners import BaseWindowListener
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ _MIN_WIDTHS = {
 }
 
 
-class _PanelResizeListener(unohelper.Base, XWindowListener):
+class _PanelResizeListener(BaseWindowListener):
     """Adjusts panel layout on resize. Reads control sizes/gaps from the XDL;
     only the response area height changes to fill available space."""
 
@@ -62,29 +61,13 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
         finally:
             self._in_relayout = False
 
-    def windowResized(self, evt):
+    def on_window_resized(self, evt):
         r = evt.Source.getPosSize()
         log.debug("windowResized: W=%d H=%d" % (r.Width, r.Height))
         if self._in_relayout:
             log.debug("windowResized: skipped (in_relayout)")
             return
         self.relayout_now(evt.Source)
-
-    def windowMoved(self, evt):  # noqa: D401, D416
-        """No-op for sidebar resize listener."""
-        pass
-
-    def windowShown(self, evt):  # noqa: D401, D416
-        """No-op for sidebar resize listener."""
-        pass
-
-    def windowHidden(self, evt):  # noqa: D401, D416
-        """No-op for sidebar resize listener."""
-        pass
-
-    def disposing(self, evt):  # noqa: D401, D416
-        """No-op for sidebar resize listener."""
-        pass
 
     def _capture_initial(self, win):
         """Snapshot XDL-loaded pixel positions/sizes of every control."""
