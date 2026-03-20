@@ -14,7 +14,7 @@ from plugin.framework.async_stream import (
     run_stream_drain_loop,
 )
 from plugin.framework.logging import agent_log, update_activity_state
-from plugin.modules.http.client import (
+from plugin.modules.http.errors import (
     format_error_message,
     is_audio_unsupported_error,
 )

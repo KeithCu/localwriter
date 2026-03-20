@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Legacy operations for Writer (Extend/Edit Selection)."""
 from plugin.framework.config import get_config, get_config_int, get_api_config, validate_api_config, get_current_endpoint, update_lru_history
-from plugin.modules.http.client import format_error_message
+from plugin.modules.http.errors import format_error_message
 from plugin.framework.async_stream import run_stream_completion_async
 from plugin.framework.dialogs import msgbox
 
