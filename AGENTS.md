@@ -436,7 +436,7 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 - **Idle-time draining**: **AsyncCallback thread** in `plugin/main.py` (Path A). A background Python thread schedules `XCallback` via `com.sun.star.awt.AsyncCallback` every 100ms, which safely executes `drain_mcp_queue()` on the main VCL thread. Option B (piggyback on the chat stream drain loop) was **not** used — it would only service MCP during active chat, which is inadequate for standalone MCP use.
 - **Config**: `mcp_enabled` (default false), `mcp_port` (default 8765). MCP settings are on the **Http** tab of the Settings dialog (auto-generated from `plugin/modules/http/module.yaml`); Enable MCP Server checkbox, Port field, "Localhost only, no auth." label.
 - **Menu**: "Toggle MCP Server" and "MCP Server Status" under WriterAgent. Status dialog shows RUNNING/STOPPED, port, URL, and health check. Auto-start: when user saves Settings with MCP enabled, server (and timer) start if not already running.
-- **Icons**: `assets/` includes `running_16.png`, `running_26.png`, `starting_16.png`, `starting_26.png`, `stopped_16.png`, `stopped_26.png` (from libreoffice-mcp-extension).
+- **Icons**: `assets/` includes `running_16.png`, `running_26.png`, `starting_16.png`, `starting_26.png`, `stopped_16.png`, `stopped_26.png` (from libreoffice-mcp-extension). Canonical `logo_32.png` source is `extension/assets/logo_32.png`.
 - See **`MCP_PROTOCOL.md`** for protocol details and architecture.
 
 - **Document Tree & Navigation (DONE)**: Ported `build_heading_tree`, `ensure_heading_bookmarks`, and `resolve_locator` to `plugin/framework/document.py`. New tools `get_document_outline` and `get_heading_content` provide structured access to long documents.
