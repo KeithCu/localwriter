@@ -20,7 +20,9 @@ import logging
 import tempfile
 import re
 import base64
-from plugin.modules.http.client import sync_request, LlmClient, _format_http_error_response
+from plugin.modules.http.client import LlmClient
+from plugin.modules.http.requests import sync_request
+from plugin.modules.http.errors import _format_http_error_response
 from plugin.contrib.aihordeclient import AiHordeClient
 
 log = logging.getLogger(__name__)

@@ -18,7 +18,7 @@ class SendHandlersMixin:
     def _transcribe_audio_async(self, wav_path, stt_model, model, query_text=""):
         """Transcribe audio asynchronously and then proceed to chat."""
         from plugin.framework.async_stream import run_blocking_in_thread
-        from plugin.modules.http.client import format_error_message
+        from plugin.modules.http.errors import format_error_message
 
         self._set_status("Transcribing audio...")
         self._append_response("\n[Transcribing audio...]\n")
@@ -186,7 +186,7 @@ class SendHandlersMixin:
             self._set_status("Stopped")
 
         def on_error(e):
-            from plugin.modules.http.client import format_error_message
+            from plugin.modules.http.errors import format_error_message
 
             self._append_response("\n[%s]\n" % format_error_message(e))
             self._terminal_status = "Error"
@@ -344,7 +344,7 @@ class SendHandlersMixin:
             self._append_response("\n[Stopped by user]\n")
 
         def on_error(e):
-            from plugin.modules.http.client import format_error_message
+            from plugin.modules.http.errors import format_error_message
 
             self._append_response("\n[Error: %s]\n" % format_error_message(e))
             self._terminal_status = "Error"
@@ -385,7 +385,7 @@ class SendHandlersMixin:
 
     def _run_web_research(self, query_text, model):
         """Run the web_research tool via the sub-agent and stream its result into the response area."""
-        from plugin.modules.http.client import format_error_message
+        from plugin.modules.http.errors import format_error_message
         from plugin.main import get_tools
         from plugin.framework.document import is_calc, is_draw
 

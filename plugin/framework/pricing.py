@@ -18,7 +18,7 @@ import json
 import logging
 import os
 import time
-from plugin.modules.http.client import sync_request
+from plugin.modules.http.requests import sync_request
 from plugin.framework.config import user_config_dir
 log = logging.getLogger(__name__)
 

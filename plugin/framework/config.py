@@ -536,7 +536,7 @@ def fetch_available_models(endpoint):
     if url in _model_fetch_cache:
         return _model_fetch_cache[url]
 
-    from plugin.modules.http.client import sync_request
+    from plugin.modules.http.requests import sync_request
     try:
         data = sync_request(url, parse_json=True)
         if data and isinstance(data, dict) and "data" in data:

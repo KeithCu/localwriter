@@ -3,8 +3,8 @@ import json
 import socket
 from unittest.mock import patch, MagicMock, mock_open
 import ssl
-from plugin.modules.http.client import (
-    LlmClient,
+from plugin.modules.http.client import LlmClient
+from plugin.modules.http.errors import (
     is_audio_unsupported_error,
     format_error_message,
     _format_http_error_response

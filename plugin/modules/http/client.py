@@ -21,12 +21,9 @@ Takes a config dict (from plugin.framework.config.get_api_config) and UNO ctx.
 import logging
 import collections
 import json
-import ssl
-import urllib.request
 import urllib.parse
 import http.client
 import socket
-import ipaddress
 import datetime
 
 # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
@@ -34,326 +31,33 @@ REPEATED_STREAMING_CHUNK_LIMIT = 20
 
 # accumulate_delta is required for tool-calling: it merges streaming deltas into message_snapshot so full tool_calls (with function.arguments) are available.
 from plugin.framework.streaming_deltas import accumulate_delta
-from plugin.framework.constants import APP_REFERER, APP_TITLE, USER_AGENT
+from plugin.framework.constants import APP_REFERER, APP_TITLE
 
 from plugin.framework.logging import init_logging
 from plugin.framework.auth import resolve_auth_for_config, build_auth_headers, AuthError
-from plugin.framework.errors import NetworkError, AgentParsingError
+from plugin.framework.errors import NetworkError
+
+from plugin.modules.http.errors import (
+    format_error_message,
+    _format_http_error_response,
+    format_error_for_display,
+    is_audio_unsupported_error,
+)
+from plugin.modules.http.ssl_helpers import (
+    get_unverified_ssl_context,
+    get_verified_ssl_context,
+    _is_certificate_verify_error,
+    _is_local_host,
+)
+from plugin.modules.http.stream_normalizer import (
+    iterate_sse,
+    _extract_thinking_from_delta,
+    _normalize_message_content,
+    _normalize_delta,
+)
+from plugin.modules.http.requests import sync_request
 
 log = logging.getLogger(__name__)
-
-
-def format_error_message(e):
-    """Map common exceptions to user-friendly advice."""
-    import urllib.error
-
-    msg = str(e)
-    if isinstance(e, ssl.SSLError):
-        return "TLS/SSL Error: %s" % msg
-    if isinstance(e, (urllib.error.HTTPError, http.client.HTTPResponse)):
-        code = e.code if hasattr(e, "code") else e.status
-        reason = e.reason if hasattr(e, "reason") else ""
-        if code == 401:
-            return "Invalid API Key. Please check your settings."
-        if code == 403:
-            return "API access Forbidden. Your key may lack permissions for this model."
-        if code == 404:
-            return "Endpoint not found (404). Check your URL and Model name."
-        if code >= 500:
-            return "Server error (%d). The AI provider is having issues." % code
-        return "HTTP Error %d: %s" % (code, reason)
-
-    if isinstance(e, socket.timeout) or "timed out" in msg.lower():
-        return "Request Timed Out. Try increasing 'Request Timeout' in Settings."
-
-    if isinstance(e, (urllib.error.URLError, socket.error)):
-        reason = str(e.reason) if hasattr(e, "reason") else str(e)
-        if "Connection refused" in reason or "111" in reason:
-            return "Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
-        if "getaddrinfo failed" in reason:
-            return "DNS Error. Could not resolve the endpoint URL."
-        return "Connection Error: %s" % reason
-
-    if "finish_reason=error" in msg:
-        return "The AI provider reported an error. Try again."
-
-    return msg
-
-
-def _format_http_error_response(status, reason, err_body):
-    """Build error message including response body for display in chat/UI."""
-    base = "HTTP Error %d: %s" % (status, reason)
-    if not err_body or not err_body.strip():
-        return base
-    try:
-        data = json.loads(err_body)
-        err = data.get("error")
-        if isinstance(err, dict):
-            detail = err.get("message") or err.get("msg") or err.get("error") or ""
-        else:
-            detail = str(err) if err else ""
-        if detail:
-            return base + ". " + detail
-    except (json.JSONDecodeError, TypeError):
-        pass
-    snippet = err_body.strip().replace("\n", " ")[:400]
-    return base + ". " + snippet
-
-
-def format_error_for_display(e):
-    """Return user-friendly error string for display in cells or dialogs."""
-    from plugin.framework.errors import format_error_payload
-    payload = format_error_payload(e)
-    return "Error: %s" % payload.get("message", format_error_message(e))
-
-
-def is_audio_unsupported_error(e):
-    """Try to determine if the error indicates that audio/modality is unsupported by the model."""
-    msg = str(e).lower()
-    
-    # Common error strings across providers
-    if "unsupported content type" in msg: return True
-    if "unsupported modality" in msg: return True
-    if "audio" in msg and ("not supported" in msg or "unsupported" in msg): return True
-    if "modality" in msg and "not supported" in msg: return True
-    
-    # Specific API error bodies (passed via _format_http_error_response)
-    if "model" in msg and "cannot process" in msg and "audio" in msg: return True
-    if "no endpoints found that support input audio" in msg: return True
-    if "gpt-4" in msg and "audio" in msg: # Some legacy GPT-4 might not have it
-        if "not support" in msg: return True
-        
-    return False
-
-
-def get_unverified_ssl_context():
-    """Create an SSL context that doesn't verify certificates. Shared by API and aihordeclient."""
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    return ssl_context
-
-
-def get_verified_ssl_context():
-    """Create a default verifying SSL context."""
-    return ssl.create_default_context()
-
-
-def _is_certificate_verify_error(e):
-    """Return True when an exception points to certificate validation failure."""
-    if isinstance(e, ssl.SSLCertVerificationError):
-        return True
-    reason = getattr(e, "reason", None)
-    if isinstance(reason, ssl.SSLCertVerificationError):
-        return True
-    msg = ("%s %s" % (e, reason or "")).lower()
-    for marker in (
-        "certificate_verify_failed",
-        "certificate verify failed",
-        "self-signed certificate",
-        "self signed certificate",
-        "unable to get local issuer certificate",
-        "hostname mismatch",
-    ):
-        if marker in msg:
-            return True
-    return False
-
-
-def _is_local_host(host):
-    """Heuristic for localhost / LAN hosts where self-signed TLS is common."""
-    host = (host or "").strip().lower()
-    if not host:
-        return False
-    if host in ("localhost", "ip6-localhost", "host.docker.internal"):
-        return True
-    if host.endswith(".local"):
-        return True
-    try:
-        ip = ipaddress.ip_address(host)
-        return ip.is_loopback or ip.is_private or ip.is_link_local
-    except ValueError:
-        pass
-    # Single-label hostnames are usually local network names.
-    return "." not in host
-
-
-def sync_request(url, data=None, headers=None, timeout=10, parse_json=True):
-    """
-    Blocking HTTP GET or POST. Shared by aihordeclient and other code.
-    url: str or urllib.request.Request. If Request, headers/data come from it.
-    data: optional bytes for POST. headers: optional dict (used only if url is str).
-    Returns response data: decoded JSON if parse_json else raw bytes. Raises on error.
-    """
-    import urllib.error
-    if headers is None:
-        headers = {}
-    
-    # Add default headers to avoid being blocked and provide application identity
-    has_ua = any(k.lower() == "user-agent" for k in headers.keys())
-    if not has_ua:
-        headers["User-Agent"] = USER_AGENT
-    
-    if "HTTP-Referer" not in headers:
-        headers["HTTP-Referer"] = APP_REFERER
-    if "X-Title" not in headers:
-        headers["X-Title"] = APP_TITLE
-
-    if isinstance(url, str):
-        req = urllib.request.Request(url, data=data, headers=headers)
-    else:
-        req = url
-    
-    # Debug: log which headers we are actually sending (keys only)
-    try:
-        header_keys = list(req.headers.keys()) if hasattr(req, "headers") else []
-        if not header_keys and hasattr(req, "get_full_url"):
-            # If it's a urllib Request object, headers might be in .headers
-            pass 
-        log.debug(f"Request to {getattr(req, 'full_url', url)} with header keys: {header_keys}")
-    except Exception:
-        pass
-
-    full_url = getattr(req, "full_url", url)
-    parsed = urllib.parse.urlparse(str(full_url))
-    host = parsed.hostname or ""
-    is_local_https = parsed.scheme.lower() == "https" and _is_local_host(host)
-    def _read_with_context(context):
-        log.debug(f"About to open URL: {getattr(req, 'full_url', url)}")
-        with urllib.request.urlopen(req, timeout=timeout, context=context) as resp:
-            log.debug(f"URL opened, status={resp.getcode()}. Heading to read...")
-            raw = resp.read()
-            log.debug(f"Read {len(raw)} bytes")
-            if parse_json:
-                return json.loads(raw.decode("utf-8"))
-            return raw
-
-    ctx = get_verified_ssl_context() if is_local_https else get_unverified_ssl_context()
-    try:
-        return _read_with_context(ctx)
-    except urllib.error.HTTPError as e:
-        status = e.code
-        reason = e.reason
-        try:
-            err_body = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            err_body = ""
-        
-        msg = _format_http_error_response(status, reason, err_body)
-        log.error(f"HTTP Error: {msg}")
-        raise NetworkError(msg, code="HTTP_ERROR", context={"url": url, "status": status}) from e
-    except NetworkError:
-        raise
-    except Exception as e:
-        if is_local_https and _is_certificate_verify_error(e):
-            log.error("Local HTTPS certificate verification failed for %s; retrying unverified." % host)
-            try:
-                return _read_with_context(get_unverified_ssl_context())
-            except urllib.error.HTTPError as retry_http_e:
-                status = retry_http_e.code
-                reason = retry_http_e.reason
-                try:
-                    err_body = retry_http_e.read().decode("utf-8", errors="replace")
-                except Exception:
-                    err_body = ""
-                msg = _format_http_error_response(status, reason, err_body)
-                log.error(f"HTTP Error: {msg}")
-                raise NetworkError(msg, code="HTTP_ERROR", context={"url": url, "status": status}) from retry_http_e
-            except Exception as retry_e:
-                log.error(f"Request failed: {format_error_message(retry_e)}")
-                raise NetworkError(format_error_message(retry_e), context={"url": url}) from retry_e
-        log.error(f"Request failed: {format_error_message(e)}")
-        raise NetworkError(format_error_message(e), context={"url": url}) from e
-
-
-def iterate_sse(stream):
-    """
-    Iterate over SSE (Server-Sent Events) data payloads from a stream of lines (bytes).
-    Yields the payload string (everything after 'data:').
-    """
-    for line in stream:
-        line_str = line.strip()
-        if not line_str or line_str.startswith(b":"):
-            continue
-
-        if not line_str.startswith(b"data:"):
-            continue
-        
-        # Payload is everything after the first ":"
-        idx = line_str.find(b":") + 1
-        payload = line_str[idx:].decode("utf-8").strip()
-        yield payload
-
-
-def _extract_thinking_from_delta(chunk_delta):
-    """Extract reasoning/thinking text from a stream delta for display in UI."""
-    # Try direct fields first
-    for field in ["reasoning_content", "thought", "thinking"]:
-        thinking = chunk_delta.get(field)
-        if isinstance(thinking, str) and thinking:
-            return thinking
-    
-    # Try reasoning_details array
-    details = chunk_delta.get("reasoning_details")
-    if isinstance(details, list):
-        parts = []
-        for item in details:
-            if isinstance(item, dict):
-                item_type = item.get("type")
-                if item_type in ("reasoning.text", "thought", "reasoning"):
-                    parts.append(item.get("text") or "")
-                elif item_type == "reasoning.summary":
-                    parts.append(item.get("summary") or "")
-        if parts:
-            return "".join(parts)
-    
-    # Try choices[0].delta if not found at top level
-    choices = chunk_delta.get("choices")
-    if choices and isinstance(choices, list) and len(choices) > 0:
-        delta = choices[0].get("delta", {})
-        if delta:
-            return _extract_thinking_from_delta(delta)
-
-    return ""
-
-
-def _normalize_message_content(raw):
-    """Return a single string from API message content (string or list of parts)."""
-    if raw is None:
-        return None
-    if isinstance(raw, str):
-        return raw
-    if isinstance(raw, list):
-        parts = []
-        for item in raw:
-            if isinstance(item, dict):
-                if item.get("type") == "text":
-                    parts.append(item.get("text") or "")
-                elif "text" in item:
-                    parts.append(item.get("text") or "")
-        return "".join(parts) if parts else None
-    return str(raw)
-
-
-def _normalize_delta(delta):
-    """Normalize delta for Mistral/Azure compat before accumulate_delta.
-    LiteLLM: streaming_handler.py ~L847 (role), ~L853 (type), ~L820 (arguments).
-    """
-    if not isinstance(delta, dict):
-        return
-    # LiteLLM: streaming_handler.py ~L847 "mistral's api returns role as None"
-    if "role" in delta and delta["role"] is None:
-        delta["role"] = "assistant"
-    for tc in delta.get("tool_calls") or []:
-        if not isinstance(tc, dict):
-            continue
-        # LiteLLM: streaming_handler.py ~L853 "mistral's api returns type: None"
-        if tc.get("type") is None:
-            tc["type"] = "function"
-        fn = tc.get("function")
-        # LiteLLM: streaming_handler.py ~L820 "## AZURE - check if arguments is not None"
-        if isinstance(fn, dict) and fn.get("arguments") is None:
-            fn["arguments"] = ""
 
 
 class LlmClient:
