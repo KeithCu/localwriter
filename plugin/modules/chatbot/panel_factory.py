@@ -120,6 +120,10 @@ class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         self.PanelWindow = panel_window
         self.Window = panel_window
         self.parent_window = parent_window
+        # Set by panel wiring after _PanelResizeListener is created.
+        self.resize_listener = None
+        # Last deck hint from getHeightForWidth; used with parent to detect intrinsic inflation.
+        self._last_deck_w = None
 
     def getWindow(self):
         return self.Window
@@ -128,16 +132,62 @@ class ChatToolPanel(unohelper.Base, XToolPanel, XSidebarPanel):
         return self.PanelWindow
 
     def getHeightForWidth(self, width):
-        log.debug("getHeightForWidth(width=%s, level=logging.DEBUG)" % width)
-        # Constrain panel to sidebar width (and parent height when available).
-        if self.parent_window and self.PanelWindow and width > 0:
-            parent_rect = self.parent_window.getPosSize()
-            h = parent_rect.Height if parent_rect.Height > 0 else 400
-            self.PanelWindow.setPosSize(0, 0, width, h, 15)
-            log.debug("panel constrained to W=%s H=%s" % (width, h))
         # LayoutSize(Minimum, Maximum, Preferred) — IDL field order.
         # Maximum=-1 means unbounded; the sidebar gives all remaining height
         # to panels with unbounded max (see DeckLayouter.cxx DistributeHeights).
+        if not self.parent_window or not self.PanelWindow or width <= 0:
+            return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 100, -1, 400)
+
+        parent_rect = self.parent_window.getPosSize()
+        parent_w = parent_rect.Width
+        parent_h = parent_rect.Height
+        h = parent_h if parent_h > 0 else 400
+        deck_w = width
+        self._last_deck_w = deck_w
+        # When parent tracks deck (typical user-sized sidebar), fill full parent so fluid
+        # controls stretch. When parent runs far ahead of deck (intrinsic inflation), clamp
+        # to min(parent, deck) — see writeragent_debug.log (must match panel_resize).
+        _DIVERGENCE_PX = 80
+        if parent_w > 0 and deck_w > 0:
+            if parent_w > deck_w + _DIVERGENCE_PX:
+                eff_w = min(parent_w, deck_w)
+            else:
+                eff_w = parent_w
+        elif parent_w > 0:
+            eff_w = min(parent_w, deck_w)
+        else:
+            eff_w = deck_w
+
+        try:
+            before = self.PanelWindow.getPosSize()
+        except Exception:
+            before = None
+        log.debug(
+            "getHeightForWidth deck_hint=%s parent=%sx%s eff_W=%s root_before=%s"
+            % (
+                deck_w,
+                parent_w,
+                parent_h,
+                eff_w,
+                "%sx%s" % (before.Width, before.Height) if before else None,
+            )
+        )
+        self.PanelWindow.setPosSize(0, 0, eff_w, h, 15)
+        try:
+            after = self.PanelWindow.getPosSize()
+            log.debug(
+                "getHeightForWidth root_after=%sx%s" % (after.Width, after.Height)
+            )
+        except Exception:
+            pass
+
+        rl = getattr(self, "resize_listener", None)
+        if rl is not None:
+            try:
+                rl.relayout_now(self.PanelWindow)
+            except Exception as e:
+                log.debug("getHeightForWidth relayout_now: %s" % e)
+
         return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 100, -1, 400)
 
     def getMinimalWidth(self):
@@ -418,6 +468,15 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             if aspect_ratio_selector and hasattr(aspect_ratio_selector, "setVisible"): aspect_ratio_selector.setVisible(is_image_mode)
             if base_size_input and hasattr(base_size_input, "setVisible"): base_size_input.setVisible(is_image_mode)
             if base_size_label and hasattr(base_size_label, "setVisible"): base_size_label.setVisible(is_image_mode)
+            # Visibility swap changes vertical cluster; reflow so combos keep correct width.
+            tp = getattr(self, "toolpanel", None)
+            root = getattr(self, "m_panelRootWindow", None)
+            rl = getattr(tp, "resize_listener", None) if tp else None
+            if rl and root:
+                try:
+                    rl.relayout_now(root)
+                except Exception:
+                    pass
 
         if direct_image_check:
             try:

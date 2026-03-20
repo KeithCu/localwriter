@@ -1,287 +1,157 @@
-# Dynamic Sidebar Panel Layout
+# Dynamic Sidebar Panel Layout (WriterAgent Chat)
 
 ## Overview
 
-The chat sidebar panel uses a **hybrid XDL + runtime relayout** approach for dynamic sizing. Control definitions (types, labels, initial positions) live in `ChatPanelDialog.xdl`. At runtime, `_PanelResizeListener` (an `XWindowListener`) repositions controls whenever the sidebar resizes, stretching the response area to fill available space while anchoring all other controls to the bottom.
+The chat sidebar uses a **hybrid XDL + runtime relayout** approach. Control definitions (types, labels, initial positions) live in `extension/WriterAgentDialogs/ChatPanelDialog.xdl`. At runtime, `_PanelResizeListener` (an `XWindowListener` in `plugin/modules/chatbot/panel_resize.py`) repositions and resizes controls when the panel size changes: the **response** area grows vertically to fill space above a bottom-anchored cluster; **fluid** controls stretch horizontally to a fixed right margin; other controls stay fixed width and left-anchored.
 
-## How It Works
+Wiring happens in `plugin/modules/chatbot/panel_wiring.py`. `ChatToolPanel.getHeightForWidth()` in `plugin/modules/chatbot/panel_factory.py` negotiates width/height with LibreOffice’s sidebar deck layouter and must stay consistent with `_relayout()`’s width logic.
 
-### 1. LayoutSize: Telling the Sidebar We Want All Available Height
+---
 
-The `XSidebarPanel.getHeightForWidth()` method returns a `LayoutSize(Minimum, Maximum, Preferred)` struct. The sidebar's `DeckLayouter` (in `sfx2/source/sidebar/DeckLayouter.cxx`) uses this to distribute height among panels:
+## How LibreOffice Uses `LayoutSize`
 
-- Panels with `Maximum = -1` (unbounded) receive **all remaining height** after fixed-size panels are satisfied
-- The distribution algorithm (`DistributeHeights`) proportionally divides extra space, with unbounded panels absorbing everything left over
+`XSidebarPanel.getHeightForWidth(width)` returns `LayoutSize(Minimum, Maximum, Preferred)`. The sidebar’s `DeckLayouter` (`sfx2/source/sidebar/DeckLayouter.cxx`) uses this to distribute height:
 
-We return `LayoutSize(100, -1, 400)`:
-- **Minimum = 100**: panel won't shrink below 100px
-- **Maximum = -1**: unbounded — we'll take all available height
-- **Preferred = 400**: reasonable default if the sidebar has exactly enough space
+- Panels with **Maximum = -1** (unbounded) receive **remaining height** after fixed panels are satisfied.
+- Field order for `uno.createUnoStruct("com.sun.star.ui.LayoutSize", ...)` is **Minimum, Maximum, Preferred** (IDL order matters).
 
-### 2. XDL as the Source of Truth for Control Sizes
+WriterAgent returns `LayoutSize(100, -1, 400)`: minimum width hint 100, unbounded max height, preferred height 400.
 
-All control heights, widths, gaps, and relative positions are defined in `ChatPanelDialog.xdl` using Map AppFont units (DPI-independent). The XDL defines:
+---
 
-- Response area (multiline textfield, read-only, with vscroll)
-- Status bar
-- Query label and input
-- Send / Stop / Clear buttons
-- Checkboxes (Use Image model, Web research)
-- Model selector combobox
-- Image model controls (overlapping with model selector, toggled by checkbox)
+## XDL as Baseline
 
-When `ContainerWindowProvider.createContainerWindow()` loads the XDL, it converts Map AppFont units to pixels and creates all controls with their initial positions. These pixel values become the baseline for dynamic layout.
+`ChatPanelDialog.xdl` defines Map AppFont positions/sizes. After `ContainerWindowProvider.createContainerWindow()` loads the dialog, pixel geometry is the baseline for `_capture_initial()`. The root dialog width (e.g. 180 Map AppFont units) is aligned with `getMinimalWidth()` so the first paint matches the declared minimum sidebar width.
 
-### 3. _PanelResizeListener: The Runtime Layout Engine
+---
 
-On the first `windowResized` event, `_capture_initial()` snapshots every control's pixel position and size as loaded from the XDL. It also records the initial window dimensions and the response area's bottom edge.
+## Runtime layout: `_PanelResizeListener`
 
-On each subsequent resize, `_relayout()` does three things:
+### Snapshot (`_capture_initial`)
 
-**a) Bottom-anchor all controls below the response:**
-```python
-new_y = h - (ih - oy)  # same offset from bottom as in the XDL
-```
-This preserves the XDL's spacing between buttons, checkboxes, model selectors, etc., while keeping them pinned to the bottom edge of the panel regardless of how tall it gets.
+On first `_relayout`, the listener records each control’s `(x, y, width, height)`, the window size, the response field’s bottom edge, and the vertical span of the “bottom cluster” (everything below the response). Control widths in the snapshot are **clamped up** to `_MIN_WIDTHS` when GTK/VCL briefly reports ultra-narrow widths (~10px), so later math does not lock in a broken baseline.
 
-**b) Stretch the response area to fill the gap:**
-```python
-new_rh = max(30, top_of_bottom - gap - ry)
-```
-The response area keeps its top position and grows its height to fill everything above the bottom-anchored controls.
+### Two-pass layout (`_relayout`)
 
-**c) Scale widths proportionally:**
-```python
-new_w = int(ow * width_ratio)
-```
-All controls stretch horizontally by the ratio of new panel width to initial XDL width.
+1. **Width sync (root window)**  
+   The panel’s **root** window width is synchronized with a **target** derived from the sidebar **parent** window and the last **deck** width hint (see [Parent vs deck width](#parent-vs-deck-width-divergence) below). This avoids the root staying wider than the visible column (or vice versa) when UNO reports inconsistent sizes.
 
-### Visual Layout
+2. **Non-response controls**  
+   - **Fluid** (`response` is handled in pass 2): `query`, `status`, `model_selector`, `image_model_selector`, `aspect_ratio_selector`. Each gets `new_w = max(10, w - ox - fixed_margin)` (fill to a small right margin), then minimum widths from `_MIN_WIDTHS` are applied **without exceeding** available horizontal space (`avail`), so combos never force a width larger than the panel.  
+   - **Fixed**: buttons, labels, checkboxes keep snapshot width (with minimum floors for non-fluid controls).
 
-```
-┌─────────────────────────┐
-│  Chat (Testing):        │  ← response_label (fixed at top)
-├─────────────────────────┤
-│                         │
-│   Response / Chat       │  ← FILLS ALL AVAILABLE SPACE
-│   (scrollable)          │
-│                         │
-│                         │
-├─────────────────────────┤ ─┐
-│  status: Ready          │  │
-│  Ask / instruct:        │  │
-│  ┌───────────────────┐  │  │
-│  │ query input       │  │  │  Bottom-anchored section
-│  └───────────────────┘  │  │  (sizes from XDL, pinned
-│  ☐ Use Image  ☐ Web     │  │   to bottom edge)
-│  AI Model:              │  │
-│  [model_selector    ▾]  │  │
-│  [Send] [Stop] [Clear]  │  │
-└─────────────────────────┘ ─┘
-```
+3. **Bottom anchoring**  
+   Controls at or below the response’s original bottom edge are shifted vertically so the cluster sits near the window bottom while preserving intra-cluster spacing and not overlapping the response (see `bottom_top_new` / `gap_below_response`).
 
-## Why This Is Better Than localwriter2's Approach
+4. **Response area**  
+   Second pass sets height from the top of the response to just above the bottom cluster, and width using the same right-margin rule as other fluid controls.
 
-### localwriter2: Fully Programmatic Layout
+**Note:** Early design docs described **proportional horizontal scaling** (`new_w = ow * width_ratio`). The implementation intentionally switched to **fill-to-margin + minimum floors** to avoid feedback loops between intrinsic control sizing and panel width (especially on GTK).
 
-localwriter2 abandoned the XDL entirely and builds all controls programmatically via `panel_layout.py` (`create_panel_window` + `add_control`). Its `_ChatResize._relayout()` computes every dimension from scratch:
+---
 
-```python
-# localwriter2: everything is hardcoded pixel math
-scale_factor = max(1.0, h / 1000.0)
-m = int(8 * scale_factor)
-btn_h = int(28 * scale_factor)
-query_h = int(70 * scale_factor)
-label_h = int(22 * scale_factor)
-gap = int(10 * scale_factor)
-```
+## `ChatToolPanel.getHeightForWidth(width)`
 
-**Problems with this approach:**
+Called by the deck layouter with a **width hint** (`deck_w`). The implementation:
 
-1. **Lost controls**: The programmatic panel only creates 6 controls (response, query_label, query, send, stop, clear). All the additional UI — model selector, image model selector, checkboxes, aspect ratio, base size, status bar — is missing. Adding them back means writing extensive `add_control()` boilerplate for each one.
+1. Reads **parent** window size (`parent_w`, `parent_h`) from `ChatToolPanel.parent_window`.
+2. Stores **`_last_deck_w = deck_w`** for `_relayout` to use on the next pass.
+3. Computes **`eff_w`** using the same rule as `_relayout`’s parent sync ([divergence](#parent-vs-deck-width-divergence)).
+4. **`setPosSize(0, 0, eff_w, h)`** on `PanelWindow` so the panel root matches the chosen column width.
+5. Calls **`resize_listener.relayout_now(PanelWindow)`** because **`windowResized` does not always fire** when the layouter changes size programmatically.
+6. Returns `LayoutSize(100, -1, 400)`.
 
-2. **Fragile DPI scaling**: The `scale_factor = max(1.0, h / 1000.0)` heuristic guesses DPI from the window height. This breaks when the window is simply small (e.g. laptop) vs. actually low-DPI, or when the user resizes the sidebar to be narrow and short.
+---
 
-3. **Maintenance burden**: Every UI change requires updating two places — the Python layout code and any documentation about control positions. There's no visual editor and no declarative format. The 90-line `_relayout` method (with its `if self._pos == "top"` / `else` branches) is hard to reason about.
+## Parent vs deck width (“divergence”)
 
-4. **No Map AppFont**: Programmatic controls use pixel positioning via `setPosSize()`. Map AppFont units (which LibreOffice's XDL system converts to pixels accounting for system font metrics and DPI) are not available, so the DPI independence is approximate at best.
+On GTK/VCL (notably LibreOffice 24), **two different width numbers** show up in logs:
 
-### localwriter: XDL + Runtime Adjustment
+- **`deck_w`**: width passed into `getHeightForWidth` (deck’s idea of the column).
+- **`parent_w`**: width of the sidebar content parent (`xParentWindow`).
 
-Our approach keeps the XDL as the single source of truth for control layout:
+Often they track together when the user drags the sidebar splitter. Sometimes **`parent_w` grows with “intrinsic” layout** (e.g. long text, combo preferred size) even when **`deck_w` stays modest** — logs showed huge `parent_w` vs ~deck width. Conversely, locking the panel to `min(parent, deck)` **all the time** prevented fluid controls from **filling** a legitimately wide sidebar.
 
-1. **All controls defined in XDL**: The dialog editor (or hand-edited XML) defines every control with Map AppFont units. Adding a new control means adding one XML element — no Python code changes needed for positioning.
+**Current rule** (must stay in sync in `panel_factory.py` and `panel_resize.py`; constant `_DIVERGENCE_PX = 80`):
 
-2. **True DPI independence**: Map AppFont units are converted to pixels by LibreOffice's rendering engine, which knows the actual system DPI, font metrics, and toolkit backend (GTK, Qt, Win32). This is more accurate than any heuristic.
+- If **`parent_w <= deck_w + 80`**: treat parent and deck as **aligned** → use **`eff_w = parent_w`** (fill the visible column; fluid controls stretch).
+- If **`parent_w > deck_w + 80`**: treat parent as **inflated** vs real allocation → use **`eff_w = min(parent_w, deck_w)`** to clamp runaway width.
 
-3. **Minimal runtime code**: `_PanelResizeListener` is ~50 lines. It captures the XDL-loaded positions once and then applies a simple rule: bottom-anchor everything below the response, stretch the response to fill. No per-control pixel math.
+`_relayout` repeats the same logic when syncing the root window width using `_deck_w_getter()` → `ChatToolPanel._last_deck_w`.
 
-4. **Separation of concerns**: Layout design in XDL (declarative, editable). Dynamic behavior in Python (capture + transform). Adding controls doesn't require touching the resize logic.
+---
 
-## Key Files
+## Evolution: what we tried
+
+| Approach | Intent | Outcome |
+|----------|--------|---------|
+| **Simple `setPosSize(width, h)` in `getHeightForWidth`** | Match deck width | Worked for basic cases; **combo dropdown** still clipped; typing could **widen** the panel on GTK. |
+| **`_MIN_WIDTHS` + fill-to-margin for fluid controls** | Stop ~10px-wide controls; keep dropdown affordance visible | **Helped**; model comboboxes use ≥120px floor where space allows. |
+| **`relayout_now` from `getHeightForWidth`** | Relayout when `windowResized` misses | **Necessary**; without it, sizes lag after layouter updates. |
+| **Fixed Send button width** (`_measure_send_button_max_width` + `QueryTextListener.set_fixed_send_width`) | **Record / Send / Stop Rec** label changes resized the button and caused **~22px width steps** and feedback loops | **Worked**; measure max label width once after wiring, re-apply after each label change. |
+| **`_column_width_cap`** (`min(parent, deck)`, grow only when parent≈deck) | Stop runaway width | **Stopped creep** but **blocked stretching** when the user widened the sidebar — fluid fields no longer filled the column. **Replaced** by divergence rule. |
+| **Relayout after toggling “Use Image model”** | Visibility swap changes vertical stack | **Needed** so the visible model row gets correct widths. |
+| **Wiring split: `panel_wiring.py`** | Smaller `panel_factory.py` | Organizational; behavior unchanged. |
+
+Debugging relied on `writeragent_debug.log` lines: `getHeightForWidth deck_hint=...`, `_relayout: sync root ...`, `_relayout fluid widths=...`, `_capture_initial ctrl_widths=...`.
+
+---
+
+## Key files (WriterAgent)
 
 | File | Role |
 |------|------|
-| `LocalWriterDialogs/ChatPanelDialog.xdl` | Control definitions and initial layout (Map AppFont) |
-| `plugin/modules/chatbot/panel_factory.py` | `_PanelResizeListener`, `ChatToolPanel.getHeightForWidth()` |
-| `registry/.../Sidebar.xcu` | Deck and panel registration with LibreOffice |
+| `extension/WriterAgentDialogs/ChatPanelDialog.xdl` | Control definitions; baseline Map AppFont layout |
+| `plugin/modules/chatbot/panel_resize.py` | `_PanelResizeListener`, `_MIN_WIDTHS`, `_relayout` / `relayout_now` |
+| `plugin/modules/chatbot/panel_factory.py` | `ChatToolPanel`, `getHeightForWidth`, `getMinimalWidth`, image-mode relayout hook |
+| `plugin/modules/chatbot/panel_wiring.py` | `_wireControls`, resize listener construction, Send width measurement |
+| `plugin/modules/chatbot/panel.py` | `QueryTextListener` (Send label + fixed width) |
+| `registry/.../Sidebar.xcu` | Deck / panel registration |
 
-## LibreOffice Sidebar Layout Reference
+---
 
-The sidebar layout engine lives in `sfx2/source/sidebar/DeckLayouter.cxx`:
+## Comparison: fully programmatic layout (e.g. localwriter2-style)
 
-- **`LayoutSize` struct** (IDL: `com/sun/star/ui/LayoutSize.idl`): Fields are `Minimum`, `Maximum`, `Preferred` — this order matters when calling `uno.createUnoStruct`.
-- **`DistributeHeights`**: Extra height goes proportionally to panels based on weight. Panels with `Maximum = -1` absorb all remaining height after capped panels are satisfied.
-- **`getMinimalWidth()`**: Returns the minimum sidebar width in pixels. We return 180.
-- **`getHeightForWidth(width)`**: Called by the layouter to ask panels their size preferences. Our implementation also calls `setPosSize` on the panel window to match the sidebar width.
-# Sidebar Layout Fix: Dynamic Width + Bottom-Anchored Buttons
+Some projects drop XDL and place every control with raw pixel math. That can work for a **minimal** toolbar, but it tends to drop controls (model selectors, checkboxes, image rows) or duplicate a lot of boilerplate. WriterAgent keeps **XDL as the declarative source** and a **single resize listener** for dynamic height and horizontal fill.
 
-## Problem
+---
 
-The chat sidebar panel has fixed width and height. The layout should:
-1. Have a **minimum width of 180px** but expand to fill the sidebar width
-2. **Buttons** (Send/Stop/Clear) anchored at the **bottom**
-3. **Status control** above the buttons
-4. **Chat window** (response area) fills remaining space at top
-5. Work in a **DPI-independent** way
+## Future work and simplification ideas
 
-## Research Findings
+1. **Single source for `_DIVERGENCE_PX`**  
+   Today the same literal `80` exists in `panel_factory.py` and `panel_resize.py`. A shared module-level constant (or small `layout_constants.py`) would prevent drift.
 
-### How the Sidebar Allocates Panel Height (from [DeckLayouter.cxx](file:///home/keithcu/Desktop/libreoffice/sfx2/source/sidebar/DeckLayouter.cxx))
+2. **Tune or auto-tune divergence**  
+   `80` is empirical. If a theme consistently mis-reports parent vs deck, consider a slightly larger threshold or a short comment linking to LO/GTK versions where it was chosen.
 
-The sidebar layout engine uses `LayoutSize(Minimum, Maximum, Preferred)` to decide panel heights:
+3. **Reduce special cases**  
+   If LibreOffice ever exposes a single authoritative “sidebar content width,” much of the parent/deck logic could be deleted. Until then, the divergence heuristic is a workaround for toolkit behavior.
 
-1. **Collects** [getHeightForWidth(width)](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#73-86) from each panel → gets `LayoutSize`
-2. **Sums** all `Minimum` heights and all `Preferred` heights
-3. If preferred fits → uses preferred as base, distributes extra height proportionally
-4. If only minimum fits → uses minimum as base, distributes extra height proportionally
-5. **Panels with `Maximum = -1`** (unbounded) get **all remaining height** distributed to them
-6. Validation: `0 ≤ Minimum ≤ Preferred ≤ Maximum` (logs warning if violated)
+4. **Declarative fluid list**  
+   `fluid_controls` and `_MIN_WIDTHS` could be driven from one table (name → `{fluid, min_w}`) to avoid naming drift when XDL gains new fields.
 
-### Current Code Bug
+5. **Tests**  
+   UNO sidebar layout cannot be unit-tested outside LibreOffice. A **headless or screenshot harness** would be heavy; documenting manual checks (resize width/height, toggle image mode, Record/Send toggle, narrow sidebar) remains the practical approach.
 
-```python
-# Current (WRONG) — violates IDL constraints
-return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 280, -1, 280)
-# Minimum=280, Maximum=-1, Preferred=280
-# Problem: Maximum(-1 = unbounded) should be ≥ Preferred, but -1 is treated specially
-# More importantly: this CAPS the panel to 280px preferred height
-```
+6. **docs/dynamic-layout.md vs AGENTS.md**  
+   Keep **AGENTS.md** as the short “what exists” pointer; this file is the **deep dive** for layout debugging and future refactors.
 
-### What Needs to Change
+---
 
-**Width** is already handled — the sidebar framework always gives the panel its full width via [getHeightForWidth(width)](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#73-86) and `setPosSize`. [getMinimalWidth()](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#87-89) already returns 180. The XDL width (168 Map AppFont) is just the initial template size — the sidebar overwrites it.
+## Manual verification checklist
 
-**Height** is the real problem. The fix has two parts:
+1. Open Writer (or Calc) → WriterAgent sidebar deck.  
+2. **Resize sidebar width**: response, query, model combo should **stretch**; dropdown glyph should stay visible.  
+3. **Resize window height**: response grows/shrinks; bottom cluster stays at bottom.  
+4. **Type in query** (with recording enabled): **Send ↔ Record** should not widen the panel stepwise.  
+5. **Toggle “Use Image model”**: no permanent overlap; relayout correct.  
+6. **Narrow sidebar**: fluid widths should **not** exceed panel (no clipped-off combo button).  
+7. Compare debug log `parent` vs `deck_hint` when anomalies appear.
 
-1. **Tell the sidebar to give us all available height** via correct `LayoutSize`
-2. **Reposition controls dynamically** when the panel is resized using `XWindowListener`
+---
 
-### Approach: XDL + XWindowListener (Hybrid)
+## LibreOffice references
 
-Keep the XDL file for control definitions (maintains all existing controls including checkboxes, comboboxes, etc.) but add an `XWindowListener` to reposition controls dynamically when the panel resizes. This is simpler than localwriter2's fully-programmatic approach and preserves all existing UI controls.
-
-> [!IMPORTANT]
-> localwriter2 went **fully programmatic** (no XDL), but that dropped most controls (checkboxes, model selectors, image controls). Keeping the XDL + adding dynamic layout preserves all existing functionality with minimal code changes.
-
-## Proposed Changes
-
-### Panel Layout
-
-#### [MODIFY] [ChatPanelDialog.xdl](file:///home/keithcu/Desktop/Python/localwriter/extension/LocalWriterDialogs/ChatPanelDialog.xdl)
-
-Make the XDL just define controls with initial "reasonable" positions. The [_relayout](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#623-710) will override them at runtime. Minor tweaks:
-- Increase `dlg:width` to `"200"` (Map AppFont) so the initial template is wider — doesn't matter much since the sidebar overrides, but avoids controls being clipped during the brief moment before [_relayout](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#623-710) fires.
-
-#### [MODIFY] [panel_factory.py](file:///home/keithcu/Desktop/Python/localwriter/plugin/modules/chatbot/panel_factory.py)
-
-Three changes:
-
-**1. Fix [getHeightForWidth](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#73-86) to request unbounded height:**
-```python
-def getHeightForWidth(self, width):
-    if self.parent_window and self.PanelWindow and width > 0:
-        parent_rect = self.parent_window.getPosSize()
-        h = parent_rect.Height if parent_rect.Height > 0 else 400
-        self.PanelWindow.setPosSize(0, 0, width, h, 15)
-    # Minimum=100, Maximum=-1 (unbounded), Preferred=400
-    # The sidebar will give us ALL remaining height since Maximum=-1
-    return uno.createUnoStruct("com.sun.star.ui.LayoutSize", 100, -1, 400)
-```
-
-**2. Add `_PanelResizeListener` (XWindowListener):**
-
-A class that implements `XWindowListener` with a [_relayout(self, w, h)](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#623-710) method. The layout strategy is **bottom-up packing in pixels**:
-
-```
-┌─────────────────────┐ ← y=0 + margin
-│   response (chat)   │  ← fills all remaining space
-│                     │
-│                     │
-├─────────────────────┤
-│  model_label        │  ← fixed height row
-│  model_selector     │  ← fixed height row  
-│  image controls...  │  ← optional, fixed height rows
-│  checkboxes row     │  ← fixed height row
-├─────────────────────┤
-│  status             │  ← fixed height ~14px
-├─────────────────────┤
-│  query_label        │  ← fixed height ~14px
-│  query (input)      │  ← fixed height ~40px
-├─────────────────────┤
-│ [Send] [Stop] [Clear]│ ← fixed height ~20px, at bottom
-└─────────────────────┘ ← y = total height - margin
-```
-
-**DPI independence approach** (same as localwriter2): Compute a `scale_factor` from the panel's actual pixel height. A typical 1080p sidebar panel area is ~600-800px, so `scale = max(1.0, h / 800.0)`. All fixed sizes (margins, button height, gap) are multiplied by this factor.
-
-**3. Wire the listener after [_wireControls](file:///home/keithcu/Desktop/Python/localwriter/plugin/modules/chatbot/panel_factory.py#225-543):**
-
-```python
-# At end of _wireControls:
-ctrl_map = {
-    "response": response_ctrl,
-    "response_label": root_window.getControl("response_label"),
-    "query_label": get_optional("query_label"),
-    "query": query_ctrl,
-    "send": send_btn, "stop": stop_btn, "clear": clear_btn,
-    "status": status_ctrl,
-    "model_label": model_label, "model_selector": model_selector,
-    "image_model_selector": image_model_selector,
-    "direct_image_check": direct_image_check,
-    "web_search_check": web_search_check,
-    "aspect_ratio_selector": aspect_ratio_selector,
-    "base_size_input": base_size_input,
-    "base_size_label": base_size_label,
-}
-resize_listener = _PanelResizeListener(ctrl_map)
-root_window.addWindowListener(resize_listener)
-resize_listener._relayout(root_window)  # initial layout
-```
-
-The [_relayout](file:///home/keithcu/Desktop/Python/localwriter/localwriter2/plugin/modules/chatbot/panel_factory.py#623-710) method works in pure pixels (since `setPosSize` on UNO controls uses pixels in this context). It:
-1. Gets `w, h` from the window's `getPosSize()`
-2. Computes bottom-section sizes (buttons, query, status, model selector, checkboxes)
-3. Places the response control to fill everything above the bottom section
-4. Places bottom controls from the bottom up
-5. Handles hidden controls (image UI) by skipping them (check `isVisible()` or a flag)
-
-## Verification Plan
-
-> [!IMPORTANT]
-> This is UNO sidebar code in a LibreOffice extension — there's no way to unit test the layout logic outside of LibreOffice. Verification must be manual.
-
-### Manual Verification
-
-After making changes and rebuilding/reinstalling the extension:
-
-1. **Open LibreOffice Writer** → open the LocalWriter sidebar deck
-2. **Verify layout order**: Response area at top → model selector/checkboxes in middle → status → query input → Send/Stop/Clear buttons at bottom
-3. **Resize sidebar width**: Drag the sidebar border. Controls should stretch horizontally, buttons should remain evenly spaced
-4. **Resize window height**: Maximize/restore the LibreOffice window. The response area should grow/shrink while bottom controls stay anchored
-5. **DPI check**: If possible, test on a HiDPI display or change display scaling. Controls should scale proportionally
-6. **Toggle "Use Image model"**: The image controls should appear/disappear and the layout should adjust (no overlapping)
-7. **Check minimum width**: The sidebar should not allow shrinking below ~180px
-
-> [!NOTE]
-> Since you want to review this with other AIs before implementing, the plan is deliberately kept at the strategy level. The actual pixel values and exact control ordering will need tuning during implementation.
+- `sfx2/source/sidebar/DeckLayouter.cxx` — height distribution, `getHeightForWidth` usage  
+- `com.sun.star.ui.LayoutSize` — struct field order  
+- XDL / Map AppFont: DevGuide graphical UIs, `xmlscript` DTD

@@ -139,6 +139,11 @@ log = logging.getLogger(__name__)
 class QueryTextListener(unohelper.Base, XTextListener):
     def __init__(self, send_button):
         self.send_button = send_button
+        # Pixel width measured for Record/Send/Stop Rec; stops sidebar width creep on GTK.
+        self._fixed_send_width = None
+
+    def set_fixed_send_width(self, width_px):
+        self._fixed_send_width = width_px
 
     def textChanged(self, ev):
         try:
@@ -160,8 +165,15 @@ class QueryTextListener(unohelper.Base, XTextListener):
             if btn_model.Label != new_label:
                 log.debug("QueryTextListener: toggle label '%s' -> '%s'" % (btn_model.Label, new_label))
                 btn_model.Label = new_label
-            else:
-                log.debug("QueryTextListener: label already '%s'" % new_label)
+            if self._fixed_send_width:
+                try:
+                    r = self.send_button.getPosSize()
+                    if r.Width != self._fixed_send_width:
+                        self.send_button.setPosSize(
+                            r.X, r.Y, self._fixed_send_width, r.Height, 15
+                        )
+                except Exception:
+                    pass
         except Exception as e:
             log.error("QueryTextListener error: %s" % e)
 

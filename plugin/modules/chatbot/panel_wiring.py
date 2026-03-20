@@ -10,6 +10,24 @@ from plugin.modules.chatbot.panel_resize import _PanelResizeListener
 log = logging.getLogger(__name__)
 
 
+def _measure_send_button_max_width(send_ctrl, has_recording):
+    """Max pixel width for Send/Record/Stop Rec so label toggles do not resize the row."""
+    if not send_ctrl or not hasattr(send_ctrl, "getModel"):
+        return None
+    try:
+        m = send_ctrl.getModel()
+        saved = m.Label
+        labels = ["Send", "Record", "Stop Rec"] if has_recording else ["Send"]
+        wmax = send_ctrl.getPosSize().Width
+        for lab in labels:
+            m.Label = lab
+            wmax = max(wmax, send_ctrl.getPosSize().Width)
+        m.Label = saved
+        return wmax if wmax > 0 else None
+    except Exception:
+        return None
+
+
 def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
     """Main entry point to wire all controls for the panel."""
     log.debug("_wireControls entered")
@@ -95,11 +113,13 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
     # 4. Buttons
     self._wire_buttons(controls, model, active_greeting, set_control_enabled)
 
-    # Wire query listener to update Record/Send button label
-    if controls["query"] and controls["send"]:
+    # Wire query listener to update Record/Send button label (fixed width applied after relayout)
+    query_text_listener = None
+    if controls.get("query") and controls.get("send"):
         try:
             from plugin.modules.chatbot.panel import QueryTextListener
-            controls["query"].addTextListener(QueryTextListener(controls["send"]))
+            query_text_listener = QueryTextListener(controls["send"])
+            controls["query"].addTextListener(query_text_listener)
             if controls["query"].getModel().Text.strip():
                 controls["send"].getModel().Label = "Send"
             else:
@@ -123,9 +143,30 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
             "Attaching _PanelResizeListener to root_window; controls=%s"
             % (sorted(k for k, v in controls.items() if v))
         )
-        _resize = _PanelResizeListener(controls)
+        _parent = None
+        _tp = getattr(self, "toolpanel", None)
+        if _tp is not None:
+            _parent = _tp.parent_window
+        _deck_getter = None
+        if _tp is not None:
+            _deck_getter = lambda: getattr(_tp, "_last_deck_w", None)
+        _resize = _PanelResizeListener(
+            controls, parent_window=_parent, deck_w_getter=_deck_getter
+        )
         root_window.addWindowListener(_resize)
-        _resize._relayout(root_window)
+        if _tp is not None:
+            _tp.resize_listener = _resize
+        _resize.relayout_now(root_window)
+        # Stop +22px/windowResized loop when Record <-> Send (see writeragent_debug.log).
+        if controls["send"] and query_text_listener is not None:
+            try:
+                fw = _measure_send_button_max_width(controls["send"], has_recording)
+                if fw:
+                    query_text_listener.set_fixed_send_width(fw)
+                    sr = controls["send"].getPosSize()
+                    controls["send"].setPosSize(sr.X, sr.Y, fw, sr.Height, 15)
+            except Exception as e:
+                log.debug("send button width stabilize skipped: %s" % e)
     except Exception as e:
         log.error("Resize listener error: %s" % e)
 

@@ -22,8 +22,9 @@ _MIN_WIDTHS = {
     "direct_image_check": 70,
     "web_research_check": 70,
     "model_label": 60,
-    "model_selector": 100,
-    "image_model_selector": 100,
+    # Combos need extra width so the dropdown button stays visible on GTK/VCL themes.
+    "model_selector": 120,
+    "image_model_selector": 120,
     "base_size_label": 20,
     "base_size_input": 40,
     "aspect_ratio_selector": 80,
@@ -34,10 +35,32 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
     """Adjusts panel layout on resize. Reads control sizes/gaps from the XDL;
     only the response area height changes to fill available space."""
 
-    def __init__(self, controls):
+    def __init__(self, controls, parent_window=None, deck_w_getter=None):
         self._c = controls        # dict name -> control or None
         self._initial = None      # captured from XDL-loaded pixel positions
         self._in_relayout = False
+        # Sidebar content area; root window width must match this (not LO's transient hints).
+        self._parent_window = parent_window
+        # Callable -> last deck hint from getHeightForWidth (with parent: clamp vs fill).
+        self._deck_w_getter = deck_w_getter
+
+    def relayout_now(self, win):
+        """Run layout on the root panel window (e.g. after programmatic resize).
+
+        Used from ``getHeightForWidth`` when ``windowResized`` does not fire reliably.
+        """
+        if not win:
+            return
+        if self._in_relayout:
+            log.debug("relayout_now: skipped (in_relayout)")
+            return
+        try:
+            self._in_relayout = True
+            self._relayout(win)
+        except Exception as e:
+            log.error("relayout_now error: %s" % e)
+        finally:
+            self._in_relayout = False
 
     def windowResized(self, evt):
         r = evt.Source.getPosSize()
@@ -45,13 +68,7 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
         if self._in_relayout:
             log.debug("windowResized: skipped (in_relayout)")
             return
-        try:
-            self._in_relayout = True
-            self._relayout(evt.Source)
-        except Exception as e:
-            log.error("windowResized error: %s" % e)
-        finally:
-            self._in_relayout = False
+        self.relayout_now(evt.Source)
 
     def windowMoved(self, evt):  # noqa: D401, D416
         """No-op for sidebar resize listener."""
@@ -141,10 +158,38 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
         if w <= 0 or h <= 0:
             return
 
+        # Match getHeightForWidth: fill parent when aligned; clamp when parent >> deck.
+        _DIVERGENCE_PX = 80
+        if self._parent_window:
+            try:
+                pr = self._parent_window.getPosSize()
+                pw = pr.Width
+                deck = None
+                if self._deck_w_getter:
+                    try:
+                        deck = self._deck_w_getter()
+                    except Exception:
+                        deck = None
+                if deck is not None and deck > 0 and pw > deck + _DIVERGENCE_PX:
+                    target_w = min(pw, deck)
+                else:
+                    target_w = pw
+                if target_w > 0 and abs(w - target_w) > 1:
+                    log.debug(
+                        "_relayout: sync root W %d -> target W %d (parent=%s deck=%s)"
+                        % (w, target_w, pw, deck)
+                    )
+                    win.setPosSize(0, 0, target_w, h, 15)
+                    r = win.getPosSize()
+                    w, h = r.Width, r.Height
+            except Exception as e:
+                log.debug("_relayout: parent sync skipped: %s" % e)
+
         log.debug(
             "_relayout: win W=%d H=%d (have_initial=%s)"
             % (w, h, bool(self._initial))
         )
+        fluid_debug = {}
 
         if self._initial is None:
             self._capture_initial(win)
@@ -193,26 +238,29 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
                 continue
             ox, oy, ow, oh = orig
 
+            fixed_margin = 6
+            avail = w - ox - fixed_margin
             if name in fluid_controls:
                 # Fill space to a fixed right margin so GTK layout quirks or
                 # a bad initial snapshot cannot permanently shrink widths.
                 new_x = ox
-                fixed_margin = 6
-                new_w = max(10, w - ox - fixed_margin)
+                new_w = max(10, avail)
             else:
                 # Fixed size, anchored left
                 new_x = ox
                 new_w = ow
-                #FIXME, IS THIS NEEDED?
-                if name == "web_research_check":
-                    # Slightly narrow the Web Research checkbox so it doesn't span as wide.
-                    new_w = max(10, int(ow * 0.75))
 
             # Never let controls collapse below a reasonable minimum width;
             # this counteracts GTK cases where they become ~10px wide.
+            # For fluid controls, never exceed horizontal space (avail).
             min_w = _MIN_WIDTHS.get(name)
             if min_w is not None and new_w < min_w:
-                new_w = min_w
+                if name in fluid_controls:
+                    new_w = max(new_w, min(min_w, max(10, avail)))
+                else:
+                    new_w = min_w
+            if name in fluid_controls:
+                fluid_debug[name] = new_w
 
             if oy >= resp_bottom:
                 # Part of the bottom control group: keep relative spacing but move group toward bottom.
@@ -242,6 +290,9 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
                 ):
                     ctrl.setPosSize(new_x, oy, new_w, oh, 15)
 
+        if fluid_debug:
+            log.debug("_relayout fluid widths: %s" % fluid_debug)
+
         # Second pass: stretch response area to fill remaining vertical gap
         resp_orig = self._initial["ctrls"].get("response")
         resp_ctrl = self._c.get("response")
@@ -252,9 +303,13 @@ class _PanelResizeListener(unohelper.Base, XWindowListener):
                 gap = 2
             new_rh = max(30, top_of_bottom - gap - ry)
 
-            # Fill width to right margin
+            # Fill width to right margin (same avail cap as other fluid controls)
             fixed_margin = 6
-            new_rw = max(10, w - rx - fixed_margin)
+            resp_avail = w - rx - fixed_margin
+            new_rw = max(10, resp_avail)
+            min_rw = _MIN_WIDTHS.get("response")
+            if min_rw is not None and new_rw < min_rw:
+                new_rw = max(new_rw, min(min_rw, max(10, resp_avail)))
 
             cur = resp_ctrl.getPosSize()
             if (
