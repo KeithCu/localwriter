@@ -194,7 +194,7 @@ class SendHandlersMixin:
             )
         except Exception as e:
             from plugin.framework.i18n import _
-            self._append_response(_("\n[Error: %s]\n") % str(e))
+            self._append_response(_("\n[Error: {0}]\n").format(str(e)))
             self._terminal_status = "Error"
             return
 
@@ -277,7 +277,7 @@ class SendHandlersMixin:
             )
         except Exception as e:
             from plugin.framework.i18n import _
-            self._append_response(_("\n[Document context error: %s]\n") % str(e))
+            self._append_response(_("\n[Document context error: {0}]\n").format(str(e)))
             self._terminal_status = "Error"
             self._set_status(_("Error"))
             return
@@ -288,15 +288,15 @@ class SendHandlersMixin:
         adapter = get_backend(backend_id, ctx=self.ctx)
         if not adapter:
             from plugin.framework.i18n import _
-            self._append_response(_("\n[Agent backend '%s' not found.]\n") % backend_id)
+            self._append_response(_("\n[Agent backend '{0}' not found.]\n").format(backend_id))
             self._terminal_status = "Error"
             self._set_status(_("Error"))
             return
         if not adapter.is_available(self.ctx):
             from plugin.framework.i18n import _
             self._append_response(
-                _("\n[Agent backend '%s' is not available. Check Settings (path, install).]\n")
-                % getattr(adapter, "display_name", backend_id)
+                _("\n[Agent backend '{0}' is not available. Check Settings (path, install).]\n")
+                .format(getattr(adapter, "display_name", backend_id))
             )
             self._terminal_status = "Error"
             self._set_status(_("Error"))
@@ -362,7 +362,7 @@ class SendHandlersMixin:
             )
         except Exception as e:
             from plugin.framework.i18n import _
-            self._append_response(_("\n[Error: %s]\n") % str(e))
+            self._append_response(_("\n[Error: {0}]\n").format(str(e)))
             self._terminal_status = "Error"
             self._current_agent_backend = None
             return
@@ -514,14 +514,14 @@ class SendHandlersMixin:
                     answer = data.get("result", "")
                     if not isinstance(answer, str):
                         answer = str(answer)
-                    msg = _("AI (research): %s\n") % answer
+                    msg = _("AI (research): {0}\n").format(answer)
                     q.put(("chunk", msg))
                     # Persist assistant result to current session
                     self.session.add_assistant_message(content=msg)
                 else:
                     from plugin.framework.i18n import _
                     msg = data.get("message", _("Unknown research error."))
-                    q.put(("chunk", _("[Research error: %s]\n") % msg))
+                    q.put(("chunk", _("[Research error: {0}]\n").format(msg)))
 
                 q.put(("stream_done", {}))
             except Exception as e:
@@ -538,7 +538,7 @@ class SendHandlersMixin:
             )
         except Exception as e:
             from plugin.framework.i18n import _
-            self._append_response(_("\n[Error: %s]\n") % str(e))
+            self._append_response(_("\n[Error: {0}]\n").format(str(e)))
             self._terminal_status = "Error"
             self._set_status(_("Error"))
             return
