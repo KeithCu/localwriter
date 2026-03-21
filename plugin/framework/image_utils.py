@@ -341,7 +341,7 @@ class ImageService:
             src_lang = (self.config.get("image_translate_from") or "").strip()
             if src_lang:
                 try:
-                    from plugin.framework.translation_tool import opustm_hf_translate
+                    from plugin.modules.chatbot.translation_tool import opustm_hf_translate
                     prompt = opustm_hf_translate(prompt, src_lang, "English")
                 except Exception as e:
                     logger.warning("Prompt translation failed, using original: %s", e)
