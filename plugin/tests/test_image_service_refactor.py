@@ -1,4 +1,5 @@
 import sys
+from plugin.framework.path_utils import get_plugin_dir
 import os
 import unittest
 import json
@@ -6,7 +7,7 @@ import base64
 from unittest.mock import MagicMock, patch
 
 # Add parent directory to path to import core
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(get_plugin_dir()))
 
 from plugin.framework.image_utils import EndpointImageProvider
 from plugin.modules.http.client import LlmClient

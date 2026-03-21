@@ -14,7 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
-from plugin.framework.config import get_provider_from_endpoint, _normalize_endpoint_url
+from plugin.framework.config import get_provider_from_endpoint
+from plugin.framework.url_utils import normalize_endpoint_url
 from plugin.framework.errors import ConfigError
 
 class AuthError(ConfigError):
@@ -101,7 +102,7 @@ def _resolve_provider_id(endpoint: str, provider_hint: Optional[str] = None) -> 
         if normalized in PROVIDERS:
             return normalized
 
-    url = _normalize_endpoint_url(endpoint).lower()
+    url = normalize_endpoint_url(endpoint).lower()
     for pid, cfg in PROVIDERS.items():
         if not cfg.host_matches:
             continue
@@ -136,7 +137,7 @@ def resolve_auth_for_config(api_config: Dict[str, Any]) -> Dict[str, Any]:
       }
     """
     endpoint_raw = str(api_config.get("endpoint") or "")
-    endpoint = _normalize_endpoint_url(endpoint_raw)
+    endpoint = normalize_endpoint_url(endpoint_raw)
     api_key = str(api_config.get("api_key") or "").strip()
 
     if not endpoint:

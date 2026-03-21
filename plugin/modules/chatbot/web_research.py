@@ -41,7 +41,7 @@ class WebResearchTool(ToolBase):
     def execute(self, ctx, query, history_text=None):
         from plugin.framework.errors import format_error_payload, ToolExecutionError
         import os
-        from urllib.parse import urlparse
+        from plugin.framework.url_utils import get_url_domain
 
         try:
             from plugin.framework.config import get_api_config, get_config_int, user_config_dir
@@ -107,9 +107,7 @@ class WebResearchTool(ToolBase):
                         status_msg = f"Search: {q}"
                     elif step.name == "visit_webpage":
                         url = str(step.arguments.get("url", "")) if isinstance(step.arguments, dict) else ""
-                        domain = urlparse(url).netloc or url[:30]
-                        if domain.startswith("www."):
-                            domain = domain[4:]
+                        domain = get_url_domain(url)
                         status_msg = f"Read: {domain}"
                     else:
                         status_msg = str(step.name)

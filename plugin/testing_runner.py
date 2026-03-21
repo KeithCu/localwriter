@@ -223,9 +223,10 @@ def run_all_tests(ctx: Any) -> str:
     draw_doc = model if (model is not None and is_draw(model)) else None
 
     import os
+    from plugin.framework.path_utils import get_plugin_dir
     import importlib.util
 
-    tests_dir = os.path.join(os.path.dirname(__file__), "tests", "uno")
+    tests_dir = os.path.join(get_plugin_dir(), "tests", "uno")
 
     if os.path.isdir(tests_dir):
         # Discover and run all test modules in the tests/uno directory

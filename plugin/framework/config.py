@@ -1,3 +1,4 @@
+from plugin.framework.url_utils import normalize_endpoint_url
 # WriterAgent - AI Writing Assistant for LibreOffice
 # Copyright (c) 2024 John Balis
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
@@ -19,6 +20,7 @@ Configuration logic for WriterAgent.
 Reads/writes writeragent.json in LibreOffice's user config directory.
 """
 import os
+from plugin.framework.path_utils import get_plugin_dir
 import json
 import logging
 import dataclasses
@@ -252,7 +254,7 @@ class WriterAgentConfig:
 def _resolve_default(key):
     """Resolve default for key: schema first, then central dict. Safe fallbacks for None."""
     if key == "log_level":
-        tests_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tests")
+        tests_dir = os.path.join(get_plugin_dir(), "tests")
         return "DEBUG" if os.path.isdir(tests_dir) else "WARN"
 
     val = _get_schema_default(key)
@@ -468,7 +470,7 @@ def get_provider_from_endpoint(endpoint):
     """Return provider key for DEFAULT_MODELS based on endpoint URL or labels."""
     if not endpoint:
         return None
-    url = _normalize_endpoint_url(endpoint).lower()
+    url = normalize_endpoint_url(endpoint).lower()
     if "openrouter.ai" in url:
         return "openrouter"
     if "together.xyz" in url:
@@ -499,7 +501,7 @@ def has_native_audio(ctx, model_id, endpoint):
     Returns: True if supported, False if unsupported, None if unknown.
     """
     model_id = str(model_id).lower()
-    endpoint = _normalize_endpoint_url(endpoint)
+    endpoint = normalize_endpoint_url(endpoint)
     
     # 1. Persistent Cache Check
     cache = get_config(ctx, "audio_support_map")
@@ -527,7 +529,7 @@ def has_native_audio(ctx, model_id, endpoint):
 def set_native_audio_support(ctx, model_id, endpoint, supported):
     """Save the audio support status for a model+endpoint pair."""
     model_id = str(model_id).lower()
-    endpoint = _normalize_endpoint_url(endpoint)
+    endpoint = normalize_endpoint_url(endpoint)
     key = f"{endpoint}@{model_id}"
     
     cache = get_config(ctx, "audio_support_map")
@@ -657,13 +659,6 @@ def get_endpoint_presets():
     return list(ENDPOINT_PRESETS)
 
 
-def _normalize_endpoint_url(url):
-    """Strip and rstrip slash for consistent storage."""
-    if not url or not isinstance(url, str):
-        return ""
-    return url.strip().rstrip("/")
-
-
 def endpoint_from_selector_text(text):
     """Resolve combobox text to endpoint URL. If text is a preset label, return its URL; else return normalized text."""
     if not text or not isinstance(text, str):
@@ -671,17 +666,17 @@ def endpoint_from_selector_text(text):
     t = text.strip()
     for label, url in ENDPOINT_PRESETS:
         if label == t:
-            return _normalize_endpoint_url(url)
-    return _normalize_endpoint_url(t)
+            return normalize_endpoint_url(url)
+    return normalize_endpoint_url(t)
 
 
 def endpoint_to_selector_display(current_url):
     """Return string to show in endpoint combobox: preset label if URL matches a preset, else the URL."""
-    url = _normalize_endpoint_url(current_url or "")
+    url = normalize_endpoint_url(current_url or "")
     if not url:
         return ""
     for label, preset_url in ENDPOINT_PRESETS:
-        if _normalize_endpoint_url(preset_url) == url:
+        if normalize_endpoint_url(preset_url) == url:
             return label
     return url
 
@@ -690,17 +685,17 @@ def populate_endpoint_selector(ctx, ctrl, current_endpoint):
     """Populate endpoint combobox: preset labels first, then endpoint_lru URLs. Combobox text = URL (visible and editable)."""
     if not ctrl:
         return
-    current_url = _normalize_endpoint_url(current_endpoint or "")
+    current_url = normalize_endpoint_url(current_endpoint or "")
 
     preset_labels = [label for label, _ in ENDPOINT_PRESETS]
     lru = get_config(ctx, "endpoint_lru")
     if not isinstance(lru, list):
         lru = []
 
-    preset_urls_normalized = {_normalize_endpoint_url(p[1]) for p in ENDPOINT_PRESETS}
+    preset_urls_normalized = {normalize_endpoint_url(p[1]) for p in ENDPOINT_PRESETS}
     to_show = list(preset_labels)
     for url in lru:
-        u = _normalize_endpoint_url(url)
+        u = normalize_endpoint_url(url)
         if not u or u in preset_urls_normalized:
             continue
         if u not in to_show:
@@ -728,7 +723,7 @@ def get_endpoint_options(services):
     presets = get_endpoint_presets()
     preset_urls = set()
     for label, url in presets:
-        url_norm = _normalize_endpoint_url(url)
+        url_norm = normalize_endpoint_url(url)
         preset_urls.add(url_norm)
         options.append({"value": url_norm, "label": label})
 
@@ -736,7 +731,7 @@ def get_endpoint_options(services):
     if not isinstance(lru, list):
         lru = []
     for url in lru:
-        u = _normalize_endpoint_url(url)
+        u = normalize_endpoint_url(url)
         if not u or u in preset_urls:
             continue
         options.append({"value": u, "label": u})
@@ -826,7 +821,7 @@ def get_api_key_for_endpoint(ctx, endpoint):
     data = get_config(ctx, "api_keys_by_endpoint")
     if not isinstance(data, dict):
         data = {}
-    normalized = _normalize_endpoint_url(endpoint or "")
+    normalized = normalize_endpoint_url(endpoint or "")
     return data.get(normalized) or ""
 
 
@@ -835,7 +830,7 @@ def set_api_key_for_endpoint(ctx, endpoint, key):
     data = get_config(ctx, "api_keys_by_endpoint")
     if not isinstance(data, dict):
         data = {}
-    normalized = _normalize_endpoint_url(endpoint or "")
+    normalized = normalize_endpoint_url(endpoint or "")
     data[normalized] = str(key)
     set_config(ctx, "api_keys_by_endpoint", data)
 

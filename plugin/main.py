@@ -16,11 +16,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import sys
 import os
+from plugin.framework.path_utils import get_plugin_dir
 import logging
 
 # Ensure the extension's install directory is on sys.path
 # so that "plugin.xxx" imports work correctly.
-_plugin_dir = os.path.dirname(os.path.abspath(__file__))
+_plugin_dir = get_plugin_dir()
 _ext_root = os.path.dirname(_plugin_dir)
 if _ext_root not in sys.path:
     sys.path.insert(0, _ext_root)
@@ -159,13 +160,13 @@ def bootstrap(ctx=None):
             
             # Try nested path first (e.g. "launcher/providers/claude")
             rel_path = name.replace(".", os.sep)
-            module_dir = os.path.join(os.path.dirname(__file__), "modules", rel_path)
+            module_dir = os.path.join(get_plugin_dir(), "modules", rel_path)
             import_path = "plugin.modules." + name
             
             if not os.path.isdir(module_dir):
                 # Legacy fallback for flat paths (e.g. "launcher_claude")
                 dir_name = name.replace(".", "_")
-                module_dir = os.path.join(os.path.dirname(__file__), "modules", dir_name)
+                module_dir = os.path.join(get_plugin_dir(), "modules", dir_name)
                 import_path = "plugin.modules." + dir_name
                 if not os.path.isdir(module_dir):
                     continue

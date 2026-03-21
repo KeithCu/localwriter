@@ -1,11 +1,12 @@
 
 import sys
+from plugin.framework.path_utils import get_plugin_dir
 import os
 import unittest
 from unittest.mock import MagicMock, patch
 
 # Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, get_plugin_dir())
 
 from plugin.framework.image_utils import ImageService, AIHordeImageProvider
 

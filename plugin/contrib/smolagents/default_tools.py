@@ -6,9 +6,10 @@ import threading
 import time
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlparse
+
 
 from plugin.framework.constants import BROWSER_USER_AGENT, USER_AGENT
+from plugin.framework.url_utils import get_url_hostname, is_pdf_url
 try:
     from plugin.framework.history_db import HAS_SQLITE, sqlite3
 except Exception:
@@ -51,8 +52,7 @@ def _get_user_agent_for_url(url: str | None = None) -> str:
     if not url:
         return BROWSER_USER_AGENT
     try:
-        parsed = urlparse(url)
-        host = (parsed.netloc or "").lower()
+        host = get_url_hostname(url).lower()
     except Exception:
         return USER_AGENT
 
@@ -373,8 +373,7 @@ class VisitWebpageTool(Tool):
             log.debug("web_cache: page miss: %s" % (key[:60] + "..." if len(key) > 60 else key))
 
         # Fail fast: URL path ends with .pdf
-        parsed = urlparse(url)
-        if (parsed.path or "").lower().endswith(".pdf"):
+        if is_pdf_url(url):
             return self._return_error(
                 key,
                 "Error fetching the webpage: URL points to a PDF; text content cannot be extracted.",
