@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from plugin.framework.translation_tool import _sse_iter
+from plugin.modules.chatbot.translation_tool import _sse_iter
 from plugin.framework.constants import USER_AGENT, APP_REFERER, APP_TITLE
 
 
