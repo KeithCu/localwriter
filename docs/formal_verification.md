@@ -94,6 +94,28 @@ Beyond utility functions, we can apply FV to state machines. For example, our LL
 
 By defining contracts that assert *"No matter how a JSON delta stream is arbitrarily chunked or fragmented over the network, the final assembled output string will exactly match the output of a synchronous, unfragmented payload,"* we can use CrossHair to mathematically prove our streaming parser's resilience against arbitrary network fragmentation.
 
+## Phase 5: Elevating Orchestration to Pure State Machines
+
+The most glaring gap in naive formal verification is orchestration code (e.g., the complex, multi-round chat logic in `tool_loop.py`). Currently, such loops maintain state across several instance variables (like `self._active_round_num`, `self._active_pending_tools`) and trigger side-effects (appending UI responses, spawning threads) directly within the logic flow.
+
+**The Solution: State Machine Extraction (Redux/Elm Pattern)**
+
+To verify complex orchestration, we must decouple the *decision* of what to do from the *execution* of the side effect. We redesign the orchestrator as a pure Tier 0 function:
+
+`f(CurrentState, Event) -> (NextState, list[Effect])`
+
+For `tool_loop.py`, this transformation involves:
+1.  **Defining the State:** A frozen dataclass capturing `round_num`, `pending_tools`, `max_rounds`, `status`, etc.
+2.  **Defining Events:** E.g., `StreamDoneEvent`, `ToolResultEvent`, `StopRequestedEvent`.
+3.  **Defining Effects (Commands):** E.g., `SpawnLLMWorkerEffect`, `SpawnToolWorkerEffect`, `UpdateUIEffect`.
+4.  **The Pure Transition Function:** `def next_state(state: ToolLoopState, event: ToolLoopEvent) -> tuple[ToolLoopState, list[ToolLoopEffect]]:`
+
+**Verification:** Once extracted, the `next_state` function is 100% pure Python without UNO, UI, or threading dependencies. We can use CrossHair to mathematically prove orchestration invariants, such as:
+*   `@deal.ensure(lambda state, event, result: result[0].round_num <= state.max_rounds)`
+*   `@deal.ensure(lambda state, event, result: not (isinstance(event, StopRequestedEvent) and any(isinstance(e, SpawnLLMWorkerEffect) for e in result[1])))`
+
+By pushing orchestration into pure state machines, we systematically extend formal verification deep into the application's most complex lifecycle management layers without tangling with external I/O.
+
 ## Conclusion
 
 By adopting concolic execution (CrossHair) and Design by Contract (`deal`), we can elevate the reliability of WriterAgent's pure algorithmic core from "empirically tested" to "mathematically robust." We acknowledge the intractability of verifying the entire application, and instead focus our SMT solvers exclusively on the pure data-transformation pipelines that feed our axiomatic UNO environment.
@@ -355,9 +377,9 @@ def ensure_scheme(url: str) -> str:
    - Contracts should capture essential properties
    - Too many contracts make verification brittle
 
-4. **❌ Avoid verifying UI/orchestration code**
-   - State machines with complex side effects
-   - Focus on pure computation instead
+4. **❌ Avoid verifying *tangled* UI/orchestration code**
+   - Do not attempt to attach FV contracts to functions that intermingle state mutation and I/O (e.g., updating UI side-by-side with calculating states).
+   - Instead, extract the implied state machine into a pure transition function (as described in Phase 5), and strictly verify *that* function instead.
 
 ## Recommended Tool Chain
 
