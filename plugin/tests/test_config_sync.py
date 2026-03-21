@@ -1,4 +1,5 @@
 import sys
+from plugin.framework.path_utils import get_plugin_dir
 import os
 import json
 import tempfile
@@ -13,7 +14,7 @@ mock_unohelper.Base = MockUnoBase
 sys.modules['unohelper'] = mock_unohelper
 
 # Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.insert(0, os.path.dirname(get_plugin_dir()))
 
 from plugin.framework.config import (
     get_image_model, set_image_model, get_api_key_for_endpoint, set_api_key_for_endpoint,

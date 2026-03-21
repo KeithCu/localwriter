@@ -5,11 +5,12 @@ it for local/source runs (e.g. python -m plugin.tests.run_format_tests).
 """
 
 import sys
+from plugin.framework.path_utils import get_plugin_dir
 import os
 
 if __name__ == "__main__":
     # Repo root (parent of plugin/) so that "plugin" package is importable
-    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    _root = os.path.dirname(get_plugin_dir())
     if _root not in sys.path:
         sys.path.insert(0, _root)
 

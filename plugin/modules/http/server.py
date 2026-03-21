@@ -26,7 +26,7 @@ import logging
 import socketserver
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from plugin.framework.url_utils import get_url_path, get_url_query_dict
 
 from plugin.framework.errors import safe_json_loads
 
@@ -58,7 +58,7 @@ class GenericRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _dispatch(self, method):
-        path = urlparse(self.path).path
+        path = get_url_path(self.path)
         route = self.route_registry.match(method, path) if self.route_registry else None
 
         if route is None:
@@ -78,7 +78,7 @@ class GenericRequestHandler(BaseHTTPRequestHandler):
                 body = self._read_body()
                 if body is None:
                     return  # _read_body already sent error response
-                query = parse_qs(urlparse(self.path).query)
+                query = get_url_query_dict(self.path)
                 if route.main_thread:
                     from plugin.framework.main_thread import execute_on_main_thread
                     status, data = execute_on_main_thread(

@@ -36,6 +36,7 @@ from plugin.framework.constants import APP_REFERER, APP_TITLE
 from plugin.framework.logging import init_logging
 from plugin.framework.auth import resolve_auth_for_config, build_auth_headers, AuthError
 from plugin.framework.errors import NetworkError, safe_json_loads
+from plugin.framework.url_utils import get_url_hostname, get_url_path_and_query
 
 from plugin.modules.http.errors import format_error_message, _format_http_error_response
 from plugin.modules.http.ssl_helpers import (
@@ -70,7 +71,7 @@ class LlmClient:
         endpoint = self._endpoint()
         parsed = urllib.parse.urlparse(endpoint)
         scheme = parsed.scheme.lower()
-        host = parsed.hostname
+        host = get_url_hostname(endpoint)
         port = parsed.port
         
         # Default ports if not specified
@@ -174,7 +175,7 @@ class LlmClient:
     def _current_host(self):
         endpoint = self._endpoint()
         parsed = urllib.parse.urlparse(endpoint)
-        return parsed.hostname or ""
+        return get_url_hostname(endpoint)
 
     def _enable_local_ssl_fallback(self, err):
         """Switch a local HTTPS host to unverified mode after cert validation fails."""
@@ -224,10 +225,7 @@ class LlmClient:
             data["model"] = model
 
         json_data = json.dumps(data).encode("utf-8")
-        parsed = urllib.parse.urlparse(url)
-        path = parsed.path
-        if parsed.query:
-            path += "?" + parsed.query
+        path = get_url_path_and_query(url)
 
         log.debug("Request data: %s" % json.dumps(data, indent=2))
         return "POST", path, json_data, self._headers()
@@ -319,10 +317,7 @@ class LlmClient:
         log.debug("URL: %s" % url)
         log.debug("Messages: %s" % json.dumps(messages, indent=2))
         
-        parsed = urllib.parse.urlparse(url)
-        path = parsed.path
-        if parsed.query:
-            path += "?" + parsed.query
+        path = get_url_path_and_query(url)
             
         return "POST", path, json_data, self._headers()
             
@@ -355,10 +350,7 @@ class LlmClient:
         log.debug("URL: %s" % url)
         log.debug("Data: %s" % json.dumps(data, indent=2))
         
-        parsed = urllib.parse.urlparse(url)
-        path = parsed.path
-        if parsed.query:
-            path += "?" + parsed.query
+        path = get_url_path_and_query(url)
             
         return "POST", path, json_data, self._headers()
 

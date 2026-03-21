@@ -3,12 +3,13 @@
 # see inline comments and core/api.py LiteLLM references for source locations.
 import json
 import os
+from plugin.framework.path_utils import get_plugin_dir
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
 # Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.dirname(get_plugin_dir()))
 
 # Import; tests patch core.logging and init_logging per test
 from plugin.modules.http.client import LlmClient, _normalize_message_content

@@ -1,4 +1,5 @@
 import sys
+from plugin.framework.path_utils import get_plugin_dir
 import os
 import unittest
 from unittest.mock import MagicMock, patch
@@ -53,7 +54,7 @@ sys.modules['core.document_tools'] = MagicMock()
 sys.modules['core.constants'] = MagicMock()
 
 # Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, get_plugin_dir())
 
 from plugin.modules.chatbot.panel_factory import SendButtonListener
 

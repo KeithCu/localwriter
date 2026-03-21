@@ -20,6 +20,7 @@ You can pass a custom --max-tokens if desired, and override the model with --mod
 import argparse
 import json
 import os
+from plugin.framework.path_utils import get_plugin_dir
 import sys
 import time
 from typing import Any
@@ -35,8 +36,7 @@ DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-nano-30b-a3b"
 
 def _add_project_root_to_path() -> None:
     """Ensure the project root is on sys.path when run via `python -m`."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(here)
+    project_root = os.path.dirname(get_plugin_dir())
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 

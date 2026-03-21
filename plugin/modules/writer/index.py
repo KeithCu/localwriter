@@ -23,6 +23,7 @@ Language detected from UNO CharLocale. Stemming via bundled snowballstemmer.
 import logging
 import re
 import sys
+from plugin.framework.path_utils import get_plugin_dir
 import os
 import time
 import unicodedata
@@ -207,7 +208,7 @@ class IndexService:
             return cached
         try:
             # Add bundled snowballstemmer to path if needed
-            lib_dir = os.path.join(os.path.dirname(__file__), "..", "..", "lib")
+            lib_dir = os.path.join(get_plugin_dir(), "..", "..", "lib")
             lib_dir = os.path.normpath(lib_dir)
             if lib_dir not in sys.path:
                 sys.path.insert(0, lib_dir)
