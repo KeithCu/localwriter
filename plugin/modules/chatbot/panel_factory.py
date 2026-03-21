@@ -403,22 +403,16 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             class ModelSyncListener(BaseItemListener):
                 def __init__(self, ctx): self.ctx = ctx
                 def on_item_state_changed(self, ev):
-                    try:
-                        txt = model_selector.getText()
-                        if txt: set_config(self.ctx, "text_model", txt)
-                    except Exception as e:
-                        log.exception("ModelSyncListener error: %s", e)
+                    txt = model_selector.getText()
+                    if txt: set_config(self.ctx, "text_model", txt)
             model_selector.addItemListener(ModelSyncListener(self.ctx))
 
         if image_model_selector and hasattr(image_model_selector, "addItemListener"):
             class ImageModelSyncListener(BaseItemListener):
                 def __init__(self, ctx): self.ctx = ctx
                 def on_item_state_changed(self, ev):
-                    try:
-                        txt = image_model_selector.getText()
-                        if txt: set_image_model(self.ctx, txt, update_lru=False)
-                    except Exception as e:
-                        log.exception("ImageModelSyncListener error: %s", e)
+                    txt = image_model_selector.getText()
+                    if txt: set_image_model(self.ctx, txt, update_lru=False)
             image_model_selector.addItemListener(ImageModelSyncListener(self.ctx))
 
     def _wire_image_ui(self, aspect_ratio_selector, base_size_input, base_size_label, 
@@ -449,12 +443,9 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             if hasattr(aspect_ratio_selector, "addItemListener"):
                 class AspectListener(BaseItemListener):
                     def on_item_state_changed(self, ev):
-                        try:
-                            idx = getattr(ev, "Selected", -1)
-                            if idx >= 0:
-                                update_base_size_label(aspect_ratio_selector.getItem(idx))
-                        except Exception as e:
-                            log.exception("AspectListener error: %s", e)
+                        idx = getattr(ev, "Selected", -1)
+                        if idx >= 0:
+                            update_base_size_label(aspect_ratio_selector.getItem(idx))
                 aspect_ratio_selector.addItemListener(AspectListener())
 
         def set_control_enabled(ctrl, enabled):
