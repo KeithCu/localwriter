@@ -37,12 +37,10 @@ from plugin.modules.http.client import LlmClient
 from plugin.framework.config import as_bool
 
 from plugin.modules.chatbot.tool_loop_state import (
-    ToolLoopState, ToolLoopEvent, StreamDoneEvent, ToolResultEvent,
-    NextToolEvent, FinalDoneEvent, StopRequestedEvent, ErrorEvent,
-    SpawnLLMWorkerEffect, SpawnFinalStreamEffect, SpawnToolWorkerEffect,
-    UpdateUIEffect, UpdateStatusEffect, LogAgentEffect, LogDebugEffect,
-    AddAssistantMessageEffect, AddToolResultEffect, UpdateDocumentContextEffect,
-    UpdateActivityStateEffect, TriggerNextToolEffect, ExitLoopEffect, next_state
+    ToolLoopState, ToolLoopEvent, EventKind,
+    SpawnLLMWorkerEffect, SpawnToolWorkerEffect,
+    UIEffect, LogAgentEffect, AddMessageEffect,
+    UpdateActivityStateEffect, next_state
 )
 
 log = logging.getLogger(__name__)
@@ -319,34 +317,48 @@ class ToolCallingMixin:
 
     def _execute_effect(self, effect):
         """Execute a single pure effect returned by the state machine."""
-        if isinstance(effect, ExitLoopEffect):
+        if effect == "exit_loop":
             return True
+        elif effect == "trigger_next_tool":
+            self._active_q.put(("next_tool",))
+        elif effect == "spawn_final_stream":
+            self._spawn_final_stream(self._active_q, self._active_client, self._active_max_tokens)
+        elif effect == "update_document_context":
+            try:
+                doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
+                if doc:
+                    max_ctx = get_config(self.ctx, "chat_context_length") or 8000
+                    doc_text = get_document_context_for_chat(
+                        doc,
+                        max_ctx,
+                        include_end=True,
+                        include_selection=True,
+                        ctx=self.ctx,
+                    )
+                    self.session.update_document_context(doc_text)
+            except Exception:
+                pass
 
-        if isinstance(effect, UpdateUIEffect):
-            self._append_response(effect.text)
-
-        elif isinstance(effect, UpdateStatusEffect):
-            self._set_status(effect.status)
-            if effect.status in ("Stopped", "Ready", "Error"):
-                self._terminal_status = effect.status
+        elif isinstance(effect, UIEffect):
+            if effect.kind == "append":
+                self._append_response(effect.text)
+            elif effect.kind == "status":
+                self._set_status(effect.text)
+                if effect.text in ("Stopped", "Ready", "Error"):
+                    self._terminal_status = effect.text
+            elif effect.kind == "debug":
+                log.debug(effect.text)
+            elif effect.kind == "info":
+                log.info(effect.text)
 
         elif isinstance(effect, LogAgentEffect):
             agent_log(effect.location, effect.message, data=effect.data, hypothesis_id=effect.hypothesis_id)
 
-        elif isinstance(effect, LogDebugEffect):
-            if effect.level == "debug":
-                log.debug(effect.message)
-            else:
-                log.info(effect.message)
-
-        elif isinstance(effect, AddAssistantMessageEffect):
-            self.session.add_assistant_message(content=effect.content, tool_calls=effect.tool_calls)
-
-        elif isinstance(effect, TriggerNextToolEffect):
-            self._active_q.put(("next_tool",))
-
-        elif isinstance(effect, SpawnFinalStreamEffect):
-            self._spawn_final_stream(self._active_q, self._active_client, self._active_max_tokens)
+        elif isinstance(effect, AddMessageEffect):
+            if effect.role == "assistant":
+                self.session.add_assistant_message(content=effect.content, tool_calls=effect.tool_calls)
+            elif effect.role == "tool":
+                self.session.add_tool_result(effect.call_id, effect.content)
 
         elif isinstance(effect, SpawnLLMWorkerEffect):
             self._spawn_llm_worker(
@@ -431,25 +443,6 @@ class ToolCallingMixin:
                     import json
                     self._active_q.put(("tool_done", call_id, func_name, func_args_str, json.dumps(format_error_payload(e))))
 
-        elif isinstance(effect, AddToolResultEffect):
-            self.session.add_tool_result(effect.call_id, effect.result)
-
-        elif isinstance(effect, UpdateDocumentContextEffect):
-            try:
-                doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
-                if doc:
-                    max_ctx = get_config(self.ctx, "chat_context_length") or 8000
-                    doc_text = get_document_context_for_chat(
-                        doc,
-                        max_ctx,
-                        include_end=True,
-                        include_selection=True,
-                        ctx=self.ctx,
-                    )
-                    self.session.update_document_context(doc_text)
-            except Exception:
-                pass
-
         return False
 
     def _handle_stream_completion(self, item):
@@ -459,7 +452,7 @@ class ToolCallingMixin:
         # Build the Event object
         event = None
         if kind == "stream_done":
-            event = StreamDoneEvent(response=data)
+            event = ToolLoopEvent(kind=EventKind.STREAM_DONE, data={"response": data})
 
             # If we were using audio and it reached here, cache success
             if self.audio_wav_path:
@@ -479,7 +472,7 @@ class ToolCallingMixin:
             if self.stop_requested and not self._sm_state.is_stopped:
                 # Synchronize stop state into the state machine
                 self._sm_state = dataclasses.replace(self._sm_state, is_stopped=True)
-            event = NextToolEvent()
+            event = ToolLoopEvent(kind=EventKind.NEXT_TOOL)
         elif kind == "tool_done":
             mutates = False
             try:
@@ -490,15 +483,20 @@ class ToolCallingMixin:
             except Exception:
                 pass
 
-            event = ToolResultEvent(
-                call_id=item[1],
-                func_name=item[2],
-                func_args_str=item[3],
-                result=item[4],
-                mutates_document=mutates
+            event = ToolLoopEvent(
+                kind=EventKind.TOOL_RESULT,
+                data={
+                    "call_id": item[1],
+                    "func_name": item[2],
+                    "func_args_str": item[3],
+                    "result": item[4],
+                    "mutates_document": mutates
+                }
             )
         elif kind == "final_done":
-            event = FinalDoneEvent(content=data)
+            event = ToolLoopEvent(kind=EventKind.FINAL_DONE, data={"content": data})
+        elif kind == "error":
+            event = ToolLoopEvent(kind=EventKind.ERROR, data={"error": data})
 
         if not event:
             return False
@@ -520,7 +518,7 @@ class ToolCallingMixin:
         return exit_loop
 
     def _handle_stream_stopped(self):
-        event = StopRequestedEvent()
+        event = ToolLoopEvent(kind=EventKind.STOP_REQUESTED)
         new_state, effects = next_state(self._sm_state, event)
         self._sm_state = new_state
 
