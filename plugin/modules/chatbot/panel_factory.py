@@ -403,16 +403,22 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             class ModelSyncListener(BaseItemListener):
                 def __init__(self, ctx): self.ctx = ctx
                 def on_item_state_changed(self, ev):
-                    txt = model_selector.getText()
-                    if txt: set_config(self.ctx, "text_model", txt)
+                    try:
+                        txt = model_selector.getText()
+                        if txt: set_config(self.ctx, "text_model", txt)
+                    except Exception as e:
+                        log.exception("ModelSyncListener error: %s", e)
             model_selector.addItemListener(ModelSyncListener(self.ctx))
 
         if image_model_selector and hasattr(image_model_selector, "addItemListener"):
             class ImageModelSyncListener(BaseItemListener):
                 def __init__(self, ctx): self.ctx = ctx
                 def on_item_state_changed(self, ev):
-                    txt = image_model_selector.getText()
-                    if txt: set_image_model(self.ctx, txt, update_lru=False)
+                    try:
+                        txt = image_model_selector.getText()
+                        if txt: set_image_model(self.ctx, txt, update_lru=False)
+                    except Exception as e:
+                        log.exception("ImageModelSyncListener error: %s", e)
             image_model_selector.addItemListener(ImageModelSyncListener(self.ctx))
 
     def _wire_image_ui(self, aspect_ratio_selector, base_size_input, base_size_label, 
@@ -443,9 +449,12 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             if hasattr(aspect_ratio_selector, "addItemListener"):
                 class AspectListener(BaseItemListener):
                     def on_item_state_changed(self, ev):
-                        idx = getattr(ev, "Selected", -1)
-                        if idx >= 0:
-                            update_base_size_label(aspect_ratio_selector.getItem(idx))
+                        try:
+                            idx = getattr(ev, "Selected", -1)
+                            if idx >= 0:
+                                update_base_size_label(aspect_ratio_selector.getItem(idx))
+                        except Exception as e:
+                            log.exception("AspectListener error: %s", e)
                 aspect_ratio_selector.addItemListener(AspectListener())
 
         def set_control_enabled(ctrl, enabled):
@@ -562,7 +571,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             try:
                 clear_listener = ClearButtonListener(self.session, controls["response"], controls["status"], greeting=active_greeting)
                 controls["clear"].addActionListener(clear_listener)
-            except Exception: pass
+            except Exception as e:
+                log.exception("Clear button wiring error: %s", e)
 
         if controls["web_research_check"] and hasattr(controls["web_research_check"], "addItemListener"):
             from plugin.framework.constants import get_greeting_for_document, DEFAULT_RESEARCH_GREETING
