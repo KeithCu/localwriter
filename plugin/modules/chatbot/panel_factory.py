@@ -562,7 +562,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             try:
                 clear_listener = ClearButtonListener(self.session, controls["response"], controls["status"], greeting=active_greeting)
                 controls["clear"].addActionListener(clear_listener)
-            except Exception: pass
+            except Exception as e:
+                log.exception("Clear button wiring error: %s", e)
 
         if controls["web_research_check"] and hasattr(controls["web_research_check"], "addItemListener"):
             from plugin.framework.constants import get_greeting_for_document, DEFAULT_RESEARCH_GREETING

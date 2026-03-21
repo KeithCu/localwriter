@@ -99,7 +99,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
     web_checked = False
     if controls["web_research_check"]:
         try: web_checked = (get_checkbox_state(controls["web_research_check"]) == 1)
-        except Exception: pass
+        except Exception as e: log.exception("Error reading web_research_check state: %s", e)
         
     if web_checked:
         self.session = self.web_session
@@ -129,7 +129,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
 
     if controls["status"] and hasattr(controls["status"], "setText"):
         try: controls["status"].setText("Ready")
-        except Exception: pass
+        except Exception as e: log.exception("Error setting status text: %s", e)
 
     # 5. Timer and Resize
     try:
