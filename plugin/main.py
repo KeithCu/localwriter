@@ -240,10 +240,10 @@ def _run_test_suite(test_func, doc_checker, test_name):
         p, f, suite_log = run_blocking_in_thread(ctx, run_module_suite, ctx, test_func, test_name, doc_model)
         log.info(f"_run_test_suite finished: {test_name}, p={p}, f={f}")
         from plugin.framework.i18n import _
-        msgbox(ctx, test_name, _("%s: %d passed, %d failed.\n\n%s") % (test_name, p, f, "\n".join(suite_log)))
+        msgbox(ctx, test_name, _("{0}: {1} passed, {2} failed.\n\n{3}").format(test_name, p, f, "\n".join(suite_log)))
     except Exception as e:
         from plugin.framework.i18n import _
-        msgbox(ctx, test_name, _("Tests failed to run: %s") % str(e))
+        msgbox(ctx, test_name, _("Tests failed to run: {0}").format(str(e)))
 
 
 def _dispatch_command(command):
@@ -349,25 +349,26 @@ def get_menu_text(command):
     except ImportError:
         pass
 
+    from plugin.framework.i18n import _
     # Hardcoded fallback for static Addons.xcu items so they get translated
     # without needing dynamic state in their respective modules.
     static_titles = {
-        "chatbot.extend_selection": "Extend Selection",
-        "chatbot.edit_selection": "Edit Selection",
-        "main.settings": "Settings",
-        "http.toggle_server": "Toggle MCP Server",
-        "http.server_status": "MCP Server Status",
-        "main.NoOp": "Debug",
-        "main.RunFormatTests": "Run format tests",
-        "main.RunCalcTests": "Run calc tests",
-        "main.RunCalcIntegrationTests": "Run Calc API integration tests",
-        "main.RunDrawTests": "Run draw tests",
-        "main.EvaluationDashboard": "Evaluation Dashboard",
-        "main.about": "About WriterAgent"
+        "chatbot.extend_selection": _("Extend Selection"),
+        "chatbot.edit_selection": _("Edit Selection"),
+        "main.settings": _("Settings"),
+        "http.toggle_server": _("Toggle MCP Server"),
+        "http.server_status": _("MCP Server Status"),
+        "main.NoOp": "Debug", # Excluded from translation per user request
+        "main.RunFormatTests": _("Run format tests"),
+        "main.RunCalcTests": _("Run calc tests"),
+        "main.RunCalcIntegrationTests": _("Run Calc API integration tests"),
+        "main.RunDrawTests": _("Run draw tests"),
+        "main.EvaluationDashboard": _("Evaluation Dashboard"),
+        "main.about": _("About WriterAgent")
     }
 
     if command in static_titles:
-        return _(static_titles[command])
+        return static_titles[command]
 
     return None
 
