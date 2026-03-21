@@ -95,19 +95,13 @@ class ReadCellRange(ToolBase):
         rn = kwargs.get("range_name") or []
         rn = [rn] if isinstance(rn, str) else (rn or [])
 
-        try:
-            if len(rn) == 0:
-                return self._tool_error("range_name is required")
-            if len(rn) == 1:
-                result = inspector.read_range(rn[0])
-                return {"status": "ok", "result": [result]}
-            results = [inspector.read_range(r) for r in rn]
-            return {"status": "ok", "result": results}
-        except Exception as e:
-            logger.exception("read_cell_range failed")
-            return self._tool_error(str(e))
-
-
+        if len(rn) == 0:
+            return self._tool_error("range_name is required")
+        if len(rn) == 1:
+            result = inspector.read_range(rn[0])
+            return {"status": "ok", "result": [result]}
+        results = [inspector.read_range(r) for r in rn]
+        return {"status": "ok", "result": results}
 class WriteCellRange(ToolBase):
     """Write formulas or values to a cell range."""
 
@@ -155,20 +149,14 @@ class WriteCellRange(ToolBase):
         elif isinstance(fov, list):
             fov = json.dumps(fov) if fov else ""
 
-        try:
-            if len(rn) == 0:
-                return self._tool_error("range_name is required")
-            if len(rn) == 1:
-                result = manipulator.write_formula_range(rn[0], fov)
-                return {"status": "ok", "message": result}
-            for r in rn:
-                manipulator.write_formula_range(r, fov)
-            return {"status": "ok", "message": f"Wrote to {len(rn)} ranges"}
-        except Exception as e:
-            logger.exception("write_formula_range failed")
-            return self._tool_error(str(e))
-
-
+        if len(rn) == 0:
+            return self._tool_error("range_name is required")
+        if len(rn) == 1:
+            result = manipulator.write_formula_range(rn[0], fov)
+            return {"status": "ok", "message": result}
+        for r in rn:
+            manipulator.write_formula_range(r, fov)
+        return {"status": "ok", "message": f"Wrote to {len(rn)} ranges"}
 class SetCellStyle(ToolBase):
     """Apply style and formatting to cells or ranges."""
 
@@ -275,23 +263,17 @@ class SetCellStyle(ToolBase):
             "number_format": kwargs.get("number_format"),
         }
 
-        try:
-            if len(rn) == 0:
-                return self._tool_error("range_name is required")
-            if len(rn) == 1:
-                manipulator.set_cell_style(rn[0], **style_kwargs)
-                return {"status": "ok", "message": f"Style applied to {rn[0]}"}
-            for r in rn:
-                manipulator.set_cell_style(r, **style_kwargs)
-            return {
-                "status": "ok",
-                "message": f"Style applied to {len(rn)} ranges",
-            }
-        except Exception as e:
-            logger.exception("set_cell_style failed")
-            return self._tool_error(str(e))
-
-
+        if len(rn) == 0:
+            return self._tool_error("range_name is required")
+        if len(rn) == 1:
+            manipulator.set_cell_style(rn[0], **style_kwargs)
+            return {"status": "ok", "message": f"Style applied to {rn[0]}"}
+        for r in rn:
+            manipulator.set_cell_style(r, **style_kwargs)
+        return {
+            "status": "ok",
+            "message": f"Style applied to {len(rn)} ranges",
+        }
 class MergeCells(ToolBase):
     """Merge a cell range."""
 
@@ -330,23 +312,17 @@ class MergeCells(ToolBase):
         rn = [rn] if isinstance(rn, str) else (rn or [])
         center = kwargs.get("center", True)
 
-        try:
-            if len(rn) == 0:
-                return self._tool_error("range_name is required")
-            if len(rn) == 1:
-                manipulator.merge_cells(rn[0], center=center)
-                return {"status": "ok", "message": f"Merged cells {rn[0]}"}
-            for r in rn:
-                manipulator.merge_cells(r, center=center)
-            return {
-                "status": "ok",
-                "message": f"Merged cells in {len(rn)} ranges",
-            }
-        except Exception as e:
-            logger.exception("merge_cells failed")
-            return self._tool_error(str(e))
-
-
+        if len(rn) == 0:
+            return self._tool_error("range_name is required")
+        if len(rn) == 1:
+            manipulator.merge_cells(rn[0], center=center)
+            return {"status": "ok", "message": f"Merged cells {rn[0]}"}
+        for r in rn:
+            manipulator.merge_cells(r, center=center)
+        return {
+            "status": "ok",
+            "message": f"Merged cells in {len(rn)} ranges",
+        }
 class ClearRange(ToolBase):
     """Clear all contents in a cell range."""
 
@@ -378,23 +354,17 @@ class ClearRange(ToolBase):
         rn = kwargs.get("range_name") or []
         rn = [rn] if isinstance(rn, str) else (rn or [])
 
-        try:
-            if len(rn) == 0:
-                return self._tool_error("range_name is required")
-            if len(rn) == 1:
-                manipulator.clear_range(rn[0])
-                return {"status": "ok", "message": f"Cleared range {rn[0]}"}
-            for r in rn:
-                manipulator.clear_range(r)
-            return {
-                "status": "ok",
-                "message": f"Cleared {len(rn)} ranges",
-            }
-        except Exception as e:
-            logger.exception("clear_range failed")
-            return self._tool_error(str(e))
-
-
+        if len(rn) == 0:
+            return self._tool_error("range_name is required")
+        if len(rn) == 1:
+            manipulator.clear_range(rn[0])
+            return {"status": "ok", "message": f"Cleared range {rn[0]}"}
+        for r in rn:
+            manipulator.clear_range(r)
+        return {
+            "status": "ok",
+            "message": f"Cleared {len(rn)} ranges",
+        }
 class SortRange(ToolBase):
     """Sort a range by a column."""
 
@@ -450,29 +420,23 @@ class SortRange(ToolBase):
         ascending = kwargs.get("ascending", True)
         has_header = kwargs.get("has_header", True)
 
-        try:
-            if len(rn) == 0:
-                return self._tool_error("range_name is required")
-            if len(rn) == 1:
-                result = manipulator.sort_range(
-                    rn[0], sort_column=sort_column,
-                    ascending=ascending, has_header=has_header,
-                )
-                return {"status": "ok", "message": result}
-            for r in rn:
-                manipulator.sort_range(
-                    r, sort_column=sort_column,
-                    ascending=ascending, has_header=has_header,
-                )
-            return {
-                "status": "ok",
-                "message": f"Sorted {len(rn)} ranges",
-            }
-        except Exception as e:
-            logger.exception("sort_range failed")
-            return self._tool_error(str(e))
-
-
+        if len(rn) == 0:
+            return self._tool_error("range_name is required")
+        if len(rn) == 1:
+            result = manipulator.sort_range(
+                rn[0], sort_column=sort_column,
+                ascending=ascending, has_header=has_header,
+            )
+            return {"status": "ok", "message": result}
+        for r in rn:
+            manipulator.sort_range(
+                r, sort_column=sort_column,
+                ascending=ascending, has_header=has_header,
+            )
+        return {
+            "status": "ok",
+            "message": f"Sorted {len(rn)} ranges",
+        }
 class ImportCsv(ToolBase):
     """Import CSV data into the sheet."""
 
@@ -505,14 +469,8 @@ class ImportCsv(ToolBase):
         csv_data = kwargs["csv_data"]
         target_cell = kwargs.get("target_cell", "A1")
 
-        try:
-            result = manipulator.import_csv_from_string(csv_data, target_cell=target_cell)
-            return {"status": "ok", "message": result}
-        except Exception as e:
-            logger.exception("import_csv_from_string failed")
-            return self._tool_error(str(e))
-
-
+        result = manipulator.import_csv_from_string(csv_data, target_cell=target_cell)
+        return {"status": "ok", "message": result}
 class DeleteStructure(ToolBase):
     """Delete rows or columns."""
 
@@ -556,9 +514,5 @@ class DeleteStructure(ToolBase):
         # Normalize: rows accept integer or string; columns accept letter(s).
         start = int(start_raw) if structure_type == "rows" and str(start_raw).isdigit() else start_raw
 
-        try:
-            result = manipulator.delete_structure(structure_type, start, count=count)
-            return {"status": "ok", "message": result}
-        except Exception as e:
-            logger.exception("delete_structure failed")
-            return self._tool_error(str(e))
+        result = manipulator.delete_structure(structure_type, start, count=count)
+        return {"status": "ok", "message": result}

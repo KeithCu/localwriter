@@ -66,24 +66,20 @@ class DetectErrors(ToolBase):
         if rn is not None and isinstance(rn, str):
             rn = [rn] if rn else []
 
-        try:
-            if rn and isinstance(rn, list) and len(rn) > 0:
-                results = [
-                    error_detector.detect_and_explain(range_str=r) for r in rn
-                ]
-                combined_errors = []
-                for res in results:
-                    combined_errors.extend(res.get("errors", []))
-                return {
-                    "status": "ok",
-                    "result": {
-                        "error_count": len(combined_errors),
-                        "errors": combined_errors,
-                    },
-                }
-            else:
-                result = error_detector.detect_and_explain(range_str=rn)
-                return {"status": "ok", "result": result}
-        except Exception as e:
-            logger.exception("detect_and_explain_errors failed")
-            return self._tool_error(str(e))
+        if rn and isinstance(rn, list) and len(rn) > 0:
+            results = [
+                error_detector.detect_and_explain(range_str=r) for r in rn
+            ]
+            combined_errors = []
+            for res in results:
+                combined_errors.extend(res.get("errors", []))
+            return {
+                "status": "ok",
+                "result": {
+                    "error_count": len(combined_errors),
+                    "errors": combined_errors,
+                },
+            }
+        else:
+            result = error_detector.detect_and_explain(range_str=rn)
+            return {"status": "ok", "result": result}

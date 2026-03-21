@@ -633,16 +633,7 @@ class InsertImage(ToolBaseDummy):
 
         # Auto-download URLs
         if image_path.startswith("http://") or image_path.startswith("https://"):
-            try:
-                image_path = _download_image_to_cache(image_path)
-            except Exception as e:
-                return self._tool_error(
-                    f"Download failed: {e}",
-                    code="DOWNLOAD_FAILED",
-                    url=image_path
-                )
-
-        # Verify local file exists
+            image_path = _download_image_to_cache(image_path)
         if not os.path.isfile(image_path):
             return self._tool_error(
                 f"File not found: {image_path}",
@@ -794,15 +785,7 @@ class ReplaceImage(ToolBaseDummy):
 
         # Auto-download URLs
         if new_image_path.startswith("http://") or new_image_path.startswith("https://"):
-            try:
-                new_image_path = _download_image_to_cache(new_image_path)
-            except Exception as e:
-                return self._tool_error(
-                    f"Download failed: {e}",
-                    code="DOWNLOAD_FAILED",
-                    url=new_image_path
-                )
-
+            new_image_path = _download_image_to_cache(new_image_path)
         if not os.path.isfile(new_image_path):
             return self._tool_error(
                 f"File not found: {new_image_path}",

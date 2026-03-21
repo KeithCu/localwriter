@@ -96,81 +96,76 @@ class SearchInDocument(ToolBase):
         para_ranges = doc_svc.get_paragraph_ranges(doc)
         para_count = len(para_ranges)
 
-        try:
-            # Read paragraph texts once
-            para_texts = []
-            for para in para_ranges:
-                try:
-                    if para.supportsService(
-                        "com.sun.star.text.Paragraph"
-                    ):
-                        para_texts.append(para.getString())
-                    else:
-                        para_texts.append("")
-                except Exception:
-                    para_texts.append("")
-
-            # Compile regex if needed
-            if use_regex:
-                flags = 0 if case_sensitive else re_mod.IGNORECASE
-                try:
-                    compiled = re_mod.compile(pattern, flags)
-                except re_mod.error as e:
-                    return {
-                        "status": "error",
-                        "error": "Invalid regex: %s" % e,
-                    }
-
-            # Search within paragraphs
-            matches = []
-            total_count = 0
-
-            for i, ptext in enumerate(para_texts):
-                if not ptext:
-                    continue
-
-                if use_regex:
-                    for m in compiled.finditer(ptext):
-                        total_count += 1
-                        if len(matches) < max_results:
-                            matches.append(
-                                _build_match(
-                                    m.group(), i,
-                                    context_paragraphs, para_count,
-                                    para_texts,
-                                )
-                            )
+        # Read paragraph texts once
+        para_texts = []
+        for para in para_ranges:
+            try:
+                if para.supportsService(
+                    "com.sun.star.text.Paragraph"
+                ):
+                    para_texts.append(para.getString())
                 else:
-                    haystack = ptext if case_sensitive else ptext.lower()
-                    needle = (
-                        pattern if case_sensitive else pattern.lower()
-                    )
-                    step = max(1, len(needle))
-                    pos = 0
-                    while True:
-                        pos = haystack.find(needle, pos)
-                        if pos == -1:
-                            break
-                        total_count += 1
-                        if len(matches) < max_results:
-                            matches.append(
-                                _build_match(
-                                    ptext[pos:pos + len(pattern)], i,
-                                    context_paragraphs, para_count,
-                                    para_texts,
-                                )
+                    para_texts.append("")
+            except Exception:
+                para_texts.append("")
+
+        # Compile regex if needed
+        if use_regex:
+            flags = 0 if case_sensitive else re_mod.IGNORECASE
+            try:
+                compiled = re_mod.compile(pattern, flags)
+            except re_mod.error as e:
+                return {
+                    "status": "error",
+                    "error": "Invalid regex: %s" % e,
+                }
+
+        # Search within paragraphs
+        matches = []
+        total_count = 0
+
+        for i, ptext in enumerate(para_texts):
+            if not ptext:
+                continue
+
+            if use_regex:
+                for m in compiled.finditer(ptext):
+                    total_count += 1
+                    if len(matches) < max_results:
+                        matches.append(
+                            _build_match(
+                                m.group(), i,
+                                context_paragraphs, para_count,
+                                para_texts,
                             )
-                        pos += step
+                        )
+            else:
+                haystack = ptext if case_sensitive else ptext.lower()
+                needle = (
+                    pattern if case_sensitive else pattern.lower()
+                )
+                step = max(1, len(needle))
+                pos = 0
+                while True:
+                    pos = haystack.find(needle, pos)
+                    if pos == -1:
+                        break
+                    total_count += 1
+                    if len(matches) < max_results:
+                        matches.append(
+                            _build_match(
+                                ptext[pos:pos + len(pattern)], i,
+                                context_paragraphs, para_count,
+                                para_texts,
+                            )
+                        )
+                    pos += step
 
-            return {
-                "status": "ok",
-                "matches": matches,
-                "count": total_count,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
-
-
+        return {
+            "status": "ok",
+            "matches": matches,
+            "count": total_count,
+        }
 def _build_match(text, para_idx, ctx_paras, para_count, para_texts):
     """Build a single match result with context paragraphs."""
     ctx_lo = max(0, para_idx - ctx_paras)

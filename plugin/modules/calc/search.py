@@ -88,48 +88,43 @@ class SearchInSpreadsheet(ToolBase):
         doc = ctx.doc
         matches = []
 
-        try:
-            if all_sheets:
-                sheets_obj = doc.getSheets()
-                targets = [
-                    (sheets_obj.getByName(n), n)
-                    for n in sheets_obj.getElementNames()
-                ]
-            else:
-                sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
-                targets = [(sheet, sheet.getName())]
+        if all_sheets:
+            sheets_obj = doc.getSheets()
+            targets = [
+                (sheets_obj.getByName(n), n)
+                for n in sheets_obj.getElementNames()
+            ]
+        else:
+            sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
+            targets = [(sheet, sheet.getName())]
 
-            for sheet, sname in targets:
-                sd = sheet.createSearchDescriptor()
-                sd.SearchString = pattern
-                sd.SearchRegularExpression = bool(use_regex)
-                sd.SearchCaseSensitive = bool(case_sensitive)
+        for sheet, sname in targets:
+            sd = sheet.createSearchDescriptor()
+            sd.SearchString = pattern
+            sd.SearchRegularExpression = bool(use_regex)
+            sd.SearchCaseSensitive = bool(case_sensitive)
 
-                found = sheet.findAll(sd)
-                if found is None:
-                    continue
+            found = sheet.findAll(sd)
+            if found is None:
+                continue
 
-                for i in range(found.getCount()):
-                    if len(matches) >= max_results:
-                        break
-                    cell = found.getByIndex(i)
-                    matches.append({
-                        "sheet": sname,
-                        "cell": _cell_address_str(cell),
-                        "value": cell.getString(),
-                    })
+            for i in range(found.getCount()):
                 if len(matches) >= max_results:
                     break
+                cell = found.getByIndex(i)
+                matches.append({
+                    "sheet": sname,
+                    "cell": _cell_address_str(cell),
+                    "value": cell.getString(),
+                })
+            if len(matches) >= max_results:
+                break
 
-            return {
-                "status": "ok",
-                "matches": matches,
-                "count": len(matches),
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
-
-
+        return {
+            "status": "ok",
+            "matches": matches,
+            "count": len(matches),
+        }
 class ReplaceInSpreadsheet(ToolBase):
     """Find and replace in the spreadsheet."""
 
@@ -185,29 +180,26 @@ class ReplaceInSpreadsheet(ToolBase):
         doc = ctx.doc
         total = 0
 
-        try:
-            if all_sheets:
-                sheets_obj = doc.getSheets()
-                targets = [
-                    sheets_obj.getByName(n)
-                    for n in sheets_obj.getElementNames()
-                ]
-            else:
-                targets = [_resolve_sheet(doc, kwargs.get("sheet_name"))]
+        if all_sheets:
+            sheets_obj = doc.getSheets()
+            targets = [
+                sheets_obj.getByName(n)
+                for n in sheets_obj.getElementNames()
+            ]
+        else:
+            targets = [_resolve_sheet(doc, kwargs.get("sheet_name"))]
 
-            for sheet in targets:
-                rd = sheet.createReplaceDescriptor()
-                rd.SearchString = search
-                rd.ReplaceString = replace
-                rd.SearchRegularExpression = bool(use_regex)
-                rd.SearchCaseSensitive = bool(case_sensitive)
-                total += sheet.replaceAll(rd)
+        for sheet in targets:
+            rd = sheet.createReplaceDescriptor()
+            rd.SearchString = search
+            rd.ReplaceString = replace
+            rd.SearchRegularExpression = bool(use_regex)
+            rd.SearchCaseSensitive = bool(case_sensitive)
+            total += sheet.replaceAll(rd)
 
-            return {
-                "status": "ok",
-                "replacements": total,
-                "search": search,
-                "replace": replace,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        return {
+            "status": "ok",
+            "replacements": total,
+            "search": search,
+            "replace": replace,
+        }
