@@ -22,6 +22,8 @@ Ported from core/calc_sheet_analyzer.py for the plugin framework.
 
 import logging
 
+from plugin.framework.errors import ToolExecutionError
+
 try:
     from com.sun.star.table.CellContentType import EMPTY, VALUE, TEXT, FORMULA
     UNO_AVAILABLE = True
@@ -96,4 +98,4 @@ class SheetAnalyzer:
             }
         except Exception as e:
             logger.error("Error creating sheet summary: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e

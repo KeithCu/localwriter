@@ -24,6 +24,7 @@ import logging
 import re
 
 from plugin.modules.calc.address_utils import parse_address
+from plugin.framework.errors import ToolExecutionError
 
 # Regex for matching cell references (e.g. A1, $B$2)
 CELL_REF_PATTERN = re.compile(r'\$?([A-Z]+)\$?(\d+)')
@@ -239,7 +240,7 @@ class ErrorDetector:
             return errors
         except Exception as e:
             logger.error("Error detection failure: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def explain_error(self, address: str) -> dict:
         """Explain the error in the specified cell in detail.
@@ -295,7 +296,7 @@ class ErrorDetector:
             }
         except Exception as e:
             logger.error("Error explanation failure (%s): %s", address, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def detect_and_explain(self, range_str: str = None) -> dict:
         """Detect formula errors in a range and return them with explanations.

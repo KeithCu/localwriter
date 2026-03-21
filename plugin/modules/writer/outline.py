@@ -118,6 +118,6 @@ class GetHeadingChildren(ToolBaseDummy):
             )
             return {"status": "ok", **result}
         except ValueError as e:
-            return {"status": "error", "error": str(e)}
+            return self._tool_error(str(e))
 
 

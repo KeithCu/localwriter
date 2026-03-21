@@ -27,6 +27,8 @@ import os
 import time
 import unicodedata
 
+from plugin.framework.errors import ToolExecutionError
+
 log = logging.getLogger("writeragent.writer.index")
 
 # ── Language mapping (ISO 639-1 -> snowballstemmer algorithm) ─────────
@@ -369,7 +371,7 @@ class IndexService:
         parsed = self._parse_query(query, stemmer, stop_words)
 
         if parsed["error"]:
-            raise ValueError(parsed["error"])
+            raise ToolExecutionError(parsed["error"])
 
         mode = parsed["mode"]
         and_stems = parsed["and_stems"]
@@ -394,7 +396,7 @@ class IndexService:
         elif and_stems:
             hits = idx.query_and(and_stems)
         else:
-            raise ValueError("No search terms after stop-word filtering")
+            raise ToolExecutionError("No search terms after stop-word filtering")
 
         if not_stems:
             hits = idx.query_not(hits, not_stems)

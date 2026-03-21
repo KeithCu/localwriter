@@ -26,7 +26,7 @@ import io
 import json
 import logging
 
-from plugin.framework.errors import safe_json_loads
+from plugin.framework.errors import ToolExecutionError, UnoObjectError, safe_json_loads
 from plugin.modules.calc.address_utils import parse_address
 
 logger = logging.getLogger("writeragent.calc")
@@ -224,7 +224,7 @@ class CellManipulator:
                     return f"Text written to cell {address}: {formula}"
         except Exception as e:
             logger.error("Formula writing error (%s): %s", address, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     # ── Style operations ───────────────────────────────────────────────
 
@@ -282,7 +282,7 @@ class CellManipulator:
                 logger.info("Cell %s style updated.", address_or_range.upper())
         except Exception as e:
             logger.error("Style application error (%s): %s", address_or_range, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def _set_range_style(
         self, range_str, bold=None, italic=None, bg_color=None,
@@ -333,7 +333,7 @@ class CellManipulator:
             logger.info("Range %s cleared.", range_str.upper())
         except Exception as e:
             logger.error("Range clear error (%s): %s", range_str, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def merge_cells(self, range_str: str, center: bool = True):
         """Merge a cell range.
@@ -355,7 +355,7 @@ class CellManipulator:
                 cell_range.setPropertyValue("VertJustify", V_CENTER)
         except Exception as e:
             logger.error("Cell merge error (%s): %s", range_str, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def sort_range(
         self,
@@ -405,7 +405,7 @@ class CellManipulator:
             return f"Range {range_str} sorted {direction} by column {sort_column}."
         except Exception as e:
             logger.error("Sort error (%s): %s", range_str, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def write_formula_range(self, range_str: str, formula_or_values):
         """Write formula(s) or value(s) to a cell range.
@@ -434,7 +434,7 @@ class CellManipulator:
 
             if isinstance(formula_or_values, (list, tuple)):
                 if len(formula_or_values) != total_cells:
-                    raise ValueError(
+                    raise UnoObjectError(
                         f"Array has {len(formula_or_values)} values but range has "
                         f"{total_cells} cells. Use a single string to fill the whole "
                         "range, or an array with exactly that many values for "
@@ -504,7 +504,7 @@ class CellManipulator:
             return f"Range {range_str} filled with {len(values)} values."
         except Exception as e:
             logger.error("Range formula write error (%s): %s", range_str, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def import_csv_from_string(self, csv_data: str, target_cell: str = "A1"):
         """Import CSV data into the sheet starting at *target_cell*.
@@ -569,7 +569,7 @@ class CellManipulator:
             return f"Imported {total_rows} rows, {total_cols} cols to {range_imported}."
         except Exception as e:
             logger.error("CSV import error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     # ── Chart ──────────────────────────────────────────────────────────
 
@@ -638,7 +638,7 @@ class CellManipulator:
             return f"{chart_type} type chart created as '{chart_name}'."
         except Exception as e:
             logger.error("Chart creation error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def list_charts(self):
         """List all charts on the active sheet."""
@@ -668,7 +668,7 @@ class CellManipulator:
             return result
         except Exception as e:
             logger.error("List charts error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def get_chart_info(self, chart_name: str):
         """Get detailed info about a chart."""
@@ -715,7 +715,7 @@ class CellManipulator:
             return info
         except Exception as e:
             logger.error("Get chart info error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def edit_chart(
         self,
@@ -729,7 +729,7 @@ class CellManipulator:
             sheet = self.bridge.get_active_sheet()
             charts = sheet.getCharts()
             if not charts.hasByName(chart_name):
-                raise ValueError(f"Chart '{chart_name}' not found.")
+                raise UnoObjectError(f"Chart '{chart_name}' not found.")
 
             chart_obj = charts.getByName(chart_name)
             chart_doc = chart_obj.getEmbeddedObject()
@@ -756,7 +756,7 @@ class CellManipulator:
             return updated
         except Exception as e:
             logger.error("Edit chart error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def delete_chart(self, chart_name: str):
         """Delete a chart."""
@@ -769,7 +769,7 @@ class CellManipulator:
             return True
         except Exception as e:
             logger.error("Delete chart error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     # ── Conditional Formatting ─────────────────────────────────────────
 
@@ -803,7 +803,7 @@ class CellManipulator:
             return rules
         except Exception as e:
             logger.error("List conditional formats error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def add_conditional_format(
         self,
@@ -839,7 +839,7 @@ class CellManipulator:
 
             op_val = op_map.get(operator.upper())
             if op_val is None:
-                raise ValueError(f"Unknown condition operator: {operator}")
+                raise UnoObjectError(f"Unknown condition operator: {operator}")
 
             sheet = self.bridge.get_active_sheet()
             cell_range = self.bridge.get_cell_range(sheet, range_str)
@@ -874,7 +874,7 @@ class CellManipulator:
             return formats.getCount()
         except Exception as e:
             logger.error("Add conditional format error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def remove_conditional_format(self, range_str: str, index: int):
         """Remove a conditional formatting rule by index."""
@@ -889,7 +889,7 @@ class CellManipulator:
             return False
         except Exception as e:
             logger.error("Remove conditional format error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def clear_conditional_formats(self, range_str: str):
         """Clear all conditional formatting from a range."""
@@ -902,7 +902,7 @@ class CellManipulator:
             return True
         except Exception as e:
             logger.error("Clear conditional formats error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def _entry_to_dict(self, entry, idx):
         """Convert a conditional entry to a readable dict."""
@@ -944,7 +944,7 @@ class CellManipulator:
             return f"{count} row(s) deleted starting from row {row_num}."
         except Exception as e:
             logger.error("Row deletion error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def delete_columns(self, col_letter: str, count: int = 1):
         """Delete columns starting at *col_letter*."""
@@ -960,7 +960,7 @@ class CellManipulator:
             return f"{count} column(s) deleted starting from column {col_letter.upper()}."
         except Exception as e:
             logger.error("Column deletion error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def delete_structure(self, structure_type: str, start, count: int = 1):
         """Delete rows or columns.
@@ -975,7 +975,7 @@ class CellManipulator:
         elif structure_type == "columns":
             return self.delete_columns(start, count)
         else:
-            raise ValueError(
+            raise UnoObjectError(
                 f"Invalid structure_type: {structure_type}. "
                 f"Must be 'rows' or 'columns'."
             )
@@ -999,7 +999,7 @@ class CellManipulator:
             return sheet_names
         except Exception as e:
             logger.error("Sheet listing error: %s", str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def switch_sheet(self, sheet_name: str):
         """Switch to the specified sheet.
@@ -1014,7 +1014,7 @@ class CellManipulator:
             doc = self.bridge.get_active_document()
             sheets = doc.getSheets()
             if not sheets.hasByName(sheet_name):
-                raise ValueError(f"No sheet found named '{sheet_name}'.")
+                raise UnoObjectError(f"No sheet found named '{sheet_name}'.")
             sheet = sheets.getByName(sheet_name)
             controller = doc.getCurrentController()
             controller.setActiveSheet(sheet)
@@ -1022,7 +1022,7 @@ class CellManipulator:
             return f"Switched to sheet '{sheet_name}'."
         except Exception as e:
             logger.error("Sheet switch error (%s): %s", sheet_name, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e
 
     def create_sheet(self, sheet_name: str, position: int = None):
         """Create a new sheet.
@@ -1044,4 +1044,4 @@ class CellManipulator:
             return f"New sheet named '{sheet_name}' created."
         except Exception as e:
             logger.error("Sheet creation error (%s): %s", sheet_name, str(e))
-            raise
+            raise ToolExecutionError(str(e)) from e

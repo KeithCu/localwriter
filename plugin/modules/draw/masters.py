@@ -5,6 +5,7 @@
 
 """Impress/Draw master slide tools."""
 
+from plugin.framework.errors import ToolExecutionError, UnoObjectError
 from plugin.framework.tool_base import ToolBase
 
 
@@ -13,7 +14,7 @@ def _get_slide(doc, page_index=None):
     pages = doc.getDrawPages()
     if page_index is not None:
         if page_index < 0 or page_index >= pages.getCount():
-            raise ValueError("Page index %d out of range." % page_index)
+            raise ToolExecutionError("Page index %d out of range." % page_index)
         return pages.getByIndex(page_index)
     controller = doc.getCurrentController()
     if hasattr(controller, "getCurrentPage"):

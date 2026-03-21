@@ -21,6 +21,8 @@ Ported from mcp-libre services/writer/tree.py.
 
 import logging
 
+from plugin.framework.errors import ToolExecutionError
+
 log = logging.getLogger("writeragent.writer.nav.tree")
 
 
@@ -310,13 +312,11 @@ class TreeService:
             heading_para_index = resolved.get("para_index")
         elif heading_bookmark is not None and heading_para_index is None:
             if not hasattr(doc, "getBookmarks"):
-                return {"status": "error",
-                        "error": "Document doesn't support bookmarks"}
+                raise ToolExecutionError("Document doesn't support bookmarks")
             bm_sup = doc.getBookmarks()
             if not bm_sup.hasByName(heading_bookmark):
-                return {"status": "error",
-                        "error": "Bookmark '%s' not found"
-                                 % heading_bookmark}
+                raise ToolExecutionError("Bookmark '%s' not found"
+                                 % heading_bookmark)
             bm = bm_sup.getByName(heading_bookmark)
             anchor = bm.getAnchor()
             para_ranges = self._doc_svc.get_paragraph_ranges(doc)
@@ -324,17 +324,15 @@ class TreeService:
                 anchor, para_ranges, doc.getText())
 
         if heading_para_index is None:
-            return {"status": "error",
-                    "error": "Provide locator, heading_para_index, "
-                             "or heading_bookmark"}
+            raise ToolExecutionError("Provide locator, heading_para_index, "
+                             "or heading_bookmark")
 
         tree = self.build_heading_tree(doc)
         bookmark_map = self._bm_svc.ensure_heading_bookmarks(doc)
         target = self._find_node_by_para_index(tree, heading_para_index)
         if target is None:
-            return {"status": "error",
-                    "error": "Heading at paragraph %d not found"
-                             % heading_para_index}
+            raise ToolExecutionError("Heading at paragraph %d not found"
+                             % heading_para_index)
 
         ai_summaries = (
             self.get_ai_summaries_map(doc)
@@ -411,16 +409,14 @@ class TreeService:
             resolved = self._doc_svc.resolve_locator(doc, locator)
             para_index = resolved.get("para_index")
         if para_index is None:
-            return {"status": "error",
-                    "error": "Provide locator or para_index"}
+            raise ToolExecutionError("Provide locator or para_index")
 
         doc_text = doc.getText()
         self._remove_ai_annotation_at(doc, para_index)
 
         target, _ = self._doc_svc.find_paragraph_element(doc, para_index)
         if target is None:
-            return {"status": "error",
-                    "error": "Paragraph %d not found" % para_index}
+            raise ToolExecutionError("Paragraph %d not found" % para_index)
 
         annotation = doc.createInstance(
             "com.sun.star.text.textfield.Annotation")
@@ -457,8 +453,7 @@ class TreeService:
             resolved = self._doc_svc.resolve_locator(doc, locator)
             para_index = resolved.get("para_index")
         if para_index is None:
-            return {"status": "error",
-                    "error": "Provide locator or para_index"}
+            raise ToolExecutionError("Provide locator or para_index")
         removed = self._remove_ai_annotation_at(doc, para_index)
         self._ai_summary_cache.pop(
             self._doc_svc.doc_key(doc), None)
@@ -526,15 +521,15 @@ class TreeService:
                     anchor, para_ranges, text_obj)
                 return {"para_index": para_idx}
             except Exception as e:
-                raise ValueError(
+                raise ToolExecutionError(
                     "Cannot resolve page:%s — %s" % (loc_value, e))
 
         if loc_type == "section":
             if not hasattr(doc, "getTextSections"):
-                raise ValueError("Document does not support sections")
+                raise ToolExecutionError("Document does not support sections")
             sections = doc.getTextSections()
             if not sections.hasByName(loc_value):
-                raise ValueError("Section '%s' not found" % loc_value)
+                raise ToolExecutionError("Section '%s' not found" % loc_value)
             section = sections.getByName(loc_value)
             anchor = section.getAnchor()
             para_ranges = self._doc_svc.get_paragraph_ranges(doc)
@@ -550,7 +545,7 @@ class TreeService:
             for part in parts:
                 children = node.get("children", [])
                 if part < 1 or part > len(children):
-                    raise ValueError(
+                    raise ToolExecutionError(
                         "Heading index %d out of range (1..%d) "
                         "in 'heading:%s'" % (part, len(children), loc_value))
                 node = children[part - 1]
@@ -559,15 +554,15 @@ class TreeService:
         if loc_type == "heading_text":
             result = self._find_heading_by_text(doc, loc_value)
             if result is None:
-                raise ValueError(
+                raise ToolExecutionError(
                     "No heading matching '%s' found" % loc_value)
             return {"para_index": result["para_index"]}
 
-        raise ValueError("Unknown Writer locator type: '%s'" % loc_type)
+        raise ToolExecutionError("Unknown Writer locator type: '%s'" % loc_type)
 
     def _resolve_bookmark_locator(self, doc, bookmark_name):
         if not hasattr(doc, "getBookmarks"):
-            raise ValueError("Document doesn't support bookmarks")
+            raise ToolExecutionError("Document doesn't support bookmarks")
         bookmarks = doc.getBookmarks()
         if not bookmarks.hasByName(bookmark_name):
             hint = "Bookmark '%s' not found." % bookmark_name
@@ -580,7 +575,7 @@ class TreeService:
                 if existing:
                     hint += (" Existing bookmarks: "
                              + ", ".join(existing[:10]))
-            raise ValueError(hint)
+            raise ToolExecutionError(hint)
         bm = bookmarks.getByName(bookmark_name)
         anchor = bm.getAnchor()
         para_ranges = self._doc_svc.get_paragraph_ranges(doc)
