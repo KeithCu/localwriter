@@ -215,15 +215,15 @@ msgstr ""
 
 #: plugin/main.py:356
 msgid "Extend Selection"
-msgstr ""
+msgstr "Ampliar selección"
 
 #: plugin/main.py:357
 msgid "Edit Selection"
-msgstr ""
+msgstr "Editar selección"
 
 #: plugin/main.py:358
 msgid "Settings"
-msgstr ""
+msgstr "Configuración"
 
 #: plugin/main.py:359
 msgid "Toggle MCP Server"
@@ -256,20 +256,20 @@ msgstr ""
 #: plugin/main.py:367 plugin/framework/dialogs.py:375
 #: plugin/framework/dialogs.py:403
 msgid "About WriterAgent"
-msgstr ""
+msgstr "Acerca de WriterAgent"
 
 #: plugin/main.py:715
 msgid "Dispatch Error"
-msgstr ""
+msgstr "Error de despacho"
 
 #: plugin/modules/writer/legacy.py:43 plugin/modules/writer/legacy.py:54
 msgid "WriterAgent: Extend Selection"
-msgstr ""
+msgstr "WriterAgent: Ampliar selección"
 
 #: plugin/modules/writer/legacy.py:78 plugin/modules/writer/legacy.py:88
 #: plugin/modules/writer/legacy.py:102
 msgid "WriterAgent: Edit Selection"
-msgstr ""
+msgstr "WriterAgent: Editar selección"
 
 #: plugin/modules/chatbot/panel_wiring.py:142
 msgid "Ready"
@@ -313,7 +313,7 @@ msgstr ""
 #: plugin/modules/chatbot/send_handlers.py:302
 #: plugin/modules/chatbot/send_handlers.py:543
 msgid "Error"
-msgstr ""
+msgstr "Error"
 
 #: plugin/modules/chatbot/send_handlers.py:197
 #: plugin/modules/chatbot/send_handlers.py:365
@@ -406,7 +406,7 @@ msgstr ""
 #: plugin/modules/http/__init__.py:247 plugin/framework/dialogs.py:232
 #: plugin/framework/dialogs.py:304 plugin/framework/dialogs.py:391
 msgid "OK"
-msgstr ""
+msgstr "Aceptar"
 
 #: plugin/modules/http/__init__.py:259
 #, python-brace-format
@@ -501,7 +501,7 @@ msgstr ""
 
 #: plugin/framework/dialogs.py:231
 msgid "Copy"
-msgstr ""
+msgstr "Copiar"
 
 #: plugin/framework/dialogs.py:251 plugin/framework/dialogs.py:326
 msgid "Copied!"
