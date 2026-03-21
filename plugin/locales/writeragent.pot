@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-21 21:16+0000\n"
+"POT-Creation-Date: 2026-03-21 22:18+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -221,7 +221,8 @@ msgstr ""
 msgid "Edit Selection"
 msgstr ""
 
-#: plugin/main.py:358
+#: plugin/main.py:358 plugin/framework/legacy_ui.py:282
+#: plugin/xdl_strings.py:45
 msgid "Settings"
 msgstr ""
 
@@ -273,6 +274,7 @@ msgid "Please enter edit instructions!"
 msgstr ""
 
 #: plugin/modules/writer/legacy.py:70 plugin/modules/calc/legacy.py:32
+#: plugin/xdl_strings.py:32
 msgid "Input"
 msgstr ""
 
@@ -294,7 +296,7 @@ msgstr ""
 msgid "Width:"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_wiring.py:142
+#: plugin/modules/chatbot/panel_wiring.py:145 plugin/xdl_strings.py:41
 msgid "Ready"
 msgstr ""
 
@@ -306,7 +308,7 @@ msgstr ""
 msgid "Stop Rec"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:398
+#: plugin/modules/chatbot/panel.py:398 plugin/xdl_strings.py:44
 msgid "Send"
 msgstr ""
 
@@ -347,7 +349,7 @@ msgstr ""
 #: plugin/modules/chatbot/send_handlers.py:293
 #: plugin/modules/chatbot/send_handlers.py:302
 #: plugin/modules/chatbot/send_handlers.py:543
-#: plugin/framework/legacy_ui.py:314
+#: plugin/framework/legacy_ui.py:330
 msgid "Error"
 msgstr ""
 
@@ -441,6 +443,7 @@ msgstr ""
 
 #: plugin/modules/http/__init__.py:247 plugin/framework/dialogs.py:235
 #: plugin/framework/dialogs.py:307 plugin/framework/dialogs.py:394
+#: plugin/xdl_strings.py:39
 msgid "OK"
 msgstr ""
 
@@ -549,7 +552,7 @@ msgstr ""
 msgid "Temperature must be <= 1.0"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:314
+#: plugin/framework/legacy_ui.py:330
 #, python-brace-format
 msgid ""
 "Failed to open Settings: {0}\n"
@@ -602,6 +605,202 @@ msgid ""
 "https://github.com/quazardous/localwriter"
 msgstr ""
 
-#: plugin/tests/test_i18n.py:15
+#: plugin/tests/test_i18n.py:16
 msgid "ThisIsAnUntranslatedString999"
+msgstr ""
+
+#: plugin/xdl_strings.py:4
+msgid "-1"
+msgstr ""
+
+#: plugin/xdl_strings.py:5
+msgid "7.5"
+msgstr ""
+
+#: plugin/xdl_strings.py:6
+msgid "AI Horde API Key:"
+msgstr ""
+
+#: plugin/xdl_strings.py:7
+msgid "AI Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:8
+msgid "API Key:"
+msgstr ""
+
+#: plugin/xdl_strings.py:9
+msgid "Additional Instructions (History):"
+msgstr ""
+
+#: plugin/xdl_strings.py:10
+msgid "Additional Instructions:"
+msgstr ""
+
+#: plugin/xdl_strings.py:11
+msgid "Allow NSFW"
+msgstr ""
+
+#: plugin/xdl_strings.py:12
+msgid "Ask / instruct:"
+msgstr ""
+
+#: plugin/xdl_strings.py:13
+msgid "Aspect Ratio:"
+msgstr ""
+
+#: plugin/xdl_strings.py:14
+msgid "Audio Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:15
+msgid "Auto Gallery"
+msgstr ""
+
+#: plugin/xdl_strings.py:16
+msgid "Base Size:"
+msgstr ""
+
+#: plugin/xdl_strings.py:17
+msgid "Base:"
+msgstr ""
+
+#: plugin/xdl_strings.py:18
+msgid "CFG Scale:"
+msgstr ""
+
+#: plugin/xdl_strings.py:19
+msgid "Calc"
+msgstr ""
+
+#: plugin/xdl_strings.py:20
+msgid "Categories:"
+msgstr ""
+
+#: plugin/xdl_strings.py:21
+msgid "Censor NSFW"
+msgstr ""
+
+#: plugin/xdl_strings.py:22
+msgid "Chat (Testing):"
+msgstr ""
+
+#: plugin/xdl_strings.py:23
+msgid "Clear"
+msgstr ""
+
+#: plugin/xdl_strings.py:24
+msgid "Close"
+msgstr ""
+
+#: plugin/xdl_strings.py:25
+msgid "Context Len:"
+msgstr ""
+
+#: plugin/xdl_strings.py:26
+msgid "Draw"
+msgstr ""
+
+#: plugin/xdl_strings.py:27
+msgid "Endpoint URL (/v1 added):"
+msgstr ""
+
+#: plugin/xdl_strings.py:28
+msgid "Endpoint URL:"
+msgstr ""
+
+#: plugin/xdl_strings.py:29
+msgid "General"
+msgstr ""
+
+#: plugin/xdl_strings.py:30
+msgid "Image Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:31
+msgid "Image Settings"
+msgstr ""
+
+#: plugin/xdl_strings.py:33
+msgid "Insert Frame"
+msgstr ""
+
+#: plugin/xdl_strings.py:34
+msgid "LocalWriter Evaluation Dashboard"
+msgstr ""
+
+#: plugin/xdl_strings.py:35
+msgid "Max Tokens:"
+msgstr ""
+
+#: plugin/xdl_strings.py:36
+msgid "Max Wait (s):"
+msgstr ""
+
+#: plugin/xdl_strings.py:37
+msgid "Models to Test:"
+msgstr ""
+
+#: plugin/xdl_strings.py:38
+msgid "Multimodal"
+msgstr ""
+
+#: plugin/xdl_strings.py:40
+msgid "Please enter edit instructions:"
+msgstr ""
+
+#: plugin/xdl_strings.py:42
+msgid "Run Benchmark"
+msgstr ""
+
+#: plugin/xdl_strings.py:43
+msgid "Seed:"
+msgstr ""
+
+#: plugin/xdl_strings.py:46
+msgid "Square"
+msgstr ""
+
+#: plugin/xdl_strings.py:47
+msgid "Steps:"
+msgstr ""
+
+#: plugin/xdl_strings.py:48
+msgid "Stop"
+msgstr ""
+
+#: plugin/xdl_strings.py:49
+msgid "Temperature:"
+msgstr ""
+
+#: plugin/xdl_strings.py:50
+msgid "Text/Chat Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:51
+msgid "Timeout (s):"
+msgstr ""
+
+#: plugin/xdl_strings.py:52
+msgid "Translate Prompt"
+msgstr ""
+
+#: plugin/xdl_strings.py:53
+msgid "Translate from (e.g. es):"
+msgstr ""
+
+#: plugin/xdl_strings.py:54
+msgid "Use AI Horde for Image Generation"
+msgstr ""
+
+#: plugin/xdl_strings.py:55
+msgid "Use Image model"
+msgstr ""
+
+#: plugin/xdl_strings.py:56
+msgid "Web Research"
+msgstr ""
+
+#: plugin/xdl_strings.py:57
+msgid "Writer"
 msgstr ""

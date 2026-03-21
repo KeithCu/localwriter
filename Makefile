@@ -280,7 +280,9 @@ nuke-cache-force:
 # ── Translation ──────────────────────────────────────────────────────────────
 
 extract-strings:
+	python scripts/extract_xdl_strings.py
 	xgettext -d writeragent -o plugin/locales/writeragent.pot $$(find plugin -name "*.py")
+	rm -f plugin/xdl_strings.py
 
 add-language:
 	mkdir -p plugin/locales/$(LANG)/LC_MESSAGES

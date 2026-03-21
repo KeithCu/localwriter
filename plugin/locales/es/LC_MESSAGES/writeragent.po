@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-21 19:57+0000\n"
+"POT-Creation-Date: 2026-03-21 22:18+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,7 +17,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: plugin/contrib/aihordeclient/__init__.py:262
-#: plugin/modules/chatbot/panel.py:408
+#: plugin/modules/chatbot/panel.py:409
 msgid "Starting..."
 msgstr "Iniciando..."
 
@@ -60,8 +60,8 @@ msgid ""
 "The Horde is in maintenance mode, please try again later, if you have tried "
 "and the service does not respond for hours, please contact via Discord"
 msgstr ""
-"La Horda está en modo de mantenimiento, por favor inténtalo más tarde, si lo"
-" has intentado y el servicio no responde durante horas, por favor contacta "
+"La Horda está en modo de mantenimiento, por favor inténtalo más tarde, si lo "
+"has intentado y el servicio no responde durante horas, por favor contacta "
 "vía Discord"
 
 #: plugin/contrib/aihordeclient/__init__.py:656
@@ -110,8 +110,8 @@ msgid ""
 "Register at {REGISTER_AI_HORDE_URL} and use your key to improve your rate "
 "success. Detail:"
 msgstr ""
-"Regístrate en {REGISTER_AI_HORDE_URL} y usa tu clave para mejorar tu tasa de"
-" éxito. Detalle:"
+"Regístrate en {REGISTER_AI_HORDE_URL} y usa tu clave para mejorar tu tasa de "
+"éxito. Detalle:"
 
 #: plugin/contrib/aihordeclient/__init__.py:843
 msgid "to learn to earn kudos. Detail:"
@@ -167,8 +167,8 @@ msgstr " o inténtalo de nuevo más tarde."
 msgid ""
 "There are no workers available with these settings. Please try again later."
 msgstr ""
-"No hay trabajadores disponibles con esta configuración. Por favor, inténtalo"
-" de nuevo más tarde."
+"No hay trabajadores disponibles con esta configuración. Por favor, inténtalo "
+"de nuevo más tarde."
 
 #: plugin/contrib/aihordeclient/__init__.py:1001
 msgid "Get an Api key for free at "
@@ -244,7 +244,8 @@ msgstr "Ampliar selección"
 msgid "Edit Selection"
 msgstr "Editar selección"
 
-#: plugin/main.py:358
+#: plugin/main.py:358 plugin/framework/legacy_ui.py:282
+#: plugin/xdl_strings.py:45
 msgid "Settings"
 msgstr "Configuración"
 
@@ -276,8 +277,8 @@ msgstr "Ejecutar pruebas de draw"
 msgid "Evaluation Dashboard"
 msgstr "Panel de Evaluación"
 
-#: plugin/main.py:367 plugin/framework/dialogs.py:375
-#: plugin/framework/dialogs.py:403
+#: plugin/main.py:367 plugin/framework/dialogs.py:378
+#: plugin/framework/dialogs.py:406
 msgid "About WriterAgent"
 msgstr "Acerca de WriterAgent"
 
@@ -286,31 +287,69 @@ msgid "Dispatch Error"
 msgstr "Error de despacho"
 
 #: plugin/modules/writer/legacy.py:43 plugin/modules/writer/legacy.py:54
+#: plugin/modules/chatbot/selection.py:69
+#: plugin/modules/chatbot/selection.py:145
 msgid "WriterAgent: Extend Selection"
 msgstr "WriterAgent: Ampliar selección"
 
+#: plugin/modules/writer/legacy.py:70 plugin/modules/calc/legacy.py:32
+msgid "Please enter edit instructions!"
+msgstr ""
+
+#: plugin/modules/writer/legacy.py:70 plugin/modules/calc/legacy.py:32
+#: plugin/xdl_strings.py:32
+msgid "Input"
+msgstr ""
+
 #: plugin/modules/writer/legacy.py:78 plugin/modules/writer/legacy.py:88
-#: plugin/modules/writer/legacy.py:102
+#: plugin/modules/writer/legacy.py:102 plugin/modules/chatbot/selection.py:256
+#: plugin/modules/chatbot/selection.py:358
 msgid "WriterAgent: Edit Selection"
 msgstr "WriterAgent: Editar selección"
 
-#: plugin/modules/chatbot/panel_wiring.py:142
+#: plugin/modules/chatbot/panel_factory.py:445
+msgid "Size:"
+msgstr ""
+
+#: plugin/modules/chatbot/panel_factory.py:446
+msgid "Height:"
+msgstr ""
+
+#: plugin/modules/chatbot/panel_factory.py:447
+msgid "Width:"
+msgstr ""
+
+#: plugin/modules/chatbot/panel_wiring.py:145 plugin/xdl_strings.py:41
 msgid "Ready"
 msgstr "Listo"
 
-#: plugin/modules/chatbot/panel.py:417
+#: plugin/modules/chatbot/panel.py:394
+msgid "Record"
+msgstr ""
+
+#: plugin/modules/chatbot/panel.py:396
+msgid "Stop Rec"
+msgstr ""
+
+#: plugin/modules/chatbot/panel.py:398 plugin/xdl_strings.py:44
+msgid "Send"
+msgstr "Enviar"
+
+#: plugin/modules/chatbot/panel.py:418
 msgid "Getting document..."
 msgstr "Obteniendo documento..."
 
-#: plugin/modules/chatbot/panel.py:422
+#: plugin/modules/chatbot/panel.py:423
 msgid ""
 "\n"
-"[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n"
+"[No compatible LibreOffice document (Writer, Calc, or Draw) found in the "
+"active window.]\n"
 msgstr ""
 "\n"
-"[No se encontró un documento de LibreOffice compatible (Writer, Calc o Draw) en la ventana activa.]\n"
+"[No se encontró un documento de LibreOffice compatible (Writer, Calc o Draw) "
+"en la ventana activa.]\n"
 
-#: plugin/modules/chatbot/panel.py:432
+#: plugin/modules/chatbot/panel.py:433
 #, python-brace-format
 msgid ""
 "[Internal Error: Document type changed from {0} to {1}! Please file an "
@@ -319,7 +358,7 @@ msgstr ""
 "[Error Interno: ¡El tipo de documento cambió de {0} a {1}! Por favor, "
 "reporta un error.]"
 
-#: plugin/modules/chatbot/panel.py:439
+#: plugin/modules/chatbot/panel.py:440
 #, python-brace-format
 msgid ""
 "[Internal Error: Could not identify document type for {0}. Please report "
@@ -328,7 +367,7 @@ msgstr ""
 "[Error Interno: No se pudo identificar el tipo de documento para {0}. ¡Por "
 "favor, repórtalo!]"
 
-#: plugin/modules/chatbot/panel.py:473
+#: plugin/modules/chatbot/panel.py:474
 #, python-brace-format
 msgid ""
 "[Model {0} does not support native audio. Please select an STT Model in "
@@ -337,11 +376,12 @@ msgstr ""
 "[El modelo {0} no soporta audio nativo. Por favor, selecciona un Modelo STT "
 "en Configuración.]"
 
-#: plugin/modules/chatbot/panel.py:476
+#: plugin/modules/chatbot/panel.py:477
 #: plugin/modules/chatbot/send_handlers.py:282
 #: plugin/modules/chatbot/send_handlers.py:293
 #: plugin/modules/chatbot/send_handlers.py:302
 #: plugin/modules/chatbot/send_handlers.py:543
+#: plugin/framework/legacy_ui.py:330
 msgid "Error"
 msgstr "Error"
 
@@ -381,7 +421,8 @@ msgid ""
 "[Agent backend '{0}' is not available. Check Settings (path, install).]\n"
 msgstr ""
 "\n"
-"[Backend del agente '{0}' no está disponible. Revisa la Configuración (ruta, instalación).]\n"
+"[Backend del agente '{0}' no está disponible. Revisa la Configuración (ruta, "
+"instalación).]\n"
 
 #: plugin/modules/chatbot/send_handlers.py:517
 #, python-brace-format
@@ -447,8 +488,9 @@ msgstr ""
 msgid "Server Status"
 msgstr "Estado del Servidor"
 
-#: plugin/modules/http/__init__.py:247 plugin/framework/dialogs.py:232
-#: plugin/framework/dialogs.py:304 plugin/framework/dialogs.py:391
+#: plugin/modules/http/__init__.py:247 plugin/framework/dialogs.py:235
+#: plugin/framework/dialogs.py:307 plugin/framework/dialogs.py:394
+#: plugin/xdl_strings.py:39
 msgid "OK"
 msgstr "Aceptar"
 
@@ -460,6 +502,16 @@ msgid ""
 msgstr ""
 "{0}\n"
 "URL: {1}"
+
+#: plugin/modules/http/client.py:534
+msgid "Stream ended with finish_reason=error"
+msgstr ""
+
+#: plugin/modules/http/client.py:547
+msgid ""
+"The model is repeating the same chunk (infinite loop). Try again or use a "
+"different model."
+msgstr ""
 
 #: plugin/modules/http/errors.py:15
 #, python-brace-format
@@ -496,8 +548,7 @@ msgstr ""
 "solicitud' en la Configuración."
 
 #: plugin/modules/http/errors.py:35
-msgid ""
-"Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
+msgid "Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
 msgstr ""
 "Conexión Rechazada. ¿Está tu servidor local de IA (Ollama/LM Studio) en "
 "ejecución?"
@@ -528,15 +579,41 @@ msgstr "WriterAgent: Editar Selección (Calc)"
 msgid "WriterAgent: Extend Selection (Calc)"
 msgstr "WriterAgent: Ampliar Selección (Calc)"
 
-#: plugin/modules/launcher/__init__.py:406
+#: plugin/modules/launcher/__init__.py:407
 #, python-brace-format
 msgid "{0} Running"
 msgstr "{0} en ejecución"
 
-#: plugin/modules/launcher/__init__.py:407
+#: plugin/modules/launcher/__init__.py:408
 #, python-brace-format
 msgid "Launch {0}"
 msgstr "Lanzar {0}"
+
+#: plugin/modules/launcher/__init__.py:502
+#, python-brace-format
+msgid ""
+"Command '{0}' not found.\n"
+"Make sure it is installed and in your PATH.\n"
+"\n"
+"Use 'Install AI CLI' from the menu to get install instructions."
+msgstr ""
+
+#: plugin/framework/settings_dialog.py:146
+
+msgid "Invalid Setting"
+msgstr "Configuración"
+
+#: plugin/framework/settings_dialog.py:146
+msgid "Temperature must be <= 1.0"
+msgstr ""
+
+#: plugin/framework/legacy_ui.py:330
+#, python-brace-format
+msgid ""
+"Failed to open Settings: {0}\n"
+"\n"
+"{1}"
+msgstr ""
 
 #: plugin/framework/dialogs.py:93
 msgid "Agent requests approval"
@@ -551,31 +628,237 @@ msgstr "¿Proceder con esta acción?"
 msgid "Tool: %s"
 msgstr "Herramienta: %s"
 
-#: plugin/framework/dialogs.py:231
+#: plugin/framework/dialogs.py:234
 msgid "Copy"
 msgstr "Copiar"
 
-#: plugin/framework/dialogs.py:251 plugin/framework/dialogs.py:326
+#: plugin/framework/dialogs.py:254 plugin/framework/dialogs.py:329
 msgid "Copied!"
 msgstr "¡Copiado!"
 
-#: plugin/framework/dialogs.py:301
+#: plugin/framework/dialogs.py:304
 msgid "Copy URL"
 msgstr "Copiar URL"
 
-#: plugin/framework/dialogs.py:382
+#: plugin/framework/dialogs.py:385
 #, python-format
 msgid "Version: %s"
 msgstr "Versión: %s"
 
-#: plugin/framework/dialogs.py:383
+#: plugin/framework/dialogs.py:386
 msgid "AI-powered extension for LibreOffice"
 msgstr "Extensión potenciada por IA para LibreOffice"
 
-#: plugin/framework/dialogs.py:388
+#: plugin/framework/dialogs.py:391
 msgid "GitHub: quazardous/localwriter"
 msgstr "GitHub: quazardous/localwriter"
 
-#: plugin/tests/test_i18n.py:15
+#: plugin/framework/dialogs.py:407
+#, python-brace-format
+msgid ""
+"WriterAgent {0}\n"
+"https://github.com/quazardous/localwriter"
+msgstr ""
+
+#: plugin/tests/test_i18n.py:16
 msgid "ThisIsAnUntranslatedString999"
 msgstr "EstaEsUnaCadenaSinTraducir999"
+
+#: plugin/xdl_strings.py:4
+msgid "-1"
+msgstr ""
+
+#: plugin/xdl_strings.py:5
+msgid "7.5"
+msgstr ""
+
+#: plugin/xdl_strings.py:6
+msgid "AI Horde API Key:"
+msgstr ""
+
+#: plugin/xdl_strings.py:7
+msgid "AI Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:8
+msgid "API Key:"
+msgstr ""
+
+#: plugin/xdl_strings.py:9
+msgid "Additional Instructions (History):"
+msgstr ""
+
+#: plugin/xdl_strings.py:10
+msgid "Additional Instructions:"
+msgstr ""
+
+#: plugin/xdl_strings.py:11
+msgid "Allow NSFW"
+msgstr ""
+
+#: plugin/xdl_strings.py:12
+msgid "Ask / instruct:"
+msgstr ""
+
+#: plugin/xdl_strings.py:13
+msgid "Aspect Ratio:"
+msgstr ""
+
+#: plugin/xdl_strings.py:14
+msgid "Audio Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:15
+msgid "Auto Gallery"
+msgstr ""
+
+#: plugin/xdl_strings.py:16
+msgid "Base Size:"
+msgstr ""
+
+#: plugin/xdl_strings.py:17
+msgid "Base:"
+msgstr "Base:"
+
+#: plugin/xdl_strings.py:18
+msgid "CFG Scale:"
+msgstr "Escala CFG:"
+
+#: plugin/xdl_strings.py:19
+msgid "Calc"
+msgstr "Calc"
+
+#: plugin/xdl_strings.py:20
+msgid "Categories:"
+msgstr "Categorías:"
+
+#: plugin/xdl_strings.py:21
+msgid "Censor NSFW"
+msgstr "Censurar NSFW"
+
+#: plugin/xdl_strings.py:22
+msgid "Chat (Testing):"
+msgstr "Chat:"
+
+#: plugin/xdl_strings.py:23
+msgid "Clear"
+msgstr "Limpiar"
+
+#: plugin/xdl_strings.py:24
+msgid "Close"
+msgstr "Cerrar"
+
+#: plugin/xdl_strings.py:25
+msgid "Context Len:"
+msgstr "Longitud del contexto:"
+
+#: plugin/xdl_strings.py:26
+msgid "Draw"
+msgstr "Draw"
+
+#: plugin/xdl_strings.py:27
+msgid "Endpoint URL (/v1 added):"
+msgstr "URL del endpoint (/v1 añadido):"
+
+#: plugin/xdl_strings.py:28
+msgid "Endpoint URL:"
+msgstr "URL del endpoint:"
+
+#: plugin/xdl_strings.py:29
+
+msgid "General"
+msgstr "Generando..."
+
+#: plugin/xdl_strings.py:30
+msgid "Image Model:"
+msgstr "Modelo de Imagen:"
+
+#: plugin/xdl_strings.py:31
+
+msgid "Image Settings"
+msgstr "Configuración de Imagen"
+
+#: plugin/xdl_strings.py:33
+msgid "Insert Frame"
+msgstr "Insertar Marco"
+
+#: plugin/xdl_strings.py:34
+
+msgid "LocalWriter Evaluation Dashboard"
+msgstr "Panel de Evaluación LocalWriter"
+
+#: plugin/xdl_strings.py:35
+msgid "Max Tokens:"
+msgstr "Máx Tokens:"
+
+#: plugin/xdl_strings.py:36
+msgid "Max Wait (s):"
+msgstr "Espera Máxima (s):"
+
+#: plugin/xdl_strings.py:37
+msgid "Models to Test:"
+msgstr "Modelos a Probar:"
+
+#: plugin/xdl_strings.py:38
+msgid "Multimodal"
+msgstr "Multimodal"
+
+#: plugin/xdl_strings.py:40
+msgid "Please enter edit instructions:"
+msgstr "Ingrese las instrucciones de edición:"
+
+#: plugin/xdl_strings.py:42
+msgid "Run Benchmark"
+msgstr "Ejecutar Benchmark"
+
+#: plugin/xdl_strings.py:43
+msgid "Seed:"
+msgstr "Semilla:"
+
+#: plugin/xdl_strings.py:46
+msgid "Square"
+msgstr "Cuadrado"
+
+#: plugin/xdl_strings.py:47
+msgid "Steps:"
+msgstr "Pasos:"
+
+#: plugin/xdl_strings.py:48
+msgid "Stop"
+msgstr "Detener"
+
+#: plugin/xdl_strings.py:49
+msgid "Temperature:"
+msgstr "Temperatura:"
+
+#: plugin/xdl_strings.py:50
+msgid "Text/Chat Model:"
+msgstr "Modelo de Texto/Chat:"
+
+#: plugin/xdl_strings.py:51
+msgid "Timeout (s):"
+msgstr "Tiempo de espera (s):"
+
+#: plugin/xdl_strings.py:52
+msgid "Translate Prompt"
+msgstr "Traducir Indicación"
+
+#: plugin/xdl_strings.py:53
+msgid "Translate from (e.g. es):"
+msgstr "Traducir de (ej. es):"
+
+#: plugin/xdl_strings.py:54
+msgid "Use AI Horde for Image Generation"
+msgstr "Usar AI Horde para Generación de Imágenes"
+
+#: plugin/xdl_strings.py:55
+msgid "Use Image model"
+msgstr "Usar modelo de Imagen"
+
+#: plugin/xdl_strings.py:56
+msgid "Web Research"
+msgstr "Investigación Web"
+
+#: plugin/xdl_strings.py:57
+msgid "Writer"
+msgstr "Writer"

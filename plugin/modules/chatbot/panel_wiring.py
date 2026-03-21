@@ -41,6 +41,9 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
     def get_optional(name):
         return get_optional_control(root_window, name)
 
+    from plugin.framework.dialogs import translate_dialog
+    translate_dialog(root_window)
+
     controls = {
         "send": root_window.getControl("send"),
         "query": root_window.getControl("query"),
