@@ -14,71 +14,89 @@ import logging
 import json
 
 from plugin.framework.errors import safe_json_loads
+from plugin.modules.chatbot.state_machine import (
+    SendHandlerState, StartEvent, StreamChunkEvent, StreamDoneEvent,
+    ErrorEvent, StopRequestedEvent, next_state, EffectInterpreter,
+    SpawnAudioWorkerEffect, SpawnDirectImageEffect, SpawnAgentWorkerEffect,
+    SpawnWebWorkerEffect, ProceedToChatEffect
+)
 
 log = logging.getLogger(__name__)
 
 class SendHandlersMixin:
     def _transcribe_audio_async(self, wav_path, stt_model, model, query_text=""):
         """Transcribe audio asynchronously and then proceed to chat."""
+        interpreter = EffectInterpreter(self)
+        current_state = SendHandlerState(handler_type="audio", status="ready")
+
+        doc_type_str = self._get_doc_type_str(model).lower() if model else "unknown"
+        start_event = StartEvent(
+            query_text=query_text,
+            model=model,
+            doc_type_str=doc_type_str,
+            wav_path=wav_path,
+            stt_model=stt_model
+        )
+
+        current_state, effects = next_state(current_state, start_event)
+        interpreter.current_state = current_state
+        for effect in effects:
+            interpreter.interpret(effect)
+
+    def _execute_audio_effect(self, wav_path, stt_model, model, query_text, current_state, interpreter):
         from plugin.framework.async_stream import run_blocking_in_thread
-        from plugin.modules.http.errors import format_error_message
 
-        self._set_status("Transcribing audio...")
-        self._append_response("\n[Transcribing audio...]\n")
+        # Helper to push events through the state machine
+        def dispatch_event(event):
+            nonlocal current_state
+            current_state, effs = next_state(current_state, event)
+            interpreter.current_state = current_state
+            for eff in effs:
+                interpreter.interpret(eff)
 
-        try:
-            # Ensure client is initialized
-            if not self.client:
-                from plugin.framework.config import get_api_config
-                from plugin.modules.http.client import LlmClient
-
-                api_config = get_api_config(self.ctx)
-                self.client = LlmClient(api_config, self.ctx)
-
-            transcript_text = run_blocking_in_thread(
-                self.ctx, self.client.transcribe_audio, wav_path, model=stt_model
-            )
-
-            # Clean up audio file
-            import os
-
+        def run_audio():
             try:
-                os.remove(wav_path)
-            except Exception:
-                pass
-            self.audio_wav_path = None
+                # Ensure client is initialized
+                if not self.client:
+                    from plugin.framework.config import get_api_config
+                    from plugin.modules.http.client import LlmClient
 
-            if transcript_text:
-                combined_text = query_text
-                if transcript_text:
-                    combined_text = (
-                        (combined_text + "\n" + transcript_text).strip()
-                        if combined_text
-                        else transcript_text
-                    )
+                    api_config = get_api_config(self.ctx)
+                    self.client = LlmClient(api_config, self.ctx)
 
-                # Proceed to send with the transcript
-                self._do_send_chat_with_tools(
-                    combined_text, model, self._get_doc_type_str(model).lower()
+                transcript_text = run_blocking_in_thread(
+                    self.ctx, self.client.transcribe_audio, wav_path, model=stt_model
                 )
-            else:
-                self._terminal_status = "Ready"
-                self._set_status("Ready")
 
-        except Exception as e:
-            doc_type = self._get_doc_type_str(model).lower() if model else "unknown"
-            log.error("Transcription error in _transcribe_audio_async [doc: %s]: %s", doc_type, e)
-            self._append_response(
-                "\n[Transcription error: %s]\n" % format_error_message(e)
-            )
-            self._terminal_status = "Error"
-            self._set_status("Error")
+                # Clean up audio file
+                import os
+                try:
+                    os.remove(wav_path)
+                except Exception:
+                    pass
+                self.audio_wav_path = None
+
+                dispatch_event(StreamDoneEvent(transcript_text))
+
+            except Exception as e:
+                doc_type = self._get_doc_type_str(model).lower() if model else "unknown"
+                log.error("Transcription error in _transcribe_audio_async [doc: %s]: %s", doc_type, e)
+                dispatch_event(ErrorEvent(e))
+
+        from plugin.framework.worker_pool import run_in_background
+        run_in_background(run_audio, name="audio-transcribe-worker")
 
     def _do_send_direct_image(self, query_text, model):
-        self._append_response("\nYou: %s\n" % query_text)
-        self._append_response("\n[Using image model (direct).]\n")
-        self._append_response("AI: Creating image...\n")
-        self._set_status("Creating image...")
+        interpreter = EffectInterpreter(self)
+        current_state = SendHandlerState(handler_type="image", status="ready")
+
+        # 1. State machine transition: start
+        current_state, effects = next_state(current_state, StartEvent(query_text, model, "image"))
+        interpreter.current_state = current_state
+        for effect in effects:
+            interpreter.interpret(effect)
+
+    def _execute_direct_image_effect(self, query_text, model, current_state, interpreter):
         q = queue.Queue()
         job_done = [False]
 
@@ -176,24 +194,28 @@ class SendHandlersMixin:
             self._terminal_status = "Error"
             return
 
+        # Helper to push events through the state machine
+        def dispatch_event(event):
+            nonlocal current_state
+            current_state, effs = next_state(current_state, event)
+            for eff in effs:
+                interpreter.interpret(eff)
+
         def apply_chunk(chunk_text, is_thinking=False):
-            self._append_response(chunk_text)
+            dispatch_event(StreamChunkEvent(chunk_text, is_thinking))
 
         def on_stream_done(response):
             job_done[0] = True
+            dispatch_event(StreamDoneEvent(response))
             return True
 
         def on_stopped():
             # Simple stream (no tools) does not add to ChatSession; just update status.
-            self._terminal_status = "Stopped"
-            self._set_status("Stopped")
+            dispatch_event(StopRequestedEvent())
+            job_done[0] = True
 
         def on_error(e):
-            from plugin.modules.http.errors import format_error_message
-
-            self._append_response("\n[%s]\n" % format_error_message(e))
-            self._terminal_status = "Error"
-            self._set_status("Error")
+            dispatch_event(ErrorEvent(e))
 
         from plugin.framework.async_stream import run_stream_drain_loop
 
@@ -214,15 +236,21 @@ class SendHandlersMixin:
 
     def _do_send_via_agent_backend(self, query_text, model, doc_type_str):
         """Send via external agent backend (Aider, Hermes). No fallback to built-in on failure."""
+        interpreter = EffectInterpreter(self)
+        current_state = SendHandlerState(handler_type="agent", status="ready")
+
+        self.session.add_user_message(query_text)
+
+        # 1. State machine transition: start
+        current_state, effects = next_state(current_state, StartEvent(query_text, model, doc_type_str))
+        interpreter.current_state = current_state
+        for effect in effects:
+            interpreter.interpret(effect)
+
+    def _execute_agent_backend_effect(self, query_text, model, doc_type_str, current_state, interpreter):
         from plugin.framework.config import get_config
         from plugin.framework.document import get_document_context_for_chat
         from plugin.modules.agent_backend import get_backend
-
-        self.session.add_user_message(query_text)
-        self._append_response("\nYou: %s\n" % query_text)
-        self._append_response("\n[Using external agent backend.]\n")
-        self._append_response("AI: ")
-        self._set_status("Starting agent...")
 
         document_url = ""
         try:
@@ -328,30 +356,30 @@ class SendHandlersMixin:
             self._current_agent_backend = None
             return
 
+        # Helper to push events through the state machine
+        def dispatch_event(event):
+            nonlocal current_state
+            current_state, effs = next_state(current_state, event)
+            for eff in effs:
+                interpreter.interpret(eff)
+
         def apply_chunk(text, is_thinking=False):
-            self._append_response(text)
+            dispatch_event(StreamChunkEvent(text, is_thinking))
 
         def on_stream_done(item):
             job_done[0] = True
-            self._terminal_status = "Ready"
-            self._set_status("Ready")
+            dispatch_event(StreamDoneEvent(item))
             return True
 
         def on_stopped():
             # Ensure conversation roles alternate user/assistant when stopping an
             # external agent backend mid-response.
             self.session.add_assistant_message(content="No response.")
+            dispatch_event(StopRequestedEvent())
             job_done[0] = True
-            self._terminal_status = "Stopped"
-            self._set_status("Stopped")
-            self._append_response("\n[Stopped by user]\n")
 
         def on_error(e):
-            from plugin.modules.http.errors import format_error_message
-
-            self._append_response("\n[Error: %s]\n" % format_error_message(e))
-            self._terminal_status = "Error"
-            self._set_status("Error")
+            dispatch_event(ErrorEvent(e))
 
         def on_approval_required(item):
             # item = ("approval_required", description, tool_name, args, request_id)
@@ -388,16 +416,21 @@ class SendHandlersMixin:
 
     def _run_web_research(self, query_text, model):
         """Run the web_research tool via the sub-agent and stream its result into the response area."""
+        interpreter = EffectInterpreter(self)
+        current_state = SendHandlerState(handler_type="web", status="ready")
+
+        self.session.add_user_message(query_text)
+
+        # 1. State machine transition: start
+        current_state, effects = next_state(current_state, StartEvent(query_text, model, "web"))
+        interpreter.current_state = current_state
+        for effect in effects:
+            interpreter.interpret(effect)
+
+    def _execute_web_research_effect(self, query_text, model, current_state, interpreter):
         from plugin.modules.http.errors import format_error_message
         from plugin.main import get_tools
         from plugin.framework.document import is_calc, is_draw
-
-        self._append_response("\nYou: %s\n" % query_text)
-        self._append_response("\n[Using research chat.]\n")
-        self._set_status("Starting research...")
-
-        # Persist user message to the research session
-        self.session.add_user_message(query_text)
 
         q = queue.Queue()
         job_done = [False]
@@ -493,30 +526,32 @@ class SendHandlersMixin:
             self._set_status("Error")
             return
 
+        # Helper to push events through the state machine
+        def dispatch_event(event):
+            nonlocal current_state
+            current_state, effs = next_state(current_state, event)
+            for eff in effs:
+                interpreter.interpret(eff)
+
         def apply_chunk(chunk_text, is_thinking=False):
             # Thinking items always flow through the queue to keep the drain loop
             # active, but we only display them if the setting is on.
             if is_thinking and not show_thinking:
                 return
-            self._append_response(chunk_text)
+            dispatch_event(StreamChunkEvent(chunk_text, is_thinking))
 
         def on_stream_done(response):
             job_done[0] = True
-            if self._terminal_status != "Error":
-                self._terminal_status = "Ready"
-                self._set_status("Ready")
+            dispatch_event(StreamDoneEvent(response))
             return True
 
         def on_stopped():
             # Web research cannot currently be cancelled mid-run; treat Stop as best-effort.
-            self._terminal_status = "Stopped"
-            self._set_status("Stopped")
+            dispatch_event(StopRequestedEvent())
+            job_done[0] = True
 
         def on_error(e):
-            err_msg = format_error_message(e)
-            self._append_response("\n[Research Chat error: %s]\n" % err_msg)
-            self._terminal_status = "Error"
-            self._set_status("Error")
+            dispatch_event(ErrorEvent(e))
 
         from plugin.framework.async_stream import run_stream_drain_loop
 

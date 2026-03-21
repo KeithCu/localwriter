@@ -10,6 +10,7 @@ dev = [
     "pyyaml",
     "pytest",
     "dspy",
+    "deal",
 ]
 
 [tool.setuptools.dynamic]
