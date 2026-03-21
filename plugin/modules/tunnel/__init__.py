@@ -36,12 +36,14 @@ _CREATION_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 class TunnelError(WriterAgentException):
     """General tunnel error."""
+
     def __init__(self, message, code="TUNNEL_ERROR", details=None):
         super().__init__(message, code=code, details=details)
 
 
 class TunnelAuthError(TunnelError):
     """Provider requires authentication credentials."""
+
     def __init__(self, message, details=None):
         super().__init__(message, code="TUNNEL_AUTH_ERROR", details=details)
 
@@ -56,8 +58,7 @@ def get_provider_options(services):
         if services and hasattr(services, "tunnel_manager"):
             mgr = services.tunnel_manager
             return [
-                {"value": name, "label": name.title()}
-                for name in sorted(mgr.providers)
+                {"value": name, "label": name.title()} for name in sorted(mgr.providers)
             ]
     except Exception:
         log.debug("get_provider_options: services not ready yet")
@@ -100,16 +101,23 @@ class TunnelManager:
         try:
             result = subprocess.run(
                 provider.version_args,
-                capture_output=True, text=True, timeout=10,
+                capture_output=True,
+                text=True,
+                timeout=10,
                 creationflags=_CREATION_FLAGS,
             )
-            log.info("%s version: %s", provider.name,
-                     result.stdout.strip() or result.stderr.strip())
+            log.info(
+                "%s version: %s",
+                provider.name,
+                result.stdout.strip() or result.stderr.strip(),
+            )
             return True
         except FileNotFoundError:
             log.error(
                 "%s binary '%s' not found. Install from: %s",
-                provider.name, provider.binary_name, provider.install_url,
+                provider.name,
+                provider.binary_name,
+                provider.install_url,
             )
             return False
         except Exception:
@@ -122,7 +130,7 @@ class TunnelManager:
         """Run the tunnel using AsyncProcess and parse stdout for the public URL."""
         log.info("Running: %s", " ".join(cmd))
         pattern = re.compile(url_regex) if url_regex else None
-        
+
         def _on_stdout(line):
             if not line:
                 return
@@ -162,11 +170,12 @@ class TunnelManager:
 
         try:
             from plugin.framework.process_manager import AsyncProcess
+
             self._process = AsyncProcess(
                 cmd,
                 stdout_cb=_on_stdout,
                 on_exit_cb=_on_exit,
-                creationflags=_CREATION_FLAGS
+                creationflags=_CREATION_FLAGS,
             )
             self._process.start()
         except FileNotFoundError:
@@ -236,19 +245,16 @@ class TunnelManager:
 
             # Build command
             try:
-                cmd, url_regex = provider.build_command(port, scheme,
-                                                        provider_cfg)
+                cmd, url_regex = provider.build_command(port, scheme, provider_cfg)
             except Exception:
-                log.exception("Failed to build tunnel command for %s",
-                              provider_name)
+                log.exception("Failed to build tunnel command for %s", provider_name)
                 return
 
             self._active_provider = provider
             self._public_url = None
 
             # Check for pre-known URL (e.g. named cloudflare tunnel)
-            pre_url = getattr(provider, "get_known_url", lambda c: None)(
-                provider_cfg)
+            pre_url = getattr(provider, "get_known_url", lambda c: None)(provider_cfg)
             if pre_url:
                 self._public_url = pre_url
                 log.info("Tunnel URL (known): %s", self._public_url)
@@ -275,15 +281,13 @@ class TunnelManager:
                     provider_cfg = self._config_svc.proxy_for("tunnel")
                     provider.post_stop(provider_cfg)
                 except Exception:
-                    log.exception("Provider post_stop failed for %s",
-                                  provider.name)
+                    log.exception("Provider post_stop failed for %s", provider.name)
 
             if had_url:
                 self._emit_stopped("stopped")
 
 
 class TunnelModule(ModuleBase):
-
     def initialize(self, services):
         self._services = services
         self._manager = TunnelManager(services.config, services.events)
@@ -301,8 +305,7 @@ class TunnelModule(ModuleBase):
         self._manager.register_provider("tailscale", TailscaleProvider())
 
         if hasattr(services, "events"):
-            services.events.subscribe("config:changed",
-                                      self._on_config_changed)
+            services.events.subscribe("config:changed", self._on_config_changed)
 
     def start_background(self, services):
         cfg = services.config.proxy_for(self.name)

@@ -63,28 +63,27 @@ class ListCellComments(ToolBase):
 
     def execute(self, ctx, **kwargs):
         doc = ctx.doc
-        try:
-            sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
-            annotations = sheet.getAnnotations()
-            comments = []
-            for i in range(annotations.getCount()):
-                ann = annotations.getByIndex(i)
-                pos = ann.getPosition()
-                comments.append({
+        sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
+        annotations = sheet.getAnnotations()
+        comments = []
+        for i in range(annotations.getCount()):
+            ann = annotations.getByIndex(i)
+            pos = ann.getPosition()
+            comments.append(
+                {
                     "cell": _cell_label(pos.Column, pos.Row),
                     "author": ann.getAuthor(),
                     "date": ann.getDate(),
                     "text": ann.getString(),
                     "is_visible": ann.getIsVisible(),
-                })
-            return {
-                "status": "ok",
-                "comments": comments,
-                "count": len(comments),
-                "sheet": sheet.getName(),
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+                }
+            )
+        return {
+            "status": "ok",
+            "comments": comments,
+            "count": len(comments),
+            "sheet": sheet.getName(),
+        }
 
 
 class AddCellComment(ToolBase):
@@ -92,9 +91,7 @@ class AddCellComment(ToolBase):
 
     name = "add_cell_comment"
     intent = "review"
-    description = (
-        "Add a comment (annotation) to a specific cell in a Calc sheet."
-    )
+    description = "Add a comment (annotation) to a specific cell in a Calc sheet."
     parameters = {
         "type": "object",
         "properties": {
@@ -123,34 +120,32 @@ class AddCellComment(ToolBase):
             return self._tool_error("cell and text are required.")
 
         doc = ctx.doc
-        try:
-            sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
-            col, row = _parse_cell_ref(cell_ref)
-            cell = sheet.getCellByPosition(col, row)
+        sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
+        col, row = _parse_cell_ref(cell_ref)
+        cell = sheet.getCellByPosition(col, row)
 
-            # Insert or update annotation
-            from com.sun.star.table import CellAddress
-            addr = CellAddress()
-            addr.Sheet = sheet.getRangeAddress().Sheet
-            addr.Column = col
-            addr.Row = row
+        # Insert or update annotation
+        from com.sun.star.table import CellAddress
 
-            annotations = sheet.getAnnotations()
-            # Check if annotation already exists
-            ann = cell.getAnnotation()
-            if ann and ann.getString():
-                ann.setString(text)
-            else:
-                annotations.insertNew(addr, text)
+        addr = CellAddress()
+        addr.Sheet = sheet.getRangeAddress().Sheet
+        addr.Column = col
+        addr.Row = row
 
-            return {
-                "status": "ok",
-                "cell": cell_ref,
-                "text": text,
-                "sheet": sheet.getName(),
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        annotations = sheet.getAnnotations()
+        # Check if annotation already exists
+        ann = cell.getAnnotation()
+        if ann and ann.getString():
+            ann.setString(text)
+        else:
+            annotations.insertNew(addr, text)
+
+        return {
+            "status": "ok",
+            "cell": cell_ref,
+            "text": text,
+            "sheet": sheet.getName(),
+        }
 
 
 class DeleteCellComment(ToolBase):
@@ -182,23 +177,20 @@ class DeleteCellComment(ToolBase):
             return self._tool_error("cell is required.")
 
         doc = ctx.doc
-        try:
-            sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
-            col, row = _parse_cell_ref(cell_ref)
+        sheet = _resolve_sheet(doc, kwargs.get("sheet_name"))
+        col, row = _parse_cell_ref(cell_ref)
 
-            annotations = sheet.getAnnotations()
-            # Find and remove the annotation at this position
-            for i in range(annotations.getCount()):
-                ann = annotations.getByIndex(i)
-                pos = ann.getPosition()
-                if pos.Column == col and pos.Row == row:
-                    annotations.removeByIndex(i)
-                    return {
-                        "status": "ok",
-                        "cell": cell_ref,
-                        "message": "Comment deleted.",
-                    }
+        annotations = sheet.getAnnotations()
+        # Find and remove the annotation at this position
+        for i in range(annotations.getCount()):
+            ann = annotations.getByIndex(i)
+            pos = ann.getPosition()
+            if pos.Column == col and pos.Row == row:
+                annotations.removeByIndex(i)
+                return {
+                    "status": "ok",
+                    "cell": cell_ref,
+                    "message": "Comment deleted.",
+                }
 
-            return self._tool_error("No comment found at %s." % cell_ref)
-        except Exception as e:
-            return self._tool_error(str(e))
+        return self._tool_error("No comment found at %s." % cell_ref)

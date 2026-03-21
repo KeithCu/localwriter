@@ -53,6 +53,7 @@ class ListPages(ToolBase):
 
     def execute(self, ctx, **kwargs):
         from plugin.modules.draw.bridge import DrawBridge
+
         bridge = DrawBridge(ctx.doc)
         pages = bridge.get_pages()
         return {
@@ -80,6 +81,7 @@ class GetDrawSummary(ToolBase):
 
     def execute(self, ctx, **kwargs):
         from plugin.modules.draw.bridge import DrawBridge
+
         bridge = DrawBridge(ctx.doc)
         idx = kwargs.get("page_index")
         page = (
@@ -133,6 +135,7 @@ class CreateShape(ToolBase):
 
     def execute(self, ctx, **kwargs):
         from plugin.modules.draw.bridge import DrawBridge
+
         bridge = DrawBridge(ctx.doc)
         type_map = {
             "rectangle": "com.sun.star.drawing.RectangleShape",
@@ -152,9 +155,7 @@ class CreateShape(ToolBase):
             color = _parse_color(kwargs["bg_color"])
             if color is not None:
                 prop = (
-                    "LineColor"
-                    if "LineShape" in shape.getShapeType()
-                    else "FillColor"
+                    "LineColor" if "LineShape" in shape.getShapeType() else "FillColor"
                 )
                 try:
                     shape.setPropertyValue(prop, color)
@@ -194,6 +195,7 @@ class EditShape(ToolBase):
 
     def execute(self, ctx, **kwargs):
         from plugin.modules.draw.bridge import DrawBridge
+
         bridge = DrawBridge(ctx.doc)
         idx = kwargs.get("page_index")
         page = (
@@ -204,10 +206,12 @@ class EditShape(ToolBase):
         shape = page.getByIndex(kwargs["shape_index"])
         if "x" in kwargs or "y" in kwargs:
             from com.sun.star.awt import Point
+
             pos = shape.getPosition()
             shape.setPosition(Point(kwargs.get("x", pos.X), kwargs.get("y", pos.Y)))
         if "width" in kwargs or "height" in kwargs:
             from com.sun.star.awt import Size
+
             size = shape.getSize()
             shape.setSize(
                 Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height))
@@ -218,9 +222,7 @@ class EditShape(ToolBase):
             color = _parse_color(kwargs["bg_color"])
             if color is not None:
                 prop = (
-                    "LineColor"
-                    if "LineShape" in shape.getShapeType()
-                    else "FillColor"
+                    "LineColor" if "LineShape" in shape.getShapeType() else "FillColor"
                 )
                 try:
                     shape.setPropertyValue(prop, color)
@@ -246,6 +248,7 @@ class DeleteShape(ToolBase):
 
     def execute(self, ctx, **kwargs):
         from plugin.modules.draw.bridge import DrawBridge
+
         bridge = DrawBridge(ctx.doc)
         idx = kwargs.get("page_index")
         page = (

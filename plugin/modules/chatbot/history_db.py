@@ -20,6 +20,7 @@ import os
 
 try:
     import sqlite3
+
     HAS_SQLITE = True
 except ImportError:
     sqlite3 = None  # type: ignore[assignment]
@@ -31,6 +32,7 @@ from plugin.framework.config import user_config_dir
 from plugin.framework.uno_context import get_ctx
 
 log = logging.getLogger(__name__)
+
 
 def _get_db_path():
     ctx = get_ctx()
@@ -45,6 +47,7 @@ def _get_db_path():
         log.info(f"Using database path: {path}")
         return path
     return "writeragent_history.db"
+
 
 # LangChain-compatible JSON conversion
 def message_to_dict(role, content, tool_calls=None):
@@ -65,11 +68,8 @@ def message_to_dict(role, content, tool_calls=None):
             else:
                 content = "[Audio Attached]"
 
-    return {
-        "role": role,
-        "content": content,
-        "tool_calls": tool_calls
-    }
+    return {"role": role, "content": content, "tool_calls": tool_calls}
+
 
 # ---------------------------------------------------------------------------
 # Native SQLite3 Implementation
@@ -89,7 +89,9 @@ class SQLite3History:
                     message TEXT
                 )
             """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_session_id ON message_store(session_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_session_id ON message_store(session_id)"
+            )
             conn.commit()
 
     def add_message(self, role, content, tool_calls=None):
@@ -97,7 +99,7 @@ class SQLite3History:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO message_store (session_id, message) VALUES (?, ?)",
-                (self.session_id, json.dumps(msg_dict))
+                (self.session_id, json.dumps(msg_dict)),
             )
             conn.commit()
             log.info(f"SQLite3: Added message for session {self.session_id}")
@@ -106,16 +108,21 @@ class SQLite3History:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT message FROM message_store WHERE session_id = ? ORDER BY id ASC",
-                (self.session_id,)
+                (self.session_id,),
             )
             msgs = [json.loads(row[0]) for row in cursor.fetchall()]
-            log.debug(f"SQLite3: Retreived {len(msgs)} messages for session {self.session_id}")
+            log.debug(
+                f"SQLite3: Retreived {len(msgs)} messages for session {self.session_id}"
+            )
             return msgs
 
     def clear(self):
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM message_store WHERE session_id = ?", (self.session_id,))
+            conn.execute(
+                "DELETE FROM message_store WHERE session_id = ?", (self.session_id,)
+            )
             conn.commit()
+
 
 # ---------------------------------------------------------------------------
 # JSON Implementation (Fallback)
@@ -131,7 +138,7 @@ class JSONHistory:
             log.info(f"JSONHistory: Using directory {self.history_dir}")
         except Exception as e:
             log.error(f"JSONHistory: Error creating directory: {e}")
-        
+
         self.file_path = os.path.join(self.history_dir, f"{session_id}.json")
 
     def add_message(self, role, content, tool_calls=None):
@@ -151,7 +158,9 @@ class JSONHistory:
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 msgs = json.load(f)
-            log.debug(f"JSONHistory: Retreived {len(msgs)} messages for session {self.session_id}")
+            log.debug(
+                f"JSONHistory: Retreived {len(msgs)} messages for session {self.session_id}"
+            )
             return msgs
         except Exception as e:
             log.error(f"JSONHistory: Error reading messages: {e}")
@@ -162,7 +171,8 @@ class JSONHistory:
             try:
                 os.remove(self.file_path)
             except Exception as e:
-                                log.error(f"JSONHistory: Error clearing history: {e}")
+                log.error(f"JSONHistory: Error clearing history: {e}")
+
 
 # ---------------------------------------------------------------------------
 # Public API

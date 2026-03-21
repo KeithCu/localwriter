@@ -163,17 +163,14 @@ class ListPlaceholders(ToolBase):
     doc_types = ["draw", "impress"]
 
     def execute(self, ctx, **kwargs):
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            placeholders = _list_placeholders(page)
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "placeholders": placeholders,
-                "count": len(placeholders),
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        placeholders = _list_placeholders(page)
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "placeholders": placeholders,
+            "count": len(placeholders),
+        }
 
 
 class GetPlaceholderText(ToolBase):
@@ -207,36 +204,33 @@ class GetPlaceholderText(ToolBase):
     doc_types = ["draw", "impress"]
 
     def execute(self, ctx, **kwargs):
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            role = kwargs.get("role")
-            shape_index = kwargs.get("shape_index")
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        role = kwargs.get("role")
+        shape_index = kwargs.get("shape_index")
 
-            if shape_index is not None:
-                if shape_index < 0 or shape_index >= page.getCount():
-                    return self._tool_error("Shape index out of range.")
-                shape = page.getByIndex(shape_index)
-            elif role:
-                shape, _ = _find_placeholder(page, role)
-                if shape is None:
-                    return self._tool_error(
-                        "Placeholder '%s' not found." % role,
-                        available=_list_placeholders(page),
-                    )
-            else:
-                return self._tool_error("Specify role or shape_index.")
+        if shape_index is not None:
+            if shape_index < 0 or shape_index >= page.getCount():
+                return self._tool_error("Shape index out of range.")
+            shape = page.getByIndex(shape_index)
+        elif role:
+            shape, _ = _find_placeholder(page, role)
+            if shape is None:
+                return self._tool_error(
+                    "Placeholder '%s' not found." % role,
+                    available=_list_placeholders(page),
+                )
+        else:
+            return self._tool_error("Specify role or shape_index.")
 
-            if not hasattr(shape, "getString"):
-                return self._tool_error("Shape has no text.")
+        if not hasattr(shape, "getString"):
+            return self._tool_error("Shape has no text.")
 
-            return {
-                "status": "ok",
-                "text": shape.getString(),
-                "role": role,
-                "shape_index": shape_index,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        return {
+            "status": "ok",
+            "text": shape.getString(),
+            "role": role,
+            "shape_index": shape_index,
+        }
 
 
 class SetPlaceholderText(ToolBase):
@@ -275,35 +269,32 @@ class SetPlaceholderText(ToolBase):
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            text = kwargs["text"]
-            role = kwargs.get("role")
-            shape_index = kwargs.get("shape_index")
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        text = kwargs["text"]
+        role = kwargs.get("role")
+        shape_index = kwargs.get("shape_index")
 
-            if shape_index is not None:
-                if shape_index < 0 or shape_index >= page.getCount():
-                    return self._tool_error("Shape index out of range.")
-                shape = page.getByIndex(shape_index)
-            elif role:
-                shape, shape_index = _find_placeholder(page, role)
-                if shape is None:
-                    return self._tool_error(
-                        "Placeholder '%s' not found." % role,
-                        available=_list_placeholders(page),
-                    )
-            else:
-                return self._tool_error("Specify role or shape_index.")
+        if shape_index is not None:
+            if shape_index < 0 or shape_index >= page.getCount():
+                return self._tool_error("Shape index out of range.")
+            shape = page.getByIndex(shape_index)
+        elif role:
+            shape, shape_index = _find_placeholder(page, role)
+            if shape is None:
+                return self._tool_error(
+                    "Placeholder '%s' not found." % role,
+                    available=_list_placeholders(page),
+                )
+        else:
+            return self._tool_error("Specify role or shape_index.")
 
-            if not hasattr(shape, "setString"):
-                return self._tool_error("Shape does not support text.")
+        if not hasattr(shape, "setString"):
+            return self._tool_error("Shape does not support text.")
 
-            shape.setString(text)
-            return {
-                "status": "ok",
-                "text": text,
-                "role": role,
-                "shape_index": shape_index,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        shape.setString(text)
+        return {
+            "status": "ok",
+            "text": text,
+            "role": role,
+            "shape_index": shape_index,
+        }

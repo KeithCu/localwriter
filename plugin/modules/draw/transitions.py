@@ -115,57 +115,56 @@ class GetSlideTransition(ToolBase):
     doc_types = ["impress"]
 
     def execute(self, ctx, **kwargs):
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+
+        # FadeEffect
+        effect = "none"
         try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
+            fe = page.getPropertyValue("Effect")
+            effect = fe.value.lower() if hasattr(fe, "value") else str(fe).lower()
+        except Exception:
+            pass
 
-            # FadeEffect
-            effect = "none"
-            try:
-                fe = page.getPropertyValue("Effect")
-                effect = fe.value.lower() if hasattr(fe, "value") else str(fe).lower()
-            except Exception:
-                pass
+        # Speed
+        speed = "medium"
+        try:
+            sp = page.getPropertyValue("Speed")
+            speed = sp.value.lower() if hasattr(sp, "value") else str(sp).lower()
+        except Exception:
+            pass
 
-            # Speed
-            speed = "medium"
-            try:
-                sp = page.getPropertyValue("Speed")
-                speed = sp.value.lower() if hasattr(sp, "value") else str(sp).lower()
-            except Exception:
-                pass
+        # Duration (auto-advance)
+        duration = 0
+        try:
+            duration = page.getPropertyValue("Duration")
+        except Exception:
+            pass
 
-            # Duration (auto-advance)
-            duration = 0
-            try:
-                duration = page.getPropertyValue("Duration")
-            except Exception:
-                pass
+        # TransitionDuration (transition animation time)
+        transition_duration = None
+        try:
+            transition_duration = page.getPropertyValue("TransitionDuration")
+        except Exception:
+            pass
 
-            # TransitionDuration (transition animation time)
-            transition_duration = None
-            try:
-                transition_duration = page.getPropertyValue("TransitionDuration")
-            except Exception:
-                pass
+        # Change mode: 0=click, 1=auto, 2=semi-auto
+        change = 0
+        try:
+            change = page.getPropertyValue("Change")
+        except Exception:
+            pass
 
-            # Change mode: 0=click, 1=auto, 2=semi-auto
-            change = 0
-            try:
-                change = page.getPropertyValue("Change")
-            except Exception:
-                pass
-
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "effect": effect,
-                "speed": speed,
-                "duration": duration,
-                "transition_duration": transition_duration,
-                "advance": {0: "on_click", 1: "auto", 2: "semi_auto"}.get(change, "on_click"),
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "effect": effect,
+            "speed": speed,
+            "duration": duration,
+            "transition_duration": transition_duration,
+            "advance": {0: "on_click", 1: "auto", 2: "semi_auto"}.get(
+                change, "on_click"
+            ),
+        }
 
 
 class SetSlideTransition(ToolBase):
@@ -222,104 +221,122 @@ class SetSlideTransition(ToolBase):
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            updated = []
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        updated = []
 
-            # Effect
-            effect_name = kwargs.get("effect")
-            if effect_name is not None:
-                effect_key = effect_name.strip().lower()
-                uno_name = _FADE_EFFECTS.get(effect_key, effect_key.upper())
-                try:
-                    from com.sun.star.presentation.FadeEffect import (
-                        NONE, FADE_FROM_LEFT, FADE_FROM_TOP, FADE_FROM_RIGHT,
-                        FADE_FROM_BOTTOM, FADE_TO_CENTER, FADE_FROM_CENTER,
-                        MOVE_FROM_LEFT, MOVE_FROM_TOP, MOVE_FROM_RIGHT,
-                        MOVE_FROM_BOTTOM, ROLL_FROM_LEFT, ROLL_FROM_TOP,
-                        ROLL_FROM_RIGHT, ROLL_FROM_BOTTOM,
-                        UNCOVER_TO_LEFT, UNCOVER_TO_TOP, UNCOVER_TO_RIGHT,
-                        UNCOVER_TO_BOTTOM, OPEN_VERTICAL, OPEN_HORIZONTAL,
-                        CLOSE_VERTICAL, CLOSE_HORIZONTAL, DISSOLVE, RANDOM,
-                    )
-                    effects_map = {
-                        "NONE": NONE,
-                        "FADE_FROM_LEFT": FADE_FROM_LEFT,
-                        "FADE_FROM_TOP": FADE_FROM_TOP,
-                        "FADE_FROM_RIGHT": FADE_FROM_RIGHT,
-                        "FADE_FROM_BOTTOM": FADE_FROM_BOTTOM,
-                        "FADE_TO_CENTER": FADE_TO_CENTER,
-                        "FADE_FROM_CENTER": FADE_FROM_CENTER,
-                        "MOVE_FROM_LEFT": MOVE_FROM_LEFT,
-                        "MOVE_FROM_TOP": MOVE_FROM_TOP,
-                        "MOVE_FROM_RIGHT": MOVE_FROM_RIGHT,
-                        "MOVE_FROM_BOTTOM": MOVE_FROM_BOTTOM,
-                        "ROLL_FROM_LEFT": ROLL_FROM_LEFT,
-                        "ROLL_FROM_TOP": ROLL_FROM_TOP,
-                        "ROLL_FROM_RIGHT": ROLL_FROM_RIGHT,
-                        "ROLL_FROM_BOTTOM": ROLL_FROM_BOTTOM,
-                        "UNCOVER_TO_LEFT": UNCOVER_TO_LEFT,
-                        "UNCOVER_TO_TOP": UNCOVER_TO_TOP,
-                        "UNCOVER_TO_RIGHT": UNCOVER_TO_RIGHT,
-                        "UNCOVER_TO_BOTTOM": UNCOVER_TO_BOTTOM,
-                        "OPEN_VERTICAL": OPEN_VERTICAL,
-                        "OPEN_HORIZONTAL": OPEN_HORIZONTAL,
-                        "CLOSE_VERTICAL": CLOSE_VERTICAL,
-                        "CLOSE_HORIZONTAL": CLOSE_HORIZONTAL,
-                        "DISSOLVE": DISSOLVE,
-                        "RANDOM": RANDOM,
-                    }
-                    if uno_name in effects_map:
-                        page.setPropertyValue("Effect", effects_map[uno_name])
-                        updated.append("effect")
-                    else:
-                        return self._tool_error(
-                            "Unknown effect: %s" % effect_name,
-                            available=sorted(_FADE_EFFECTS.keys()),
-                        )
-                except ImportError:
-                    return self._tool_error("FadeEffect enum not available.")
-
-            # Speed
-            speed = kwargs.get("speed")
-            if speed is not None:
-                from com.sun.star.presentation.AnimationSpeed import (
-                    SLOW, MEDIUM, FAST,
+        # Effect
+        effect_name = kwargs.get("effect")
+        if effect_name is not None:
+            effect_key = effect_name.strip().lower()
+            uno_name = _FADE_EFFECTS.get(effect_key, effect_key.upper())
+            try:
+                from com.sun.star.presentation.FadeEffect import (
+                    NONE,
+                    FADE_FROM_LEFT,
+                    FADE_FROM_TOP,
+                    FADE_FROM_RIGHT,
+                    FADE_FROM_BOTTOM,
+                    FADE_TO_CENTER,
+                    FADE_FROM_CENTER,
+                    MOVE_FROM_LEFT,
+                    MOVE_FROM_TOP,
+                    MOVE_FROM_RIGHT,
+                    MOVE_FROM_BOTTOM,
+                    ROLL_FROM_LEFT,
+                    ROLL_FROM_TOP,
+                    ROLL_FROM_RIGHT,
+                    ROLL_FROM_BOTTOM,
+                    UNCOVER_TO_LEFT,
+                    UNCOVER_TO_TOP,
+                    UNCOVER_TO_RIGHT,
+                    UNCOVER_TO_BOTTOM,
+                    OPEN_VERTICAL,
+                    OPEN_HORIZONTAL,
+                    CLOSE_VERTICAL,
+                    CLOSE_HORIZONTAL,
+                    DISSOLVE,
+                    RANDOM,
                 )
-                speed_map = {"slow": SLOW, "medium": MEDIUM, "fast": FAST}
-                if speed.lower() in speed_map:
-                    page.setPropertyValue("Speed", speed_map[speed.lower()])
-                    updated.append("speed")
 
-            # Transition animation duration
-            td = kwargs.get("transition_duration")
-            if td is not None:
-                try:
-                    page.setPropertyValue("TransitionDuration", float(td))
-                    updated.append("transition_duration")
-                except Exception:
-                    pass
+                effects_map = {
+                    "NONE": NONE,
+                    "FADE_FROM_LEFT": FADE_FROM_LEFT,
+                    "FADE_FROM_TOP": FADE_FROM_TOP,
+                    "FADE_FROM_RIGHT": FADE_FROM_RIGHT,
+                    "FADE_FROM_BOTTOM": FADE_FROM_BOTTOM,
+                    "FADE_TO_CENTER": FADE_TO_CENTER,
+                    "FADE_FROM_CENTER": FADE_FROM_CENTER,
+                    "MOVE_FROM_LEFT": MOVE_FROM_LEFT,
+                    "MOVE_FROM_TOP": MOVE_FROM_TOP,
+                    "MOVE_FROM_RIGHT": MOVE_FROM_RIGHT,
+                    "MOVE_FROM_BOTTOM": MOVE_FROM_BOTTOM,
+                    "ROLL_FROM_LEFT": ROLL_FROM_LEFT,
+                    "ROLL_FROM_TOP": ROLL_FROM_TOP,
+                    "ROLL_FROM_RIGHT": ROLL_FROM_RIGHT,
+                    "ROLL_FROM_BOTTOM": ROLL_FROM_BOTTOM,
+                    "UNCOVER_TO_LEFT": UNCOVER_TO_LEFT,
+                    "UNCOVER_TO_TOP": UNCOVER_TO_TOP,
+                    "UNCOVER_TO_RIGHT": UNCOVER_TO_RIGHT,
+                    "UNCOVER_TO_BOTTOM": UNCOVER_TO_BOTTOM,
+                    "OPEN_VERTICAL": OPEN_VERTICAL,
+                    "OPEN_HORIZONTAL": OPEN_HORIZONTAL,
+                    "CLOSE_VERTICAL": CLOSE_VERTICAL,
+                    "CLOSE_HORIZONTAL": CLOSE_HORIZONTAL,
+                    "DISSOLVE": DISSOLVE,
+                    "RANDOM": RANDOM,
+                }
+                if uno_name in effects_map:
+                    page.setPropertyValue("Effect", effects_map[uno_name])
+                    updated.append("effect")
+                else:
+                    return self._tool_error(
+                        "Unknown effect: %s" % effect_name,
+                        available=sorted(_FADE_EFFECTS.keys()),
+                    )
+            except ImportError:
+                return self._tool_error("FadeEffect enum not available.")
 
-            # Auto-advance duration
-            duration = kwargs.get("duration")
-            if duration is not None:
-                page.setPropertyValue("Duration", int(duration))
-                updated.append("duration")
+        # Speed
+        speed = kwargs.get("speed")
+        if speed is not None:
+            from com.sun.star.presentation.AnimationSpeed import (
+                SLOW,
+                MEDIUM,
+                FAST,
+            )
 
-            # Advance mode
-            advance = kwargs.get("advance")
-            if advance is not None:
-                change = 0 if advance == "on_click" else 1
-                page.setPropertyValue("Change", change)
-                updated.append("advance")
+            speed_map = {"slow": SLOW, "medium": MEDIUM, "fast": FAST}
+            if speed.lower() in speed_map:
+                page.setPropertyValue("Speed", speed_map[speed.lower()])
+                updated.append("speed")
 
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "updated": updated,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        # Transition animation duration
+        td = kwargs.get("transition_duration")
+        if td is not None:
+            try:
+                page.setPropertyValue("TransitionDuration", float(td))
+                updated.append("transition_duration")
+            except Exception:
+                pass
+
+        # Auto-advance duration
+        duration = kwargs.get("duration")
+        if duration is not None:
+            page.setPropertyValue("Duration", int(duration))
+            updated.append("duration")
+
+        # Advance mode
+        advance = kwargs.get("advance")
+        if advance is not None:
+            change = 0 if advance == "on_click" else 1
+            page.setPropertyValue("Change", change)
+            updated.append("advance")
+
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "updated": updated,
+        }
 
 
 class GetSlideLayout(ToolBase):
@@ -344,19 +361,16 @@ class GetSlideLayout(ToolBase):
     doc_types = ["impress"]
 
     def execute(self, ctx, **kwargs):
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            layout_id = page.Layout
-            layout_name = _LAYOUT_NAMES.get(layout_id, "unknown_%d" % layout_id)
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "layout_id": layout_id,
-                "layout_name": layout_name,
-                "available_layouts": sorted(_LAYOUTS.keys()),
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        layout_id = page.Layout
+        layout_name = _LAYOUT_NAMES.get(layout_id, "unknown_%d" % layout_id)
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "layout_id": layout_id,
+            "layout_name": layout_name,
+            "available_layouts": sorted(_LAYOUTS.keys()),
+        }
 
 
 class SetSlideLayout(ToolBase):
@@ -396,13 +410,10 @@ class SetSlideLayout(ToolBase):
                 "Unknown layout: %s" % layout_name,
                 available=sorted(_LAYOUTS.keys()),
             )
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            page.Layout = _LAYOUTS[layout_name]
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "layout": layout_name,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        page.Layout = _LAYOUTS[layout_name]
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "layout": layout_name,
+        }

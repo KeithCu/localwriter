@@ -35,87 +35,295 @@ log = logging.getLogger("writeragent.writer.index")
 # ── Language mapping (ISO 639-1 -> snowballstemmer algorithm) ─────────
 
 _ISO_TO_SNOWBALL = {
-    "ar": "arabic",    "hy": "armenian",  "eu": "basque",
-    "ca": "catalan",   "da": "danish",    "nl": "dutch",
-    "en": "english",   "eo": "esperanto", "et": "estonian",
-    "fi": "finnish",   "fr": "french",    "de": "german",
-    "el": "greek",     "hi": "hindi",     "hu": "hungarian",
-    "id": "indonesian", "ga": "irish",    "it": "italian",
-    "lt": "lithuanian", "ne": "nepali",   "no": "norwegian",
-    "nb": "norwegian", "nn": "norwegian",
-    "pt": "portuguese", "ro": "romanian", "ru": "russian",
-    "sr": "serbian",   "es": "spanish",   "sv": "swedish",
-    "ta": "tamil",     "tr": "turkish",   "yi": "yiddish",
+    "ar": "arabic",
+    "hy": "armenian",
+    "eu": "basque",
+    "ca": "catalan",
+    "da": "danish",
+    "nl": "dutch",
+    "en": "english",
+    "eo": "esperanto",
+    "et": "estonian",
+    "fi": "finnish",
+    "fr": "french",
+    "de": "german",
+    "el": "greek",
+    "hi": "hindi",
+    "hu": "hungarian",
+    "id": "indonesian",
+    "ga": "irish",
+    "it": "italian",
+    "lt": "lithuanian",
+    "ne": "nepali",
+    "no": "norwegian",
+    "nb": "norwegian",
+    "nn": "norwegian",
+    "pt": "portuguese",
+    "ro": "romanian",
+    "ru": "russian",
+    "sr": "serbian",
+    "es": "spanish",
+    "sv": "swedish",
+    "ta": "tamil",
+    "tr": "turkish",
+    "yi": "yiddish",
 }
 
 # ── Stop words per language ───────────────────────────────────────────
 
 _STOP_WORDS = {
-    "french": frozenset({
-        "au", "aux", "avec", "ce", "ces", "cette", "dans", "de",
-        "des", "du", "elle", "en", "est", "et", "il", "ils", "je",
-        "la", "le", "les", "leur", "leurs", "lui", "ma", "mais",
-        "me", "mes", "mon", "ne", "ni", "nos", "notre", "nous",
-        "on", "ou", "par", "pas", "pour", "qu", "que", "qui", "sa",
-        "se", "ses", "si", "son", "sur", "ta", "te", "tes", "ton",
-        "tu", "un", "une", "vos", "votre", "vous",
-    }),
-    "english": frozenset({
-        "a", "an", "and", "are", "as", "at", "be", "but", "by",
-        "for", "from", "had", "has", "he", "her", "his", "if", "in",
-        "is", "it", "its", "my", "no", "not", "of", "on", "or",
-        "our", "she", "so", "the", "to", "up", "us", "was", "we",
-    }),
-    "german": frozenset({
-        "aber", "als", "am", "an", "auch", "auf", "aus", "bei",
-        "bin", "bis", "da", "das", "dem", "den", "der", "des",
-        "die", "du", "ein", "er", "es", "fur", "hat", "ich", "ihr",
-        "im", "in", "ist", "ja", "mir", "mit", "nach", "nicht",
-        "noch", "nun", "nur", "ob", "oder", "sie", "so", "und",
-        "uns", "vom", "von", "vor", "was", "wir", "zu", "zum", "zur",
-    }),
-    "spanish": frozenset({
-        "a", "al", "con", "de", "del", "el", "en", "es", "la",
-        "las", "lo", "los", "no", "por", "que", "se", "su", "un",
-        "una", "y",
-    }),
-    "italian": frozenset({
-        "a", "al", "che", "con", "da", "del", "di", "e", "il",
-        "in", "la", "le", "lo", "non", "per", "si", "su", "un", "una",
-    }),
-    "portuguese": frozenset({
-        "a", "ao", "com", "da", "de", "do", "e", "em", "na", "no",
-        "o", "os", "por", "que", "se", "um", "uma",
-    }),
+    "french": frozenset(
+        {
+            "au",
+            "aux",
+            "avec",
+            "ce",
+            "ces",
+            "cette",
+            "dans",
+            "de",
+            "des",
+            "du",
+            "elle",
+            "en",
+            "est",
+            "et",
+            "il",
+            "ils",
+            "je",
+            "la",
+            "le",
+            "les",
+            "leur",
+            "leurs",
+            "lui",
+            "ma",
+            "mais",
+            "me",
+            "mes",
+            "mon",
+            "ne",
+            "ni",
+            "nos",
+            "notre",
+            "nous",
+            "on",
+            "ou",
+            "par",
+            "pas",
+            "pour",
+            "qu",
+            "que",
+            "qui",
+            "sa",
+            "se",
+            "ses",
+            "si",
+            "son",
+            "sur",
+            "ta",
+            "te",
+            "tes",
+            "ton",
+            "tu",
+            "un",
+            "une",
+            "vos",
+            "votre",
+            "vous",
+        }
+    ),
+    "english": frozenset(
+        {
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "but",
+            "by",
+            "for",
+            "from",
+            "had",
+            "has",
+            "he",
+            "her",
+            "his",
+            "if",
+            "in",
+            "is",
+            "it",
+            "its",
+            "my",
+            "no",
+            "not",
+            "of",
+            "on",
+            "or",
+            "our",
+            "she",
+            "so",
+            "the",
+            "to",
+            "up",
+            "us",
+            "was",
+            "we",
+        }
+    ),
+    "german": frozenset(
+        {
+            "aber",
+            "als",
+            "am",
+            "an",
+            "auch",
+            "auf",
+            "aus",
+            "bei",
+            "bin",
+            "bis",
+            "da",
+            "das",
+            "dem",
+            "den",
+            "der",
+            "des",
+            "die",
+            "du",
+            "ein",
+            "er",
+            "es",
+            "fur",
+            "hat",
+            "ich",
+            "ihr",
+            "im",
+            "in",
+            "ist",
+            "ja",
+            "mir",
+            "mit",
+            "nach",
+            "nicht",
+            "noch",
+            "nun",
+            "nur",
+            "ob",
+            "oder",
+            "sie",
+            "so",
+            "und",
+            "uns",
+            "vom",
+            "von",
+            "vor",
+            "was",
+            "wir",
+            "zu",
+            "zum",
+            "zur",
+        }
+    ),
+    "spanish": frozenset(
+        {
+            "a",
+            "al",
+            "con",
+            "de",
+            "del",
+            "el",
+            "en",
+            "es",
+            "la",
+            "las",
+            "lo",
+            "los",
+            "no",
+            "por",
+            "que",
+            "se",
+            "su",
+            "un",
+            "una",
+            "y",
+        }
+    ),
+    "italian": frozenset(
+        {
+            "a",
+            "al",
+            "che",
+            "con",
+            "da",
+            "del",
+            "di",
+            "e",
+            "il",
+            "in",
+            "la",
+            "le",
+            "lo",
+            "non",
+            "per",
+            "si",
+            "su",
+            "un",
+            "una",
+        }
+    ),
+    "portuguese": frozenset(
+        {
+            "a",
+            "ao",
+            "com",
+            "da",
+            "de",
+            "do",
+            "e",
+            "em",
+            "na",
+            "no",
+            "o",
+            "os",
+            "por",
+            "que",
+            "se",
+            "um",
+            "uma",
+        }
+    ),
 }
 
 _STOP_WORDS_FALLBACK = frozenset()
 
 # ── Tokenisation ──────────────────────────────────────────────────────
 
-_PUNCT_RE = re.compile(r'[^\w\s]', re.UNICODE)
+_PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
 _MIN_TOKEN_LEN = 2
 
 
 def _deaccent(text):
-    nfkd = unicodedata.normalize('NFKD', text)
-    return ''.join(c for c in nfkd if unicodedata.category(c) != 'Mn')
+    nfkd = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
 
 
 def _raw_tokens(text):
-    cleaned = _PUNCT_RE.sub(' ', _deaccent(text.lower()))
+    cleaned = _PUNCT_RE.sub(" ", _deaccent(text.lower()))
     return [t for t in cleaned.split() if len(t) >= _MIN_TOKEN_LEN]
 
 
 # ── Per-document index ────────────────────────────────────────────────
 
+
 class _DocIndex:
-    __slots__ = ('terms', 'para_texts', 'para_count',
-                 'build_ms', 'language')
+    __slots__ = ("terms", "para_texts", "para_count", "build_ms", "language")
 
     def __init__(self):
-        self.terms = {}        # stem -> set[int]
-        self.para_texts = {}   # int -> str
+        self.terms = {}  # stem -> set[int]
+        self.para_texts = {}  # int -> str
         self.para_count = 0
         self.build_ms = 0.0
         self.language = "english"
@@ -184,6 +392,7 @@ class _DocIndex:
 
 # ── Service ───────────────────────────────────────────────────────────
 
+
 class IndexService:
     """Per-document inverted index with Snowball stemming."""
 
@@ -191,10 +400,9 @@ class IndexService:
         self._doc_svc = doc_svc
         self._tree_svc = tree_svc
         self._bm_svc = bookmark_svc
-        self._cache = {}       # doc_key -> _DocIndex
-        self._stemmers = {}    # lang -> StemmerInstance
-        events.subscribe("document:cache_invalidated",
-                         self._on_cache_invalidated)
+        self._cache = {}  # doc_key -> _DocIndex
+        self._stemmers = {}  # lang -> StemmerInstance
+        events.subscribe("document:cache_invalidated", self._on_cache_invalidated)
 
     def _on_cache_invalidated(self, doc=None, **_kw):
         if doc is None:
@@ -215,6 +423,7 @@ class IndexService:
             if lib_dir not in sys.path:
                 sys.path.insert(0, lib_dir)
             import snowballstemmer
+
             s = snowballstemmer.stemmer(lang)
             self._stemmers[lang] = s
             return s
@@ -285,8 +494,13 @@ class IndexService:
         idx.para_count = para_i
         idx.build_ms = round((time.perf_counter() - t0) * 1000, 1)
         self._cache[key] = idx
-        log.info("Index built [%s]: %d paras, %d stems, %.1fms",
-                 lang, para_i, len(idx.terms), idx.build_ms)
+        log.info(
+            "Index built [%s]: %d paras, %d stems, %.1fms",
+            lang,
+            para_i,
+            len(idx.terms),
+            idx.build_ms,
+        )
         return idx, False
 
     # ── Query parsing ─────────────────────────────────────────────
@@ -304,12 +518,16 @@ class IndexService:
 
     def _parse_query(self, query, stemmer, stop_words):
         result = {
-            "and_stems": [], "or_stems": [], "not_stems": [],
-            "near": [], "dropped_stops": [], "mode": "and",
+            "and_stems": [],
+            "or_stems": [],
+            "not_stems": [],
+            "near": [],
+            "dropped_stops": [],
+            "mode": "and",
             "error": None,
         }
 
-        not_split = re.split(r'\bNOT\b', query, flags=re.IGNORECASE)
+        not_split = re.split(r"\bNOT\b", query, flags=re.IGNORECASE)
         main_part = not_split[0].strip()
         for part in not_split[1:]:
             stems, dropped = self._stem_query_tokens(part, stemmer, stop_words)
@@ -317,14 +535,15 @@ class IndexService:
             result["dropped_stops"].extend(dropped)
 
         # NEAR/N
-        near_match = re.search(
-            r'(.+?)\s+NEAR/(\d+)\s+(.+)', main_part, re.IGNORECASE)
+        near_match = re.search(r"(.+?)\s+NEAR/(\d+)\s+(.+)", main_part, re.IGNORECASE)
         if near_match:
             left, dropped_l = self._stem_query_tokens(
-                near_match.group(1), stemmer, stop_words)
+                near_match.group(1), stemmer, stop_words
+            )
             dist = int(near_match.group(2))
             right, dropped_r = self._stem_query_tokens(
-                near_match.group(3), stemmer, stop_words)
+                near_match.group(3), stemmer, stop_words
+            )
             result["dropped_stops"].extend(dropped_l + dropped_r)
             if left and right:
                 result["near"].append((left, right, dist))
@@ -333,14 +552,14 @@ class IndexService:
                 result["error"] = "NEAR terms are all stop words"
             return result
 
-        has_and = bool(re.search(r'\bAND\b', main_part, re.IGNORECASE))
-        has_or = bool(re.search(r'\bOR\b', main_part, re.IGNORECASE))
+        has_and = bool(re.search(r"\bAND\b", main_part, re.IGNORECASE))
+        has_or = bool(re.search(r"\bOR\b", main_part, re.IGNORECASE))
         if has_and and has_or:
             result["error"] = "Mixed AND/OR not supported. Use one operator per query."
             return result
 
         if has_or:
-            chunks = re.split(r'\bOR\b', main_part, flags=re.IGNORECASE)
+            chunks = re.split(r"\bOR\b", main_part, flags=re.IGNORECASE)
             for chunk in chunks:
                 stems, dropped = self._stem_query_tokens(chunk, stemmer, stop_words)
                 result["or_stems"].extend(stems)
@@ -348,7 +567,7 @@ class IndexService:
             result["mode"] = "or"
         else:
             if has_and:
-                chunks = re.split(r'\bAND\b', main_part, flags=re.IGNORECASE)
+                chunks = re.split(r"\bAND\b", main_part, flags=re.IGNORECASE)
             else:
                 chunks = [main_part]
             for chunk in chunks:
@@ -362,8 +581,7 @@ class IndexService:
 
     # ── Public API ────────────────────────────────────────────────
 
-    def search_boolean(self, doc, query, max_results=20,
-                       context_paragraphs=1):
+    def search_boolean(self, doc, query, max_results=20, context_paragraphs=1):
         """Boolean full-text search with Snowball stemming."""
         idx, was_cached = self._get_index(doc)
 
@@ -416,8 +634,7 @@ class IndexService:
                 for j in range(ctx_lo, ctx_hi)
             ]
 
-            matched = [s for s in all_positive
-                       if para_i in idx.terms.get(s, set())]
+            matched = [s for s in all_positive if para_i in idx.terms.get(s, set())]
 
             entry = {
                 "paragraph_index": para_i,
@@ -426,8 +643,7 @@ class IndexService:
                 "context": context,
             }
 
-            nearest = self._bm_svc.find_nearest_heading_bookmark(
-                para_i, bookmark_map)
+            nearest = self._bm_svc.find_nearest_heading_bookmark(para_i, bookmark_map)
             if nearest:
                 entry["nearest_heading"] = nearest
             results.append(entry)
@@ -447,8 +663,11 @@ class IndexService:
             },
         }
         if near:
-            resp["near"] = {"left": near[0][0], "right": near[0][1],
-                            "distance": near[0][2]}
+            resp["near"] = {
+                "left": near[0][0],
+                "right": near[0][1],
+                "distance": near[0][2],
+            }
         if parsed["dropped_stops"]:
             resp["dropped_stops"] = parsed["dropped_stops"]
         return resp
@@ -457,9 +676,7 @@ class IndexService:
         """Index statistics + top 20 most frequent stems."""
         idx, was_cached = self._get_index(doc)
 
-        top = sorted(idx.terms.items(),
-                     key=lambda x: len(x[1]),
-                     reverse=True)[:20]
+        top = sorted(idx.terms.items(), key=lambda x: len(x[1]), reverse=True)[:20]
 
         return {
             "language": idx.language,
@@ -467,6 +684,5 @@ class IndexService:
             "unique_stems": len(idx.terms),
             "build_ms": idx.build_ms,
             "cached": was_cached,
-            "top_stems": [{"stem": t, "paragraphs": len(s)}
-                          for t, s in top],
+            "top_stems": [{"stem": t, "paragraphs": len(s)} for t, s in top],
         }

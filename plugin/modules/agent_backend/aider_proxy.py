@@ -30,11 +30,11 @@ class AiderBackend(CLIProcessBackend):
         # Aider usually shows something like "> ", "aider> " or "You: "
         if not line:
             return False
-            
+
         # Strip all ANSI and whitespace
         s = strip_ansi(line).strip()
-        
-        # Must be EXACTLY one of these prompts. 
+
+        # Must be EXACTLY one of these prompts.
         # This prevents matching text in the middle of a line or in context.
         return s in (">", "You:", "aider>", "aider")
 
@@ -42,7 +42,16 @@ class AiderBackend(CLIProcessBackend):
         # We only treat a prompt as the end of a response if it's an exact match.
         return self.is_ready_prompt(line)
 
-    def format_input(self, user_message, document_context, document_url, system_prompt, selection_text, mcp_url=None, **kwargs):
+    def format_input(
+        self,
+        user_message,
+        document_context,
+        document_url,
+        system_prompt,
+        selection_text,
+        mcp_url=None,
+        **kwargs,
+    ):
         # Aider has specific slash commands and expects typical conversational input.
         # It's primarily for coding, but we can pass it arbitrary prompts.
         parts = []

@@ -48,12 +48,8 @@ class ListSheets(ToolBase):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
 
-        try:
-            result = manipulator.list_sheets()
-            return {"status": "ok", "result": result}
-        except Exception as e:
-            logger.exception("list_sheets failed")
-            return self._tool_error(str(e))
+        result = manipulator.list_sheets()
+        return {"status": "ok", "result": result}
 
 
 class SwitchSheet(ToolBase):
@@ -80,12 +76,8 @@ class SwitchSheet(ToolBase):
         manipulator = CellManipulator(bridge)
         sheet_name = kwargs["sheet_name"]
 
-        try:
-            result = manipulator.switch_sheet(sheet_name)
-            return {"status": "ok", "message": result}
-        except Exception as e:
-            logger.exception("switch_sheet failed")
-            return self._tool_error(str(e))
+        result = manipulator.switch_sheet(sheet_name)
+        return {"status": "ok", "message": result}
 
 
 class CreateSheet(ToolBase):
@@ -104,8 +96,7 @@ class CreateSheet(ToolBase):
             "position": {
                 "type": "integer",
                 "description": (
-                    "Sheet position (0-based). Appended to end if not "
-                    "specified."
+                    "Sheet position (0-based). Appended to end if not specified."
                 ),
             },
         },
@@ -120,12 +111,8 @@ class CreateSheet(ToolBase):
         sheet_name = kwargs["sheet_name"]
         position = kwargs.get("position")
 
-        try:
-            result = manipulator.create_sheet(sheet_name, position=position)
-            return {"status": "ok", "message": result}
-        except Exception as e:
-            logger.exception("create_sheet failed")
-            return self._tool_error(str(e))
+        result = manipulator.create_sheet(sheet_name, position=position)
+        return {"status": "ok", "message": result}
 
 
 class GetSheetSummary(ToolBase):
@@ -155,9 +142,5 @@ class GetSheetSummary(ToolBase):
         analyzer = SheetAnalyzer(bridge)
         sheet_name = kwargs.get("sheet_name")
 
-        try:
-            result = analyzer.get_sheet_summary(sheet_name=sheet_name)
-            return {"status": "ok", "result": result}
-        except Exception as e:
-            logger.exception("get_sheet_summary failed")
-            return self._tool_error(str(e))
+        result = analyzer.get_sheet_summary(sheet_name=sheet_name)
+        return {"status": "ok", "result": result}

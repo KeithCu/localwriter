@@ -36,7 +36,7 @@ class GetDocumentTree(ToolBase):
     tier = "core"
     description = (
         "Get the document heading tree with bookmarks and content previews. "
-        "Use content_strategy=\"heading_only\" for a simple outline (headings hierarchy). "
+        'Use content_strategy="heading_only" for a simple outline (headings hierarchy). '
         "Creates _mcp_ bookmarks on headings for stable addressing. "
         "Strategies: heading_only, first_lines (default), ai_summary_first, full. "
         "depth=0 for unlimited, depth=1 (default) for top-level only."
@@ -119,5 +119,3 @@ class GetHeadingChildren(ToolBaseDummy):
             return {"status": "ok", **result}
         except ValueError as e:
             return self._tool_error(str(e))
-
-

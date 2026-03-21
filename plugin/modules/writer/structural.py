@@ -31,20 +31,19 @@ class ListSections(ToolBaseDummy):
         doc = ctx.doc
         if not hasattr(doc, "getTextSections"):
             return {"status": "ok", "sections": [], "count": 0}
-        try:
-            supplier = doc.getTextSections()
-            names = supplier.getElementNames()
-            sections = []
-            for name in names:
-                section = supplier.getByName(name)
-                sections.append({
+        supplier = doc.getTextSections()
+        names = supplier.getElementNames()
+        sections = []
+        for name in names:
+            section = supplier.getByName(name)
+            sections.append(
+                {
                     "name": name,
                     "is_visible": getattr(section, "IsVisible", True),
                     "is_protected": getattr(section, "IsProtected", False),
-                })
-            return {"status": "ok", "sections": sections, "count": len(sections)}
-        except Exception as e:
-            return self._tool_error(str(e))
+                }
+            )
+        return {"status": "ok", "sections": sections, "count": len(sections)}
 
 
 class GotoPage(ToolBaseDummy):
@@ -61,13 +60,10 @@ class GotoPage(ToolBaseDummy):
     doc_types = ["writer"]
 
     def execute(self, ctx, **kwargs):
-        try:
-            controller = ctx.doc.getCurrentController()
-            vc = controller.getViewCursor()
-            vc.jumpToPage(kwargs["page"])
-            return {"status": "ok", "page": vc.getPage()}
-        except Exception as e:
-            return self._tool_error(str(e))
+        controller = ctx.doc.getCurrentController()
+        vc = controller.getViewCursor()
+        vc.jumpToPage(kwargs["page"])
+        return {"status": "ok", "page": vc.getPage()}
 
 
 class GetPageObjects(ToolBaseDummy):
@@ -82,7 +78,10 @@ class GetPageObjects(ToolBaseDummy):
         "properties": {
             "page": {"type": "integer", "description": "Page number"},
             "locator": {"type": "string", "description": "Locator to determine page"},
-            "paragraph_index": {"type": "integer", "description": "Paragraph index to determine page"},
+            "paragraph_index": {
+                "type": "integer",
+                "description": "Paragraph index to determine page",
+            },
         },
         "required": [],
     }
@@ -110,19 +109,16 @@ class GetPageObjects(ToolBaseDummy):
                 except Exception:
                     page = 1
 
+        controller = doc.getCurrentController()
+        vc = controller.getViewCursor()
+        saved = doc.getText().createTextCursorByRange(vc.getStart())
+        doc.lockControllers()
         try:
-            controller = doc.getCurrentController()
-            vc = controller.getViewCursor()
-            saved = doc.getText().createTextCursorByRange(vc.getStart())
-            doc.lockControllers()
-            try:
-                objects = self._scan_page(doc, vc, page)
-            finally:
-                vc.gotoRange(saved, False)
-                doc.unlockControllers()
-            return {"status": "ok", "page": page, **objects}
-        except Exception as e:
-            return self._tool_error(str(e))
+            objects = self._scan_page(doc, vc, page)
+        finally:
+            vc.gotoRange(saved, False)
+            doc.unlockControllers()
+        return {"status": "ok", "page": page, **objects}
 
     def _scan_page(self, doc, vc, page):
         images = []
@@ -133,12 +129,14 @@ class GetPageObjects(ToolBaseDummy):
                     vc.gotoRange(g.getAnchor(), False)
                     if vc.getPage() == page:
                         size = g.getPropertyValue("Size")
-                        images.append({
-                            "name": name,
-                            "width_mm": size.Width // 100,
-                            "height_mm": size.Height // 100,
-                            "title": g.getPropertyValue("Title"),
-                        })
+                        images.append(
+                            {
+                                "name": name,
+                                "width_mm": size.Width // 100,
+                                "height_mm": size.Height // 100,
+                                "title": g.getPropertyValue("Title"),
+                            }
+                        )
                 except Exception:
                     pass
 
@@ -149,11 +147,13 @@ class GetPageObjects(ToolBaseDummy):
                     t = doc.getTextTables().getByName(name)
                     vc.gotoRange(t.getAnchor(), False)
                     if vc.getPage() == page:
-                        tables.append({
-                            "name": name,
-                            "rows": t.getRows().getCount(),
-                            "cols": t.getColumns().getCount(),
-                        })
+                        tables.append(
+                            {
+                                "name": name,
+                                "rows": t.getRows().getCount(),
+                                "cols": t.getColumns().getCount(),
+                            }
+                        )
                 except Exception:
                     pass
 
@@ -165,11 +165,13 @@ class GetPageObjects(ToolBaseDummy):
                     vc.gotoRange(fr.getAnchor(), False)
                     if vc.getPage() == page:
                         size = fr.getPropertyValue("Size")
-                        frames.append({
-                            "name": fname,
-                            "width_mm": size.Width // 100,
-                            "height_mm": size.Height // 100,
-                        })
+                        frames.append(
+                            {
+                                "name": fname,
+                                "width_mm": size.Width // 100,
+                                "height_mm": size.Height // 100,
+                            }
+                        )
                 except Exception:
                     pass
 
@@ -188,18 +190,15 @@ class RefreshIndexes(ToolBaseDummy):
         doc = ctx.doc
         if not hasattr(doc, "getDocumentIndexes"):
             return self._tool_error("Document does not support indexes")
-        try:
-            indexes = doc.getDocumentIndexes()
-            count = indexes.getCount()
-            refreshed = []
-            for i in range(count):
-                idx = indexes.getByIndex(i)
-                idx.update()
-                name = idx.getName() if hasattr(idx, "getName") else "index_%d" % i
-                refreshed.append(name)
-            return {"status": "ok", "refreshed": refreshed, "count": count}
-        except Exception as e:
-            return self._tool_error(str(e))
+        indexes = doc.getDocumentIndexes()
+        count = indexes.getCount()
+        refreshed = []
+        for i in range(count):
+            idx = indexes.getByIndex(i)
+            idx.update()
+            name = idx.getName() if hasattr(idx, "getName") else "index_%d" % i
+            refreshed.append(name)
+        return {"status": "ok", "refreshed": refreshed, "count": count}
 
 
 class ReadSection(ToolBaseDummy):
@@ -232,36 +231,34 @@ class ReadSection(ToolBaseDummy):
         if not hasattr(doc, "getTextSections"):
             return self._tool_error("Document does not support sections.")
 
-        try:
-            sections = doc.getTextSections()
-            if not sections.hasByName(section_name):
-                available = list(sections.getElementNames())
-                return self._tool_error("Section '%s' not found." % section_name,
-                    available=available)
+        sections = doc.getTextSections()
+        if not sections.hasByName(section_name):
+            available = list(sections.getElementNames())
+            return self._tool_error(
+                "Section '%s' not found." % section_name, available=available
+            )
 
-            section = sections.getByName(section_name)
-            anchor = section.getAnchor()
+        section = sections.getByName(section_name)
+        anchor = section.getAnchor()
 
-            # Extract paragraphs within the section
-            enum = anchor.createEnumeration()
-            paragraphs = []
-            while enum.hasMoreElements():
-                para = enum.nextElement()
-                if para.supportsService("com.sun.star.text.Paragraph"):
-                    paragraphs.append(para.getString())
-                else:
-                    paragraphs.append("[Table]")
+        # Extract paragraphs within the section
+        enum = anchor.createEnumeration()
+        paragraphs = []
+        while enum.hasMoreElements():
+            para = enum.nextElement()
+            if para.supportsService("com.sun.star.text.Paragraph"):
+                paragraphs.append(para.getString())
+            else:
+                paragraphs.append("[Table]")
 
-            content = "\n".join(paragraphs)
-            return {
-                "status": "ok",
-                "section_name": section_name,
-                "paragraphs": paragraphs,
-                "content": content,
-                "length": len(content),
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        content = "\n".join(paragraphs)
+        return {
+            "status": "ok",
+            "section_name": section_name,
+            "paragraphs": paragraphs,
+            "content": content,
+            "length": len(content),
+        }
 
 
 class ResolveBookmark(ToolBaseDummy):
@@ -295,57 +292,49 @@ class ResolveBookmark(ToolBaseDummy):
         if not hasattr(doc, "getBookmarks"):
             return self._tool_error("Document does not support bookmarks.")
 
-        try:
-            bookmarks = doc.getBookmarks()
-            if not bookmarks.hasByName(bookmark_name):
-                hint = "Bookmark '%s' not found." % bookmark_name
-                if bookmark_name.startswith("_mcp_"):
-                    hint += (
-                        " It may have been deleted or the document changed. "
-                        "Use heading_text:<text> locator for resilient "
-                        "heading addressing, or call get_document_tree "
-                        "to refresh bookmarks."
-                    )
-                    existing = [
-                        n for n in bookmarks.getElementNames()
-                        if n.startswith("_mcp_")
-                    ]
-                    if existing:
-                        hint += " Existing bookmarks: %s" % ", ".join(existing[:10])
-                return self._tool_error(hint)
+        bookmarks = doc.getBookmarks()
+        if not bookmarks.hasByName(bookmark_name):
+            hint = "Bookmark '%s' not found." % bookmark_name
+            if bookmark_name.startswith("_mcp_"):
+                hint += (
+                    " It may have been deleted or the document changed. "
+                    "Use heading_text:<text> locator for resilient "
+                    "heading addressing, or call get_document_tree "
+                    "to refresh bookmarks."
+                )
+                existing = [
+                    n for n in bookmarks.getElementNames() if n.startswith("_mcp_")
+                ]
+                if existing:
+                    hint += " Existing bookmarks: %s" % ", ".join(existing[:10])
+            return self._tool_error(hint)
 
-            bm = bookmarks.getByName(bookmark_name)
-            anchor = bm.getAnchor()
+        bm = bookmarks.getByName(bookmark_name)
+        anchor = bm.getAnchor()
 
-            # Find paragraph index
-            doc_svc = ctx.services.document
-            para_ranges = doc_svc.get_paragraph_ranges(doc)
-            text_obj = doc.getText()
-            para_idx = doc_svc.find_paragraph_for_range(
-                anchor, para_ranges, text_obj
-            )
+        # Find paragraph index
+        doc_svc = ctx.services.document
+        para_ranges = doc_svc.get_paragraph_ranges(doc)
+        text_obj = doc.getText()
+        para_idx = doc_svc.find_paragraph_for_range(anchor, para_ranges, text_obj)
 
-            result = {
-                "status": "ok",
-                "bookmark": bookmark_name,
-                "paragraph_index": para_idx,
-            }
+        result = {
+            "status": "ok",
+            "bookmark": bookmark_name,
+            "paragraph_index": para_idx,
+        }
 
-            # Get heading text if available
-            if 0 <= para_idx < len(para_ranges):
-                element = para_ranges[para_idx]
-                if element.supportsService("com.sun.star.text.Paragraph"):
-                    try:
-                        result["text"] = element.getString()
-                        result["outline_level"] = element.getPropertyValue(
-                            "OutlineLevel"
-                        )
-                    except Exception:
-                        pass
+        # Get heading text if available
+        if 0 <= para_idx < len(para_ranges):
+            element = para_ranges[para_idx]
+            if element.supportsService("com.sun.star.text.Paragraph"):
+                try:
+                    result["text"] = element.getString()
+                    result["outline_level"] = element.getPropertyValue("OutlineLevel")
+                except Exception:
+                    pass
 
-            return result
-        except Exception as e:
-            return self._tool_error(str(e))
+        return result
 
 
 class UpdateFields(ToolBaseDummy):
@@ -365,20 +354,18 @@ class UpdateFields(ToolBaseDummy):
         doc = ctx.doc
         if not hasattr(doc, "getTextFields"):
             return self._tool_error("Document does not support text fields.")
-        try:
-            fields = doc.getTextFields()
-            fields.refresh()
+        fields = doc.getTextFields()
+        fields.refresh()
 
-            # Count the fields
-            enum = fields.createEnumeration()
-            count = 0
-            while enum.hasMoreElements():
-                enum.nextElement()
-                count += 1
+        # Count the fields
+        enum = fields.createEnumeration()
+        count = 0
+        while enum.hasMoreElements():
+            enum.nextElement()
+            count += 1
 
-            return {"status": "ok", "fields_refreshed": count}
-        except Exception as e:
-            return self._tool_error(str(e))
+        return {"status": "ok", "fields_refreshed": count}
+
 
 class ListBookmarks(ToolBaseDummy):
     name = "list_bookmarks"
@@ -394,20 +381,19 @@ class ListBookmarks(ToolBaseDummy):
         doc = ctx.doc
         if not hasattr(doc, "getBookmarks"):
             return {"status": "ok", "bookmarks": [], "count": 0}
-        try:
-            bookmarks = doc.getBookmarks()
-            names = bookmarks.getElementNames()
-            result = []
-            for name in names:
-                bm = bookmarks.getByName(name)
-                anchor_text = bm.getAnchor().getString()
-                result.append({
+        bookmarks = doc.getBookmarks()
+        names = bookmarks.getElementNames()
+        result = []
+        for name in names:
+            bm = bookmarks.getByName(name)
+            anchor_text = bm.getAnchor().getString()
+            result.append(
+                {
                     "name": name,
                     "preview": anchor_text[:100] if anchor_text else "",
-                })
-            return {"status": "ok", "bookmarks": result, "count": len(result)}
-        except Exception as e:
-            return self._tool_error(str(e))
+                }
+            )
+        return {"status": "ok", "bookmarks": result, "count": len(result)}
 
 
 class CleanupBookmarks(ToolBaseDummy):

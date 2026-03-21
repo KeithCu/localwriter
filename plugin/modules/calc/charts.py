@@ -44,16 +44,12 @@ class ListCharts(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        try:
-            charts = manipulator.list_charts()
-            return {
-                "status": "ok",
-                "charts": charts,
-                "count": len(charts),
-            }
-        except Exception as e:
-            logger.exception("list_charts failed")
-            return self._tool_error(str(e))
+        charts = manipulator.list_charts()
+        return {
+            "status": "ok",
+            "charts": charts,
+            "count": len(charts),
+        }
 
 
 class GetChartInfo(ToolBase):
@@ -81,15 +77,11 @@ class GetChartInfo(ToolBase):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
         chart_name = kwargs["chart_name"]
-        try:
-            info = manipulator.get_chart_info(chart_name)
-            if info is None:
-                return self._tool_error(f"Chart '{chart_name}' not found.")
-            info["status"] = "ok"
-            return info
-        except Exception as e:
-            logger.exception("get_chart_info failed")
-            return self._tool_error(str(e))
+        info = manipulator.get_chart_info(chart_name)
+        if info is None:
+            return self._tool_error(f"Chart '{chart_name}' not found.")
+        info["status"] = "ok"
+        return info
 
 
 class CreateChart(ToolBase):
@@ -97,9 +89,7 @@ class CreateChart(ToolBase):
 
     name = "create_chart"
     intent = "edit"
-    description = (
-        "Creates a chart on the active sheet from the specified data range."
-    )
+    description = "Creates a chart on the active sheet from the specified data range."
     parameters = {
         "type": "object",
         "properties": {
@@ -133,18 +123,14 @@ class CreateChart(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        try:
-            result = manipulator.create_chart(
-                kwargs["data_range"],
-                kwargs["chart_type"],
-                title=kwargs.get("title"),
-                position=kwargs.get("position"),
-                has_header=kwargs.get("has_header", True),
-            )
-            return {"status": "ok", "message": result}
-        except Exception as e:
-            logger.exception("create_chart failed")
-            return self._tool_error(str(e))
+        result = manipulator.create_chart(
+            kwargs["data_range"],
+            kwargs["chart_type"],
+            title=kwargs.get("title"),
+            position=kwargs.get("position"),
+            has_header=kwargs.get("has_header", True),
+        )
+        return {"status": "ok", "message": result}
 
 
 class EditChart(ToolBase):
@@ -152,9 +138,7 @@ class EditChart(ToolBase):
 
     name = "edit_chart"
     intent = "edit"
-    description = (
-        "Edit a Calc chart: update title, subtitle, or legend visibility."
-    )
+    description = "Edit a Calc chart: update title, subtitle, or legend visibility."
     parameters = {
         "type": "object",
         "properties": {
@@ -184,17 +168,13 @@ class EditChart(ToolBase):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
         chart_name = kwargs["chart_name"]
-        try:
-            updated = manipulator.edit_chart(
-                chart_name,
-                title=kwargs.get("title"),
-                subtitle=kwargs.get("subtitle"),
-                has_legend=kwargs.get("has_legend"),
-            )
-            return {"status": "ok", "chart_name": chart_name, "updated": updated}
-        except Exception as e:
-            logger.exception("edit_chart failed")
-            return self._tool_error(str(e))
+        updated = manipulator.edit_chart(
+            chart_name,
+            title=kwargs.get("title"),
+            subtitle=kwargs.get("subtitle"),
+            has_legend=kwargs.get("has_legend"),
+        )
+        return {"status": "ok", "chart_name": chart_name, "updated": updated}
 
 
 class DeleteChart(ToolBase):
@@ -220,11 +200,7 @@ class DeleteChart(ToolBase):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
         chart_name = kwargs["chart_name"]
-        try:
-            if manipulator.delete_chart(chart_name):
-                return {"status": "ok", "deleted": chart_name}
-            else:
-                return self._tool_error(f"Chart '{chart_name}' not found.")
-        except Exception as e:
-            logger.exception("delete_chart failed")
-            return self._tool_error(str(e))
+        if manipulator.delete_chart(chart_name):
+            return {"status": "ok", "deleted": chart_name}
+        else:
+            return self._tool_error(f"Chart '{chart_name}' not found.")

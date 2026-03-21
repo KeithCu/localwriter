@@ -39,12 +39,8 @@ def find_paragraph_for_range(anchor, para_ranges, text_obj):
         match_start = anchor.getStart()
         for i, para in enumerate(para_ranges):
             try:
-                cmp_start = text_obj.compareRegionStarts(
-                    match_start, para.getStart()
-                )
-                cmp_end = text_obj.compareRegionStarts(
-                    match_start, para.getEnd()
-                )
+                cmp_start = text_obj.compareRegionStarts(match_start, para.getStart())
+                cmp_end = text_obj.compareRegionStarts(match_start, para.getEnd())
                 if cmp_start <= 0 and cmp_end >= 0:
                     return i
             except Exception:
@@ -106,9 +102,7 @@ def insert_html_at_cursor(cursor, html_content):
 
         try:
             file_url = "file://" + tmp_path.replace("\\", "/")
-            props = (
-                PropertyValue(Name="FilterName", Value="HTML (StarWriter)"),
-            )
+            props = (PropertyValue(Name="FilterName", Value="HTML (StarWriter)"),)
             cursor.insertDocumentFromURL(file_url, props)
         finally:
             if os.path.exists(tmp_path):

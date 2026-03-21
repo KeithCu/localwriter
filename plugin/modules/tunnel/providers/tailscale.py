@@ -70,7 +70,9 @@ class TailscaleProvider:
             try:
                 subprocess.run(
                     cmd,
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                     creationflags=_CREATION_FLAGS,
                 )
                 log.debug("Reset: %s", " ".join(cmd))

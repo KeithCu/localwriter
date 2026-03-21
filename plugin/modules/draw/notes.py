@@ -27,10 +27,7 @@ class GetSpeakerNotes(ToolBase):
 
     name = "get_speaker_notes"
     intent = "navigate"
-    description = (
-        "Read speaker notes from an Impress slide. "
-        "Returns the notes text."
-    )
+    description = "Read speaker notes from an Impress slide. Returns the notes text."
     parameters = {
         "type": "object",
         "properties": {
@@ -44,20 +41,17 @@ class GetSpeakerNotes(ToolBase):
     doc_types = ["impress"]
 
     def execute(self, ctx, **kwargs):
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            notes_page = page.getNotesPage()
-            notes_text = ""
-            if notes_page and notes_page.getCount() > 1:
-                notes_shape = notes_page.getByIndex(1)
-                notes_text = notes_shape.getString()
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "notes": notes_text,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        notes_page = page.getNotesPage()
+        notes_text = ""
+        if notes_page and notes_page.getCount() > 1:
+            notes_shape = notes_page.getByIndex(1)
+            notes_text = notes_shape.getString()
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "notes": notes_text,
+        }
 
 
 class SetSpeakerNotes(ToolBase):
@@ -65,9 +59,7 @@ class SetSpeakerNotes(ToolBase):
 
     name = "set_speaker_notes"
     intent = "edit"
-    description = (
-        "Set or replace speaker notes on an Impress slide."
-    )
+    description = "Set or replace speaker notes on an Impress slide."
     parameters = {
         "type": "object",
         "properties": {
@@ -93,23 +85,20 @@ class SetSpeakerNotes(ToolBase):
         text = kwargs.get("text", "")
         append = kwargs.get("append", False)
 
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            notes_page = page.getNotesPage()
-            if notes_page is None or notes_page.getCount() < 2:
-                return self._tool_error("No notes page available.")
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        notes_page = page.getNotesPage()
+        if notes_page is None or notes_page.getCount() < 2:
+            return self._tool_error("No notes page available.")
 
-            notes_shape = notes_page.getByIndex(1)
-            if append:
-                existing = notes_shape.getString()
-                if existing:
-                    text = existing + "\n" + text
-            notes_shape.setString(text)
+        notes_shape = notes_page.getByIndex(1)
+        if append:
+            existing = notes_shape.getString()
+            if existing:
+                text = existing + "\n" + text
+        notes_shape.setString(text)
 
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "message": "Speaker notes updated.",
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "message": "Speaker notes updated.",
+        }

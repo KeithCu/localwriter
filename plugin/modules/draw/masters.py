@@ -35,25 +35,22 @@ class ListMasterSlides(ToolBase):
     doc_types = ["draw", "impress"]
 
     def execute(self, ctx, **kwargs):
-        try:
-            doc = ctx.doc
-            masters = doc.getMasterPages()
-            result = []
-            for i in range(masters.getCount()):
-                m = masters.getByIndex(i)
-                entry = {
-                    "index": i,
-                    "name": m.Name if hasattr(m, "Name") else "",
-                }
-                try:
-                    entry["width_mm"] = m.Width // 100
-                    entry["height_mm"] = m.Height // 100
-                except Exception:
-                    pass
-                result.append(entry)
-            return {"status": "ok", "master_slides": result, "count": len(result)}
-        except Exception as e:
-            return self._tool_error(str(e))
+        doc = ctx.doc
+        masters = doc.getMasterPages()
+        result = []
+        for i in range(masters.getCount()):
+            m = masters.getByIndex(i)
+            entry = {
+                "index": i,
+                "name": m.Name if hasattr(m, "Name") else "",
+            }
+            try:
+                entry["width_mm"] = m.Width // 100
+                entry["height_mm"] = m.Height // 100
+            except Exception:
+                pass
+            result.append(entry)
+        return {"status": "ok", "master_slides": result, "count": len(result)}
 
 
 class GetSlideMaster(ToolBase):
@@ -78,16 +75,13 @@ class GetSlideMaster(ToolBase):
     doc_types = ["draw", "impress"]
 
     def execute(self, ctx, **kwargs):
-        try:
-            page = _get_slide(ctx.doc, kwargs.get("page_index"))
-            master = page.MasterPage
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "master_name": master.Name if hasattr(master, "Name") else "",
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        page = _get_slide(ctx.doc, kwargs.get("page_index"))
+        master = page.MasterPage
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "master_name": master.Name if hasattr(master, "Name") else "",
+        }
 
 
 class SetSlideMaster(ToolBase):
@@ -117,34 +111,31 @@ class SetSlideMaster(ToolBase):
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
-        try:
-            doc = ctx.doc
-            page = _get_slide(doc, kwargs.get("page_index"))
-            master_name = kwargs["master_name"]
+        doc = ctx.doc
+        page = _get_slide(doc, kwargs.get("page_index"))
+        master_name = kwargs["master_name"]
 
-            masters = doc.getMasterPages()
-            target = None
+        masters = doc.getMasterPages()
+        target = None
+        for i in range(masters.getCount()):
+            m = masters.getByIndex(i)
+            if hasattr(m, "Name") and m.Name == master_name:
+                target = m
+                break
+
+        if target is None:
+            available = []
             for i in range(masters.getCount()):
                 m = masters.getByIndex(i)
-                if hasattr(m, "Name") and m.Name == master_name:
-                    target = m
-                    break
+                available.append(m.Name if hasattr(m, "Name") else "")
+            return self._tool_error(
+                "Master '%s' not found." % master_name,
+                available=available,
+            )
 
-            if target is None:
-                available = []
-                for i in range(masters.getCount()):
-                    m = masters.getByIndex(i)
-                    available.append(m.Name if hasattr(m, "Name") else "")
-                return self._tool_error(
-                    "Master '%s' not found." % master_name,
-                    available=available,
-                )
-
-            page.MasterPage = target
-            return {
-                "status": "ok",
-                "page_index": kwargs.get("page_index"),
-                "master_name": master_name,
-            }
-        except Exception as e:
-            return self._tool_error(str(e))
+        page.MasterPage = target
+        return {
+            "status": "ok",
+            "page_index": kwargs.get("page_index"),
+            "master_name": master_name,
+        }

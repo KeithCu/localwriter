@@ -20,11 +20,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class DrawBridge:
     def __init__(self, doc):
         self.doc = doc
         if not hasattr(doc, "getDrawPages"):
-             raise RuntimeError("Provided document is not a Draw/Impress document.")
+            raise RuntimeError("Provided document is not a Draw/Impress document.")
 
     def get_pages(self):
         return self.doc.getDrawPages()
@@ -46,12 +47,13 @@ class DrawBridge:
         """
         if page is None:
             page = self.get_active_page()
-        
+
         shape = self.doc.createInstance(shape_type)
         page.add(shape)
-        
+
         # Set size and position
         from com.sun.star.awt import Size, Point
+
         shape.setSize(Size(width, height))
         shape.setPosition(Point(x, y))
         return shape
@@ -83,11 +85,11 @@ class DrawBridge:
         # For now, we can create a new page and copy shapes
         old_page = self.get_pages().getByIndex(index)
         new_page = self.create_slide(index + 1)
-        
+
         # Copy shapes
         for i in range(old_page.getCount()):
             shape = old_page.getByIndex(i)
             # This is a shallow copy, might need more for complex shapes
             # But simple add works for many
-            new_page.add(shape) 
+            new_page.add(shape)
         return new_page

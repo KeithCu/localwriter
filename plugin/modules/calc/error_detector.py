@@ -27,11 +27,12 @@ from plugin.modules.calc.address_utils import parse_address
 from plugin.framework.errors import ToolExecutionError
 
 # Regex for matching cell references (e.g. A1, $B$2)
-CELL_REF_PATTERN = re.compile(r'\$?([A-Z]+)\$?(\d+)')
+CELL_REF_PATTERN = re.compile(r"\$?([A-Z]+)\$?(\d+)")
 
 try:
     from com.sun.star.table.CellContentType import EMPTY, VALUE, TEXT, FORMULA
     from com.sun.star.sheet.FormulaResult import ERROR as RESULT_ERROR
+
     UNO_AVAILABLE = True
 except ImportError:
     EMPTY, VALUE, TEXT, FORMULA = 0, 1, 2, 3
@@ -128,9 +129,20 @@ ERROR_TYPES = {
 
 # Cell error text patterns
 ERROR_PATTERNS = [
-    "#REF!", "#NAME?", "#VALUE!", "#DIV/0!", "#NULL!",
-    "#N/A", "#NUM!", "Err:502", "Err:504", "Err:519",
-    "Err:522", "Err:524", "Err:525", "Err:532",
+    "#REF!",
+    "#NAME?",
+    "#VALUE!",
+    "#DIV/0!",
+    "#NULL!",
+    "#N/A",
+    "#NUM!",
+    "Err:502",
+    "Err:504",
+    "Err:519",
+    "Err:522",
+    "Err:524",
+    "Err:525",
+    "Err:532",
 ]
 
 
@@ -227,15 +239,18 @@ class ErrorDetector:
                             addr = cell.getCellAddress()
                             col_str = self.bridge._index_to_column(addr.Column)
                             address = f"{col_str}{addr.Row + 1}"
-                            errors.append({
-                                "address": address,
-                                "formula": cell.getFormula(),
-                                "error": error_info,
-                            })
+                            errors.append(
+                                {
+                                    "address": address,
+                                    "formula": cell.getFormula(),
+                                    "error": error_info,
+                                }
+                            )
 
             logger.info(
                 "%d errors detected (range: %s).",
-                len(errors), range_str or "full sheet",
+                len(errors),
+                range_str or "full sheet",
             )
             return errors
         except Exception as e:
@@ -279,11 +294,13 @@ class ErrorDetector:
                     prec_info = self.inspector.read_cell(prec_addr)
                     precedent_details.append(prec_info)
                 except Exception:
-                    precedent_details.append({
-                        "address": prec_addr,
-                        "value": "UNREADABLE",
-                        "type": "unknown",
-                    })
+                    precedent_details.append(
+                        {
+                            "address": prec_addr,
+                            "value": "UNREADABLE",
+                            "type": "unknown",
+                        }
+                    )
 
             suggestion = self._generate_suggestion(error_info, precedent_details)
 
@@ -318,13 +335,15 @@ class ErrorDetector:
                 detailed.append(self.explain_error(address))
             except Exception as e:
                 logger.warning("Explain errors failed for %s: %s", address, e)
-                detailed.append({
-                    "address": address,
-                    "formula": item.get("formula", ""),
-                    "error": item.get("error"),
-                    "precedents": [],
-                    "suggestion": "Could not explain error; basic info shown.",
-                })
+                detailed.append(
+                    {
+                        "address": address,
+                        "formula": item.get("formula", ""),
+                        "error": item.get("error"),
+                        "precedents": [],
+                        "suggestion": "Could not explain error; basic info shown.",
+                    }
+                )
 
         return {
             "range": range_str or "used_area",
@@ -339,7 +358,8 @@ class ErrorDetector:
 
         if code == "#DIV/0!":
             zero_cells = [
-                p["address"] for p in precedents
+                p["address"]
+                for p in precedents
                 if p.get("value") == 0 or p.get("value") is None
             ]
             if zero_cells:
@@ -367,10 +387,7 @@ class ErrorDetector:
             )
 
         if code == "#VALUE!":
-            text_cells = [
-                p["address"] for p in precedents
-                if p.get("type") == "text"
-            ]
+            text_cells = [p["address"] for p in precedents if p.get("type") == "text"]
             if text_cells:
                 return (
                     f"Value type error. The following cells contain text "

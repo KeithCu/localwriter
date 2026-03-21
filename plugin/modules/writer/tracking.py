@@ -90,8 +90,10 @@ class GetTrackedChanges(ToolBaseDummy):
             redline = enum.nextElement()
             entry = {}
             for prop in (
-                "RedlineType", "RedlineAuthor",
-                "RedlineComment", "RedlineIdentifier",
+                "RedlineType",
+                "RedlineAuthor",
+                "RedlineComment",
+                "RedlineIdentifier",
             ):
                 try:
                     entry[prop] = redline.getPropertyValue(prop)
@@ -100,7 +102,11 @@ class GetTrackedChanges(ToolBaseDummy):
             try:
                 dt = redline.getPropertyValue("RedlineDateTime")
                 entry["date"] = "%04d-%02d-%02d %02d:%02d" % (
-                    dt.Year, dt.Month, dt.Day, dt.Hours, dt.Minutes
+                    dt.Year,
+                    dt.Month,
+                    dt.Day,
+                    dt.Hours,
+                    dt.Minutes,
                 )
             except Exception:
                 pass
@@ -144,9 +150,17 @@ class ManageTrackedChanges(ToolBaseDummy):
             "com.sun.star.frame.DispatchHelper", ctx.ctx
         )
         frame = ctx.doc.getCurrentController().getFrame()
-        
-        uno_cmd = ".uno:AcceptAllTrackedChanges" if action == "accept_all" else ".uno:RejectAllTrackedChanges"
+
+        uno_cmd = (
+            ".uno:AcceptAllTrackedChanges"
+            if action == "accept_all"
+            else ".uno:RejectAllTrackedChanges"
+        )
         dispatcher.executeDispatch(frame, uno_cmd, "", 0, ())
-        
-        msg = "All tracked changes accepted." if action == "accept_all" else "All tracked changes rejected."
+
+        msg = (
+            "All tracked changes accepted."
+            if action == "accept_all"
+            else "All tracked changes rejected."
+        )
         return {"status": "ok", "message": msg}

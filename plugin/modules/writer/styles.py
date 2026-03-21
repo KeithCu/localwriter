@@ -33,13 +33,22 @@ _STYLE_FAMILIES = [
 # Properties to read per style family.
 _FAMILY_PROPS = {
     "ParagraphStyles": [
-        "ParentStyle", "FollowStyle",
-        "CharFontName", "CharHeight", "CharWeight",
-        "ParaAdjust", "ParaTopMargin", "ParaBottomMargin",
+        "ParentStyle",
+        "FollowStyle",
+        "CharFontName",
+        "CharHeight",
+        "CharWeight",
+        "ParaAdjust",
+        "ParaTopMargin",
+        "ParaBottomMargin",
     ],
     "CharacterStyles": [
-        "ParentStyle", "CharFontName", "CharHeight",
-        "CharWeight", "CharPosture", "CharColor",
+        "ParentStyle",
+        "CharFontName",
+        "CharHeight",
+        "CharWeight",
+        "CharPosture",
+        "CharColor",
     ],
 }
 
@@ -71,9 +80,11 @@ class ListStyles(ToolBase):
         doc = ctx.doc
 
         style_family = self.get_item(
-            doc, "getStyleFamilies", family,
+            doc,
+            "getStyleFamilies",
+            family,
             missing_msg="Document does not support style families.",
-            not_found_msg="Unknown style family: %s" % family
+            not_found_msg="Unknown style family: %s" % family,
         )
         if isinstance(style_family, dict):
             # To match old behavior returning available_families instead of available
@@ -109,8 +120,7 @@ class GetStyleInfo(ToolBase):
     name = "get_style_info"
     intent = "edit"
     description = (
-        "Get detailed properties of a specific style "
-        "(font, size, margins, etc.)."
+        "Get detailed properties of a specific style (font, size, margins, etc.)."
     )
     parameters = {
         "type": "object",
@@ -135,15 +145,19 @@ class GetStyleInfo(ToolBase):
 
         doc = ctx.doc
         style_family = self.get_item(
-            doc, "getStyleFamilies", family,
+            doc,
+            "getStyleFamilies",
+            family,
             missing_msg="Document does not support style families.",
-            not_found_msg="Unknown style family: %s" % family
+            not_found_msg="Unknown style family: %s" % family,
         )
         if isinstance(style_family, dict):
             return style_family
 
         if not style_family.hasByName(style_name):
-            return self._tool_error("Style '%s' not found in %s." % (style_name, family))
+            return self._tool_error(
+                "Style '%s' not found in %s." % (style_name, family)
+            )
 
         style = style_family.getByName(style_name)
         info = {

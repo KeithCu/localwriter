@@ -51,17 +51,13 @@ class ListConditionalFormats(ToolBase):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
         range_str = kwargs.get("range_name")
-        try:
-            rules = manipulator.list_conditional_formats(range_str)
-            return {
-                "status": "ok",
-                "range_name": range_str or "(used area)",
-                "rules": rules,
-                "count": len(rules),
-            }
-        except Exception as e:
-            logger.exception("list_conditional_formats failed")
-            return self._tool_error(str(e))
+        rules = manipulator.list_conditional_formats(range_str)
+        return {
+            "status": "ok",
+            "range_name": range_str or "(used area)",
+            "rules": rules,
+            "count": len(rules),
+        }
 
 
 class AddConditionalFormat(ToolBase):
@@ -85,8 +81,15 @@ class AddConditionalFormat(ToolBase):
             "operator": {
                 "type": "string",
                 "enum": [
-                    "EQUAL", "NOT_EQUAL", "GREATER", "GREATER_EQUAL",
-                    "LESS", "LESS_EQUAL", "BETWEEN", "NOT_BETWEEN", "FORMULA",
+                    "EQUAL",
+                    "NOT_EQUAL",
+                    "GREATER",
+                    "GREATER_EQUAL",
+                    "LESS",
+                    "LESS_EQUAL",
+                    "BETWEEN",
+                    "NOT_BETWEEN",
+                    "FORMULA",
                 ],
                 "description": "Condition operator.",
             },
@@ -118,22 +121,18 @@ class AddConditionalFormat(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        try:
-            count = manipulator.add_conditional_format(
-                kwargs["range_name"],
-                kwargs["operator"],
-                kwargs["formula1"],
-                kwargs["style_name"],
-                kwargs.get("formula2", ""),
-            )
-            return {
-                "status": "ok",
-                "range_name": kwargs["range_name"],
-                "rule_count": count,
-            }
-        except Exception as e:
-            logger.exception("add_conditional_format failed")
-            return self._tool_error(str(e))
+        count = manipulator.add_conditional_format(
+            kwargs["range_name"],
+            kwargs["operator"],
+            kwargs["formula1"],
+            kwargs["style_name"],
+            kwargs.get("formula2", ""),
+        )
+        return {
+            "status": "ok",
+            "range_name": kwargs["range_name"],
+            "rule_count": count,
+        }
 
 
 class RemoveConditionalFormat(ToolBase):
@@ -165,14 +164,18 @@ class RemoveConditionalFormat(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        try:
-            if manipulator.remove_conditional_format(kwargs["range_name"], kwargs["rule_index"]):
-                return {"status": "ok", "range_name": kwargs["range_name"], "removed_index": kwargs["rule_index"]}
-            else:
-                return self._tool_error(f"Rule index {kwargs['rule_index']} not found on {kwargs['range_name']}.")
-        except Exception as e:
-            logger.exception("remove_conditional_format failed")
-            return self._tool_error(str(e))
+        if manipulator.remove_conditional_format(
+            kwargs["range_name"], kwargs["rule_index"]
+        ):
+            return {
+                "status": "ok",
+                "range_name": kwargs["range_name"],
+                "removed_index": kwargs["rule_index"],
+            }
+        else:
+            return self._tool_error(
+                f"Rule index {kwargs['rule_index']} not found on {kwargs['range_name']}."
+            )
 
 
 class ClearConditionalFormats(ToolBase):
@@ -197,9 +200,5 @@ class ClearConditionalFormats(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         manipulator = CellManipulator(bridge)
-        try:
-            manipulator.clear_conditional_formats(kwargs["range_name"])
-            return {"status": "ok", "range_name": kwargs["range_name"], "cleared": True}
-        except Exception as e:
-            logger.exception("clear_conditional_formats failed")
-            return self._tool_error(str(e))
+        manipulator.clear_conditional_formats(kwargs["range_name"])
+        return {"status": "ok", "range_name": kwargs["range_name"], "cleared": True}
