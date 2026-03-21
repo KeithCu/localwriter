@@ -22,6 +22,8 @@ Route handlers are registered with the HTTP route registry by MCPModule.
 
 import json
 import logging
+import select
+import socket
 import threading
 import time
 import uuid
@@ -122,13 +124,7 @@ class MCPProtocolHandler:
         handler.send_header("Cache-Control", "no-cache")
         self._send_cors_headers(handler)
         handler.end_headers()
-        try:
-            while True:
-                handler.wfile.write(b": keepalive\n\n")
-                handler.wfile.flush()
-                time.sleep(15)
-        except (BrokenPipeError, ConnectionResetError, OSError):
-            pass
+        self._run_sse_keepalive_loop(handler)
 
     def handle_mcp_delete(self, handler):
         """DELETE /mcp — session termination."""
@@ -147,12 +143,44 @@ class MCPProtocolHandler:
             self._send_cors_headers(handler)
             handler.end_headers()
             log.info("[SSE] GET stream opened")
-            while True:
-                handler.wfile.write(b": keepalive\n\n")
-                handler.wfile.flush()
-                time.sleep(15)
+            self._run_sse_keepalive_loop(handler)
         except (BrokenPipeError, ConnectionResetError, OSError):
             log.info("[SSE] GET stream disconnected")
+
+    def _run_sse_keepalive_loop(self, handler, interval=15):
+        """Run a keepalive loop for an SSE stream without blocking the worker thread
+        longer than necessary on disconnect.
+        """
+        sock = handler.connection
+        try:
+            while True:
+                try:
+                    handler.wfile.write(b": keepalive\n\n")
+                    handler.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    break
+
+                # Wait for either activity on the socket (client disconnect or data)
+                # or the timeout to send the next keepalive.
+                # select.select on the socket returns if it's readable, which
+                # for a client that only receives means EOF (disconnect).
+                r, _, _ = select.select([sock], [], [], interval)
+                if r:
+                    try:
+                        # Peek at the data to see if it's EOF (empty byte)
+                        peek = sock.recv(1, socket.MSG_PEEK)
+                        if not peek:
+                            # Client closed connection
+                            break
+                        # If there was actual data (unexpected for SSE GET),
+                        # we consume it to avoid immediate re-triggering of select.
+                        sock.recv(4096)
+                    except (ConnectionResetError, OSError):
+                        break
+        except Exception as e:
+            log.debug("SSE keepalive loop exception: %s", e)
+        finally:
+            log.info("[SSE] GET stream closed")
 
     def handle_sse_post(self, handler):
         """POST /sse or /messages — streamable HTTP (same as /mcp)."""
