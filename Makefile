@@ -95,7 +95,7 @@ endif
         lo-start lo-start-full lo-kill lo-restart \
         clean-cache nuke-cache nuke-cache-force unbundle \
         log log-tail lo-log test check-ext check-setup deploy \
-        set-config vendor docker-build
+        set-config vendor docker-build compile-translations
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ help:
 	@echo "================================="
 	@echo ""
 	@echo "Build:"
-	@echo "  make build                  Build .oxt with plugin/tests (UI test menu + make test)"
+	@echo "  make build                  Build .oxt with plugin/tests (compiles gettext .mo, UI test menu + make test)"
 	@echo "  make release               Build .oxt without tests (smaller; use before uploading)"
 	@echo "  make build-no-recording     Build .oxt without voice recording (no contrib/audio, no Record button)"
 	@echo "  make xcu                    Generate XCS/XCU from config schemas"
@@ -154,21 +154,21 @@ docker-build:
 	@echo "Done: build/localwriter.oxt"
 
 ifeq ($(USE_DOCKER),1)
-build:
+build: compile-translations
 	@$(MAKE) docker-build
 else
-build: vendor manifest
+build: vendor manifest compile-translations
 	@echo "Building $(EXTENSION_NAME).oxt (with tests)..."
 	$(PYTHON) $(SCRIPTS)/build_oxt.py --output build/$(EXTENSION_NAME).oxt $(if $(filter 1,$(NO_RECORDING)),--no-recording)
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 endif
 
-build-no-recording: vendor manifest
+build-no-recording: vendor manifest compile-translations
 	@echo "Building $(EXTENSION_NAME).oxt (no voice recording)..."
 	$(PYTHON) $(SCRIPTS)/build_oxt.py --no-recording --output build/$(EXTENSION_NAME).oxt
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 
-release: vendor manifest
+release: vendor manifest compile-translations
 	@echo "Building $(EXTENSION_NAME).oxt (release, no tests)..."
 	$(PYTHON) $(SCRIPTS)/build_oxt.py --no-tests --output build/$(EXTENSION_NAME).oxt $(if $(filter 1,$(NO_RECORDING)),--no-recording)
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
