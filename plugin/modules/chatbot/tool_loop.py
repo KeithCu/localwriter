@@ -6,6 +6,7 @@ multi-round tool-calling loop plus simple streaming fallback.
 
 import logging
 import inspect
+import dataclasses
 import json
 import queue
 
@@ -34,6 +35,13 @@ from plugin.framework.document import get_document_context_for_chat
 from plugin.framework.errors import format_error_payload, safe_json_loads
 from plugin.modules.http.client import LlmClient
 from plugin.framework.config import as_bool
+
+from plugin.modules.chatbot.tool_loop_state import (
+    ToolLoopState, ToolLoopEvent, EventKind,
+    SpawnLLMWorkerEffect, SpawnToolWorkerEffect,
+    UIEffect, LogAgentEffect, AddMessageEffect,
+    UpdateActivityStateEffect, next_state
+)
 
 log = logging.getLogger(__name__)
 
@@ -307,136 +315,72 @@ class ToolCallingMixin:
         from plugin.framework.worker_pool import run_in_background
         run_in_background(run_final, name="llm-worker-final")
 
-    def _handle_stream_completion(self, item):
-        # item can be ('stream_done', response) or ('tool_done', ...) or ('final_done', ...) or ('next_tool',)
-        kind = item[0] if isinstance(item, (tuple, list)) else item
-        data = (
-            item[1]
-            if isinstance(item, (tuple, list)) and len(item) > 1
-            else None
-        )
-
-        if kind == "stream_done":
-            response = data
-            tool_calls = response.get("tool_calls")
-            if isinstance(tool_calls, list) and len(tool_calls) == 0:
-                tool_calls = None
-            content = response.get("content")
-            finish_reason = response.get("finish_reason")
-
-            agent_log(
-                "chat_panel.py:tool_round",
-                "Tool loop round response",
-                data={
-                    "round": self._active_round_num,
-                    "has_tool_calls": bool(tool_calls),
-                    "num_tool_calls": len(tool_calls) if tool_calls else 0,
-                },
-                hypothesis_id="A",
-            )
-
-            # If we were using audio and it reached here, cache success
-            if self.audio_wav_path:
-                current_model = get_text_model(self.ctx)
-                current_endpoint = get_current_endpoint(self.ctx)
-                set_native_audio_support(
-                    self.ctx, current_model, current_endpoint, supported=True
-                )
-                # Successful native call -> we can now delete the audio file
-                import os
-
-                try:
-                    os.remove(self.audio_wav_path)
-                except Exception:
-                    pass
-                self.audio_wav_path = None
-
-            # --- No tool calls: conversation is done ---
-            if not tool_calls:
-                agent_log(
-                    "chat_panel.py:exit_no_tools",
-                    "Exiting loop: no tool_calls",
-                    data={"round": self._active_round_num},
-                    hypothesis_id="A",
-                )
-                if content:
-                    log.debug("Tool loop: Adding assistant message to session")
-                    self.session.add_assistant_message(content=content)
-                    self._append_response("\n")
-                elif finish_reason == "length":
-                    self._append_response(
-                        "\n[Response truncated -- the model ran out of tokens...]\n"
-                    )
-                elif finish_reason == "content_filter":
-                    self._append_response(
-                        "\n[Content filter: response was truncated.]\n"
-                    )
-                else:
-                    self._append_response(
-                        "\n[No text from model; any tool changes were still applied.]\n"
-                    )
-                self._terminal_status = "Ready"
-                self._set_status("Ready")
-                return True  # EXIT the drain loop
-
-            # --- Has tool calls: queue them up ---
-            self.session.add_assistant_message(
-                content=content, tool_calls=tool_calls
-            )
-            if content:
-                self._append_response("\n")
-
-            self._active_pending_tools.extend(tool_calls)
+    def _execute_effect(self, effect):
+        """Execute a single pure effect returned by the state machine."""
+        if effect == "exit_loop":
+            return True
+        elif effect == "trigger_next_tool":
             self._active_q.put(("next_tool",))
-            return False
-
-        elif kind == "next_tool":
-            if not self._active_pending_tools or self.stop_requested:
-                # --- Advance to next round ---
-                if not self.stop_requested:
-                    self._set_status("Sending results to AI...")
-                self._active_round_num += 1
-                if self._active_round_num >= self._active_max_tool_rounds:
-                    agent_log(
-                        "chat_panel.py:exit_exhausted",
-                        "Exiting loop: exhausted max_tool_rounds",
-                        data={"rounds": self._active_max_tool_rounds},
-                        hypothesis_id="A",
+        elif effect == "spawn_final_stream":
+            self._spawn_final_stream(self._active_q, self._active_client, self._active_max_tokens)
+        elif effect == "update_document_context":
+            try:
+                doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
+                if doc:
+                    max_ctx = get_config(self.ctx, "chat_context_length") or 8000
+                    doc_text = get_document_context_for_chat(
+                        doc,
+                        max_ctx,
+                        include_end=True,
+                        include_selection=True,
+                        ctx=self.ctx,
                     )
-                    self._spawn_final_stream(self._active_q, self._active_client, self._active_max_tokens)
-                else:
-                    self._spawn_llm_worker(
-                        self._active_q,
-                        self._active_client,
-                        self._active_max_tokens,
-                        self._active_tools,
-                        self._active_round_num,
-                        query_text=self._active_query_text,
-                    )
-                return False
+                    self.session.update_document_context(doc_text)
+            except Exception:
+                pass
 
-            tc = self._active_pending_tools.pop(0)
-            func_name = tc.get("function", {}).get("name", "unknown")
-            func_args_str = tc.get("function", {}).get("arguments", "{}")
-            call_id = tc.get("id", "")
+        elif isinstance(effect, UIEffect):
+            if effect.kind == "append":
+                self._append_response(effect.text)
+            elif effect.kind == "status":
+                self._set_status(effect.text)
+                if effect.text in ("Stopped", "Ready", "Error"):
+                    self._terminal_status = effect.text
+            elif effect.kind == "debug":
+                log.debug(effect.text)
+            elif effect.kind == "info":
+                log.info(effect.text)
 
-            self._set_status("Running: %s" % func_name)
-            self._append_response("[Running tool: %s...]\n" % func_name)
-            update_activity_state(
-                "tool_execute", round_num=self._active_round_num, tool_name=func_name
+        elif isinstance(effect, LogAgentEffect):
+            agent_log(effect.location, effect.message, data=effect.data, hypothesis_id=effect.hypothesis_id)
+
+        elif isinstance(effect, AddMessageEffect):
+            if effect.role == "assistant":
+                self.session.add_assistant_message(content=effect.content, tool_calls=effect.tool_calls)
+            elif effect.role == "tool":
+                self.session.add_tool_result(effect.call_id, effect.content)
+
+        elif isinstance(effect, SpawnLLMWorkerEffect):
+            self._spawn_llm_worker(
+                self._active_q,
+                self._active_client,
+                self._active_max_tokens,
+                self._active_tools,
+                effect.round_num,
+                query_text=self._active_query_text,
             )
 
-            func_args = safe_json_loads(func_args_str, default={})
-            if not isinstance(func_args, dict):
-                func_args = {}
+        elif isinstance(effect, UpdateActivityStateEffect):
+            if effect.action == "tool_execute":
+                update_activity_state("tool_execute", round_num=effect.round_num, tool_name=effect.tool_name)
+            elif effect.action == "exhausted_rounds":
+                update_activity_state("exhausted_rounds")
 
-            agent_log(
-                "chat_panel.py:tool_execute",
-                "Executing tool",
-                data={"tool": func_name, "round": self._active_round_num},
-                hypothesis_id="C,D,E",
-            )
-            log.debug("Tool call: %s(%s)" % (func_name, func_args_str))
+        elif isinstance(effect, SpawnToolWorkerEffect):
+            func_name = effect.func_name
+            func_args_str = effect.func_args_str
+            func_args = effect.func_args
+            call_id = effect.call_id
 
             image_model_override = (
                 self.image_model_selector.getText()
@@ -449,11 +393,9 @@ class ToolCallingMixin:
             def tool_status_callback(msg):
                 self._active_q.put(("status", msg))
 
-            if func_name in self._active_async_tools:
-                # --- ASYNC EXECUTION ---
+            if effect.is_async:
                 def run_async():
                     try:
-
                         def tool_thinking_callback(msg):
                             self._active_q.put(("tool_thinking", msg))
 
@@ -475,30 +417,14 @@ class ToolCallingMixin:
                                 self.ctx,
                                 stop_checker=lambda: self.stop_requested,
                             )
-                        self._active_q.put(
-                            (
-                                "tool_done",
-                                call_id,
-                                func_name,
-                                func_args_str,
-                                res,
-                            )
-                        )
+                        self._active_q.put(("tool_done", call_id, func_name, func_args_str, res))
                     except Exception as e:
-                        self._active_q.put(
-                            (
-                                "tool_done",
-                                call_id,
-                                func_name,
-                                func_args_str,
-                                json.dumps(format_error_payload(e)),
-                            )
-                        )
+                        import json
+                        self._active_q.put(("tool_done", call_id, func_name, func_args_str, json.dumps(format_error_payload(e))))
 
                 from plugin.framework.worker_pool import run_in_background
                 run_in_background(run_async, name=f"tool-async-{func_name}")
             else:
-                # --- SYNC EXECUTION (UNO tools) ---
                 try:
                     if self._active_supports_status:
                         res = self._active_execute_tool_fn(
@@ -512,100 +438,92 @@ class ToolCallingMixin:
                         res = self._active_execute_tool_fn(
                             func_name, func_args, self._active_model, self.ctx
                         )
-                    self._active_q.put(
-                        (
-                            "tool_done",
-                            call_id,
-                            func_name,
-                            func_args_str,
-                            res,
-                        )
-                    )
+                    self._active_q.put(("tool_done", call_id, func_name, func_args_str, res))
                 except Exception as e:
-                    self._active_q.put(
-                        (
-                            "tool_done",
-                            call_id,
-                            func_name,
-                            func_args_str,
-                            json.dumps(format_error_payload(e)),
-                        )
-                    )
-            return False
-
-        elif kind == "tool_done":
-            call_id, func_name, func_args_str, result = (
-                item[1],
-                item[2],
-                item[3],
-                item[4],
-            )
-
-            log.debug("Tool result: %s" % result)
-            result_data = safe_json_loads(result, default={})
-            if isinstance(result_data, dict):
-                note = result_data.get("message", result_data.get("status", "done"))
-            else:
-                result_data = {}
-                note = "done"
-            self._append_response("[%s: %s]\n" % (func_name, note))
-            if func_name == "apply_document_content" and (
-                (note or "").strip().startswith("Replaced 0 occurrence")
-            ):
-                params_display = (
-                    func_args_str
-                    if len(func_args_str) <= 800
-                    else func_args_str[:800] + "..."
-                )
-                self._append_response("[Debug: params %s]\n" % params_display)
-            self.session.add_tool_result(call_id, result)
-
-            # After a successful document-mutating tool, refresh document context
-            # so the next round sees the updated doc and does not repeat the edit.
-            try:
-                is_success = (
-                    result_data.get("success") is True
-                    or result_data.get("status") == "ok"
-                )
-                doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
-                if is_success and doc:
-                    from plugin.main import get_tools as _get_tools_registry
-                    tool = _get_tools_registry().get(func_name)
-                    if tool and tool.detects_mutation():
-                        max_ctx = get_config(self.ctx, "chat_context_length") or 8000
-                        doc_text = get_document_context_for_chat(
-                            doc,
-                            max_ctx,
-                            include_end=True,
-                            include_selection=True,
-                            ctx=self.ctx,
-                        )
-                        self.session.update_document_context(doc_text)
-            except Exception:
-                pass
-
-            # Trigger next tool
-            self._active_q.put(("next_tool",))
-            return False
-
-        elif kind == "final_done":
-            final_content = data
-            if final_content:
-                self.session.add_assistant_message(content=final_content)
-                self._append_response("\n")
-            self._terminal_status = "Ready"
-            self._set_status("Ready")
-            return True
+                    import json
+                    self._active_q.put(("tool_done", call_id, func_name, func_args_str, json.dumps(format_error_payload(e))))
 
         return False
 
+    def _handle_stream_completion(self, item):
+        kind = item[0] if isinstance(item, (tuple, list)) else item
+        data = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else None
+
+        # Build the Event object
+        event = None
+        if kind == "stream_done":
+            event = ToolLoopEvent(kind=EventKind.STREAM_DONE, data={"response": data})
+
+            # If we were using audio and it reached here, cache success
+            if self.audio_wav_path:
+                current_model = get_text_model(self.ctx)
+                current_endpoint = get_current_endpoint(self.ctx)
+                set_native_audio_support(
+                    self.ctx, current_model, current_endpoint, supported=True
+                )
+                import os
+                try:
+                    os.remove(self.audio_wav_path)
+                except Exception:
+                    pass
+                self.audio_wav_path = None
+
+        elif kind == "next_tool":
+            if self.stop_requested and not self._sm_state.is_stopped:
+                # Synchronize stop state into the state machine
+                self._sm_state = dataclasses.replace(self._sm_state, is_stopped=True)
+            event = ToolLoopEvent(kind=EventKind.NEXT_TOOL)
+        elif kind == "tool_done":
+            mutates = False
+            try:
+                from plugin.main import get_tools as _get_tools_registry
+                tool = _get_tools_registry().get(item[2])
+                if tool and tool.detects_mutation():
+                    mutates = True
+            except Exception:
+                pass
+
+            event = ToolLoopEvent(
+                kind=EventKind.TOOL_RESULT,
+                data={
+                    "call_id": item[1],
+                    "func_name": item[2],
+                    "func_args_str": item[3],
+                    "result": item[4],
+                    "mutates_document": mutates
+                }
+            )
+        elif kind == "final_done":
+            event = ToolLoopEvent(kind=EventKind.FINAL_DONE, data={"content": data})
+        elif kind == "error":
+            event = ToolLoopEvent(kind=EventKind.ERROR, data={"error": data})
+
+        if not event:
+            return False
+
+        # Run the state machine transition
+        new_state, effects = next_state(self._sm_state, event)
+        self._sm_state = new_state
+
+        # Keep old instance variables synced for external readers or edge cases
+        self._active_round_num = self._sm_state.round_num
+        self._active_pending_tools = list(self._sm_state.pending_tools)
+
+        # Execute the effects
+        exit_loop = False
+        for effect in effects:
+            if self._execute_effect(effect):
+                exit_loop = True
+
+        return exit_loop
+
     def _handle_stream_stopped(self):
-        # Ensure conversation roles continue to alternate user/assistant even
-        # when the user stops a response mid-stream.
-        self.session.add_assistant_message(content="No response.")
-        self._terminal_status = "Stopped"
-        self._set_status("Stopped")
-        self._append_response("\n[Stopped by user]\n")
+        event = ToolLoopEvent(kind=EventKind.STOP_REQUESTED)
+        new_state, effects = next_state(self._sm_state, event)
+        self._sm_state = new_state
+
+        for effect in effects:
+            self._execute_effect(effect)
 
     def _is_400_input_validation(self, err):
         """Treat HTTP 400 with 'input validation' or 'bad request' as likely audio-format rejection (e.g. Together AI)."""
@@ -684,10 +602,28 @@ class ToolCallingMixin:
         )
         self._append_response("\nAI: ")
 
+        try:
+            from plugin.main import get_tools as _get_tools_registry
+            registry = _get_tools_registry()
+            async_tools = frozenset([
+                tool.name for tool in registry.values()
+                if getattr(tool, "is_async", lambda: False)()
+            ])
+        except Exception:
+            async_tools = frozenset({"web_research", "generate_image"})
+
+        self._sm_state = ToolLoopState(
+            round_num=0,
+            pending_tools=[],
+            max_rounds=max_tool_rounds,
+            status="Thinking...",
+            async_tools=async_tools
+        )
+
         self._active_q = queue.Queue()
         self._active_round_num = 0
         self._active_pending_tools = []
-        self._active_async_tools = {"web_research", "generate_image"}
+        self._active_async_tools = async_tools
 
         self._active_client = client
         self._active_model = model
