@@ -110,17 +110,11 @@ class TestStreamingFuzz(unittest.TestCase):
         self.assertEqual(fn["arguments"], "{\"arg1\": ")
 
         # Mocking the UI thread's parsing fallback logic in panel.py
+        from plugin.framework.errors import safe_python_literal_eval
         func_args_str = fn["arguments"]
-        try:
-            func_args = json.loads(func_args_str)
-        except (json.JSONDecodeError, TypeError):
-            try:
-                import ast
-                func_args = ast.literal_eval(func_args_str)
-                if not isinstance(func_args, dict):
-                    func_args = {}
-            except Exception:
-                func_args = {}
+        func_args = safe_python_literal_eval(func_args_str, default={})
+        if not isinstance(func_args, dict):
+            func_args = {}
 
         # Proves it recovers gracefully to an empty dict
         self.assertEqual(func_args, {})

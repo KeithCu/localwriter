@@ -6,6 +6,7 @@ All custom exceptions should inherit from WriterAgentException.
 
 
 import json
+from typing import Any
 
 
 class WriterAgentException(Exception):
@@ -79,7 +80,7 @@ def format_error_payload(e: Exception) -> dict:
     }
 
 
-def safe_json_loads(text, default=None):
+def safe_json_loads(text: Any, default: Any = None) -> Any:
     """Safely parse a JSON string into a Python object.
 
     Args:
@@ -94,5 +95,51 @@ def safe_json_loads(text, default=None):
     try:
         parsed = json.loads(text)
         return parsed if parsed is not None else default
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except (json.JSONDecodeError, TypeError, ValueError, RecursionError):
+        # Catch RecursionError to prevent DoS from deeply nested structures
         return default
+
+
+def safe_python_literal_eval(text: Any, default: Any = None) -> Any:
+    """Safely parse a Python-style literal (e.g. from an LLM) without using ast.literal_eval.
+    Supports scalars (bool, None, number, string) and simple JSON-compatible lists/dicts.
+    Returns the default value if it doesn't look like a simple literal.
+
+    Args:
+        text: The string to parse.
+        default: The value to return if parsing fails. Defaults to None.
+
+    Returns:
+        The parsed Python object or the default value if an error occurs.
+    """
+    if not isinstance(text, (str, bytes, bytearray)):
+        return default
+
+    stripped = text.strip()
+    if not stripped:
+        return default
+
+    # 1. Try standard JSON first (handles numbers, double-quoted strings, bools, null)
+    data = safe_json_loads(stripped, default=None)
+    if data is not None:
+        return data
+
+    # 2. Handle Python-style booleans and None (which JSON calls true/false/null)
+    # Case-insensitive checks to handle various LLM formatting quirks robustly
+    lower = stripped.lower()
+    if lower == "true":
+        return True
+    if lower == "false":
+        return False
+    if lower in ("none", "null"):
+        return None
+
+    # 3. Handle simple single-quoted string unquoting: 'abc' -> abc
+    # This avoids ast.literal_eval for basic string normalization.
+    if len(stripped) >= 2 and stripped[0] == "'" and stripped[-1] == "'":
+        inner = stripped[1:-1]
+        # Only unquote if it's a simple string (no internal single quotes or backslashes)
+        if "'" not in inner and "\\" not in inner:
+            return inner
+
+    return default

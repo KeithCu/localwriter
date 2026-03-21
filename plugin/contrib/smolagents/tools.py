@@ -16,7 +16,6 @@
 # limitations under the License.
 from __future__ import annotations
 
-import ast
 import inspect
 import json
 import logging
@@ -62,6 +61,8 @@ from .utils import (
     instance_to_source,
     is_valid_name,
 )
+
+from plugin.framework.errors import safe_python_literal_eval
 
 
 if TYPE_CHECKING:
@@ -592,11 +593,11 @@ class Tool(BaseTool):
             raise ValueError("No Tool subclass found in the code.")
 
         if not isinstance(tool_class.inputs, dict):
-            tool_class.inputs = ast.literal_eval(tool_class.inputs)
+            tool_class.inputs = safe_python_literal_eval(tool_class.inputs, default=tool_class.inputs)
 
         # Handle output_schema if it exists and is a string representation
         if hasattr(tool_class, "output_schema") and isinstance(tool_class.output_schema, str):
-            tool_class.output_schema = ast.literal_eval(tool_class.output_schema)
+            tool_class.output_schema = safe_python_literal_eval(tool_class.output_schema, default=tool_class.output_schema)
 
         return tool_class(**kwargs)
 

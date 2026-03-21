@@ -15,13 +15,12 @@ type-converted using the schema if available, otherwise treated as strings.
 Based on VLLM's Qwen3CoderToolParser.extract_tool_calls()
 """
 
-import ast
 import json
 import re
 import uuid
 from typing import Any, Dict, List, Optional
 
-from plugin.framework.errors import safe_json_loads
+from plugin.framework.errors import safe_json_loads, safe_python_literal_eval
 from plugin.contrib.tool_call_parsers.openai_compat import ChatCompletionMessageToolCall, Function
 
 from plugin.contrib.tool_call_parsers import ParseResult, ToolCallParser, register_parser
@@ -38,19 +37,8 @@ def _try_convert_value(value: str) -> Any:
     if stripped.lower() == "null":
         return None
 
-    # Try JSON first (handles objects, arrays, strings, numbers, booleans)
-    data = safe_json_loads(stripped, default=None)
-    if data is not None:
-        return data
-
-    # Try Python literal eval (handles tuples, etc.)
-    try:
-        return ast.literal_eval(stripped)
-    except (ValueError, SyntaxError, TypeError):
-        pass
-
-    # Return as string
-    return stripped
+    # Try JSON and common Python literals safely
+    return safe_python_literal_eval(stripped, default=stripped)
 
 
 @register_parser("qwen3_coder")
