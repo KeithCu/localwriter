@@ -376,10 +376,9 @@ def test_stop_requested_mid_round(mock_update_activity, mock_get_config, mock_dr
     # 3. Process the pending next_tool
     result = on_stream_done(('next_tool',))
 
-    # Keep looping because the logic just advances the round and spawns worker
     assert result is False
 
-    # Verify execute tool was NOT called
+    # Verify execute tool was NOT called because StopRequested skips the pending tools
     execute_tool_mock.assert_not_called()
 
     # Verify that it spawned worker (or final stream), which would then emit the stopped sentinel
@@ -450,3 +449,90 @@ def test_malformed_tool_calls_handling(mock_update_activity, mock_get_config, mo
     assert tool_done_item[2] == "unknown" # Missing name fallback
     assert tool_done_item[3] == "not-valid-json" # Should be the original string
     assert tool_done_item[4] == '{"result": "ok"}'
+
+
+@patch('plugin.modules.chatbot.tool_loop.run_stream_drain_loop')
+@patch('plugin.modules.chatbot.tool_loop.get_config')
+@patch('plugin.modules.chatbot.tool_loop.update_activity_state')
+def test_max_tool_rounds_exhausted(mock_update_activity, mock_get_config, mock_drain_loop):
+    panel, session = setup_mock_panel()
+
+    captured_q = None
+    captured_callback = {}
+    def mock_drain_impl(q, toolkit, thinking_open, append_fn, on_stream_done=None, **kwargs):
+        nonlocal captured_q
+        captured_q = q
+        captured_callback['on_stream_done'] = on_stream_done
+
+    mock_drain_loop.side_effect = mock_drain_impl
+    execute_tool_mock = Mock()
+
+    client = Mock()
+    panel._start_tool_calling_async(client, model="mock-model", max_tokens=100, tools=[], execute_tool_fn=execute_tool_mock, max_tool_rounds=2)
+    on_stream_done = captured_callback.get('on_stream_done')
+
+    # Round 0 - tools provided
+    tool_calls_1 = [{"id": "call_1", "type": "function", "function": {"name": "dummy", "arguments": "{}"}}]
+    on_stream_done(('stream_done', {"content": "step 1", "tool_calls": tool_calls_1}))
+    captured_q.get()  # next_tool
+    on_stream_done(('next_tool',)) # Execute tool
+    captured_q.get()  # tool_done
+    on_stream_done(('tool_done', "call_1", "dummy", "{}", '{"ok": true}', False)) # Add result
+    captured_q.get()  # next_tool
+    on_stream_done(('next_tool',)) # This should spawn Round 1 since max_rounds is 2
+    panel._spawn_llm_worker.assert_called()
+    panel._spawn_llm_worker.reset_mock()
+
+    # Round 1 - tools provided
+    tool_calls_2 = [{"id": "call_2", "type": "function", "function": {"name": "dummy", "arguments": "{}"}}]
+    on_stream_done(('stream_done', {"content": "step 2", "tool_calls": tool_calls_2}))
+    captured_q.get()  # next_tool
+    on_stream_done(('next_tool',)) # Execute tool
+    captured_q.get()  # tool_done
+    on_stream_done(('tool_done', "call_2", "dummy", "{}", '{"ok": true}', False)) # Add result
+    captured_q.get()  # next_tool
+    on_stream_done(('next_tool',)) # This should spawn final_stream since max_rounds is 2 (new_round_num 2 >= 2)
+    
+    panel._spawn_llm_worker.assert_not_called()
+    panel._spawn_final_stream.assert_called()
+
+@patch('plugin.modules.chatbot.tool_loop.run_stream_drain_loop')
+@patch('plugin.modules.chatbot.tool_loop.get_config')
+def test_final_done_handling(mock_get_config, mock_drain_loop):
+    panel, session = setup_mock_panel()
+
+    captured_callback = {}
+    def mock_drain_impl(q, toolkit, thinking_open, append_fn, on_stream_done=None, **kwargs):
+        captured_callback['on_stream_done'] = on_stream_done
+
+    mock_drain_loop.side_effect = mock_drain_impl
+
+    client = Mock()
+    panel._start_tool_calling_async(client, model="mock-model", max_tokens=100, tools=[], execute_tool_fn=Mock())
+    on_stream_done = captured_callback.get('on_stream_done')
+
+    result = on_stream_done(('final_done', 'This is the final word.'))
+    assert result is True # Return true means exit loop
+    assert panel._terminal_status == "Ready"
+    assert len(session.messages) == 1
+    assert session.messages[0]["content"] == "This is the final word."
+
+@patch('plugin.modules.chatbot.tool_loop.run_stream_drain_loop')
+@patch('plugin.modules.chatbot.tool_loop.get_config')
+def test_error_handling_in_loop(mock_get_config, mock_drain_loop):
+    panel, session = setup_mock_panel()
+
+    captured_callback = {}
+    def mock_drain_impl(q, toolkit, thinking_open, append_fn, on_stream_done=None, **kwargs):
+        captured_callback['on_stream_done'] = on_stream_done
+
+    mock_drain_loop.side_effect = mock_drain_impl
+
+    client = Mock()
+    panel._start_tool_calling_async(client, model="mock-model", max_tokens=100, tools=[], execute_tool_fn=Mock())
+    on_stream_done = captured_callback.get('on_stream_done')
+
+    # Emit an error
+    exc = Exception("Network failure")
+    result = on_stream_done(('error', exc))
+    assert result is True # Should exit loop
