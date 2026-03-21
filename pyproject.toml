@@ -10,6 +10,8 @@ dev = [
     "pyyaml",
     "pytest",
     "dspy",
+    "deal",
+    "crosshair-tool",
 ]
 
 [tool.setuptools.dynamic]
