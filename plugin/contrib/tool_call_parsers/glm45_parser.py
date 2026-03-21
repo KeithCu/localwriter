@@ -7,18 +7,17 @@ Format uses custom arg_key/arg_value tags rather than standard JSON:
     <arg_key>param2</arg_key><arg_value>value2</arg_value>
     </tool_call>
 
-Values are deserialized using json.loads -> ast.literal_eval -> raw string fallback.
+Values are deserialized using safe_json_loads -> safe_python_literal_eval -> raw string fallback.
 
 Based on VLLM's Glm4MoeModelToolParser.extract_tool_calls()
 """
 
-import ast
 import json
 import re
 import uuid
 from typing import Any, Dict, List
 
-from plugin.framework.errors import safe_json_loads
+from plugin.framework.errors import safe_json_loads, safe_python_literal_eval
 from plugin.contrib.tool_call_parsers.openai_compat import ChatCompletionMessageToolCall, Function
 
 from plugin.contrib.tool_call_parsers import ParseResult, ToolCallParser, register_parser
@@ -27,18 +26,10 @@ from plugin.contrib.tool_call_parsers import ParseResult, ToolCallParser, regist
 def _deserialize_value(value: str) -> Any:
     """
     Try to deserialize a string value to its native Python type.
-    Attempts json.loads, then ast.literal_eval, then returns raw string.
+    Attempts json.loads, then safe_python_literal_eval, then returns raw string.
     """
-    data = safe_json_loads(value, default=None)
-    if data is not None:
-        return data
-
-    try:
-        return ast.literal_eval(value)
-    except (ValueError, SyntaxError, TypeError):
-        pass
-
-    return value
+    # Try JSON (via safe_json_loads) and common Python literals safely
+    return safe_python_literal_eval(value, default=value)
 
 
 @register_parser("glm45")
