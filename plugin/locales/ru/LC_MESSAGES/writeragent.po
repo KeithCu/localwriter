@@ -1,0 +1,585 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-03-21 20:30+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: plugin/contrib/aihordeclient/__init__.py:262
+#: plugin/modules/chatbot/panel.py:408
+msgid "Starting..."
+msgstr "Запуск..."
+
+#: plugin/contrib/aihordeclient/__init__.py:370
+msgid "Updating model requirements..."
+msgstr "Обновление требований к модели..."
+
+#: plugin/contrib/aihordeclient/__init__.py:517
+msgid "Updating Models..."
+msgstr "Обновление моделей..."
+
+#: plugin/contrib/aihordeclient/__init__.py:610
+msgid "Register at "
+msgstr "Зарегистрируйтесь на "
+
+#: plugin/contrib/aihordeclient/__init__.py:617
+msgid "You have {} kudos"
+msgstr "У вас есть {} kudos"
+
+#: plugin/contrib/aihordeclient/__init__.py:625
+msgid "«{}» is not a valid API KEY, double check it or create a new one"
+msgstr ""
+"«{}» не является действительным API-ключом, проверьте его или создайте новый"
+
+#: plugin/contrib/aihordeclient/__init__.py:632
+#: plugin/contrib/aihordeclient/__init__.py:675
+msgid ""
+"At this moment we can not process your request, please try again later.  If "
+"this is happening for a long period of time, please let us know via Discord"
+msgstr ""
+"В данный момент мы не можем обработать ваш запрос, пожалуйста, повторите "
+"попытку позже. Если это происходит в течение длительного времени, "
+"пожалуйста, сообщите нам через Discord"
+
+#: plugin/contrib/aihordeclient/__init__.py:638
+msgid "Problem requesting kudos"
+msgstr "Проблема с запросом kudos"
+
+#: plugin/contrib/aihordeclient/__init__.py:648
+msgid ""
+"The Horde is in maintenance mode, please try again later, if you have tried "
+"and the service does not respond for hours, please contact via Discord"
+msgstr ""
+"Horde находится в режиме обслуживания, пожалуйста, повторите попытку позже, "
+"если вы пытались и сервис не отвечает часами, пожалуйста, свяжитесь через "
+"Discord"
+
+#: plugin/contrib/aihordeclient/__init__.py:656
+msgid ""
+"You have made too many requests, please wait for them to finish, and try "
+"again later"
+msgstr ""
+"Вы сделали слишком много запросов, пожалуйста, дождитесь их завершения и "
+"повторите попытку позже"
+
+#: plugin/contrib/aihordeclient/__init__.py:662
+msgid ""
+"Seems that «{}» has problems, double check it, create a new one or join "
+"Discord to ask for help"
+msgstr ""
+"Похоже, что с «{}» есть проблемы, проверьте его, создайте новый или "
+"присоединяйтесь к Discord, чтобы попросить помощи"
+
+#: plugin/contrib/aihordeclient/__init__.py:670
+msgid "We hit an error, still: "
+msgstr "Произошла ошибка, но: "
+
+#: plugin/contrib/aihordeclient/__init__.py:681
+msgid "No longer valid, please try again.  Your request took too long"
+msgstr ""
+"Больше недействительно, пожалуйста, попробуйте еще раз. Ваш запрос занял "
+"слишком много времени"
+
+#: plugin/contrib/aihordeclient/__init__.py:724
+msgid "Contacting the Horde..."
+msgstr "Связь с Horde..."
+
+#: plugin/contrib/aihordeclient/__init__.py:803
+msgid "Horde Contacted"
+msgstr "Связь с Horde установлена"
+
+#: plugin/contrib/aihordeclient/__init__.py:821
+msgid ""
+"When trying to ask for the image, the Horde was too slow, try again later"
+msgstr ""
+"При попытке запросить изображение Horde был слишком медленным, повторите "
+"попытку позже"
+
+#: plugin/contrib/aihordeclient/__init__.py:836
+#, python-brace-format
+msgid ""
+"Register at {REGISTER_AI_HORDE_URL} and use your key to improve your rate "
+"success. Detail:"
+msgstr ""
+"Зарегистрируйтесь на {REGISTER_AI_HORDE_URL} и используйте свой ключ, чтобы "
+"повысить вероятность успеха. Детали:"
+
+#: plugin/contrib/aihordeclient/__init__.py:843
+msgid "to learn to earn kudos. Detail:"
+msgstr "чтобы узнать, как заработать kudos. Детали:"
+
+#: plugin/contrib/aihordeclient/__init__.py:865
+#: plugin/contrib/aihordeclient/__init__.py:884
+msgid "Service failed: "
+msgstr "Сбой сервиса: "
+
+#: plugin/contrib/aihordeclient/__init__.py:935
+msgid "Downloading generated image..."
+msgstr "Загрузка сгенерированного изображения..."
+
+#: plugin/contrib/aihordeclient/__init__.py:941
+msgid "You are first in the queue"
+msgstr "Вы первые в очереди"
+
+#: plugin/contrib/aihordeclient/__init__.py:943
+msgid "Queue position: "
+msgstr "Позиция в очереди: "
+
+#: plugin/contrib/aihordeclient/__init__.py:946
+msgid "Generating..."
+msgstr "Генерация..."
+
+#: plugin/contrib/aihordeclient/__init__.py:963
+msgid "Get a free API Key at "
+msgstr "Получите бесплатный API-ключ на "
+
+#: plugin/contrib/aihordeclient/__init__.py:966
+#: plugin/contrib/aihordeclient/__init__.py:1004
+msgid ""
+".\n"
+" This model takes more time than your current configuration."
+msgstr ""
+".\n"
+" Эта модель требует больше времени, чем ваша текущая конфигурация."
+
+#: plugin/contrib/aihordeclient/__init__.py:972
+msgid "Please try another model,"
+msgstr "Пожалуйста, попробуйте другую модель,"
+
+#: plugin/contrib/aihordeclient/__init__.py:973
+msgid "{} would take more time than you configured,"
+msgstr "{} займет больше времени, чем вы настроили,"
+
+#: plugin/contrib/aihordeclient/__init__.py:976
+msgid " or try again later."
+msgstr " или повторите попытку позже."
+
+#: plugin/contrib/aihordeclient/__init__.py:995
+msgid ""
+"There are no workers available with these settings. Please try again later."
+msgstr ""
+"Нет доступных воркеров с такими настройками. Пожалуйста, повторите попытку "
+"позже."
+
+#: plugin/contrib/aihordeclient/__init__.py:1001
+msgid "Get an Api key for free at "
+msgstr "Получите API-ключ бесплатно на "
+
+#: plugin/contrib/aihordeclient/__init__.py:1013
+msgid "Probably your image will take one additional minute."
+msgstr "Вероятно, ваше изображение займет еще одну минуту."
+
+#: plugin/contrib/aihordeclient/__init__.py:1015
+#: plugin/contrib/aihordeclient/__init__.py:1022
+msgid "Please try again later."
+msgstr "Пожалуйста, повторите попытку позже."
+
+#: plugin/contrib/aihordeclient/__init__.py:1020
+msgid "Probably your image will take {} additional minutes."
+msgstr "Вероятно, ваше изображение займет еще {} минут."
+
+#: plugin/contrib/aihordeclient/__init__.py:1034
+msgid "Fetching images..."
+msgstr "Получение изображений..."
+
+#: plugin/contrib/aihordeclient/__init__.py:1044
+msgid " is censored, try changing the prompt wording"
+msgstr " зацензурировано, попробуйте изменить формулировку запроса"
+
+#: plugin/contrib/aihordeclient/__init__.py:1072
+msgid "Downloading result..."
+msgstr "Загрузка результата..."
+
+#: plugin/contrib/aihordeclient/__init__.py:1075
+msgid "Downloading image"
+msgstr "Загрузка изображения"
+
+#: plugin/contrib/aihordeclient/__init__.py:1091
+msgid ""
+"You may need to reduce your settings or choose another model, or you may "
+"have been censored. Horde message"
+msgstr ""
+"Возможно, вам нужно уменьшить настройки или выбрать другую модель, или, "
+"возможно, вы были зацензурированы. Сообщение Horde"
+
+#: plugin/contrib/aihordeclient/__init__.py:1118
+#: plugin/contrib/aihordeclient/__init__.py:1130
+msgid " generated by "
+msgstr " сгенерировано "
+
+#: plugin/contrib/aihordeclient/__init__.py:1128
+msgid " with "
+msgstr " с помощью "
+
+#: plugin/main.py:243
+#, python-brace-format
+msgid ""
+"{0}: {1} passed, {2} failed.\n"
+"\n"
+"{3}"
+msgstr ""
+"{0}: {1} пройдено, {2} не удалось.\n"
+"\n"
+"{3}"
+
+#: plugin/main.py:246
+#, python-brace-format
+msgid "Tests failed to run: {0}"
+msgstr "Не удалось запустить тесты: {0}"
+
+#: plugin/main.py:356
+msgid "Extend Selection"
+msgstr "Расширить выделение"
+
+#: plugin/main.py:357
+msgid "Edit Selection"
+msgstr "Редактировать выделение"
+
+#: plugin/main.py:358
+msgid "Settings"
+msgstr "Настройки"
+
+#: plugin/main.py:359
+msgid "Toggle MCP Server"
+msgstr "Переключить сервер MCP"
+
+#: plugin/main.py:360
+msgid "MCP Server Status"
+msgstr "Статус сервера MCP"
+
+#: plugin/main.py:362
+msgid "Run format tests"
+msgstr "Запустить тесты форматирования"
+
+#: plugin/main.py:363
+msgid "Run calc tests"
+msgstr "Запустить тесты calc"
+
+#: plugin/main.py:364
+msgid "Run Calc API integration tests"
+msgstr "Запустить интеграционные тесты Calc API"
+
+#: plugin/main.py:365
+msgid "Run draw tests"
+msgstr "Запустить тесты draw"
+
+#: plugin/main.py:366
+msgid "Evaluation Dashboard"
+msgstr "Панель оценки"
+
+#: plugin/main.py:367 plugin/framework/dialogs.py:375
+#: plugin/framework/dialogs.py:403
+msgid "About WriterAgent"
+msgstr "О WriterAgent"
+
+#: plugin/main.py:715
+msgid "Dispatch Error"
+msgstr "Ошибка диспетчеризации"
+
+#: plugin/modules/writer/legacy.py:43 plugin/modules/writer/legacy.py:54
+msgid "WriterAgent: Extend Selection"
+msgstr "WriterAgent: Расширить выделение"
+
+#: plugin/modules/writer/legacy.py:78 plugin/modules/writer/legacy.py:88
+#: plugin/modules/writer/legacy.py:102
+msgid "WriterAgent: Edit Selection"
+msgstr "WriterAgent: Редактировать выделение"
+
+#: plugin/modules/chatbot/panel_wiring.py:142
+msgid "Ready"
+msgstr "Готово"
+
+#: plugin/modules/chatbot/panel.py:417
+msgid "Getting document..."
+msgstr "Получение документа..."
+
+#: plugin/modules/chatbot/panel.py:422
+msgid ""
+"\n"
+"[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n"
+msgstr ""
+"\n"
+"[В активном окне не найден совместимый документ LibreOffice (Writer, Calc или Draw).]\n"
+
+#: plugin/modules/chatbot/panel.py:432
+#, python-brace-format
+msgid ""
+"[Internal Error: Document type changed from {0} to {1}! Please file an "
+"error.]"
+msgstr ""
+"[Внутренняя ошибка: Тип документа изменен с {0} на {1}! Пожалуйста, сообщите"
+" об ошибке.]"
+
+#: plugin/modules/chatbot/panel.py:439
+#, python-brace-format
+msgid ""
+"[Internal Error: Could not identify document type for {0}. Please report "
+"this!]"
+msgstr ""
+"[Внутренняя ошибка: Не удалось определить тип документа для {0}. Пожалуйста,"
+" сообщите об этом!]"
+
+#: plugin/modules/chatbot/panel.py:473
+#, python-brace-format
+msgid ""
+"[Model {0} does not support native audio. Please select an STT Model in "
+"Settings.]"
+msgstr ""
+"[Модель {0} не поддерживает встроенное аудио. Пожалуйста, выберите модель "
+"STT в настройках.]"
+
+#: plugin/modules/chatbot/panel.py:476
+#: plugin/modules/chatbot/send_handlers.py:282
+#: plugin/modules/chatbot/send_handlers.py:293
+#: plugin/modules/chatbot/send_handlers.py:302
+#: plugin/modules/chatbot/send_handlers.py:543
+msgid "Error"
+msgstr "Ошибка"
+
+#: plugin/modules/chatbot/send_handlers.py:197
+#: plugin/modules/chatbot/send_handlers.py:365
+#: plugin/modules/chatbot/send_handlers.py:541
+#, python-brace-format
+msgid ""
+"\n"
+"[Error: {0}]\n"
+msgstr ""
+"\n"
+"[Ошибка: {0}]\n"
+
+#: plugin/modules/chatbot/send_handlers.py:280
+#, python-brace-format
+msgid ""
+"\n"
+"[Document context error: {0}]\n"
+msgstr ""
+"\n"
+"[Ошибка контекста документа: {0}]\n"
+
+#: plugin/modules/chatbot/send_handlers.py:291
+#, python-brace-format
+msgid ""
+"\n"
+"[Agent backend '{0}' not found.]\n"
+msgstr ""
+"\n"
+"[Бэкенд агента '{0}' не найден.]\n"
+
+#: plugin/modules/chatbot/send_handlers.py:298
+#, python-brace-format
+msgid ""
+"\n"
+"[Agent backend '{0}' is not available. Check Settings (path, install).]\n"
+msgstr ""
+"\n"
+"[Бэкенд агента '{0}' недоступен. Проверьте настройки (путь, установка).]\n"
+
+#: plugin/modules/chatbot/send_handlers.py:517
+#, python-brace-format
+msgid "AI (research): {0}\n"
+msgstr "ИИ (исследование): {0}\n"
+
+#: plugin/modules/chatbot/send_handlers.py:523
+msgid "Unknown research error."
+msgstr "Неизвестная ошибка исследования."
+
+#: plugin/modules/chatbot/send_handlers.py:524
+#, python-brace-format
+msgid "[Research error: {0}]\n"
+msgstr "[Ошибка исследования: {0}]\n"
+
+#: plugin/modules/http/__init__.py:179
+msgid "Stop HTTP Server"
+msgstr "Остановить HTTP-сервер"
+
+#: plugin/modules/http/__init__.py:180
+msgid "Start HTTP Server"
+msgstr "Запустить HTTP-сервер"
+
+#: plugin/modules/http/__init__.py:201
+msgid "HTTP server stopped"
+msgstr "HTTP-сервер остановлен"
+
+#: plugin/modules/http/__init__.py:208
+#, python-brace-format
+msgid ""
+"HTTP server started\n"
+"{0}"
+msgstr ""
+"HTTP-сервер запущен\n"
+"{0}"
+
+#: plugin/modules/http/__init__.py:211
+msgid ""
+"HTTP server failed to start\n"
+"Check ~/localwriter.log"
+msgstr ""
+"Не удалось запустить HTTP-сервер\n"
+"Проверьте ~/localwriter.log"
+
+#: plugin/modules/http/__init__.py:220
+msgid "HTTP server is not running"
+msgstr "HTTP-сервер не запущен"
+
+#: plugin/modules/http/__init__.py:226
+msgid "HTTP server not running"
+msgstr "HTTP-сервер не запущен"
+
+#: plugin/modules/http/__init__.py:231
+#, python-brace-format
+msgid ""
+"HTTP server running\n"
+"Routes: {0}"
+msgstr ""
+"HTTP-сервер запущен\n"
+"Маршруты: {0}"
+
+#: plugin/modules/http/__init__.py:238
+msgid "Server Status"
+msgstr "Статус сервера"
+
+#: plugin/modules/http/__init__.py:247 plugin/framework/dialogs.py:232
+#: plugin/framework/dialogs.py:304 plugin/framework/dialogs.py:391
+msgid "OK"
+msgstr "ОК"
+
+#: plugin/modules/http/__init__.py:259
+#, python-brace-format
+msgid ""
+"{0}\n"
+"URL: {1}"
+msgstr ""
+"{0}\n"
+"URL: {1}"
+
+#: plugin/modules/http/errors.py:15
+#, python-brace-format
+msgid "TLS/SSL Error: {0}"
+msgstr "Ошибка TLS/SSL: {0}"
+
+#: plugin/modules/http/errors.py:20
+msgid "Invalid API Key. Please check your settings."
+msgstr "Неверный API-ключ. Пожалуйста, проверьте ваши настройки."
+
+#: plugin/modules/http/errors.py:22
+msgid "API access Forbidden. Your key may lack permissions for this model."
+msgstr ""
+"Доступ к API запрещен. У вашего ключа может не быть разрешений для этой "
+"модели."
+
+#: plugin/modules/http/errors.py:24
+msgid "Endpoint not found (404). Check your URL and Model name."
+msgstr "Конечная точка не найдена (404). Проверьте URL и имя модели."
+
+#: plugin/modules/http/errors.py:26
+#, python-brace-format
+msgid "Server error ({0}). The AI provider is having issues."
+msgstr "Ошибка сервера ({0}). У провайдера ИИ проблемы."
+
+#: plugin/modules/http/errors.py:27 plugin/modules/http/errors.py:48
+#, python-brace-format
+msgid "HTTP Error {0}: {1}"
+msgstr "HTTP-ошибка {0}: {1}"
+
+#: plugin/modules/http/errors.py:30
+msgid "Request Timed Out. Try increasing 'Request Timeout' in Settings."
+msgstr ""
+"Время ожидания запроса истекло. Попробуйте увеличить «Таймаут запроса» в "
+"настройках."
+
+#: plugin/modules/http/errors.py:35
+msgid ""
+"Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
+msgstr ""
+"В соединении отказано. Запущен ли ваш локальный сервер ИИ (Ollama/LM "
+"Studio)?"
+
+#: plugin/modules/http/errors.py:37
+msgid "DNS Error. Could not resolve the endpoint URL."
+msgstr "Ошибка DNS. Не удалось разрешить URL-адрес конечной точки."
+
+#: plugin/modules/http/errors.py:38
+#, python-brace-format
+msgid "Connection Error: {0}"
+msgstr "Ошибка подключения: {0}"
+
+#: plugin/modules/http/errors.py:41
+msgid "The AI provider reported an error. Try again."
+msgstr "Провайдер ИИ сообщил об ошибке. Попробуйте еще раз."
+
+#: plugin/modules/http/errors.py:70
+#, python-brace-format
+msgid "Error: {0}"
+msgstr "Ошибка: {0}"
+
+#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
+msgid "WriterAgent: Edit Selection (Calc)"
+msgstr "WriterAgent: Редактировать выделение (Calc)"
+
+#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
+msgid "WriterAgent: Extend Selection (Calc)"
+msgstr "WriterAgent: Расширить выделение (Calc)"
+
+#: plugin/modules/launcher/__init__.py:406
+#, python-brace-format
+msgid "{0} Running"
+msgstr "{0} Запущено"
+
+#: plugin/modules/launcher/__init__.py:407
+#, python-brace-format
+msgid "Launch {0}"
+msgstr "Запустить {0}"
+
+#: plugin/framework/dialogs.py:93
+msgid "Agent requests approval"
+msgstr "Агент запрашивает одобрение"
+
+#: plugin/framework/dialogs.py:94
+msgid "Proceed with this action?"
+msgstr "Продолжить это действие?"
+
+#: plugin/framework/dialogs.py:95
+#, python-format
+msgid "Tool: %s"
+msgstr "Инструмент: %s"
+
+#: plugin/framework/dialogs.py:231
+msgid "Copy"
+msgstr "Копировать"
+
+#: plugin/framework/dialogs.py:251 plugin/framework/dialogs.py:326
+msgid "Copied!"
+msgstr "Скопировано!"
+
+#: plugin/framework/dialogs.py:301
+msgid "Copy URL"
+msgstr "Копировать URL"
+
+#: plugin/framework/dialogs.py:382
+#, python-format
+msgid "Version: %s"
+msgstr "Версия: %s"
+
+#: plugin/framework/dialogs.py:383
+msgid "AI-powered extension for LibreOffice"
+msgstr "Расширение на базе ИИ для LibreOffice"
+
+#: plugin/framework/dialogs.py:388
+msgid "GitHub: quazardous/localwriter"
+msgstr "GitHub: quazardous/localwriter"
+
+#: plugin/tests/test_i18n.py:15
+msgid "ThisIsAnUntranslatedString999"
+msgstr "ThisIsAnUntranslatedString999"
