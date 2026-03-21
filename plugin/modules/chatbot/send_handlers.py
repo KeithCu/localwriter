@@ -38,9 +38,10 @@ class SendHandlersMixin:
             stt_model=stt_model
         )
 
-        current_state, effects = next_state(current_state, start_event)
-        interpreter.current_state = current_state
-        for effect in effects:
+        step = next_state(current_state, start_event)
+        interpreter.current_state = step.state
+        current_state = step.state
+        for effect in step.effects:
             interpreter.interpret(effect)
 
     def _execute_audio_effect(self, wav_path, stt_model, model, query_text, current_state, interpreter):
@@ -49,9 +50,10 @@ class SendHandlersMixin:
         # Helper to push events through the state machine
         def dispatch_event(event):
             nonlocal current_state
-            current_state, effs = next_state(current_state, event)
+            step = next_state(current_state, event)
+            current_state = step.state
             interpreter.current_state = current_state
-            for eff in effs:
+            for eff in step.effects:
                 interpreter.interpret(eff)
 
         def run_audio():
@@ -91,9 +93,10 @@ class SendHandlersMixin:
         current_state = SendHandlerState(handler_type="image", status="ready")
 
         # 1. State machine transition: start
-        current_state, effects = next_state(current_state, StartEvent(query_text, model, "image"))
-        interpreter.current_state = current_state
-        for effect in effects:
+        step = next_state(current_state, StartEvent(query_text, model, "image"))
+        current_state = step.state
+        interpreter.current_state = step.state
+        for effect in step.effects:
             interpreter.interpret(effect)
 
     def _execute_direct_image_effect(self, query_text, model, current_state, interpreter):
@@ -197,8 +200,10 @@ class SendHandlersMixin:
         # Helper to push events through the state machine
         def dispatch_event(event):
             nonlocal current_state
-            current_state, effs = next_state(current_state, event)
-            for eff in effs:
+            step = next_state(current_state, event)
+            current_state = step.state
+            interpreter.current_state = current_state
+            for eff in step.effects:
                 interpreter.interpret(eff)
 
         def apply_chunk(chunk_text, is_thinking=False):
@@ -242,9 +247,10 @@ class SendHandlersMixin:
         self.session.add_user_message(query_text)
 
         # 1. State machine transition: start
-        current_state, effects = next_state(current_state, StartEvent(query_text, model, doc_type_str))
+        step = next_state(current_state, StartEvent(query_text, model, doc_type_str))
+        current_state = step.state
         interpreter.current_state = current_state
-        for effect in effects:
+        for effect in step.effects:
             interpreter.interpret(effect)
 
     def _execute_agent_backend_effect(self, query_text, model, doc_type_str, current_state, interpreter):
@@ -359,8 +365,10 @@ class SendHandlersMixin:
         # Helper to push events through the state machine
         def dispatch_event(event):
             nonlocal current_state
-            current_state, effs = next_state(current_state, event)
-            for eff in effs:
+            step = next_state(current_state, event)
+            current_state = step.state
+            interpreter.current_state = current_state
+            for eff in step.effects:
                 interpreter.interpret(eff)
 
         def apply_chunk(text, is_thinking=False):
@@ -422,9 +430,10 @@ class SendHandlersMixin:
         self.session.add_user_message(query_text)
 
         # 1. State machine transition: start
-        current_state, effects = next_state(current_state, StartEvent(query_text, model, "web"))
+        step = next_state(current_state, StartEvent(query_text, model, "web"))
+        current_state = step.state
         interpreter.current_state = current_state
-        for effect in effects:
+        for effect in step.effects:
             interpreter.interpret(effect)
 
     def _execute_web_research_effect(self, query_text, model, current_state, interpreter):
@@ -529,8 +538,10 @@ class SendHandlersMixin:
         # Helper to push events through the state machine
         def dispatch_event(event):
             nonlocal current_state
-            current_state, effs = next_state(current_state, event)
-            for eff in effs:
+            step = next_state(current_state, event)
+            current_state = step.state
+            interpreter.current_state = current_state
+            for eff in step.effects:
                 interpreter.interpret(eff)
 
         def apply_chunk(chunk_text, is_thinking=False):
