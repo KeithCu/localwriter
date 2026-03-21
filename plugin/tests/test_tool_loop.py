@@ -376,10 +376,9 @@ def test_stop_requested_mid_round(mock_update_activity, mock_get_config, mock_dr
     # 3. Process the pending next_tool
     result = on_stream_done(('next_tool',))
 
-    # Keep looping because the logic just advances the round and spawns worker
     assert result is False
 
-    # Verify execute tool was NOT called
+    # Verify execute tool was NOT called because StopRequested skips the pending tools
     execute_tool_mock.assert_not_called()
 
     # Verify that it spawned worker (or final stream), which would then emit the stopped sentinel
