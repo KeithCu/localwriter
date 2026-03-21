@@ -14,7 +14,7 @@ def _noop_factory(*args, **kwargs):
         return func
     return decorator
 
-def _noop_direct(func=None):
+def _noop_direct(func=None, **kwargs):
     """
     No-op for decorators that take no arguments, e.g.,
     @deal.pure
@@ -29,7 +29,8 @@ def _noop_direct(func=None):
 
 if _is_debug_build:
     try:
-        import deal
+        # Try to import from vendored first
+        import plugin.contrib.deal as deal
         pre = deal.pre
         post = deal.post
         ensure = deal.ensure
@@ -39,17 +40,40 @@ if _is_debug_build:
         reason = deal.reason
         safe = deal.safe
         chain = deal.chain
+        has = deal.has
+        example = deal.example
+        catch = deal.catch
     except ImportError:
-        pre = _noop_factory
-        post = _noop_factory
-        ensure = _noop_factory
-        raises = _noop_factory
-        inv = _noop_factory
-        reason = _noop_factory
-        chain = _noop_factory
+        try:
+            # Fallback to system-wide if not vendored
+            import deal
+            pre = deal.pre
+            post = deal.post
+            ensure = deal.ensure
+            raises = deal.raises
+            pure = deal.pure
+            inv = deal.inv
+            reason = deal.reason
+            safe = deal.safe
+            chain = deal.chain
+            has = deal.has
+            example = deal.example
+            catch = deal.catch
+        except ImportError:
+            # Fallback if deal is entirely missing
+            pre = _noop_factory
+            post = _noop_factory
+            ensure = _noop_factory
+            raises = _noop_factory
+            inv = _noop_factory
+            reason = _noop_factory
+            chain = _noop_factory
+            has = _noop_factory
+            example = _noop_factory
+            catch = _noop_factory
 
-        pure = _noop_direct
-        safe = _noop_direct
+            pure = _noop_direct
+            safe = _noop_direct
 else:
     pre = _noop_factory
     post = _noop_factory
@@ -58,6 +82,9 @@ else:
     inv = _noop_factory
     reason = _noop_factory
     chain = _noop_factory
+    has = _noop_factory
+    example = _noop_factory
+    catch = _noop_factory
 
     pure = _noop_direct
     safe = _noop_direct
