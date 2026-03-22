@@ -67,6 +67,13 @@ config:
     widget: checkbox
     label: Show Web Search Thinking
 
+  prompt_for_web_research:
+    type: boolean
+    default: false
+    widget: checkbox
+    label: Prompt for Web Research
+    helper: "Ask for confirmation before sending a web search query"
+
   web_cache_max_mb:
     type: int
     default: 50

@@ -449,6 +449,20 @@ class SendHandlersMixin:
                 def thinking_cb(msg):
                     q.put(("thinking", msg))
 
+                def approval_cb(description, tool_name, args):
+                    import threading
+                    event = threading.Event()
+                    event.approved = False
+                    q.put(("approval_required", description, tool_name, event))
+                    event.wait()
+                    if not event.approved:
+                        # If the user rejects the search query, do not let the LLM
+                        # keep going without the data it requested. Instead, immediately
+                        # halt the entire tool call loop, acting exactly as if the
+                        # user clicked the explicit 'Stop' button in the UI.
+                        q.put(("stopped",))
+                    return event.approved
+
                 from plugin.framework.tool_context import ToolContext
 
                 tctx = ToolContext(
@@ -460,6 +474,7 @@ class SendHandlersMixin:
                     caller="chat",
                     status_callback=status_cb,
                     append_thinking_callback=thinking_cb,
+                    approval_callback=approval_cb,
                 )
 
                 import json
@@ -541,6 +556,18 @@ class SendHandlersMixin:
         def on_error(e):
             dispatch_event(ErrorEvent(e))
 
+        def on_approval_required(item):
+            # item = ("approval_required", description, tool_name, event_obj)
+            from plugin.framework.dialogs import show_approval_dialog
+            description = item[1] if len(item) > 1 else ""
+            tool_name = item[2] if len(item) > 2 else ""
+            event_obj = item[3] if len(item) > 3 else None
+
+            approved = show_approval_dialog(self.ctx, description, tool_name)
+            if event_obj is not None:
+                event_obj.approved = approved
+                event_obj.set()
+
         from plugin.framework.async_stream import run_stream_drain_loop
 
         run_stream_drain_loop(
@@ -554,6 +581,7 @@ class SendHandlersMixin:
             on_status_fn=self._set_status,
             ctx=self.ctx,
             stop_checker=lambda: self.stop_requested,
+            on_approval_required=on_approval_required,
         )
 
     def _get_mcp_url(self):

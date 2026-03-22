@@ -56,6 +56,7 @@ class WebResearchTool(ToolBase):
         status_callback = getattr(ctx, "status_callback", None)
         append_thinking_callback = getattr(ctx, "append_thinking_callback", None)
         stop_checker = getattr(ctx, "stop_checker", None)
+        approval_callback = getattr(ctx, "approval_callback", None)
 
         if history_text:
             # Truncate if extremely long, though the agent will handle it
@@ -95,6 +96,14 @@ class WebResearchTool(ToolBase):
             task = f"### CONVERSATION HISTORY:\n{history_text or 'None'}\n\n### CURRENT QUERY:\n{query}"
             
             final_ans = None
+
+            prompt_for_web_research = False
+            try:
+                from plugin.framework.config import get_config, as_bool
+                prompt_for_web_research = as_bool(get_config(ctx.ctx, "chatbot.prompt_for_web_research"))
+            except Exception:
+                pass
+
             for step in agent.run(task, stream=True):
                 if stop_checker and stop_checker():
                     return format_error_payload(ToolExecutionError("Web search stopped by user.", code="USER_STOPPED"))
@@ -102,14 +111,29 @@ class WebResearchTool(ToolBase):
                     status_msg = ""
                     if step.name == "web_search":
                         q = str(step.arguments.get("query", "")) if isinstance(step.arguments, dict) else ""
+
+                        if append_thinking_callback:
+                            append_thinking_callback(f"Running tool: {step.name} with {{'query': '{q}'}}\n")
+
+                        if prompt_for_web_research and approval_callback:
+                            approved = approval_callback(f"This search query '{q}' will be sent to the search engine.", "web_search", step.arguments)
+                            if not approved:
+                                return format_error_payload(ToolExecutionError("Web search stopped by user.", code="USER_STOPPED"))
+
                         if len(q) > 25:
                             q = q[:22] + "..."
                         status_msg = f"Search: {q}"
                     elif step.name == "visit_webpage":
                         url = str(step.arguments.get("url", "")) if isinstance(step.arguments, dict) else ""
+
+                        if append_thinking_callback:
+                            append_thinking_callback(f"Running tool: {step.name} with {{'url': '{url}'}}\n")
+
                         domain = get_url_domain(url)
                         status_msg = f"Read: {domain}"
                     else:
+                        if append_thinking_callback:
+                            append_thinking_callback(f"Running tool: {step.name} with {step.arguments}\n")
                         status_msg = str(step.name)
 
                     if status_callback and status_msg:
@@ -122,10 +146,6 @@ class WebResearchTool(ToolBase):
                             msg += f"{step.model_output.strip()}\n"
                         elif getattr(step, "model_output_message", None) and step.model_output_message.content:
                             msg += f"{str(step.model_output_message.content).strip()}\n"
-
-                        if step.tool_calls:
-                            for tc in step.tool_calls:
-                                msg += f"Running tool: {tc.name} with {tc.arguments}\n"
 
                         if step.observations:
                             msg += f"Observation: {str(step.observations).strip()}\n"

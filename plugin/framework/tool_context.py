@@ -29,11 +29,12 @@ class ToolContext:
         status_callback: Optional callback for status updates (Writer tools).
         append_thinking_callback: Optional callback for thinking text (Writer tools).
         stop_checker: Optional callable () -> bool; if present and returns True, tool should stop.
+        approval_callback: Optional callable for human-in-the-loop approval.
     """
 
-    __slots__ = ("doc", "ctx", "doc_type", "services", "caller", "status_callback", "append_thinking_callback", "stop_checker")
+    __slots__ = ("doc", "ctx", "doc_type", "services", "caller", "status_callback", "append_thinking_callback", "stop_checker", "approval_callback")
 
-    def __init__(self, doc, ctx, doc_type, services, caller="", status_callback=None, append_thinking_callback=None, stop_checker=None):
+    def __init__(self, doc, ctx, doc_type, services, caller="", status_callback=None, append_thinking_callback=None, stop_checker=None, approval_callback=None):
         self.doc = doc
         self.ctx = ctx
         self.doc_type = doc_type
@@ -42,3 +43,4 @@ class ToolContext:
         self.status_callback = status_callback
         self.append_thinking_callback = append_thinking_callback
         self.stop_checker = stop_checker
+        self.approval_callback = approval_callback
