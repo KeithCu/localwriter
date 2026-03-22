@@ -141,16 +141,16 @@ def _web_cache_set(db_path: str, kind: str, key: str, value: str, max_size_bytes
             "INSERT OR REPLACE INTO web_cache (kind, key, value, size, created_at) VALUES (?, ?, ?, ?, ?)",
             (kind, key, value, size, now),
         )
-        while True:
-            total = conn.execute("SELECT COALESCE(SUM(size), 0) FROM web_cache").fetchone()[0]
-            if total <= max_size_bytes:
-                break
+        total = conn.execute("SELECT COALESCE(SUM(size), 0) FROM web_cache").fetchone()[0]
+        while total > max_size_bytes:
             row = conn.execute(
-                "SELECT kind, key FROM web_cache ORDER BY created_at ASC LIMIT 1"
+                "SELECT kind, key, size FROM web_cache ORDER BY created_at ASC LIMIT 1"
             ).fetchone()
             if not row:
                 break
-            conn.execute("DELETE FROM web_cache WHERE kind = ? AND key = ?", row)
+            kind_to_del, key_to_del, size_to_del = row
+            conn.execute("DELETE FROM web_cache WHERE kind = ? AND key = ?", (kind_to_del, key_to_del))
+            total -= size_to_del
         conn.commit()
 
     _web_cache_with_connection(db_path, do_set)
