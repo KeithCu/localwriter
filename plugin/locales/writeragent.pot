@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-22 02:22-0400\n"
+"POT-Creation-Date: 2026-03-22 12:59-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -261,9 +261,9 @@ msgstr ""
 
 #: plugin/framework/legacy_ui.py:330 plugin/modules/chatbot/panel.py:482
 #: plugin/modules/chatbot/send_handlers.py:252
-#: plugin/modules/chatbot/send_handlers.py:263
-#: plugin/modules/chatbot/send_handlers.py:272
-#: plugin/modules/chatbot/send_handlers.py:513
+#: plugin/modules/chatbot/send_handlers.py:262
+#: plugin/modules/chatbot/send_handlers.py:271
+#: plugin/modules/chatbot/send_handlers.py:512
 msgid "Error"
 msgstr ""
 
@@ -535,8 +535,8 @@ msgid ""
 msgstr ""
 
 #: plugin/modules/chatbot/send_handlers.py:167
-#: plugin/modules/chatbot/send_handlers.py:335
-#: plugin/modules/chatbot/send_handlers.py:511
+#: plugin/modules/chatbot/send_handlers.py:334
+#: plugin/modules/chatbot/send_handlers.py:510
 #, python-brace-format
 msgid ""
 "\n"
@@ -550,44 +550,52 @@ msgid ""
 "[Document context error: {0}]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:261
+#: plugin/modules/chatbot/send_handlers.py:260
 #, python-brace-format
 msgid ""
 "\n"
 "[Agent backend '{0}' not found.]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:268
+#: plugin/modules/chatbot/send_handlers.py:267
 #, python-brace-format
 msgid ""
 "\n"
 "[Agent backend '{0}' is not available. Check Settings (path, install).]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:487
+#: plugin/modules/chatbot/send_handlers.py:486
 #, python-brace-format
 msgid "AI (research): {0}\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:493
+#: plugin/modules/chatbot/send_handlers.py:492
 msgid "Unknown research error."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:494
+#: plugin/modules/chatbot/send_handlers.py:493
 #, python-brace-format
 msgid "[Research error: {0}]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:445
+#: plugin/modules/chatbot/panel_factory.py:446
 msgid "Size:"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:446
+#: plugin/modules/chatbot/panel_factory.py:447
 msgid "Height:"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:447
+#: plugin/modules/chatbot/panel_factory.py:448
 msgid "Width:"
+msgstr ""
+
+#: plugin/tests/test_backend_translations.py:33
+msgid "Built-in"
+msgstr ""
+
+#: plugin/tests/test_backend_translations.py:34
+msgid "Backend"
 msgstr ""
 
 #: plugin/tests/test_i18n.py:16
@@ -844,12 +852,6 @@ msgid "Writer"
 msgstr ""
 
 msgid "Agent backends"
-msgstr ""
-
-msgid "Backend"
-msgstr ""
-
-msgid "Built-in"
 msgstr ""
 
 msgid "Hermes"

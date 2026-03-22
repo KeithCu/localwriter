@@ -38,8 +38,24 @@ def list_backend_ids():
     return list(AGENT_BACKEND_REGISTRY.keys())
 
 
+def normalize_backend_id(backend_id):
+    """Normalize backward-compatible or translated backend IDs to internal IDs."""
+    if not backend_id:
+        return "builtin"
+
+    b_id = str(backend_id).strip().lower()
+
+    # Official internal IDs
+    if b_id in AGENT_BACKEND_REGISTRY:
+        return b_id
+
+    # Default to builtin if not found, recovering from any other corrupted string
+    return "builtin"
+
+
 def get_backend(backend_id, ctx=None):
     """Return an adapter instance for the given backend id, or None."""
+    backend_id = normalize_backend_id(backend_id)
     entry = AGENT_BACKEND_REGISTRY.get(backend_id)
     if not entry:
         return None

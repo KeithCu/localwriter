@@ -94,11 +94,25 @@ Beyond utility functions, we can apply FV to state machines. For example, our LL
 
 By defining contracts that assert *"No matter how a JSON delta stream is arbitrarily chunked or fragmented over the network, the final assembled output string will exactly match the output of a synchronous, unfragmented payload,"* we can use CrossHair to mathematically prove our streaming parser's resilience against arbitrary network fragmentation.
 
+## Why we refactored orchestration into pure state machines
+
+WriterAgent’s hardest code paths sit in **Tier 2 orchestration** (see §3 Phase 1): the chat tool loop, send handlers, sidebar button lifecycle, MCP request handling, and related wiring (`panel_factory.py`, `tool_loop.py`, `send_handlers.py`, HTTP MCP). In that layer, behavior was historically driven by **implicit state** scattered across instance fields, together with threads, network I/O, and UNO calls. That combination makes correct behavior **difficult to reason about**, **expensive to test** (full LibreOffice or heavy harnesses), and **easy to get wrong at the edges**—for example Stop versus stream completion, tool ordering and pending-tool queues, or Send/Stop mutual exclusion.
+
+The refactor **separates concerns** in the same “hexagonal” spirit as the rest of this document: **pure transition functions** `next_state(state, event) -> (new_state, effects)` with **effects represented as data** (simple strings plus small dataclasses). Side effects—threads, HTTP, UNO, subprocesses—stay in **interpreters** that run outside the transition function. **Phase 5** below catalogs what was extracted and the pragmatic patterns we used (and deliberately did not use).
+
+**Why this matters for formal verification:** We treat the UNO bridge as axiomatic (opening of this document); we want proofs about **our** Python. `deal` contracts and CrossHair apply to **pure** functions. Code that mixes UI updates, I/O, and state updates in one procedure is a poor verification target—see *Verification Anti-Patterns* (do not verify tangled orchestration; verify the extracted machine instead).
+
+**Why this matters even before full FV:** Deterministic, fast **unit tests** over transition functions (`plugin/tests/test_tool_loop_state.py`, `plugin/tests/test_state_machine.py`, `plugin/tests/test_send_state.py`, `plugin/modules/chatbot/tests/test_audio_recorder_state.py`, etc.) document **allowed transitions**, catch regressions without a running office, and make refactors in chat, MCP, and audio paths safer.
+
+This was a **pragmatic** foundation: Phase 5 records design tradeoffs and what we avoided over-engineering. Attaching `deal` and running CrossHair on every transition is **Phase 6**, not something we claim is already complete.
+
+For **remaining** orchestration that could be extracted in the future, see [STATE_MACHINE_ROADMAP.md](STATE_MACHINE_ROADMAP.md).
+
 ## Phase 5: Elevating Orchestration to Pure State Machines
 
 **COMPLETED ✅**
 
-The state machine extraction has been successfully implemented using a pragmatic, simplified approach that avoids unnecessary complexity:
+The following summarizes the implemented modules and the simplified patterns we used:
 
 ### Key Design Decisions (Simplified Approach)
 
@@ -167,7 +181,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
         # ... other cases ...
 ```
 
-**Verification:** These pure state machines are now ready for formal verification using CrossHair. The simplified design makes verification easier and more practical.
+**Verification:** The `next_state` functions above are the intended surface for `deal` and CrossHair in Phase 6; the simplified design keeps that work tractable.
 
 ## Phase 6: Formal Verification of State Machines
 
