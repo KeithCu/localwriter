@@ -31,7 +31,7 @@ import unohelper
 # plugin/modules/chatbot/panel_factory.py; the extension root (directory
 # containing the "plugin" package) is 4 levels up from here.
 _this_file = os.path.abspath(__file__)
-for _ in range(4):
+for _i in range(4):
     _this_file = os.path.dirname(_this_file)
 _ext_root = _this_file
 if _ext_root not in sys.path:
@@ -587,6 +587,7 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                     self.img_check = img_check
 
                 def on_item_state_changed(self, ev):
+                    from plugin.framework.i18n import _
                     is_research = (getattr(ev, "Selected", 0) == 1)
                     set_control_enabled(self.img_check, not is_research)
 

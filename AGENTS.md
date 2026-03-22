@@ -112,8 +112,8 @@ The sidebar and menu Chat work for **Writer and Calc** (same deck/UI; ContextLis
 
 ### Web search sub-agent (sidebar toggle)
 
-- **Web search checkbox**: The chat sidebar includes a **Web search** checkbox (`web_search_check`) below the Send/Stop/Clear buttons. When checked for a send:
-  - The panel bypasses normal Chat with Document behavior (no document context or document tools are used for that turn).
+- **Web search checkbox**: The chat sidebar includes a **Web search** checkbox (`web_search_check`) below the Send/Stop/Clear buttons. Toggling it switches between document chat and web-only mode and updates the response-area greeting (`get_greeting_for_document` vs `DEFAULT_RESEARCH_GREETING` via `plugin.framework.i18n._`). `ResearchChatToggledListener` in `plugin/modules/chatbot/panel_factory.py` imports `_` inside `on_item_state_changed`; the path-climbing loop at the top of that file must not use `for _ in ...` (it would bind module-level `_` and break `_(...)`).
+  - When checked for a send, the panel bypasses normal Chat with Document behavior (no document context or document tools are used for that turn).
   - It directly invokes the `web_research` tool from `plugin/modules/writer/tools.py`, which runs the `ToolCallingAgent`-based sub-agent (`DuckDuckGoSearchTool` + `VisitWebpageTool`) to research the query.
   - The synthesized answer is streamed back into the response area as `AI (web): ...`, without modifying the document.
   - When unchecked (default), the sidebar behaves as standard Chat with Document; the main model may still call `web_research` autonomously via tool-calling when appropriate.

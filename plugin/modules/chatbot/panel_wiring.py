@@ -101,6 +101,7 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
 
     # 3. Determine Mode & Greeting
     from plugin.framework.constants import get_greeting_for_document, DEFAULT_RESEARCH_GREETING
+    from plugin.framework.i18n import _
     web_checked = False
     if controls["web_research_check"]:
         try: web_checked = (get_checkbox_state(controls["web_research_check"]) == 1)
