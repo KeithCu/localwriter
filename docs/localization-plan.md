@@ -140,17 +140,7 @@ messages = ngettext(
 ### Task 4.2: Context-Aware Translations
 **Owner: Jules/Agent-7**
 
-**Pattern:**
-```python
-# For ambiguous terms
-msgctxt("verb")
-msgid "Table"
-msgstr "Tabellarisch"
-
-msgctxt("noun")
-msgid "Table"
-msgstr "Tabelle"
-```
+**Pattern:** Prefer distinct English source strings where terms collide (e.g. “Insert table” vs “Data table”). Full gettext message-context workflows are deferred until the project needs them.
 
 **Ambiguous Terms to Disambiguate:**
 - "Table" (noun vs verb)
