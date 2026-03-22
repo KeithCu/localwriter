@@ -84,6 +84,12 @@ Integrated cross-platform audio recording directly in the chat sidebar.
 *   **Talk to Your Document**: Recorded audio is handled intelligently—it will be sent directly to native audio LLMs or automatically transcribed via an STT engine before being sent as text, depending on your model's capabilities.
 *   **Flexible Deployment**: Optional build support (see `Makefile`) allows for deployment in environments where audio dependencies are not needed.
 
+## Translations (i18n)
+
+WriterAgent's user interface is fully localized into Spanish, French, Portuguese, Russian, German, Japanese, Italian, and Polish.
+
+We use **AI-assisted tooling** to keep coverage 100% as the UI evolves. **Spot a bad, awkward, or missing translation?** Please [open an issue](https://github.com/KeithCu/writeragent/issues) so we can fix it—or contribute directly, the files are in  [plugin/locales](https://github.com/KeithCu/writeragent/tree/bad49930d38bb0e22eef154091ae0265f885a8b3/plugin/locales).
+
 ## WriterAgent Architecture
 
 WriterAgent isn't just a wrapper; it's built for performance and deep integration with LibreOffice:
