@@ -2,7 +2,7 @@
 """Merge translatable strings from plugin/modules/**/module.yaml into writeragent.pot.
 
 Run after xgettext so the POT already contains Python (and generated XDL stub) strings.
-Uses polib; skips msgid+msgctxt pairs already present. Idempotent.
+Uses polib; skips msgids already present. Idempotent.
 
 Usage:
   python scripts/merge_module_yaml_into_pot.py [path/to/writeragent.pot]
@@ -32,26 +32,24 @@ def _walk_module_yamls(modules_root: str) -> list[str]:
     return sorted(out)
 
 
-def _collect_strings_from_module_yaml(path: str) -> list[tuple[str, str]]:
-    """Return list of (msgid, msgctxt) for strings to add."""
-    module_name = os.path.basename(os.path.dirname(path))
+def _collect_strings_from_module_yaml(path: str) -> list[str]:
+    """Return msgids to add from one module.yaml."""
     with open(path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not isinstance(data, dict):
         return []
 
-    results: list[tuple[str, str]] = []
+    results: list[str] = []
 
     title = data.get("title")
     if isinstance(title, str) and title.strip():
-        t = title.strip()
-        results.append((t, None))
+        results.append(title.strip())
 
     config = data.get("config")
     if not isinstance(config, dict):
         return results
 
-    for field_name, schema in config.items():
+    for _, schema in config.items():
         if not isinstance(schema, dict):
             continue
         if schema.get("internal"):
@@ -59,24 +57,21 @@ def _collect_strings_from_module_yaml(path: str) -> list[tuple[str, str]]:
         for key in ("label", "helper"):
             val = schema.get(key)
             if isinstance(val, str) and val.strip():
-                results.append((val.strip(), None))
+                results.append(val.strip())
         opts = schema.get("options")
         if isinstance(opts, list):
             for i, opt in enumerate(opts):
                 if isinstance(opt, dict):
                     lab = opt.get("label")
                     if isinstance(lab, str) and lab.strip():
-                        results.append((lab.strip(), None))
+                        results.append(lab.strip())
 
     return results
 
 
-def _entry_exists(pot: polib.POFile, msgid: str, msgctxt: str | None) -> bool:
+def _entry_exists(pot: polib.POFile, msgid: str) -> bool:
     for e in pot:
-        if e.msgid != msgid:
-            continue
-        ec = getattr(e, "msgctxt", None)
-        if ec == msgctxt:
+        if e.msgid == msgid:
             return True
     return False
 
@@ -89,33 +84,30 @@ def merge_yaml_into_pot(pot_path: str) -> int:
 
     root = _repo_root()
     modules_root = os.path.join(root, "plugin", "modules")
-    pairs: list[tuple[str, str]] = []
+    raw: list[str] = []
     for ypath in _walk_module_yamls(modules_root):
-        pairs.extend(_collect_strings_from_module_yaml(ypath))
+        raw.extend(_collect_strings_from_module_yaml(ypath))
 
-    # Dedupe (msgid, msgctxt) from overlapping YAML paths
-    seen_keys: set[tuple[str, str | None]] = set()
-    unique_pairs: list[tuple[str, str]] = []
-    for msgid, msgctxt in pairs:
-        key = (msgid, msgctxt)
-        if key in seen_keys:
+    seen: set[str] = set()
+    unique_msgids: list[str] = []
+    for msgid in raw:
+        if msgid in seen:
             continue
-        seen_keys.add(key)
-        unique_pairs.append((msgid, msgctxt))
+        seen.add(msgid)
+        unique_msgids.append(msgid)
 
     pot = polib.pofile(pot_path)
     added = 0
-    for msgid, msgctxt in unique_pairs:
+    for msgid in unique_msgids:
         if not msgid:
             continue
-        if _entry_exists(pot, msgid, msgctxt):
+        if _entry_exists(pot, msgid):
             continue
-        entry = polib.POEntry(msgid=msgid, msgstr="", msgctxt=msgctxt)
-        pot.append(entry)
+        pot.append(polib.POEntry(msgid=msgid, msgstr=""))
         added += 1
 
     pot.save(pot_path)
-    print(f"merge_module_yaml_into_pot: {pot_path} (+{added} entries, {len(pairs)} strings from YAML)")
+    print(f"merge_module_yaml_into_pot: {pot_path} (+{added} entries, {len(raw)} strings from YAML)")
     return 0
 
 

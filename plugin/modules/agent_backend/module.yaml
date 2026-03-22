@@ -1,5 +1,5 @@
 name: agent_backend
-title: Agent backends (Aider, Hermes)
+title: Agent backends
 requires: [config, document]
 
 config:

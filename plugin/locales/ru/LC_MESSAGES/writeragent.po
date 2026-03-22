@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-21 21:16+0000\n"
+"POT-Creation-Date: 2026-03-21 23:10-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -35,10 +35,12 @@ msgid "Register at "
 msgstr "Зарегистрируйтесь на "
 
 #: plugin/contrib/aihordeclient/__init__.py:617
+#, python-brace-format
 msgid "You have {} kudos"
 msgstr "У вас есть {} kudos"
 
 #: plugin/contrib/aihordeclient/__init__.py:625
+#, python-brace-format
 msgid "«{}» is not a valid API KEY, double check it or create a new one"
 msgstr ""
 "«{}» не является действительным API-ключом, проверьте его или создайте новый"
@@ -75,6 +77,7 @@ msgstr ""
 "повторите попытку позже"
 
 #: plugin/contrib/aihordeclient/__init__.py:662
+#, python-brace-format
 msgid ""
 "Seems that «{}» has problems, double check it, create a new one or join "
 "Discord to ask for help"
@@ -106,15 +109,6 @@ msgid ""
 msgstr ""
 "При попытке запросить изображение Horde был слишком медленным, повторите "
 "попытку позже"
-
-#: plugin/contrib/aihordeclient/__init__.py:836
-#, python-brace-format
-msgid ""
-"Register at {REGISTER_AI_HORDE_URL} and use your key to improve your rate "
-"success. Detail:"
-msgstr ""
-"Зарегистрируйтесь на {REGISTER_AI_HORDE_URL} и используйте свой ключ, чтобы "
-"повысить вероятность успеха. Детали:"
 
 #: plugin/contrib/aihordeclient/__init__.py:843
 msgid "to learn to earn kudos. Detail:"
@@ -159,6 +153,7 @@ msgid "Please try another model,"
 msgstr "Пожалуйста, попробуйте другую модель,"
 
 #: plugin/contrib/aihordeclient/__init__.py:973
+#, python-brace-format
 msgid "{} would take more time than you configured,"
 msgstr "{} займет больше времени, чем вы настроили,"
 
@@ -187,6 +182,7 @@ msgid "Please try again later."
 msgstr "Пожалуйста, повторите попытку позже."
 
 #: plugin/contrib/aihordeclient/__init__.py:1020
+#, python-brace-format
 msgid "Probably your image will take {} additional minutes."
 msgstr "Вероятно, ваше изображение займет еще {} минут."
 
@@ -223,70 +219,264 @@ msgstr " сгенерировано "
 msgid " with "
 msgstr " с помощью "
 
-#: plugin/main.py:243
-#, python-brace-format
-msgid ""
-"{0}: {1} passed, {2} failed.\n"
-"\n"
-"{3}"
-msgstr ""
-"{0}: {1} пройдено, {2} не удалось.\n"
-"\n"
-"{3}"
+#: plugin/framework/dialogs.py:93
+msgid "Agent requests approval"
+msgstr "Агент запрашивает одобрение"
 
-#: plugin/main.py:246
-#, python-brace-format
-msgid "Tests failed to run: {0}"
-msgstr "Не удалось запустить тесты: {0}"
+#: plugin/framework/dialogs.py:94
+msgid "Proceed with this action?"
+msgstr "Продолжить это действие?"
 
-#: plugin/main.py:356
-msgid "Extend Selection"
-msgstr "Расширить выделение"
+#: plugin/framework/dialogs.py:95
+#, python-format
+msgid "Tool: %s"
+msgstr "Инструмент: %s"
 
-#: plugin/main.py:357
-msgid "Edit Selection"
-msgstr "Редактировать выделение"
+#: plugin/framework/dialogs.py:234
+msgid "Copy"
+msgstr "Копировать"
 
-#: plugin/main.py:358
-msgid "Settings"
-msgstr "Настройки"
+#: plugin/framework/dialogs.py:235 plugin/framework/dialogs.py:307
+#: plugin/framework/dialogs.py:394 plugin/modules/http/__init__.py:247
+#: plugin/xdl_strings.py:39
+msgid "OK"
+msgstr "ОК"
 
-#: plugin/main.py:359
-msgid "Toggle MCP Server"
-msgstr "Переключить сервер MCP"
+#: plugin/framework/dialogs.py:254 plugin/framework/dialogs.py:329
+msgid "Copied!"
+msgstr "Скопировано!"
 
-#: plugin/main.py:360
-msgid "MCP Server Status"
-msgstr "Статус сервера MCP"
+#: plugin/framework/dialogs.py:304
+msgid "Copy URL"
+msgstr "Копировать URL"
 
-#: plugin/main.py:362
-msgid "Run format tests"
-msgstr "Запустить тесты форматирования"
-
-#: plugin/main.py:363
-msgid "Run calc tests"
-msgstr "Запустить тесты calc"
-
-#: plugin/main.py:364
-msgid "Run Calc API integration tests"
-msgstr "Запустить интеграционные тесты Calc API"
-
-#: plugin/main.py:365
-msgid "Run draw tests"
-msgstr "Запустить тесты draw"
-
-#: plugin/main.py:366
-msgid "Evaluation Dashboard"
-msgstr "Панель оценки"
-
-#: plugin/main.py:367 plugin/framework/dialogs.py:378
-#: plugin/framework/dialogs.py:406
+#: plugin/framework/dialogs.py:378 plugin/framework/dialogs.py:406
+#: plugin/main.py:367
 msgid "About WriterAgent"
 msgstr "О WriterAgent"
 
-#: plugin/main.py:715
-msgid "Dispatch Error"
-msgstr "Ошибка диспетчеризации"
+#: plugin/framework/dialogs.py:385
+#, python-format
+msgid "Version: %s"
+msgstr "Версия: %s"
+
+#: plugin/framework/dialogs.py:386
+msgid "AI-powered extension for LibreOffice"
+msgstr "Расширение на базе ИИ для LibreOffice"
+
+#: plugin/framework/dialogs.py:391
+msgid "GitHub: quazardous/localwriter"
+msgstr "GitHub: quazardous/localwriter"
+
+#: plugin/framework/dialogs.py:407
+#, python-brace-format
+msgid ""
+"WriterAgent {0}\n"
+"https://github.com/quazardous/localwriter"
+msgstr ""
+"WriterAgent {0}\n"
+"https://github.com/quazardous/localwriter"
+
+#: plugin/framework/legacy_ui.py:282 plugin/main.py:358
+#: plugin/xdl_strings.py:45
+msgid "Settings"
+msgstr "Настройки"
+
+#: plugin/framework/legacy_ui.py:330 plugin/modules/chatbot/panel.py:477
+#: plugin/modules/chatbot/send_handlers.py:282
+#: plugin/modules/chatbot/send_handlers.py:293
+#: plugin/modules/chatbot/send_handlers.py:302
+#: plugin/modules/chatbot/send_handlers.py:543
+msgid "Error"
+msgstr "Ошибка"
+
+#: plugin/framework/legacy_ui.py:330
+#, python-brace-format
+msgid ""
+"Failed to open Settings: {0}\n"
+"\n"
+"{1}"
+msgstr ""
+"Не удалось открыть настройки: {0}\n"
+"\n"
+"{1}"
+
+#: plugin/framework/settings_dialog.py:153
+msgid "Invalid Setting"
+msgstr "Недействительная настройка"
+
+#: plugin/framework/settings_dialog.py:153
+msgid "Temperature must be <= 1.0"
+msgstr "Температура должна быть <= 1.0"
+
+#: plugin/modules/http/errors.py:15
+#, python-brace-format
+msgid "TLS/SSL Error: {0}"
+msgstr "Ошибка TLS/SSL: {0}"
+
+#: plugin/modules/http/errors.py:20
+msgid "Invalid API Key. Please check your settings."
+msgstr "Неверный API-ключ. Пожалуйста, проверьте ваши настройки."
+
+#: plugin/modules/http/errors.py:22
+msgid "API access Forbidden. Your key may lack permissions for this model."
+msgstr ""
+"Доступ к API запрещен. У вашего ключа может не быть разрешений для этой "
+"модели."
+
+#: plugin/modules/http/errors.py:24
+msgid "Endpoint not found (404). Check your URL and Model name."
+msgstr "Конечная точка не найдена (404). Проверьте URL и имя модели."
+
+#: plugin/modules/http/errors.py:26
+#, python-brace-format
+msgid "Server error ({0}). The AI provider is having issues."
+msgstr "Ошибка сервера ({0}). У провайдера ИИ проблемы."
+
+#: plugin/modules/http/errors.py:27 plugin/modules/http/errors.py:48
+#, python-brace-format
+msgid "HTTP Error {0}: {1}"
+msgstr "HTTP-ошибка {0}: {1}"
+
+#: plugin/modules/http/errors.py:30
+msgid "Request Timed Out. Try increasing 'Request Timeout' in Settings."
+msgstr ""
+"Время ожидания запроса истекло. Попробуйте увеличить «Таймаут запроса» в "
+"настройках."
+
+#: plugin/modules/http/errors.py:35
+msgid "Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
+msgstr ""
+"В соединении отказано. Запущен ли ваш локальный сервер ИИ (Ollama/LM Studio)?"
+
+#: plugin/modules/http/errors.py:37
+msgid "DNS Error. Could not resolve the endpoint URL."
+msgstr "Ошибка DNS. Не удалось разрешить URL-адрес конечной точки."
+
+#: plugin/modules/http/errors.py:38
+#, python-brace-format
+msgid "Connection Error: {0}"
+msgstr "Ошибка подключения: {0}"
+
+#: plugin/modules/http/errors.py:41
+msgid "The AI provider reported an error. Try again."
+msgstr "Провайдер ИИ сообщил об ошибке. Попробуйте еще раз."
+
+#: plugin/modules/http/errors.py:70
+#, python-brace-format
+msgid "Error: {0}"
+msgstr "Ошибка: {0}"
+
+#: plugin/modules/http/client.py:534
+msgid "Stream ended with finish_reason=error"
+msgstr "Поток завершился с finish_reason=error"
+
+#: plugin/modules/http/client.py:547
+msgid ""
+"The model is repeating the same chunk (infinite loop). Try again or use a "
+"different model."
+msgstr ""
+"Модель повторяет один и тот же фрагмент (бесконечный цикл). Попробуйте еще "
+"раз или используйте другую модель."
+
+#: plugin/modules/http/__init__.py:179
+msgid "Stop HTTP Server"
+msgstr "Остановить HTTP-сервер"
+
+#: plugin/modules/http/__init__.py:180
+msgid "Start HTTP Server"
+msgstr "Запустить HTTP-сервер"
+
+#: plugin/modules/http/__init__.py:201
+msgid "HTTP server stopped"
+msgstr "HTTP-сервер остановлен"
+
+#: plugin/modules/http/__init__.py:208
+#, python-brace-format
+msgid ""
+"HTTP server started\n"
+"{0}"
+msgstr ""
+"HTTP-сервер запущен\n"
+"{0}"
+
+#: plugin/modules/http/__init__.py:211
+msgid ""
+"HTTP server failed to start\n"
+"Check ~/localwriter.log"
+msgstr ""
+"Не удалось запустить HTTP-сервер\n"
+"Проверьте ~/localwriter.log"
+
+#: plugin/modules/http/__init__.py:220
+msgid "HTTP server is not running"
+msgstr "HTTP-сервер не запущен"
+
+#: plugin/modules/http/__init__.py:226
+msgid "HTTP server not running"
+msgstr "HTTP-сервер не запущен"
+
+#: plugin/modules/http/__init__.py:231
+#, python-brace-format
+msgid ""
+"HTTP server running\n"
+"Routes: {0}"
+msgstr ""
+"HTTP-сервер запущен\n"
+"Маршруты: {0}"
+
+#: plugin/modules/http/__init__.py:238
+msgid "Server Status"
+msgstr "Статус сервера"
+
+#: plugin/modules/http/__init__.py:259
+#, python-brace-format
+msgid ""
+"{0}\n"
+"URL: {1}"
+msgstr ""
+"{0}\n"
+"URL: {1}"
+
+#: plugin/modules/launcher/__init__.py:407
+#, python-brace-format
+msgid "{0} Running"
+msgstr "{0} Запущено"
+
+#: plugin/modules/launcher/__init__.py:408
+#, python-brace-format
+msgid "Launch {0}"
+msgstr "Запустить {0}"
+
+#: plugin/modules/launcher/__init__.py:502
+#, python-brace-format
+msgid ""
+"Command '{0}' not found.\n"
+"Make sure it is installed and in your PATH.\n"
+"\n"
+"Use 'Install AI CLI' from the menu to get install instructions."
+msgstr ""
+"Команда '{0}' не найдена.\n"
+"Убедитесь, что она установлена и добавлена в PATH.\n"
+"\n"
+"Используйте 'Install AI CLI' в меню для получения инструкций по установке."
+
+#: plugin/modules/calc/legacy.py:32 plugin/modules/writer/legacy.py:70
+msgid "Please enter edit instructions!"
+msgstr "Пожалуйста, введите инструкции для редактирования!"
+
+#: plugin/modules/calc/legacy.py:32 plugin/modules/writer/legacy.py:70
+#: plugin/xdl_strings.py:32
+msgid "Input"
+msgstr "Ввод"
+
+#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
+msgid "WriterAgent: Edit Selection (Calc)"
+msgstr "WriterAgent: Редактировать выделение (Calc)"
+
+#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
+msgid "WriterAgent: Extend Selection (Calc)"
+msgstr "WriterAgent: Расширить выделение (Calc)"
 
 #: plugin/modules/writer/legacy.py:43 plugin/modules/writer/legacy.py:54
 #: plugin/modules/chatbot/selection.py:69
@@ -294,33 +484,13 @@ msgstr "Ошибка диспетчеризации"
 msgid "WriterAgent: Extend Selection"
 msgstr "WriterAgent: Расширить выделение"
 
-#: plugin/modules/writer/legacy.py:70 plugin/modules/calc/legacy.py:32
-msgid "Please enter edit instructions!"
-msgstr "Пожалуйста, введите инструкции для редактирования!"
-
-#: plugin/modules/writer/legacy.py:70 plugin/modules/calc/legacy.py:32
-msgid "Input"
-msgstr "Ввод"
-
 #: plugin/modules/writer/legacy.py:78 plugin/modules/writer/legacy.py:88
 #: plugin/modules/writer/legacy.py:102 plugin/modules/chatbot/selection.py:256
 #: plugin/modules/chatbot/selection.py:358
 msgid "WriterAgent: Edit Selection"
 msgstr "WriterAgent: Редактировать выделение"
 
-#: plugin/modules/chatbot/panel_factory.py:445
-msgid "Size:"
-msgstr "Размер:"
-
-#: plugin/modules/chatbot/panel_factory.py:446
-msgid "Height:"
-msgstr "Высота:"
-
-#: plugin/modules/chatbot/panel_factory.py:447
-msgid "Width:"
-msgstr "Ширина:"
-
-#: plugin/modules/chatbot/panel_wiring.py:142
+#: plugin/modules/chatbot/panel_wiring.py:145 plugin/xdl_strings.py:41
 msgid "Ready"
 msgstr "Готово"
 
@@ -332,7 +502,7 @@ msgstr "Запись"
 msgid "Stop Rec"
 msgstr "Остановить"
 
-#: plugin/modules/chatbot/panel.py:398
+#: plugin/modules/chatbot/panel.py:398 plugin/xdl_strings.py:44
 msgid "Send"
 msgstr "Отправить"
 
@@ -343,10 +513,12 @@ msgstr "Получение документа..."
 #: plugin/modules/chatbot/panel.py:423
 msgid ""
 "\n"
-"[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n"
+"[No compatible LibreOffice document (Writer, Calc, or Draw) found in the "
+"active window.]\n"
 msgstr ""
 "\n"
-"[В активном окне не найден совместимый документ LibreOffice (Writer, Calc или Draw).]\n"
+"[В активном окне не найден совместимый документ LibreOffice (Writer, Calc "
+"или Draw).]\n"
 
 #: plugin/modules/chatbot/panel.py:433
 #, python-brace-format
@@ -354,8 +526,8 @@ msgid ""
 "[Internal Error: Document type changed from {0} to {1}! Please file an "
 "error.]"
 msgstr ""
-"[Внутренняя ошибка: Тип документа изменен с {0} на {1}! Пожалуйста, сообщите"
-" об ошибке.]"
+"[Внутренняя ошибка: Тип документа изменен с {0} на {1}! Пожалуйста, сообщите "
+"об ошибке.]"
 
 #: plugin/modules/chatbot/panel.py:440
 #, python-brace-format
@@ -363,8 +535,8 @@ msgid ""
 "[Internal Error: Could not identify document type for {0}. Please report "
 "this!]"
 msgstr ""
-"[Внутренняя ошибка: Не удалось определить тип документа для {0}. Пожалуйста,"
-" сообщите об этом!]"
+"[Внутренняя ошибка: Не удалось определить тип документа для {0}. Пожалуйста, "
+"сообщите об этом!]"
 
 #: plugin/modules/chatbot/panel.py:474
 #, python-brace-format
@@ -374,15 +546,6 @@ msgid ""
 msgstr ""
 "[Модель {0} не поддерживает встроенное аудио. Пожалуйста, выберите модель "
 "STT в настройках.]"
-
-#: plugin/modules/chatbot/panel.py:477
-#: plugin/modules/chatbot/send_handlers.py:282
-#: plugin/modules/chatbot/send_handlers.py:293
-#: plugin/modules/chatbot/send_handlers.py:302
-#: plugin/modules/chatbot/send_handlers.py:543
-#: plugin/framework/legacy_ui.py:314
-msgid "Error"
-msgstr "Ошибка"
 
 #: plugin/modules/chatbot/send_handlers.py:197
 #: plugin/modules/chatbot/send_handlers.py:365
@@ -436,239 +599,484 @@ msgstr "Неизвестная ошибка исследования."
 msgid "[Research error: {0}]\n"
 msgstr "[Ошибка исследования: {0}]\n"
 
-#: plugin/modules/http/__init__.py:179
-msgid "Stop HTTP Server"
-msgstr "Остановить HTTP-сервер"
+#: plugin/modules/chatbot/panel_factory.py:445
+msgid "Size:"
+msgstr "Размер:"
 
-#: plugin/modules/http/__init__.py:180
-msgid "Start HTTP Server"
-msgstr "Запустить HTTP-сервер"
+#: plugin/modules/chatbot/panel_factory.py:446
+msgid "Height:"
+msgstr "Высота:"
 
-#: plugin/modules/http/__init__.py:201
-msgid "HTTP server stopped"
-msgstr "HTTP-сервер остановлен"
+#: plugin/modules/chatbot/panel_factory.py:447
+msgid "Width:"
+msgstr "Ширина:"
 
-#: plugin/modules/http/__init__.py:208
-#, python-brace-format
-msgid ""
-"HTTP server started\n"
-"{0}"
-msgstr ""
-"HTTP-сервер запущен\n"
-"{0}"
-
-#: plugin/modules/http/__init__.py:211
-msgid ""
-"HTTP server failed to start\n"
-"Check ~/localwriter.log"
-msgstr ""
-"Не удалось запустить HTTP-сервер\n"
-"Проверьте ~/localwriter.log"
-
-#: plugin/modules/http/__init__.py:220
-msgid "HTTP server is not running"
-msgstr "HTTP-сервер не запущен"
-
-#: plugin/modules/http/__init__.py:226
-msgid "HTTP server not running"
-msgstr "HTTP-сервер не запущен"
-
-#: plugin/modules/http/__init__.py:231
-#, python-brace-format
-msgid ""
-"HTTP server running\n"
-"Routes: {0}"
-msgstr ""
-"HTTP-сервер запущен\n"
-"Маршруты: {0}"
-
-#: plugin/modules/http/__init__.py:238
-msgid "Server Status"
-msgstr "Статус сервера"
-
-#: plugin/modules/http/__init__.py:247 plugin/framework/dialogs.py:235
-#: plugin/framework/dialogs.py:307 plugin/framework/dialogs.py:394
-msgid "OK"
-msgstr "ОК"
-
-#: plugin/modules/http/__init__.py:259
-#, python-brace-format
-msgid ""
-"{0}\n"
-"URL: {1}"
-msgstr ""
-"{0}\n"
-"URL: {1}"
-
-#: plugin/modules/http/client.py:534
-msgid "Stream ended with finish_reason=error"
-msgstr "Поток завершился с finish_reason=error"
-
-#: plugin/modules/http/client.py:547
-msgid ""
-"The model is repeating the same chunk (infinite loop). Try again or use a "
-"different model."
-msgstr ""
-"Модель повторяет один и тот же фрагмент (бесконечный цикл). Попробуйте еще "
-"раз или используйте другую модель."
-
-#: plugin/modules/http/errors.py:15
-#, python-brace-format
-msgid "TLS/SSL Error: {0}"
-msgstr "Ошибка TLS/SSL: {0}"
-
-#: plugin/modules/http/errors.py:20
-msgid "Invalid API Key. Please check your settings."
-msgstr "Неверный API-ключ. Пожалуйста, проверьте ваши настройки."
-
-#: plugin/modules/http/errors.py:22
-msgid "API access Forbidden. Your key may lack permissions for this model."
-msgstr ""
-"Доступ к API запрещен. У вашего ключа может не быть разрешений для этой "
-"модели."
-
-#: plugin/modules/http/errors.py:24
-msgid "Endpoint not found (404). Check your URL and Model name."
-msgstr "Конечная точка не найдена (404). Проверьте URL и имя модели."
-
-#: plugin/modules/http/errors.py:26
-#, python-brace-format
-msgid "Server error ({0}). The AI provider is having issues."
-msgstr "Ошибка сервера ({0}). У провайдера ИИ проблемы."
-
-#: plugin/modules/http/errors.py:27 plugin/modules/http/errors.py:48
-#, python-brace-format
-msgid "HTTP Error {0}: {1}"
-msgstr "HTTP-ошибка {0}: {1}"
-
-#: plugin/modules/http/errors.py:30
-msgid "Request Timed Out. Try increasing 'Request Timeout' in Settings."
-msgstr ""
-"Время ожидания запроса истекло. Попробуйте увеличить «Таймаут запроса» в "
-"настройках."
-
-#: plugin/modules/http/errors.py:35
-msgid ""
-"Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
-msgstr ""
-"В соединении отказано. Запущен ли ваш локальный сервер ИИ (Ollama/LM "
-"Studio)?"
-
-#: plugin/modules/http/errors.py:37
-msgid "DNS Error. Could not resolve the endpoint URL."
-msgstr "Ошибка DNS. Не удалось разрешить URL-адрес конечной точки."
-
-#: plugin/modules/http/errors.py:38
-#, python-brace-format
-msgid "Connection Error: {0}"
-msgstr "Ошибка подключения: {0}"
-
-#: plugin/modules/http/errors.py:41
-msgid "The AI provider reported an error. Try again."
-msgstr "Провайдер ИИ сообщил об ошибке. Попробуйте еще раз."
-
-#: plugin/modules/http/errors.py:70
-#, python-brace-format
-msgid "Error: {0}"
-msgstr "Ошибка: {0}"
-
-#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
-msgid "WriterAgent: Edit Selection (Calc)"
-msgstr "WriterAgent: Редактировать выделение (Calc)"
-
-#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
-msgid "WriterAgent: Extend Selection (Calc)"
-msgstr "WriterAgent: Расширить выделение (Calc)"
-
-#: plugin/modules/launcher/__init__.py:407
-#, python-brace-format
-msgid "{0} Running"
-msgstr "{0} Запущено"
-
-#: plugin/modules/launcher/__init__.py:408
-#, python-brace-format
-msgid "Launch {0}"
-msgstr "Запустить {0}"
-
-#: plugin/modules/launcher/__init__.py:502
-#, python-brace-format
-msgid ""
-"Command '{0}' not found.\n"
-"Make sure it is installed and in your PATH.\n"
-"\n"
-"Use 'Install AI CLI' from the menu to get install instructions."
-msgstr ""
-"Команда '{0}' не найдена.\n"
-"Убедитесь, что она установлена и добавлена в PATH.\n"
-"\n"
-"Используйте 'Install AI CLI' в меню для получения инструкций по установке."
-
-#: plugin/framework/settings_dialog.py:146
-msgid "Invalid Setting"
-msgstr "Недействительная настройка"
-
-#: plugin/framework/settings_dialog.py:146
-msgid "Temperature must be <= 1.0"
-msgstr "Температура должна быть <= 1.0"
-
-#: plugin/framework/legacy_ui.py:314
-#, python-brace-format
-msgid ""
-"Failed to open Settings: {0}\n"
-"\n"
-"{1}"
-msgstr ""
-"Не удалось открыть настройки: {0}\n"
-"\n"
-"{1}"
-
-#: plugin/framework/dialogs.py:93
-msgid "Agent requests approval"
-msgstr "Агент запрашивает одобрение"
-
-#: plugin/framework/dialogs.py:94
-msgid "Proceed with this action?"
-msgstr "Продолжить это действие?"
-
-#: plugin/framework/dialogs.py:95
-#, python-format
-msgid "Tool: %s"
-msgstr "Инструмент: %s"
-
-#: plugin/framework/dialogs.py:234
-msgid "Copy"
-msgstr "Копировать"
-
-#: plugin/framework/dialogs.py:254 plugin/framework/dialogs.py:329
-msgid "Copied!"
-msgstr "Скопировано!"
-
-#: plugin/framework/dialogs.py:304
-msgid "Copy URL"
-msgstr "Копировать URL"
-
-#: plugin/framework/dialogs.py:385
-#, python-format
-msgid "Version: %s"
-msgstr "Версия: %s"
-
-#: plugin/framework/dialogs.py:386
-msgid "AI-powered extension for LibreOffice"
-msgstr "Расширение на базе ИИ для LibreOffice"
-
-#: plugin/framework/dialogs.py:391
-msgid "GitHub: quazardous/localwriter"
-msgstr "GitHub: quazardous/localwriter"
-
-#: plugin/framework/dialogs.py:407
-#, python-brace-format
-msgid ""
-"WriterAgent {0}\n"
-"https://github.com/quazardous/localwriter"
-msgstr ""
-"WriterAgent {0}\n"
-"https://github.com/quazardous/localwriter"
-
-#: plugin/tests/test_i18n.py:15
+#: plugin/tests/test_i18n.py:16
 msgid "ThisIsAnUntranslatedString999"
 msgstr "ThisIsAnUntranslatedString999"
+
+#: plugin/main.py:243
+#, python-brace-format
+msgid ""
+"{0}: {1} passed, {2} failed.\n"
+"\n"
+"{3}"
+msgstr ""
+"{0}: {1} пройдено, {2} не удалось.\n"
+"\n"
+"{3}"
+
+#: plugin/main.py:246
+#, python-brace-format
+msgid "Tests failed to run: {0}"
+msgstr "Не удалось запустить тесты: {0}"
+
+#: plugin/main.py:356
+msgid "Extend Selection"
+msgstr "Расширить выделение"
+
+#: plugin/main.py:357
+msgid "Edit Selection"
+msgstr "Редактировать выделение"
+
+#: plugin/main.py:359
+msgid "Toggle MCP Server"
+msgstr "Переключить сервер MCP"
+
+#: plugin/main.py:360
+msgid "MCP Server Status"
+msgstr "Статус сервера MCP"
+
+#: plugin/main.py:362
+msgid "Run format tests"
+msgstr "Запустить тесты форматирования"
+
+#: plugin/main.py:363
+msgid "Run calc tests"
+msgstr "Запустить тесты calc"
+
+#: plugin/main.py:364
+msgid "Run Calc API integration tests"
+msgstr "Запустить интеграционные тесты Calc API"
+
+#: plugin/main.py:365
+msgid "Run draw tests"
+msgstr "Запустить тесты draw"
+
+#: plugin/main.py:366
+msgid "Evaluation Dashboard"
+msgstr "Панель оценки"
+
+#: plugin/main.py:715
+msgid "Dispatch Error"
+msgstr "Ошибка диспетчеризации"
+
+#: plugin/xdl_strings.py:4
+msgid "-1"
+msgstr ""
+
+#: plugin/xdl_strings.py:5
+msgid "7.5"
+msgstr ""
+
+#: plugin/xdl_strings.py:6
+msgid "AI Horde API Key:"
+msgstr ""
+
+#: plugin/xdl_strings.py:7
+msgid "AI Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:8
+msgid "API Key:"
+msgstr ""
+
+#: plugin/xdl_strings.py:9
+msgid "Additional Instructions (History):"
+msgstr ""
+
+#: plugin/xdl_strings.py:10
+msgid "Additional Instructions:"
+msgstr ""
+
+#: plugin/xdl_strings.py:11
+msgid "Allow NSFW"
+msgstr ""
+
+#: plugin/xdl_strings.py:12
+msgid "Ask / instruct:"
+msgstr ""
+
+#: plugin/xdl_strings.py:13
+msgid "Aspect Ratio:"
+msgstr ""
+
+#: plugin/xdl_strings.py:14
+msgid "Audio Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:15
+msgid "Auto Gallery"
+msgstr ""
+
+#: plugin/xdl_strings.py:16
+#, fuzzy
+msgid "Base Size:"
+msgstr "Размер:"
+
+#: plugin/xdl_strings.py:17
+msgid "Base:"
+msgstr ""
+
+#: plugin/xdl_strings.py:18
+msgid "CFG Scale:"
+msgstr ""
+
+#: plugin/xdl_strings.py:19
+msgid "Calc"
+msgstr ""
+
+#: plugin/xdl_strings.py:20
+msgid "Categories:"
+msgstr ""
+
+#: plugin/xdl_strings.py:21
+msgid "Censor NSFW"
+msgstr ""
+
+#: plugin/xdl_strings.py:22
+msgid "Chat (Testing):"
+msgstr ""
+
+#: plugin/xdl_strings.py:23
+msgid "Clear"
+msgstr ""
+
+#: plugin/xdl_strings.py:24
+msgid "Close"
+msgstr ""
+
+#: plugin/xdl_strings.py:25
+msgid "Context Len:"
+msgstr ""
+
+#: plugin/xdl_strings.py:26
+msgid "Draw"
+msgstr ""
+
+#: plugin/xdl_strings.py:27
+msgid "Endpoint URL (/v1 added):"
+msgstr ""
+
+#: plugin/xdl_strings.py:28
+msgid "Endpoint URL:"
+msgstr ""
+
+#: plugin/xdl_strings.py:29
+#, fuzzy
+msgid "General"
+msgstr "Генерация..."
+
+#: plugin/xdl_strings.py:30
+msgid "Image Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:31
+#, fuzzy
+msgid "Image Settings"
+msgstr "Настройки"
+
+#: plugin/xdl_strings.py:33
+msgid "Insert Frame"
+msgstr ""
+
+#: plugin/xdl_strings.py:34
+#, fuzzy
+msgid "LocalWriter Evaluation Dashboard"
+msgstr "Панель оценки"
+
+#: plugin/xdl_strings.py:35
+msgid "Max Tokens:"
+msgstr ""
+
+#: plugin/xdl_strings.py:36
+msgid "Max Wait (s):"
+msgstr ""
+
+#: plugin/xdl_strings.py:37
+msgid "Models to Test:"
+msgstr ""
+
+#: plugin/xdl_strings.py:38
+msgid "Multimodal"
+msgstr ""
+
+#: plugin/xdl_strings.py:40
+#, fuzzy
+msgid "Please enter edit instructions:"
+msgstr "Пожалуйста, введите инструкции для редактирования!"
+
+#: plugin/xdl_strings.py:42
+msgid "Run Benchmark"
+msgstr ""
+
+#: plugin/xdl_strings.py:43
+msgid "Seed:"
+msgstr ""
+
+#: plugin/xdl_strings.py:46
+msgid "Square"
+msgstr ""
+
+#: plugin/xdl_strings.py:47
+msgid "Steps:"
+msgstr ""
+
+#: plugin/xdl_strings.py:48
+#, fuzzy
+msgid "Stop"
+msgstr "Остановить"
+
+#: plugin/xdl_strings.py:49
+msgid "Temperature:"
+msgstr ""
+
+#: plugin/xdl_strings.py:50
+msgid "Text/Chat Model:"
+msgstr ""
+
+#: plugin/xdl_strings.py:51
+msgid "Timeout (s):"
+msgstr ""
+
+#: plugin/xdl_strings.py:52
+msgid "Translate Prompt"
+msgstr ""
+
+#: plugin/xdl_strings.py:53
+msgid "Translate from (e.g. es):"
+msgstr ""
+
+#: plugin/xdl_strings.py:54
+msgid "Use AI Horde for Image Generation"
+msgstr ""
+
+#: plugin/xdl_strings.py:55
+msgid "Use Image model"
+msgstr ""
+
+#: plugin/xdl_strings.py:56
+msgid "Web Research"
+msgstr ""
+
+#: plugin/xdl_strings.py:57
+msgid "Writer"
+msgstr ""
+
+msgid "Agent backends"
+msgstr "Агенты"
+
+msgid "Backend"
+msgstr ""
+
+msgid "Built-in"
+msgstr ""
+
+msgid "Hermes"
+msgstr ""
+
+msgid "Claude Code (ACP)"
+msgstr ""
+
+msgid "Path / URL"
+msgstr ""
+
+msgid ""
+"Path to backend CLI (e.g. aider) or ACP server URL (e.g. http://"
+"localhost:8000 for Hermes). Empty = try default."
+msgstr ""
+
+msgid "Extra arguments"
+msgstr ""
+
+msgid "Optional arguments for the selected backend (space-separated)."
+msgstr ""
+
+msgid "ACP agent name"
+msgstr ""
+
+msgid ""
+"Agent name on the ACP server (e.g. hermes). Empty = auto-discover first "
+"agent."
+msgstr ""
+
+msgid "Calc spreadsheet tools"
+msgstr ""
+
+msgid "Max Rows Display"
+msgstr ""
+
+msgid "Sidebar"
+msgstr "Панель"
+
+msgid "Max Tool Rounds"
+msgstr ""
+
+#, fuzzy
+msgid "Document Context Strategy"
+msgstr ""
+"\n"
+"[Ошибка контекста документа: {0}]\n"
+
+msgid "How much document content to include in LLM context"
+msgstr ""
+
+msgid "Auto (by document size)"
+msgstr ""
+
+msgid "Full document text"
+msgstr ""
+
+msgid "Pages around cursor"
+msgstr ""
+
+msgid "Outline + excerpt"
+msgstr ""
+
+msgid "Stats + outline only"
+msgstr ""
+
+#, fuzzy
+msgid "Extend Selection Max Tokens"
+msgstr "Расширить выделение"
+
+#, fuzzy
+msgid "Edit Selection Extra Tokens"
+msgstr "Редактировать выделение"
+
+msgid "Extra tokens beyond original text length. 0 = same length as original."
+msgstr ""
+
+msgid "Show Web Search Thinking"
+msgstr ""
+
+msgid "Web Cache Max Size (MB)"
+msgstr ""
+
+msgid "Max disk size for web search cache (0 to disable)"
+msgstr ""
+
+msgid "Web Cache Validity (Days)"
+msgstr ""
+
+msgid "How many days cache entries should be considered valid."
+msgstr ""
+
+msgid "Doc"
+msgstr "Док"
+
+msgid "Draw and Impress tools"
+msgstr ""
+
+msgid "MCP"
+msgstr "MCP"
+
+#, fuzzy
+msgid "Enable MCP Server"
+msgstr "Переключить сервер MCP"
+
+msgid "Localhost only, no auth. Access via stdio is always enabled."
+msgstr ""
+
+msgid "MCP Port"
+msgstr ""
+
+msgid "AI CLI Launcher"
+msgstr ""
+
+msgid "AI CLI Provider"
+msgstr ""
+
+msgid "Install"
+msgstr ""
+
+#, fuzzy
+msgid "CLI Status"
+msgstr "Статус сервера"
+
+msgid "Auto-configure MCP"
+msgstr ""
+
+msgid ""
+"Generate a temporary config file pointing the CLI to LocalWriter's MCP "
+"server."
+msgstr ""
+
+msgid "Terminal Emulator"
+msgstr ""
+
+msgid ""
+"Terminal to use (e.g. xterm, gnome-terminal, konsole). Empty = auto-detect."
+msgstr ""
+
+msgid "Working Directory"
+msgstr ""
+
+msgid "Directory to launch AI CLI in. Clear to restore default."
+msgstr ""
+
+msgid "Extra Arguments"
+msgstr ""
+
+msgid "Additional CLI arguments. Placeholders: {mcp_url}, {port}, {host}."
+msgstr ""
+
+msgid "Global AI Instructions"
+msgstr ""
+
+msgid ""
+"Persona and rules sent to any AI CLI you launch. For Claude this is "
+"CLAUDE.md, for OpenCode this is AGENTS.md."
+msgstr ""
+
+msgid "Tunnel providers for external MCP access"
+msgstr ""
+
+msgid "Auto Start Tunnel"
+msgstr ""
+
+msgid "Tunnel Provider"
+msgstr ""
+
+#, fuzzy
+msgid "Bore Server"
+msgstr "Переключить сервер MCP"
+
+msgid "Relay server (default: bore.pub)"
+msgstr ""
+
+msgid "Cloudflare Tunnel Name"
+msgstr ""
+
+msgid "Optional: use a named tunnel instead of a quick tunnel"
+msgstr ""
+
+msgid "Cloudflare Public URL"
+msgstr ""
+
+msgid "Required for named tunnels"
+msgstr ""
+
+msgid "Ngrok Authtoken"
+msgstr ""
+
+msgid "Writer document tools (including navigation and search)"
+msgstr ""
+
+#, python-brace-format
+#~ msgid ""
+#~ "Register at {REGISTER_AI_HORDE_URL} and use your key to improve your rate "
+#~ "success. Detail:"
+#~ msgstr ""
+#~ "Зарегистрируйтесь на {REGISTER_AI_HORDE_URL} и используйте свой ключ, "
+#~ "чтобы повысить вероятность успеха. Детали:"

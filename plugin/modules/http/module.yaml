@@ -1,5 +1,5 @@
 name: http
-title: HTTP / MCP Services
+title: MCP
 provides_services: [http_routes]
 requires: [config, events]
 
