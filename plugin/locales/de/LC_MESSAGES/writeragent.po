@@ -329,7 +329,7 @@ msgstr "Aufnehmen"
 
 #: plugin/modules/chatbot/panel.py:396
 msgid "Stop Rec"
-msgstr "Aufnahme stoppen"
+msgstr "Stoppen"
 
 #: plugin/modules/chatbot/panel.py:398 plugin/xdl_strings.py:44
 msgid "Send"
@@ -863,7 +863,7 @@ msgstr "Schritte:"
 
 #: plugin/xdl_strings.py:48
 msgid "Stop"
-msgstr "Aufnahme stoppen"
+msgstr "Stoppen"
 
 #: plugin/xdl_strings.py:49
 msgid "Temperature:"

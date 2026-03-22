@@ -204,6 +204,60 @@ class WriterAgentConfig:
 
     def validate(self):
         """Perform validation of config keys and emit warnings or fix values."""
+        # Clean up any translated headers that incorrectly made it into config
+        for f in dataclasses.fields(self):
+            val = getattr(self, f.name)
+            if isinstance(val, str) and "Project-Id-Version:" in val:
+                log.debug(
+                    "config validate: stripped PO/header from dataclass field %r (len=%s)",
+                    f.name,
+                    len(val),
+                )
+                # Default seed should be -1, not empty string.
+                if f.name == "seed":
+                    setattr(self, f.name, "-1")
+                else:
+                    setattr(self, f.name, "")
+
+        for k, v in list(self._extra_config.items()):
+            if isinstance(v, str) and "Project-Id-Version:" in v:
+                log.debug(
+                    "config validate: stripped PO/header from extra key %r (len=%s)",
+                    k,
+                    len(v),
+                )
+                self._extra_config[k] = ""
+
+        # Normalize localized strings back to internal keys (e.g. image_default_aspect, agent_backend.*)
+        # Dotted module keys live in _extra_config; flat keys are dataclass attributes.
+        try:
+            from plugin.framework.settings_dialog import get_settings_field_specs
+            from plugin.framework.i18n import _
+
+            specs = get_settings_field_specs(None)
+            for spec in specs:
+                if "options" not in spec:
+                    continue
+                key = spec["name"].replace("__", ".")
+                if key in self._extra_config:
+                    val = self._extra_config.get(key)
+                elif "." not in key and hasattr(self, key):
+                    val = getattr(self, key)
+                else:
+                    continue
+                for opt in spec["options"]:
+                    if isinstance(opt, dict):
+                        lbl = opt.get("label", opt.get("value", ""))
+                        if _(lbl) == str(val):
+                            canon = opt.get("value", lbl)
+                            if key in self._extra_config:
+                                self._extra_config[key] = canon
+                            else:
+                                setattr(self, key, canon)
+                            break
+        except Exception as e:
+            log.warning(f"Failed to normalize config against specs: {e}")
+
         if not isinstance(self.chat_max_tokens, int) or self.chat_max_tokens < 0:
             log.warning("Invalid chat_max_tokens %s, falling back to 16384", self.chat_max_tokens)
             self.chat_max_tokens = 16384
@@ -285,6 +339,32 @@ _cached_config_dict = None
 _cached_config_mtime = 0
 _cached_config_mtime_last_checked = 0.0
 
+
+def _build_validated_config_export(data: Dict[str, Any], config: "WriterAgentConfig") -> Dict[str, Any]:
+    """Merge validated WriterAgentConfig into a dict with the same keys as JSON `data`.
+
+    Known dataclass fields are read from attributes; all other keys (e.g. ``agent_backend.path``)
+    must come from ``config._extra_config`` after :meth:`WriterAgentConfig.validate`.
+    """
+    out: Dict[str, Any] = {}
+    field_names = {f.name for f in dataclasses.fields(config) if f.name != "_extra_config"}
+    for k, v in data.items():
+        safe_key = k.replace(".", "_")
+        if safe_key in field_names:
+            out[k] = getattr(config, safe_key)
+        else:
+            merged = config._extra_config.get(k, v)
+            if merged != v:
+                log.debug(
+                    "config export: extra key %r merged after validate (raw_len=%s merged_len=%s)",
+                    k,
+                    len(str(v)),
+                    len(str(merged)),
+                )
+            out[k] = merged
+    return out
+
+
 def _get_validated_config_dict(ctx):
     """Return the full validated config as a dict, using an in-memory cache
     keyed off the file modification time."""
@@ -318,15 +398,7 @@ def _get_validated_config_dict(ctx):
         config = WriterAgentConfig.from_dict(data)
         config.validate()
 
-        # Serialize back to dict, preserving original keys for _extra_config
-        out = {}
-        field_names = {f.name for f in dataclasses.fields(config)}
-        for k, v in data.items():
-            safe_key = k.replace('.', '_')
-            if safe_key in field_names:
-                out[k] = getattr(config, safe_key)
-            else:
-                out[k] = v
+        out = _build_validated_config_export(data, config)
 
         _cached_config_dict = out
         _cached_config_mtime = current_mtime

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-22 12:59-0400\n"
+"POT-Creation-Date: 2026-03-22 14:37-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -254,12 +254,12 @@ msgid ""
 "https://github.com/quazardous/localwriter"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:282 plugin/main.py:358
+#: plugin/framework/legacy_ui.py:293 plugin/main.py:358
 #: plugin/xdl_strings.py:45
 msgid "Settings"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:330 plugin/modules/chatbot/panel.py:482
+#: plugin/framework/legacy_ui.py:341 plugin/modules/chatbot/panel.py:482
 #: plugin/modules/chatbot/send_handlers.py:252
 #: plugin/modules/chatbot/send_handlers.py:262
 #: plugin/modules/chatbot/send_handlers.py:271
@@ -267,7 +267,7 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:330
+#: plugin/framework/legacy_ui.py:341
 #, python-brace-format
 msgid ""
 "Failed to open Settings: {0}\n"
@@ -578,28 +578,28 @@ msgstr ""
 msgid "[Research error: {0}]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:446
+#: plugin/modules/chatbot/panel_factory.py:445
 msgid "Size:"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:447
+#: plugin/modules/chatbot/panel_factory.py:446
 msgid "Height:"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:448
+#: plugin/modules/chatbot/panel_factory.py:447
 msgid "Width:"
 msgstr ""
 
-#: plugin/tests/test_backend_translations.py:33
+#: plugin/tests/test_i18n.py:24
+msgid "ThisIsAnUntranslatedString999"
+msgstr ""
+
+#: plugin/tests/test_i18n.py:194
 msgid "Built-in"
 msgstr ""
 
-#: plugin/tests/test_backend_translations.py:34
+#: plugin/tests/test_i18n.py:195
 msgid "Backend"
-msgstr ""
-
-#: plugin/tests/test_i18n.py:16
-msgid "ThisIsAnUntranslatedString999"
 msgstr ""
 
 #: plugin/main.py:243

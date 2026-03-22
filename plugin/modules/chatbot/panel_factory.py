@@ -339,32 +339,31 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         try:
             from plugin.framework.config import get_config
             from plugin.framework.i18n import _
+            from plugin.modules.agent_backend.registry import (
+                AGENT_BACKEND_REGISTRY,
+                normalize_backend_id,
+            )
+
             root = root_window or (getattr(self, "m_panelRootWindow", None))
             if not root or not hasattr(root, "getControl"):
                 return
-            
-            from plugin.modules.agent_backend.registry import normalize_backend_id
+
             backend_id = normalize_backend_id(get_config(self.ctx, "agent_backend.backend_id"))
             is_external = bool(backend_id and backend_id != "builtin")
-            
+
             ctrl = get_optional_control(root, "backend_indicator")
             if ctrl:
                 if is_external:
-                    label = _(backend_id.capitalize())
-                    if hasattr(ctrl.getModel(), "Label"):
-                        ctrl.getModel().Label = label
-                    elif hasattr(ctrl, "setText"):
-                        ctrl.setText(label)
+                    entry = AGENT_BACKEND_REGISTRY.get(backend_id)
+                    display_en = entry[0] if entry else backend_id.capitalize()
+                    set_control_text(ctrl, _(display_en))
                     if hasattr(ctrl, "setVisible"):
                         ctrl.setVisible(True)
                 else:
-                    if hasattr(ctrl.getModel(), "Label"):
-                        ctrl.getModel().Label = ""
-                    elif hasattr(ctrl, "setText"):
-                        ctrl.setText("")
+                    set_control_text(ctrl, "")
                     if hasattr(ctrl, "setVisible"):
                         ctrl.setVisible(False)
-                        
+
             # Enable/disable the LLM model selector based on the agent backend
             model_selector = get_optional_control(root, "model_selector")
             if model_selector and hasattr(model_selector, "getModel"):

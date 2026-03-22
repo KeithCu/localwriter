@@ -359,6 +359,9 @@ To improve UI responsiveness and AI navigation in complex documents, we ported p
 - **Settings dialog** reads/writes this file via `get_config()` / `set_config()` in `plugin/framework/config.py`. Use **`get_current_endpoint(ctx)`** for the normalized current endpoint URL (single source; used by plugin/main.py and panel_factory.py).
 - **Chat-related keys**: `chat_context_length` (default 8000), `chat_max_tokens` (default 512 menu / 16384 sidebar), `additional_instructions`. Also **per-endpoint API keys**: `api_keys_by_endpoint` (JSON map: normalized endpoint URL → API key); `get_api_key_for_endpoint(ctx, endpoint)` / `set_api_key_for_endpoint(ctx, endpoint, key)` in `plugin/framework/config.py`. Legacy `api_key` is migrated once into the map under the current endpoint and then removed. Settings dialog shows and saves the key for the selected endpoint.
 - **Model keys**: `text_model` (chat/LLM model; backward compat: `model`), `model_lru` (recent text models); `image_model` (image model when using chat endpoint for images), `image_model_lru` (recent image models). See Section 3d.
+- **Load path / PO-header repair**: On read, `WriterAgentConfig.validate()` strips mistaken gettext `.po` headers from string values and maps saved translated combo labels back to canonical schema values. The merged dict returned to `get_config()` is built by `_build_validated_config_export()` so dotted module keys (e.g. `agent_backend.path`) use validated `_extra_config`, not stale raw JSON—see `plugin/tests/test_i18n.py`.
+- **Settings dialog values**: `plugin/framework/legacy_ui.py` must **not** pass `field["value"]` through `gettext` when calling `setText`—user config is not translatable UI text; in particular `gettext("")` can surface the whole `.mo` header into text fields (e.g. Agent backend path/args).
+- **Sidebar agent backend label**: `panel_factory._update_backend_indicator` shows the same English display string as Settings (`AGENT_BACKEND_REGISTRY` first tuple element, then `_()` for locale). PO-header stripping and extra-key merge in `config.py` log at DEBUG only.
 
 ---
 
@@ -409,7 +412,7 @@ Restart LibreOffice after install/update. Test: menu **WriterAgent → Settings*
 **Release build**: `make release` builds an .oxt without `plugin/tests/` or `plugin/testing_runner.py`. The build script reads `extension/Addons.xcu`, strips the **Debug** submenu node (Run format tests, Run calc tests, etc.), and writes the result to the bundle so the release menu has no test entries.
 
 **Testing & QA**:
-- **make test**: Runs both standard `pytest` (for core logic) and an in-process `testing_runner` (for UNO/LibreOffice integration). The `Makefile` automatically detects a Python interpreter with the `uno` module available, even when running from within a virtual environment.
+- **make test**: Runs standard `pytest` (`plugin/tests`) then `python -m plugin.testing_runner` for in-LO tests when a LibreOffice UNO pipe is available. If `officehelper.bootstrap()` fails (no running soffice, CI, headless), the runner prints `SKIP:` and exits 0 so the Makefile does not fail after pytest passes.
 - **Localized Style Support**: Writer integration tests handle localized style names (e.g., fallback between "Default Paragraph Style" and "Standard") to ensure compatibility across different OS/Linux builds.
 
 ---

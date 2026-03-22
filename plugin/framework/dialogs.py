@@ -651,14 +651,22 @@ def get_control_text(ctrl, default=""):
 
 def set_control_text(ctrl, text):
     """Safely set the text of a control.
-    Logs instead of crashing if the capability is missing."""
+    Logs instead of crashing if the capability is missing.
+
+    For FixedText, some LibreOffice builds render ``model.Text`` and others ``model.Label``;
+    set both when present so labels (e.g. chat ``backend_indicator``) update visibly.
+    """
     if not ctrl:
         return
     try:
         if hasattr(ctrl, "setText"):
             ctrl.setText(text)
-        elif hasattr(ctrl, "getModel") and hasattr(ctrl.getModel(), "Text"):
-            ctrl.getModel().Text = text
+        model = ctrl.getModel() if hasattr(ctrl, "getModel") else None
+        if model is not None:
+            if hasattr(model, "Text"):
+                model.Text = text
+            if hasattr(model, "Label"):
+                model.Label = text
     except Exception as e:
         log.debug("set_control_text exception: %s", e)
 

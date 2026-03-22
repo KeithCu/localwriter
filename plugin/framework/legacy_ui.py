@@ -47,7 +47,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
         dp = smgr.createInstanceWithContext("com.sun.star.awt.DialogProvider", ctx)
         dlg_url = base_url + "/WriterAgentDialogs/EditInputDialog.xdl"
         dlg = dp.createDialog(dlg_url)
-        log.info("input_box: dialog created successfully")
+        log.debug("input_box: dialog created successfully")
     except Exception as e:
         import traceback
         log.error("input_box: failed to create dialog: %s" % e)
@@ -171,7 +171,6 @@ def settings_box(ctx, title="Settings", x=None, y=None):
 
     try:
         for field in field_specs:
-            log.info(f"Processing setting field: {field['name']} (options: {'yes' if 'options' in field else 'no'})")
             ctrl = dlg.getControl(field["name"])
             if ctrl:
                 if field["name"] == "text_model":
@@ -261,8 +260,20 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                                     log.debug(f"Control {field['name']} model does NOT have StringItemList")
                             except Exception as e:
                                 log.error(f"Failed to set StringItemList for {field['name']}: {e}")
-                        
-                        ctrl.setText(_(field["value"]))
+                        # Config values are user data — do NOT pass through gettext. In particular
+                        # gettext("") can return the entire .po catalog header in some environments,
+                        # which then appeared in Agent backend and other text fields.
+                        display_val = str(field.get("value", ""))
+                        fn = field.get("name", "")
+                        if "Project-Id-Version" in display_val or "Report-Msgid-Bugs-To" in display_val:
+                            log.warning(
+                                "settings_box: field %r value still looks like PO/header junk from config "
+                                "(len=%s): %s",
+                                fn,
+                                len(display_val),
+                                display_val[:300] + ("..." if len(display_val) > 300 else ""),
+                            )
+                        ctrl.setText(display_val)
                     else:
                         try:
                             set_control_text(ctrl, field["value"])
