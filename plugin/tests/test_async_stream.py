@@ -317,6 +317,7 @@ def test_run_stream_drain_loop_complex_interleaving():
     applied = []
     statuses = []
     tools_done = []
+    final_done_called = [False]
 
     def apply_chunk(t, is_thinking):
         applied.append((t, is_thinking))
@@ -330,6 +331,7 @@ def test_run_stream_drain_loop_complex_interleaving():
             tools_done.append(item)
             return True # stop the loop for testing purposes
         if kind == "final_done":
+            final_done_called[0] = True
             applied.append((item[1], False))
             return True
         return False
@@ -357,16 +359,10 @@ def test_run_stream_drain_loop_complex_interleaving():
     assert len(tools_done) == 1
     assert tools_done[0][1] == "call_123"
 
-    # In our mock stream_done, tool_done returns True to stop the loop,
-    # so we shouldn't actually see final_done applied in the assertions above.
-    # Wait, the queue items are batched and processed sequentially in one go,
-    # but `tool_done` handler does:
-    # if on_stream_done(item): job_done[0] = True; break
-    # so if it breaks, we don't process final_done in the same batch. Let's adjust assertions.
-    # We will remove the `final_done` assertion because the loop will exit early.
-
-    # Fix: We'll assert that final_done is NOT reached because tool_done broke the loop.
+    # Because tool_done returns True from stream_done, the loop breaks immediately.
+    # Even if final_done was in the same batch, the loop's 'break' ensures it's not processed.
     assert len(applied) == 4
+    assert not final_done_called[0]
 
 
 def test_run_stream_drain_loop_next_tool_and_approval():
