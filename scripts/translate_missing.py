@@ -133,17 +133,28 @@ def find_missing_translations(po_file: str, pot_file: polib.POFile) -> List[Dict
     missing = []
     po_msgids = {entry.msgid for entry in po}
     
+    # Also capture fuzzy strings to re-translate them
+    fuzzy_msgids = {entry.msgid for entry in po if 'fuzzy' in entry.flags}
+    
     for entry in pot_file:
         # Skip header
         if entry.msgid == "":
             continue
-        # If missing entirely or empty translation
-        if entry.msgid not in po_msgids or (entry.msgid in po_msgids and not any(e.msgid == entry.msgid and e.msgstr for e in po)):
+            
+        # If missing entirely, completely empty translation, or fuzzy
+        is_missing = (
+            entry.msgid not in po_msgids or 
+            entry.msgid in fuzzy_msgids or
+            not any(e.msgid == entry.msgid and e.msgstr for e in po)
+        )
+        
+        if is_missing:
             missing.append({
                 "msgid": entry.msgid,
                 "context": entry.comment if entry.comment else ""
             })
     return missing
+
 
 
 def call_translate_batch(texts: List[str], target_lang: str, model: str = "x-ai/grok-4.1-fast", 
@@ -228,12 +239,14 @@ def update_po_file(po_file: str, translations_dict: Dict[str, str]) -> bool:
     
     # Track which msgids were updated
     for entry in po:
-        if entry.msgid in translations_dict and (not entry.msgstr or entry.msgstr == ""):
+        is_fuzzy = 'fuzzy' in entry.flags
+        if entry.msgid in translations_dict and (not entry.msgstr or entry.msgstr == "" or is_fuzzy):
             entry.msgstr = translations_dict[entry.msgid]
             # Remove fuzzy flag if it exists since we supply a real translation
-            if 'fuzzy' in entry.flags:
+            if is_fuzzy:
                 entry.flags.remove('fuzzy')
             updated = True
+
             
     # Add completely new entries from the template if not present in .po
     po_msgids = {entry.msgid for entry in po}

@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -754,7 +753,6 @@ msgid "Auto Gallery"
 msgstr "Galeria de Autos"
 
 #: plugin/xdl_strings.py:16
-#, fuzzy
 msgid "Base Size:"
 msgstr "Tamanho:"
 
@@ -807,7 +805,6 @@ msgid "Endpoint URL:"
 msgstr "URL do Endpoint:"
 
 #: plugin/xdl_strings.py:29
-#, fuzzy
 msgid "General"
 msgstr "Gerando..."
 
@@ -816,7 +813,6 @@ msgid "Image Model:"
 msgstr "Modelo de Imagem:"
 
 #: plugin/xdl_strings.py:31
-#, fuzzy
 msgid "Image Settings"
 msgstr "Configurações"
 
@@ -825,7 +821,6 @@ msgid "Insert Frame"
 msgstr "Inserir Quadro"
 
 #: plugin/xdl_strings.py:34
-#, fuzzy
 msgid "LocalWriter Evaluation Dashboard"
 msgstr "Painel de Avaliação"
 
@@ -846,7 +841,6 @@ msgid "Multimodal"
 msgstr "Multimodal"
 
 #: plugin/xdl_strings.py:40
-#, fuzzy
 msgid "Please enter edit instructions:"
 msgstr "Por favor, insira as instruções de edição!"
 
@@ -867,7 +861,6 @@ msgid "Steps:"
 msgstr "Passos:"
 
 #: plugin/xdl_strings.py:48
-#, fuzzy
 msgid "Stop"
 msgstr "Parar"
 
@@ -961,7 +954,6 @@ msgstr "Lateral"
 msgid "Max Tool Rounds"
 msgstr "Rodadas máximas de ferramenta"
 
-#, fuzzy
 msgid "Document Context Strategy"
 msgstr ""
 "\n"
@@ -985,11 +977,9 @@ msgstr "Esboço + trecho"
 msgid "Stats + outline only"
 msgstr "Apenas estatísticas + esboço"
 
-#, fuzzy
 msgid "Extend Selection Max Tokens"
 msgstr "Estender Seleção"
 
-#, fuzzy
 msgid "Edit Selection Extra Tokens"
 msgstr "Editar Seleção"
 
@@ -1023,7 +1013,6 @@ msgstr "Ferramentas Draw e Impress"
 msgid "MCP"
 msgstr "MCP"
 
-#, fuzzy
 msgid "Enable MCP Server"
 msgstr "Alternar Servidor MCP"
 
@@ -1043,7 +1032,6 @@ msgstr "Provedor de CLI de IA"
 msgid "Install"
 msgstr "Instalar"
 
-#, fuzzy
 msgid "CLI Status"
 msgstr "Status do Servidor"
 
@@ -1099,7 +1087,6 @@ msgstr "Início Automático do Túnel"
 msgid "Tunnel Provider"
 msgstr "Provedor de Túnel"
 
-#, fuzzy
 msgid "Bore Server"
 msgstr "Alternar Servidor MCP"
 

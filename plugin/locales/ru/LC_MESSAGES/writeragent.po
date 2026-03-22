@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -758,7 +757,6 @@ msgid "Auto Gallery"
 msgstr "Авто Галерея"
 
 #: plugin/xdl_strings.py:16
-#, fuzzy
 msgid "Base Size:"
 msgstr "Размер:"
 
@@ -811,7 +809,6 @@ msgid "Endpoint URL:"
 msgstr "URL конечной точки:"
 
 #: plugin/xdl_strings.py:29
-#, fuzzy
 msgid "General"
 msgstr "Генерация..."
 
@@ -820,7 +817,6 @@ msgid "Image Model:"
 msgstr "Модель изображения:"
 
 #: plugin/xdl_strings.py:31
-#, fuzzy
 msgid "Image Settings"
 msgstr "Настройки"
 
@@ -829,7 +825,6 @@ msgid "Insert Frame"
 msgstr "Вставить кадр"
 
 #: plugin/xdl_strings.py:34
-#, fuzzy
 msgid "LocalWriter Evaluation Dashboard"
 msgstr "Панель оценки"
 
@@ -850,7 +845,6 @@ msgid "Multimodal"
 msgstr "Мультимодальный"
 
 #: plugin/xdl_strings.py:40
-#, fuzzy
 msgid "Please enter edit instructions:"
 msgstr "Пожалуйста, введите инструкции для редактирования!"
 
@@ -871,7 +865,6 @@ msgid "Steps:"
 msgstr "Шаги:"
 
 #: plugin/xdl_strings.py:48
-#, fuzzy
 msgid "Stop"
 msgstr "Остановить"
 
@@ -966,7 +959,6 @@ msgstr "Панель"
 msgid "Max Tool Rounds"
 msgstr "Максимум раундов инструмента"
 
-#, fuzzy
 msgid "Document Context Strategy"
 msgstr ""
 "\n"
@@ -990,11 +982,9 @@ msgstr "План + отрывок"
 msgid "Stats + outline only"
 msgstr "Только статистика + план"
 
-#, fuzzy
 msgid "Extend Selection Max Tokens"
 msgstr "Расширить выделение"
 
-#, fuzzy
 msgid "Edit Selection Extra Tokens"
 msgstr "Редактировать выделение"
 
@@ -1028,7 +1018,6 @@ msgstr "Инструменты Draw и Impress"
 msgid "MCP"
 msgstr "MCP"
 
-#, fuzzy
 msgid "Enable MCP Server"
 msgstr "Переключить сервер MCP"
 
@@ -1048,7 +1037,6 @@ msgstr "Провайдер CLI для ИИ"
 msgid "Install"
 msgstr "Установить"
 
-#, fuzzy
 msgid "CLI Status"
 msgstr "Статус сервера"
 
@@ -1105,7 +1093,6 @@ msgstr "Автозапуск туннеля"
 msgid "Tunnel Provider"
 msgstr "Провайдер туннеля"
 
-#, fuzzy
 msgid "Bore Server"
 msgstr "Переключить сервер MCP"
 

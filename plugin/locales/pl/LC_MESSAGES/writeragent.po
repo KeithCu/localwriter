@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -749,7 +748,6 @@ msgid "Auto Gallery"
 msgstr ""
 
 #: plugin/xdl_strings.py:16
-#, fuzzy
 msgid "Base Size:"
 msgstr "Rozmiar:"
 
@@ -802,7 +800,6 @@ msgid "Endpoint URL:"
 msgstr ""
 
 #: plugin/xdl_strings.py:29
-#, fuzzy
 msgid "General"
 msgstr "Generowanie..."
 
@@ -811,7 +808,6 @@ msgid "Image Model:"
 msgstr ""
 
 #: plugin/xdl_strings.py:31
-#, fuzzy
 msgid "Image Settings"
 msgstr "Ustawienia"
 
@@ -820,7 +816,6 @@ msgid "Insert Frame"
 msgstr ""
 
 #: plugin/xdl_strings.py:34
-#, fuzzy
 msgid "LocalWriter Evaluation Dashboard"
 msgstr "Panel ewaluacyjny"
 
@@ -841,7 +836,6 @@ msgid "Multimodal"
 msgstr ""
 
 #: plugin/xdl_strings.py:40
-#, fuzzy
 msgid "Please enter edit instructions:"
 msgstr "Proszę wprowadzić instrukcje edycji!"
 
@@ -862,7 +856,6 @@ msgid "Steps:"
 msgstr ""
 
 #: plugin/xdl_strings.py:48
-#, fuzzy
 msgid "Stop"
 msgstr "Zatrzymaj"
 
@@ -951,7 +944,6 @@ msgstr "Panel"
 msgid "Max Tool Rounds"
 msgstr ""
 
-#, fuzzy
 msgid "Document Context Strategy"
 msgstr ""
 "\n"
@@ -975,11 +967,9 @@ msgstr ""
 msgid "Stats + outline only"
 msgstr ""
 
-#, fuzzy
 msgid "Extend Selection Max Tokens"
 msgstr "Rozszerz zaznaczenie"
 
-#, fuzzy
 msgid "Edit Selection Extra Tokens"
 msgstr "Edytuj zaznaczenie"
 
@@ -1010,7 +1000,6 @@ msgstr ""
 msgid "MCP"
 msgstr "MCP"
 
-#, fuzzy
 msgid "Enable MCP Server"
 msgstr "Przełącz serwer MCP"
 
@@ -1029,7 +1018,6 @@ msgstr ""
 msgid "Install"
 msgstr ""
 
-#, fuzzy
 msgid "CLI Status"
 msgstr "Status serwera"
 
@@ -1077,7 +1065,6 @@ msgstr ""
 msgid "Tunnel Provider"
 msgstr ""
 
-#, fuzzy
 msgid "Bore Server"
 msgstr "Przełącz serwer MCP"
 

@@ -600,7 +600,6 @@ msgstr ""
 "Usa 'Installa AI CLI' dal menu per ottenere le istruzioni di installazione."
 
 #: plugin/framework/settings_dialog.py:153
-#, fuzzy
 msgid "Invalid Setting"
 msgstr "Impostazioni"
 
@@ -803,7 +802,6 @@ msgid "Endpoint URL:"
 msgstr "URL dell'endpoint:"
 
 #: plugin/xdl_strings.py:29
-#, fuzzy
 msgid "General"
 msgstr "Generazione in corso..."
 
@@ -812,7 +810,6 @@ msgid "Image Model:"
 msgstr "Modello immagine:"
 
 #: plugin/xdl_strings.py:31
-#, fuzzy
 msgid "Image Settings"
 msgstr "Impostazioni"
 
@@ -821,7 +818,6 @@ msgid "Insert Frame"
 msgstr "Inserisci fotogramma"
 
 #: plugin/xdl_strings.py:34
-#, fuzzy
 msgid "LocalWriter Evaluation Dashboard"
 msgstr "Dashboard di Valutazione"
 
@@ -954,7 +950,6 @@ msgstr "Laterale"
 msgid "Max Tool Rounds"
 msgstr "Round massimi degli strumenti"
 
-#, fuzzy
 msgid "Document Context Strategy"
 msgstr ""
 "\n"
@@ -978,11 +973,9 @@ msgstr "Schema + estratto"
 msgid "Stats + outline only"
 msgstr "Solo statistiche + outline"
 
-#, fuzzy
 msgid "Extend Selection Max Tokens"
 msgstr "Estendi la Selezione"
 
-#, fuzzy
 msgid "Edit Selection Extra Tokens"
 msgstr "Modifica la Selezione"
 
@@ -1017,7 +1010,6 @@ msgstr "Strumenti Draw e Impress"
 msgid "MCP"
 msgstr "MCP"
 
-#, fuzzy
 msgid "Enable MCP Server"
 msgstr "Attiva/Disattiva Server MCP"
 
@@ -1038,7 +1030,6 @@ msgstr "Fornitore CLI AI"
 msgid "Install"
 msgstr "Installa"
 
-#, fuzzy
 msgid "CLI Status"
 msgstr "Stato del Server"
 
@@ -1093,7 +1084,6 @@ msgstr "Avvio automatico tunnel"
 msgid "Tunnel Provider"
 msgstr "Fornitore di tunnel"
 
-#, fuzzy
 msgid "Bore Server"
 msgstr "Attiva/Disattiva Server MCP"
 

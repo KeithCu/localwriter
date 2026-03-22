@@ -754,7 +754,6 @@ msgid "Auto Gallery"
 msgstr "Autogalerie"
 
 #: plugin/xdl_strings.py:16
-#, fuzzy
 msgid "Base Size:"
 msgstr "Größe:"
 
@@ -807,7 +806,6 @@ msgid "Endpoint URL:"
 msgstr "Endpunkt-URL:"
 
 #: plugin/xdl_strings.py:29
-#, fuzzy
 msgid "General"
 msgstr "Generieren..."
 
@@ -816,7 +814,6 @@ msgid "Image Model:"
 msgstr "Bildmodell:"
 
 #: plugin/xdl_strings.py:31
-#, fuzzy
 msgid "Image Settings"
 msgstr "Einstellungen"
 
@@ -825,7 +822,6 @@ msgid "Insert Frame"
 msgstr "Frame einfügen"
 
 #: plugin/xdl_strings.py:34
-#, fuzzy
 msgid "LocalWriter Evaluation Dashboard"
 msgstr "Evaluations-Dashboard"
 
@@ -846,7 +842,6 @@ msgid "Multimodal"
 msgstr "Multimodal"
 
 #: plugin/xdl_strings.py:40
-#, fuzzy
 msgid "Please enter edit instructions:"
 msgstr "Bitte geben Sie Bearbeitungsanweisungen ein!"
 
@@ -867,7 +862,6 @@ msgid "Steps:"
 msgstr "Schritte:"
 
 #: plugin/xdl_strings.py:48
-#, fuzzy
 msgid "Stop"
 msgstr "Aufnahme stoppen"
 
@@ -961,7 +955,6 @@ msgstr "Sidebar"
 msgid "Max Tool Rounds"
 msgstr "Maximale Tool-Runden"
 
-#, fuzzy
 msgid "Document Context Strategy"
 msgstr ""
 "\n"
@@ -985,11 +978,9 @@ msgstr "Gliederung + Auszug"
 msgid "Stats + outline only"
 msgstr "Nur Statistiken + Gliederung"
 
-#, fuzzy
 msgid "Extend Selection Max Tokens"
 msgstr "Auswahl erweitern"
 
-#, fuzzy
 msgid "Edit Selection Extra Tokens"
 msgstr "Auswahl bearbeiten"
 
@@ -1022,7 +1013,6 @@ msgstr "Draw- und Impress-Werkzeuge"
 msgid "MCP"
 msgstr "MCP"
 
-#, fuzzy
 msgid "Enable MCP Server"
 msgstr "MCP-Server umschalten"
 
@@ -1041,7 +1031,6 @@ msgstr "KI-CLI-Anbieter"
 msgid "Install"
 msgstr "Installieren"
 
-#, fuzzy
 msgid "CLI Status"
 msgstr "Server-Status"
 
@@ -1096,7 +1085,6 @@ msgstr "Tunnel automatisch starten"
 msgid "Tunnel Provider"
 msgstr "Tunnelanbieter"
 
-#, fuzzy
 msgid "Bore Server"
 msgstr "MCP-Server umschalten"
 

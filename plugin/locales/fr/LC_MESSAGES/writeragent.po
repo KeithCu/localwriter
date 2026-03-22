@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -757,7 +756,6 @@ msgid "Auto Gallery"
 msgstr "Galerie Auto"
 
 #: plugin/xdl_strings.py:16
-#, fuzzy
 msgid "Base Size:"
 msgstr "Taille :"
 
@@ -810,7 +808,6 @@ msgid "Endpoint URL:"
 msgstr "URL du point de terminaison :"
 
 #: plugin/xdl_strings.py:29
-#, fuzzy
 msgid "General"
 msgstr "Génération..."
 
@@ -819,7 +816,6 @@ msgid "Image Model:"
 msgstr "Modèle d'image :"
 
 #: plugin/xdl_strings.py:31
-#, fuzzy
 msgid "Image Settings"
 msgstr "Paramètres"
 
@@ -828,7 +824,6 @@ msgid "Insert Frame"
 msgstr "Insérer un cadre"
 
 #: plugin/xdl_strings.py:34
-#, fuzzy
 msgid "LocalWriter Evaluation Dashboard"
 msgstr "Tableau de bord d'évaluation"
 
@@ -849,7 +844,6 @@ msgid "Multimodal"
 msgstr "Multimodal"
 
 #: plugin/xdl_strings.py:40
-#, fuzzy
 msgid "Please enter edit instructions:"
 msgstr "Veuillez saisir les instructions de modification !"
 
@@ -870,7 +864,6 @@ msgid "Steps:"
 msgstr "Étapes:"
 
 #: plugin/xdl_strings.py:48
-#, fuzzy
 msgid "Stop"
 msgstr "Arrêter l'enregistrement"
 
@@ -964,7 +957,6 @@ msgstr "Volet"
 msgid "Max Tool Rounds"
 msgstr "Tours d'outil maximum"
 
-#, fuzzy
 msgid "Document Context Strategy"
 msgstr ""
 "\n"
@@ -988,11 +980,9 @@ msgstr "Plan + extrait"
 msgid "Stats + outline only"
 msgstr "Statistiques + plan uniquement"
 
-#, fuzzy
 msgid "Extend Selection Max Tokens"
 msgstr "Étendre la sélection"
 
-#, fuzzy
 msgid "Edit Selection Extra Tokens"
 msgstr "Modifier la sélection"
 
@@ -1029,7 +1019,6 @@ msgstr "Outils Draw et Impress"
 msgid "MCP"
 msgstr "MCP"
 
-#, fuzzy
 msgid "Enable MCP Server"
 msgstr "Basculer le serveur MCP"
 
@@ -1050,7 +1039,6 @@ msgstr "Fournisseur IA CLI"
 msgid "Install"
 msgstr "Installer"
 
-#, fuzzy
 msgid "CLI Status"
 msgstr "Statut du serveur"
 
@@ -1106,7 +1094,6 @@ msgstr "Démarrage automatique du tunnel"
 msgid "Tunnel Provider"
 msgstr "Fournisseur de tunnel"
 
-#, fuzzy
 msgid "Bore Server"
 msgstr "Basculer le serveur MCP"
 
