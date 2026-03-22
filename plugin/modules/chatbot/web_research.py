@@ -14,7 +14,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import logging
+
 from plugin.framework.tool_base import ToolBase
+
+log = logging.getLogger(__name__)
+
+
+def _norm_research_query(s: str) -> str:
+    """Normalize for comparing outer research request to first DDG ``web_search`` query."""
+    import re
+
+    return re.sub(r"\s+", " ", (s or "").strip()).casefold()
+
 
 class WebResearchTool(ToolBase):
     name = "web_research"
@@ -38,6 +50,10 @@ class WebResearchTool(ToolBase):
     is_mutation = False
     long_running = True
 
+    def is_async(self):
+        """Run in a background thread so HITL approval can use the main-thread queue/drain loop."""
+        return True
+
     def execute(self, ctx, query, history_text=None):
         from plugin.framework.errors import format_error_payload, ToolExecutionError
         import os
@@ -56,6 +72,8 @@ class WebResearchTool(ToolBase):
         status_callback = getattr(ctx, "status_callback", None)
         append_thinking_callback = getattr(ctx, "append_thinking_callback", None)
         stop_checker = getattr(ctx, "stop_checker", None)
+        approval_callback = getattr(ctx, "approval_callback", None)
+        chat_append_callback = getattr(ctx, "chat_append_callback", None)
 
         if history_text:
             # Truncate if extremely long, though the agent will handle it
@@ -95,6 +113,23 @@ class WebResearchTool(ToolBase):
             task = f"### CONVERSATION HISTORY:\n{history_text or 'None'}\n\n### CURRENT QUERY:\n{query}"
             
             final_ans = None
+
+            prompt_for_web_research = False
+            try:
+                from plugin.framework.config import get_config, as_bool
+                prompt_for_web_research = as_bool(
+                    get_config(ctx.ctx, "chatbot.prompt_for_web_research")
+                )
+            except Exception as ex:
+                log.warning("prompt_for_web_research config read failed: %s", ex)
+
+            log.debug(
+                "web_research: prompt_for_web_research=%s approval_callback=%s",
+                prompt_for_web_research,
+                approval_callback is not None,
+            )
+
+            web_search_step_index = 0
             for step in agent.run(task, stream=True):
                 if stop_checker and stop_checker():
                     return format_error_payload(ToolExecutionError("Web search stopped by user.", code="USER_STOPPED"))
@@ -102,14 +137,84 @@ class WebResearchTool(ToolBase):
                     status_msg = ""
                     if step.name == "web_search":
                         q = str(step.arguments.get("query", "")) if isinstance(step.arguments, dict) else ""
+
+                        if append_thinking_callback:
+                            append_thinking_callback(f"Running tool: {step.name} with {{'query': '{q}'}}\n")
+
+                        from plugin.modules.chatbot.web_research_chat import (
+                            web_search_engine_step_chat_text,
+                        )
+
+                        if prompt_for_web_research and approval_callback:
+                            log.info(
+                                "web_research: requesting approval for web_search query=%r",
+                                q[:200] if q else "",
+                            )
+                            approval_result = approval_callback(
+                                q,
+                                "web_search",
+                                step.arguments,
+                            )
+                            if isinstance(approval_result, tuple):
+                                proceed = bool(approval_result[0])
+                                query_override = (
+                                    approval_result[1]
+                                    if len(approval_result) > 1
+                                    else None
+                                )
+                            else:
+                                proceed = bool(approval_result)
+                                query_override = None
+                            if not proceed:
+                                log.info("web_research: user rejected web_search approval")
+                                return format_error_payload(
+                                    ToolExecutionError(
+                                        "Web search stopped by user.",
+                                        code="USER_STOPPED",
+                                    )
+                                )
+                            if query_override is not None:
+                                q = query_override
+                                if isinstance(step.arguments, dict):
+                                    step.arguments["query"] = query_override
+                        elif prompt_for_web_research and not approval_callback:
+                            log.warning(
+                                "web_research: prompt_for_web_research set but no approval_callback (UI cannot prompt)"
+                            )
+                        elif not prompt_for_web_research and chat_append_callback:
+                            # Skip a duplicate full `[Web search]` preview when the first DDG query
+                            # matches the outer `query` passed into this tool (same text as user intent).
+                            skip_redundant_preview = (
+                                web_search_step_index == 0
+                                and _norm_research_query(q) == _norm_research_query(query)
+                            )
+                            if not skip_redundant_preview:
+                                chat_append_callback(
+                                    web_search_engine_step_chat_text(
+                                        q,
+                                        web_search_step_index,
+                                        approval_required=False,
+                                    )
+                                )
+                                # Only advance after a real append so a skipped first
+                                # (duplicate of outer block) does not force the next
+                                # search to use `[Additional web search]`.
+                                web_search_step_index += 1
+
                         if len(q) > 25:
                             q = q[:22] + "..."
                         status_msg = f"Search: {q}"
                     elif step.name == "visit_webpage":
                         url = str(step.arguments.get("url", "")) if isinstance(step.arguments, dict) else ""
+
+                        if append_thinking_callback:
+                            append_thinking_callback(f"Running tool: {step.name} with {{'url': '{url}'}}\n")
+
                         domain = get_url_domain(url)
                         status_msg = f"Read: {domain}"
                     else:
+                        if append_thinking_callback:
+                            append_thinking_callback(f"Running tool: {step.name} with {step.arguments}\n")
                         status_msg = str(step.name)
 
                     if status_callback and status_msg:
@@ -123,10 +228,6 @@ class WebResearchTool(ToolBase):
                         elif getattr(step, "model_output_message", None) and step.model_output_message.content:
                             msg += f"{str(step.model_output_message.content).strip()}\n"
 
-                        if step.tool_calls:
-                            for tc in step.tool_calls:
-                                msg += f"Running tool: {tc.name} with {tc.arguments}\n"
-
                         if step.observations:
                             msg += f"Observation: {str(step.observations).strip()}\n"
 
@@ -134,7 +235,13 @@ class WebResearchTool(ToolBase):
                 elif isinstance(step, FinalAnswerStep):
                     final_ans = step.output
 
-            return {"status": "ok", "message": f'searched for "{query}"', "result": str(final_ans)}
+            from plugin.framework.i18n import _
+
+            return {
+                "status": "ok",
+                "message": _("Web research completed."),
+                "result": str(final_ans),
+            }
         except Exception as e:
             err = ToolExecutionError(f"Web search failed: {str(e)}", details={"query": query})
             return format_error_payload(err)

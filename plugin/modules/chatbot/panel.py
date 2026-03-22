@@ -162,11 +162,12 @@ class QueryTextListener(BaseTextListener):
 class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener):
     """Listener for the Send button - runs chat with document, supports tool-calling."""
 
-    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None, web_research_checkbox=None, ensure_path_fn=None):
+    def __init__(self, ctx, frame, send_control, stop_control, query_control, response_control, image_model_selector, model_selector, status_control, session, direct_image_checkbox=None, aspect_ratio_selector=None, base_size_input=None, web_research_checkbox=None, ensure_path_fn=None, clear_control=None):
         self.ctx = ctx
         self.frame = frame
         self.send_control = send_control
         self.stop_control = stop_control
+        self.clear_control = clear_control
         self.query_control = query_control
         self.response_control = response_control
         self.image_model_selector = image_model_selector
@@ -186,6 +187,9 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         self.audio_wav_path = None
         self._current_agent_backend = None  # Set during _do_send_via_agent_backend for Stop button
         self._fixed_send_width = None
+        self._approval_event = None
+        self._approval_ui_backup = None
+        self._approval_query_for_engine = None
 
         # Initialize pure state machine state
         self.state = SendButtonState(
@@ -211,6 +215,121 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         """Update the active session (e.g. when switching between Document and Research chat)."""
         self.session = session
         self.client = None # Force client recreation if needed, though they usually share same config
+
+    def begin_inline_web_approval(self, query_for_engine, tool_name, event_obj):
+        """Replace Send/Stop/Clear with Accept/Change/Reject (all enabled). Unblock ``event_obj`` when user chooses."""
+        from plugin.framework.i18n import _
+        from plugin.modules.chatbot.web_research_chat import web_research_engine_chat_block
+
+        if event_obj is None:
+            log.warning("begin_inline_web_approval: no event_obj")
+            return
+        if getattr(self, "_approval_event", None) is not None:
+            log.warning("begin_inline_web_approval: superseding pending approval")
+            self._finish_inline_web_approval(False)
+        self._approval_event = event_obj
+        self._approval_query_for_engine = query_for_engine
+        self._approval_ui_backup = {}
+        try:
+            if self.send_control and self.send_control.getModel():
+                m = self.send_control.getModel()
+                self._approval_ui_backup["send_label"] = m.Label
+                self._approval_ui_backup["send_enabled"] = m.Enabled
+            if self.stop_control and self.stop_control.getModel():
+                m = self.stop_control.getModel()
+                self._approval_ui_backup["stop_label"] = m.Label
+                self._approval_ui_backup["stop_enabled"] = m.Enabled
+            if self.clear_control and self.clear_control.getModel():
+                cm = self.clear_control.getModel()
+                self._approval_ui_backup["clear_enabled"] = cm.Enabled
+                self._approval_ui_backup["clear_label"] = cm.Label
+            if self.status_control:
+                self._approval_ui_backup["status_text"] = self.status_control.getText()
+        except Exception as e:
+            log.debug("begin_inline_web_approval backup: %s", e)
+
+        try:
+            if self.send_control and self.send_control.getModel():
+                m = self.send_control.getModel()
+                m.Label = _("Accept")
+                m.Enabled = True
+                if self._fixed_send_width:
+                    try:
+                        r = self.send_control.getPosSize()
+                        if r.Width != self._fixed_send_width:
+                            self.send_control.setPosSize(
+                                r.X, r.Y, self._fixed_send_width, r.Height, 15
+                            )
+                    except Exception:
+                        pass
+            if self.stop_control and self.stop_control.getModel():
+                m = self.stop_control.getModel()
+                m.Label = _("Change")
+                m.Enabled = True
+            if self.clear_control and self.clear_control.getModel():
+                m = self.clear_control.getModel()
+                m.Label = _("Reject")
+                m.Enabled = True
+        except Exception as e:
+            log.error("begin_inline_web_approval: %s", e)
+
+        # Same block as non-approval path (see web_research_engine_chat_block), with approval header.
+        self._append_response(
+            web_research_engine_chat_block(
+                query_for_engine or "",
+                approval_required=True,
+            )
+        )
+        self._set_status(_("Waiting for approval…"))
+        log.info("Inline web approval: waiting for Accept, Change, or Reject")
+
+    def _open_web_search_change_dialog(self):
+        """Open edit dialog for the pending web_search query; OK continues with optional override."""
+        from plugin.framework.dialogs import show_web_search_query_edit_dialog
+
+        initial = getattr(self, "_approval_query_for_engine", None) or ""
+        text = show_web_search_query_edit_dialog(self.ctx, self.frame, initial)
+        if text is None:
+            return
+        self._finish_inline_web_approval(True, query_override=text)
+
+    def _finish_inline_web_approval(self, approved, query_override=None):
+        from plugin.framework.i18n import _
+        ev = getattr(self, "_approval_event", None)
+        if ev is None:
+            return
+        self._approval_event = None
+        self._approval_query_for_engine = None
+        b = self._approval_ui_backup or {}
+        self._approval_ui_backup = None
+        try:
+            if self.send_control and self.send_control.getModel():
+                m = self.send_control.getModel()
+                if "send_label" in b:
+                    m.Label = b["send_label"]
+                if "send_enabled" in b:
+                    m.Enabled = b["send_enabled"]
+            if self.stop_control and self.stop_control.getModel():
+                m = self.stop_control.getModel()
+                if "stop_label" in b:
+                    m.Label = b["stop_label"]
+                if "stop_enabled" in b:
+                    m.Enabled = b["stop_enabled"]
+            if self.clear_control and self.clear_control.getModel() and "clear_enabled" in b:
+                cm = self.clear_control.getModel()
+                cm.Enabled = b["clear_enabled"]
+                if "clear_label" in b:
+                    cm.Label = b["clear_label"]
+            if self.status_control and "status_text" in b:
+                self.status_control.setText(b["status_text"])
+        except Exception as e:
+            log.debug("_finish_inline_web_approval restore: %s", e)
+        try:
+            ev.approved = approved
+            ev.query_override = query_override if approved else None
+            ev.set()
+        except Exception as e:
+            log.error("_finish_inline_web_approval: %s", e)
 
     def _set_status(self, text):
         """Update the status field in the sidebar (read-only TextField).
@@ -388,6 +507,10 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
 
     def on_action_performed(self, evt):
         from plugin.framework.i18n import _
+        if getattr(self, "_approval_event", None) is not None and self.send_control and self.send_control.getModel():
+            if self.send_control.getModel().Label == _("Accept"):
+                self._finish_inline_web_approval(True)
+                return
         btn_model = self.send_control.getModel()
         label = btn_model.Label
 
@@ -565,6 +688,22 @@ class StopButtonListener(BaseActionListener):
         self.send_listener = send_listener
 
     def on_action_performed(self, evt):
+        if self.send_listener and getattr(self.send_listener, "_approval_event", None) is not None:
+            from plugin.framework.i18n import _
+            if (
+                self.send_listener.stop_control
+                and self.send_listener.stop_control.getModel()
+                and self.send_listener.stop_control.getModel().Label == _("Change")
+            ):
+                self.send_listener._open_web_search_change_dialog()
+                return
+            if (
+                self.send_listener.stop_control
+                and self.send_listener.stop_control.getModel()
+                and self.send_listener.stop_control.getModel().Label == _("Reject")
+            ):
+                self.send_listener._finish_inline_web_approval(False)
+                return
         if self.send_listener:
             self.send_listener.dispatch(SendEvent(SendEventKind.STOP_CLICKED))
 
@@ -576,7 +715,8 @@ class StopButtonListener(BaseActionListener):
 class ClearButtonListener(BaseActionListener):
     """Listener for the Clear button - resets conversation history."""
 
-    def __init__(self, session, response_control, status_control, greeting=""):
+    def __init__(self, session, response_control, status_control, greeting="", send_listener=None):
+        self.send_listener = send_listener
         self.session = session
         # NOTE: When enabling the experimental planning/todo tool, consider
         # attaching a session-scoped TodoStore to the SendButtonListener and
@@ -595,6 +735,9 @@ class ClearButtonListener(BaseActionListener):
             self.greeting = greeting
 
     def on_action_performed(self, evt):
+        if self.send_listener and getattr(self.send_listener, "_approval_event", None) is not None:
+            self.send_listener._finish_inline_web_approval(False)
+            return
         self.session.clear()
         if self.response_control and self.response_control.getModel():
             from plugin.framework.dialogs import set_control_text

@@ -1074,6 +1074,73 @@ msgstr ""
 "\n"
 "[文字起こしエラー: {0}]\n"
 
+msgid "Prompt for Web Research"
+msgstr "ウェブ調査用プロンプト"
+
+msgid "Ask for confirmation before sending a web search query"
+msgstr "ウェブ検索クエリを送信する前に確認を求める"
+
+msgid "Accept"
+msgstr "承認"
+
+msgid "Reject"
+msgstr "拒否"
+
+msgid "Allow this web search?"
+msgstr "このウェブ検索を許可しますか？"
+
+msgid "[Web search — approval required]\n"
+msgstr "[ウェブ検索 — 承認が必要です]\n"
+
+msgid "Tool: %s\n"
+msgstr "ツール: %s\n"
+
+msgid "Waiting for approval…"
+msgstr "承認を待っています…"
+
+msgid "Edit search query"
+msgstr "検索クエリを編集"
+
+msgid "Search query:"
+msgstr "検索クエリ："
+
+msgid "Cancel"
+msgstr "キャンセル"
+
+msgid "Change"
+msgstr "変更"
+
+msgid "This search query '%s' will be sent to the search engine."
+msgstr "この検索クエリ '%s' が検索エンジンに送信されます。"
+
+msgid "[Web search]\n"
+msgstr "[ウェブ検索]\n"
+
+msgid "[Web research]\n"
+msgstr "[ウェブ調査]\n"
+
+msgid ""
+"Research request:\n"
+"%s\n"
+msgstr ""
+"調査要求：\n"
+"%s\n"
+
+msgid ""
+"\n"
+"Context for the research agent:\n"
+"%s\n"
+msgstr ""
+"\n"
+"調査エージェントのコンテキスト：\n"
+"%s\n"
+
+msgid "[Additional web search]\n"
+msgstr "[追加のウェブ検索]\n"
+
+msgid "Web research completed."
+msgstr "ウェブリサーチが完了しました。"
+
 #~ msgid "AI chat sidebar and REST API"
 #~ msgstr "AI チャット サイドバーと REST API"
 

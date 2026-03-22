@@ -1126,6 +1126,73 @@ msgstr ""
 "\n"
 "[Error de transcripción: {0}]\n"
 
+msgid "Prompt for Web Research"
+msgstr "Solicitud para investigación web"
+
+msgid "Ask for confirmation before sending a web search query"
+msgstr "Solicitar confirmación antes de enviar una consulta de búsqueda web"
+
+msgid "Accept"
+msgstr "Aceptar"
+
+msgid "Reject"
+msgstr "Rechazar"
+
+msgid "Allow this web search?"
+msgstr "¿Permitir esta búsqueda web?"
+
+msgid "[Web search — approval required]\n"
+msgstr "[Búsqueda web — se requiere aprobación]\n"
+
+msgid "Tool: %s\n"
+msgstr "Herramienta: %s\n"
+
+msgid "Waiting for approval…"
+msgstr "Esperando aprobación…"
+
+msgid "Edit search query"
+msgstr "Editar consulta de búsqueda"
+
+msgid "Search query:"
+msgstr "Consulta de búsqueda:"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Change"
+msgstr "Cambiar"
+
+msgid "This search query '%s' will be sent to the search engine."
+msgstr "Esta consulta de búsqueda '%s' se enviará al motor de búsqueda."
+
+msgid "[Web search]\n"
+msgstr "[Búsqueda web]\n"
+
+msgid "[Web research]\n"
+msgstr "[Investigación web]\n"
+
+msgid ""
+"Research request:\n"
+"%s\n"
+msgstr ""
+"Solicitud de investigación:\n"
+"%s\n"
+
+msgid ""
+"\n"
+"Context for the research agent:\n"
+"%s\n"
+msgstr ""
+"\n"
+"Contexto para el agente de investigación:\n"
+"%s\n"
+
+msgid "[Additional web search]\n"
+msgstr "[Búsqueda web adicional]\n"
+
+msgid "Web research completed."
+msgstr "Investigación web completada."
+
 #~ msgid "AI chat sidebar and REST API"
 #~ msgstr "Barra lateral de chat IA y API REST"
 

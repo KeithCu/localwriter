@@ -180,8 +180,23 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
                 func_args_str = func_data.get("arguments", "{}")
                 call_id = tc.get("id", "")
 
+                import json
+                try:
+                    func_args = json.loads(func_args_str) if func_args_str else {}
+                    if not isinstance(func_args, dict):
+                        func_args = {}
+                except (json.JSONDecodeError, TypeError):
+                    func_args = {}
+
                 effects.append(UIEffect(kind="status", text=f"Running: {func_name}"))
-                effects.append(UIEffect(kind="append", text=f"[Running tool: {func_name}...]\n"))
+                # web_research: chat shows internal DuckDuckGo `web_search` steps only (see
+                # web_research.py + web_research_chat.py), not a separate outer research banner.
+                effects.append(
+                    UIEffect(
+                        kind="append",
+                        text=f"[Running tool: {func_name}...]\n",
+                    )
+                )
                 effects.append(UpdateActivityStateEffect(action="tool_execute", round_num=state.round_num, tool_name=func_name))
 
                 effects.append(LogAgentEffect(
@@ -191,14 +206,6 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
                     hypothesis_id="C,D,E"
                 ))
                 effects.append(UIEffect(kind="debug", text=f"Tool call: {func_name}({func_args_str})"))
-
-                import json
-                try:
-                    func_args = json.loads(func_args_str) if func_args_str else {}
-                    if not isinstance(func_args, dict):
-                        func_args = {}
-                except (json.JSONDecodeError, TypeError):
-                    func_args = {}
 
                 is_async = func_name in state.async_tools
                 effects.append(SpawnToolWorkerEffect(

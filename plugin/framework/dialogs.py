@@ -77,22 +77,41 @@ def msgbox(ctx, title, message):
         log.exception("MSGBOX fallback - %s: %s", title, message)
 
 
-def show_approval_dialog(ctx, description, tool_name=""):
+def show_approval_dialog(ctx, description, tool_name="", parent_frame=None):
     """Show HITL approval dialog: description + Approve (Yes) / Reject (No). Runs on main thread.
-    Returns True if user chose Approve, False if Reject or on error."""
+    Returns True if user chose Approve, False if Reject or on error.
+
+    If ``parent_frame`` is set (e.g. sidebar ``XFrame``), it is used as the dialog parent so the
+    box is anchored correctly when ``getCurrentFrame()`` is wrong (e.g. focus in sidebar).
+    """
     if not ctx:
+        log.warning("show_approval_dialog: no ctx")
         return False
     try:
-        desktop = get_desktop(ctx)
-        frame = desktop.getCurrentFrame()
+        frame = parent_frame
         if frame is None:
+            desktop = get_desktop(ctx)
+            frame = desktop.getCurrentFrame()
+        if frame is None:
+            log.warning(
+                "show_approval_dialog: no frame (parent_frame=%r, getCurrentFrame=None)",
+                parent_frame,
+            )
             return False
         window = frame.getContainerWindow()
+        if window is None:
+            log.warning("show_approval_dialog: frame has no container window")
+            return False
         smgr = ctx.getServiceManager()
         toolkit = smgr.createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
         title = _("Agent requests approval")
         message = (description or _("Proceed with this action?")) + (
             "\n\n" + _("Tool: %s") % tool_name if tool_name else ""
+        )
+        log.debug(
+            "show_approval_dialog: tool_name=%s parent_frame=%s",
+            tool_name,
+            parent_frame is not None,
         )
         # 1 = INFO, 3 = BUTTONS_YES_NO. Result 1 = Yes (Approve), 2 = No (Reject)
         box = toolkit.createMessageBox(window, 1, 3, title, message)
@@ -101,6 +120,90 @@ def show_approval_dialog(ctx, description, tool_name=""):
     except Exception:
         log.exception("Approval dialog failed")
         return False
+
+
+def show_web_search_query_edit_dialog(ctx, parent_frame, initial_text):
+    """Modal multiline edit for a web-search query before DuckDuckGo runs.
+
+    ``parent_frame`` is typically the sidebar ``XFrame`` so the dialog parents correctly.
+
+    Returns the edited text (stripped) if the user clicks OK, or ``None`` if Cancel/close/error.
+    """
+    if not ctx:
+        log.warning("show_web_search_query_edit_dialog: no ctx")
+        return None
+    try:
+        frame = parent_frame
+        if frame is None:
+            desktop = get_desktop(ctx)
+            frame = desktop.getCurrentFrame()
+        if frame is None:
+            log.warning("show_web_search_query_edit_dialog: no frame")
+            return None
+        parent_window = frame.getContainerWindow()
+        if parent_window is None:
+            log.warning("show_web_search_query_edit_dialog: no container window")
+            return None
+
+        smgr = ctx.getServiceManager()
+        dlg_model = smgr.createInstanceWithContext(
+            "com.sun.star.awt.UnoControlDialogModel", ctx
+        )
+        dlg_model.Title = _("Edit search query")
+        dlg_model.Width = 280
+        dlg_model.Height = 140
+
+        add_dialog_label(
+            dlg_model, "PromptLbl", _("Search query:"), 8, 8, 264, 10, multiline=False
+        )
+        edit = add_dialog_edit(
+            dlg_model, "QueryEdit", initial_text or "", 8, 22, 264, 72, readonly=False
+        )
+        edit.MultiLine = True
+        edit.VScroll = True
+
+        add_dialog_button(dlg_model, "BtnOK", _("OK"), 150, 102, 60, 14)
+        add_dialog_button(dlg_model, "BtnCancel", _("Cancel"), 216, 102, 56, 14)
+
+        dlg = smgr.createInstanceWithContext("com.sun.star.awt.UnoControlDialog", ctx)
+        dlg.setModel(dlg_model)
+        toolkit = smgr.createInstanceWithContext("com.sun.star.awt.Toolkit", ctx)
+        dlg.createPeer(toolkit, parent_window)
+
+        _UNSET = object()
+        _result = {"v": _UNSET}
+
+        class _OkListener(unohelper.Base, XActionListener):
+            def actionPerformed(self, ev):
+                try:
+                    ec = dlg.getControl("QueryEdit")
+                    t = (ec.getModel().Text or "").strip() if ec and ec.getModel() else ""
+                except Exception:
+                    t = ""
+                _result["v"] = t
+                dlg.endDialog(1)
+
+            def disposing(self, ev):
+                pass
+
+        class _CancelListener(unohelper.Base, XActionListener):
+            def actionPerformed(self, ev):
+                _result["v"] = None
+                dlg.endDialog(0)
+
+            def disposing(self, ev):
+                pass
+
+        dlg.getControl("BtnOK").addActionListener(_OkListener())
+        dlg.getControl("BtnCancel").addActionListener(_CancelListener())
+        dlg.execute()
+        dlg.dispose()
+        if _result["v"] is _UNSET:
+            return None
+        return _result["v"]
+    except Exception:
+        log.exception("show_web_search_query_edit_dialog failed")
+        return None
 
 
 # ── Clipboard ────────────────────────────────────────────────────────

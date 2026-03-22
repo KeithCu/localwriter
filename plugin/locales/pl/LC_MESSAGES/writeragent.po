@@ -1118,3 +1118,68 @@ msgid ""
 msgstr ""
 "\n"
 "[Błąd transkrypcji: {0}]\n"
+
+msgid "Prompt for Web Research"
+msgstr "Podpowiedź do badań internetowych"
+
+msgid "Ask for confirmation before sending a web search query"
+msgstr ""
+"Pytaj o potwierdzenie przed wysłaniem zapytania wyszukiwania internetowego"
+
+msgid "Accept"
+msgstr "Akceptuj"
+
+msgid "Reject"
+msgstr "Odrzuć"
+
+msgid "Allow this web search?"
+msgstr "Zezwól na to wyszukiwanie w sieci?"
+
+msgid "[Web search — approval required]\n"
+msgstr "[Wyszukiwanie w sieci — wymagane zatwierdzenie]\n"
+
+msgid "Tool: %s\n"
+msgstr "Narzędzie: %s\n"
+
+msgid "Waiting for approval…"
+msgstr "Oczekiwanie na zatwierdzenie…"
+
+msgid "Edit search query"
+msgstr "Edytuj zapytanie wyszukiwania"
+
+msgid "Search query:"
+msgstr "Zapytanie wyszukiwania:"
+
+msgid "Cancel"
+msgstr "Anuluj"
+
+msgid "Change"
+msgstr "Zmień"
+
+msgid "This search query '%s' will be sent to the search engine."
+msgstr "To zapytanie wyszukiwania '%s' zostanie wysłane do wyszukiwarki."
+
+msgid "[Web search]\n"
+msgstr "[Wyszukiwanie internetowe]\\n\n"
+
+msgid "[Web research]\n"
+msgstr "[Badania internetowe]\\n\n"
+
+msgid ""
+"Research request:\n"
+"%s\n"
+msgstr "Zapytanie badawcze:\\n%s\\n\n"
+
+msgid ""
+"\n"
+"Context for the research agent:\n"
+"%s\n"
+msgstr ""
+"\n"
+"\\nKontekst dla agenta badawczego:\\n%s\\n\n"
+
+msgid "[Additional web search]\n"
+msgstr "[Dodatkowe wyszukiwanie w sieci]\n"
+
+msgid "Web research completed."
+msgstr "Badania internetowe zakończone."

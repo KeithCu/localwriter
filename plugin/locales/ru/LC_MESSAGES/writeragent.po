@@ -1135,3 +1135,70 @@ msgid ""
 msgstr ""
 "\n"
 "[Ошибка транскрипции: {0}]\n"
+
+msgid "Prompt for Web Research"
+msgstr "Подсказка для веб-исследования"
+
+msgid "Ask for confirmation before sending a web search query"
+msgstr "Запрашивать подтверждение перед отправкой запроса веб-поиска"
+
+msgid "Accept"
+msgstr "Принять"
+
+msgid "Reject"
+msgstr "Отклонить"
+
+msgid "Allow this web search?"
+msgstr "Разрешить этот поиск в Интернете?"
+
+msgid "[Web search — approval required]\n"
+msgstr "[Веб-поиск — требуется одобрение]\n"
+
+msgid "Tool: %s\n"
+msgstr "Инструмент: %s\n"
+
+msgid "Waiting for approval…"
+msgstr "Ожидание одобрения…"
+
+msgid "Edit search query"
+msgstr "Редактировать запрос поиска"
+
+msgid "Search query:"
+msgstr "Запрос поиска:"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Change"
+msgstr "Изменить"
+
+msgid "This search query '%s' will be sent to the search engine."
+msgstr "Этот запрос поиска '%s' будет отправлен в поисковую систему."
+
+msgid "[Web search]\n"
+msgstr "[Веб-поиск]\n"
+
+msgid "[Web research]\n"
+msgstr "[Веб-исследование]\n"
+
+msgid ""
+"Research request:\n"
+"%s\n"
+msgstr ""
+"Запрос на исследование:\n"
+"%s\n"
+
+msgid ""
+"\n"
+"Context for the research agent:\n"
+"%s\n"
+msgstr ""
+"\n"
+"Контекст для агента исследования:\n"
+"%s\n"
+
+msgid "[Additional web search]\n"
+msgstr "[Дополнительный поиск в Интернете]\n"
+
+msgid "Web research completed."
+msgstr "Веб-исследование завершено."

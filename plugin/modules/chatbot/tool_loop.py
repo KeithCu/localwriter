@@ -76,6 +76,7 @@ class ToolCallingMixin:
                 stop_checker=None,
             ):
                 import json
+                import threading
                 from plugin.framework.tool_context import ToolContext
                 from plugin.main import get_tools as _get_tools
 
@@ -92,6 +93,44 @@ class ToolCallingMixin:
                 #
                 # and then pass `services=services` into ToolContext below.
 
+                approval_callback = None
+                chat_append_callback = None
+                if name == "web_research":
+                    def chat_append_callback(text):
+                        aq = getattr(self, "_active_q", None)
+                        if aq is not None:
+                            aq.put(("chunk", text))
+
+                    try:
+                        if as_bool(get_config(ctx, "chatbot.prompt_for_web_research")):
+                            def approval_callback(query_for_engine, tool_name, args):
+                                q = getattr(self, "_active_q", None)
+                                if q is None:
+                                    log.warning(
+                                        "tool_loop: web_research approval skipped (_active_q missing)"
+                                    )
+                                    return True
+                                event = threading.Event()
+                                event.approved = False
+                                event.query_override = None
+                                q.put(
+                                    (
+                                        "approval_required",
+                                        query_for_engine,
+                                        tool_name,
+                                        event,
+                                    )
+                                )
+                                event.wait()
+                                if not event.approved:
+                                    q.put(("stopped",))
+                                return (
+                                    bool(event.approved),
+                                    getattr(event, "query_override", None),
+                                )
+                    except Exception as ex:
+                        log.warning("tool_loop: web_research approval setup failed: %s", ex)
+
                 tctx = ToolContext(
                     doc=doc,
                     ctx=ctx,
@@ -101,6 +140,10 @@ class ToolCallingMixin:
                     status_callback=status_callback,
                     append_thinking_callback=append_thinking_callback,
                     stop_checker=stop_checker,
+                    approval_callback=approval_callback,
+                    chat_append_callback=chat_append_callback
+                    if name == "web_research"
+                    else None,
                 )
                 try:
                     res = _get_tools().execute(name, tctx, **args)
@@ -582,6 +625,18 @@ class ToolCallingMixin:
                 pass
             self.audio_wav_path = None
 
+    def _on_tool_loop_approval_required(self, item):
+        """Main-thread handler: show inline Accept/Reject and unblock the tool worker."""
+        query_for_engine = item[1] if len(item) > 1 else ""
+        tool_name = item[2] if len(item) > 2 else ""
+        event_obj = item[3] if len(item) > 3 else None
+        if event_obj is not None:
+            self.begin_inline_web_approval(query_for_engine, tool_name, event_obj)
+        log.info(
+            "tool_loop on_approval_required: tool=%s (inline Accept/Change/Reject)",
+            tool_name,
+        )
+
     def _start_tool_calling_async(
         self,
         client,
@@ -680,6 +735,7 @@ class ToolCallingMixin:
             ctx=self.ctx,
             stop_checker=lambda: self.stop_requested,
             show_search_thinking=show_search_thinking,
+            on_approval_required=self._on_tool_loop_approval_required,
         )
 
     def _start_simple_stream_async(self, client, max_tokens):
@@ -744,3 +800,10 @@ class ToolCallingMixin:
             on_status_fn=self._set_status,
             stop_checker=lambda: self.stop_requested,
         )
+
+    def begin_inline_web_approval(self, description, tool_name, event_obj):
+        """Override on ``SendButtonListener`` for real UI. Default: auto-approve (tests / no panel)."""
+        if event_obj is not None:
+            event_obj.approved = True
+            event_obj.query_override = None
+            event_obj.set()

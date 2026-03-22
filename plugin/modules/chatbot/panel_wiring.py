@@ -20,11 +20,32 @@ def _measure_send_button_max_width(send_ctrl, has_recording):
     try:
         m = send_ctrl.getModel()
         saved = m.Label
-        labels = ["Send", "Record", "Stop Rec"] if has_recording else ["Send"]
+        labels = (
+            ["Send", "Record", "Stop Rec", "Accept"]
+            if has_recording
+            else ["Send", "Accept"]
+        )
         wmax = send_ctrl.getPosSize().Width
         for lab in labels:
             m.Label = lab
             wmax = max(wmax, send_ctrl.getPosSize().Width)
+        m.Label = saved
+        return wmax if wmax > 0 else None
+    except Exception:
+        return None
+
+
+def _measure_aux_button_max_width(ctrl, labels):
+    """Stabilize width when a button's label toggles (e.g. Stop/Change, Clear/Reject)."""
+    if not ctrl or not hasattr(ctrl, "getModel") or not labels:
+        return None
+    try:
+        m = ctrl.getModel()
+        saved = m.Label
+        wmax = ctrl.getPosSize().Width
+        for lab in labels:
+            m.Label = lab
+            wmax = max(wmax, ctrl.getPosSize().Width)
         m.Label = saved
         return wmax if wmax > 0 else None
     except Exception:
@@ -184,6 +205,19 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
                     controls["send"].setPosSize(sr.X, sr.Y, fw, sr.Height, 15)
             except Exception as e:
                 log.debug("send button width stabilize skipped: %s" % e)
+            try:
+                for c, lab_list in (
+                    (controls.get("stop"), ["Stop", "Change", "Reject"]),
+                    (controls.get("clear"), ["Clear", "Reject"]),
+                ):
+                    if not c:
+                        continue
+                    aw = _measure_aux_button_max_width(c, lab_list)
+                    if aw:
+                        r = c.getPosSize()
+                        c.setPosSize(r.X, r.Y, aw, r.Height, 15)
+            except Exception as e:
+                log.debug("stop/clear button width stabilize skipped: %s" % e)
     except Exception as e:
         log.error("Resize listener error: %s" % e)
 

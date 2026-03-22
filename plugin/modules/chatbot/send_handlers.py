@@ -370,7 +370,9 @@ class SendHandlersMixin:
             description = item[1] if len(item) > 1 else ""
             tool_name = item[2] if len(item) > 2 else ""
             request_id = item[4] if len(item) > 4 else None
-            approved = show_approval_dialog(self.ctx, description, tool_name)
+            approved = show_approval_dialog(
+                self.ctx, description, tool_name, parent_frame=getattr(self, "frame", None)
+            )
             if request_id is not None and hasattr(adapter, "submit_approval"):
                 try:
                     adapter.submit_approval(request_id, approved)
@@ -449,6 +451,27 @@ class SendHandlersMixin:
                 def thinking_cb(msg):
                     q.put(("thinking", msg))
 
+                def chat_append_cb(text):
+                    q.put(("chunk", text))
+
+                def approval_cb(query_for_engine, tool_name, args):
+                    import threading
+                    event = threading.Event()
+                    event.approved = False
+                    event.query_override = None
+                    q.put(("approval_required", query_for_engine, tool_name, event))
+                    event.wait()
+                    if not event.approved:
+                        # If the user rejects the search query, do not let the LLM
+                        # keep going without the data it requested. Instead, immediately
+                        # halt the entire tool call loop, acting exactly as if the
+                        # user clicked the explicit 'Stop' button in the UI.
+                        q.put(("stopped",))
+                    return (
+                        bool(event.approved),
+                        getattr(event, "query_override", None),
+                    )
+
                 from plugin.framework.tool_context import ToolContext
 
                 tctx = ToolContext(
@@ -460,6 +483,8 @@ class SendHandlersMixin:
                     caller="chat",
                     status_callback=status_cb,
                     append_thinking_callback=thinking_cb,
+                    approval_callback=approval_cb,
+                    chat_append_callback=chat_append_cb,
                 )
 
                 import json
@@ -541,6 +566,18 @@ class SendHandlersMixin:
         def on_error(e):
             dispatch_event(ErrorEvent(e))
 
+        def on_approval_required(item):
+            # item = ("approval_required", query_for_engine, tool_name, event_obj)
+            query_for_engine = item[1] if len(item) > 1 else ""
+            tool_name = item[2] if len(item) > 2 else ""
+            event_obj = item[3] if len(item) > 3 else None
+            if event_obj is not None:
+                self.begin_inline_web_approval(query_for_engine, tool_name, event_obj)
+            log.info(
+                "web_research on_approval_required: tool=%s (inline Accept/Change/Reject)",
+                tool_name,
+            )
+
         from plugin.framework.async_stream import run_stream_drain_loop
 
         run_stream_drain_loop(
@@ -554,6 +591,7 @@ class SendHandlersMixin:
             on_status_fn=self._set_status,
             ctx=self.ctx,
             stop_checker=lambda: self.stop_requested,
+            on_approval_required=on_approval_required,
         )
 
     def _get_mcp_url(self):

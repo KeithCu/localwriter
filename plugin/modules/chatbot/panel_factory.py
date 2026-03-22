@@ -546,7 +546,8 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                 aspect_ratio_selector=controls["aspect_ratio_selector"],
                 base_size_input=controls["base_size_input"],
                 web_research_checkbox=controls["web_research_check"],
-                ensure_path_fn=_ensure_extension_on_path)
+                ensure_path_fn=_ensure_extension_on_path,
+                clear_control=controls.get("clear"))
 
             # Save it to the instance so panel_wiring can use it for QueryTextListener
             self.send_listener = send_listener
@@ -570,7 +571,13 @@ class ChatPanelElement(unohelper.Base, XUIElement):
         clear_listener = None
         if controls["clear"]:
             try:
-                clear_listener = ClearButtonListener(self.session, controls["response"], controls["status"], greeting=active_greeting)
+                clear_listener = ClearButtonListener(
+                    self.session,
+                    controls["response"],
+                    controls["status"],
+                    greeting=active_greeting,
+                    send_listener=send_listener,
+                )
                 controls["clear"].addActionListener(clear_listener)
             except Exception as e:
                 log.exception("Clear button wiring error: %s", e)
