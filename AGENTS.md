@@ -589,6 +589,7 @@ To maintain a predictable and reliable codebase, follow these rules when handlin
 - **Version Bump**: Updated extension version to `0.6.0-beta`.
 
 ### Code Quality Improvements
+- **Formal Verification Setup**: Added the `deal` library and `crosshair-tool` to `pyproject.toml` dev dependencies. Introduced `plugin/framework/deal_compat.py` to provide safe, zero-overhead no-op decorators in release builds (detected via the absence of the `plugin/tests/` folder), allowing contract checking to be used exclusively during development/debug.
 - **Safe JSON Parsing**: Introduced `safe_json_loads()` utility in `plugin/framework/errors.py` to replace scattered `json.loads` fallbacks with try/except blocks.
 - **Document Cache Removal**: Commented out `DocumentCache` usage and removed cache invalidation calls to simplify document handling logic.
 - **Logging Enhancements**: Improved logging consistency across modules, ensuring all caught exceptions are properly logged with context.
