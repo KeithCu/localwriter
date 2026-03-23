@@ -149,7 +149,9 @@ class ToolCallingMixin:
                     res = _get_tools().execute(name, tctx, **args)
                     return json.dumps(res) if isinstance(res, dict) else str(res)
                 except Exception as e:
-                    return json.dumps(format_error_payload(e))
+                    error_payload = format_error_payload(e)
+                    log.error(f"Tool {name} failed: {error_payload}")
+                    return json.dumps(error_payload)
 
         except Exception as e:
             log.error("_do_send: tool import FAILED: %s" % e)
