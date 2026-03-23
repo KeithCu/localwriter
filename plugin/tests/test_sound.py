@@ -2,7 +2,10 @@ import sys
 import os
 import pytest
 
-pytest.importorskip("sounddevice")
+try:
+    import sounddevice
+except OSError:
+    pytest.skip("PortAudio library not found", allow_module_level=True)
 
 sys.path.insert(0, os.path.abspath("contrib"))
 try:
