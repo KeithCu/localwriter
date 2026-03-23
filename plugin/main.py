@@ -76,42 +76,6 @@ def get_tools():
         bootstrap()
     return _tools
 
-def _load_manifest():
-    try:
-        from plugin._manifest import MODULES
-        return MODULES
-    except ImportError:
-        return []
-
-def _topo_sort(modules):
-    by_name = {m["name"]: m for m in modules}
-    provides = {}
-    for m in modules:
-        for svc in m.get("provides_services", []):
-            provides[svc] = m["name"]
-
-    visited = set()
-    order = []
-
-    def visit(name):
-        if name in visited:
-            return
-        visited.add(name)
-        m = by_name.get(name)
-        if m is None:
-            return
-        for req in m.get("requires", []):
-            provider = provides.get(req, req)
-            if provider in by_name:
-                visit(provider)
-        order.append(m)
-
-    if "core" in by_name:
-        visit("core")
-    for name in by_name:
-        visit(name)
-    return order
-
 def bootstrap(ctx=None):
     global _services, _tools, _modules, _initialized
     
@@ -157,49 +121,8 @@ def bootstrap(ctx=None):
         _initialized = True
 
         # 5. Load manifest and initialize modules
-        manifests = _topo_sort(_load_manifest())
-        
-        for manifest in manifests:
-            name = manifest["name"]
-            if name == "core":
-                continue
-            
-            # Try nested path first (e.g. "launcher/providers/claude")
-            rel_path = name.replace(".", os.sep)
-            module_dir = os.path.join(get_plugin_dir(), "modules", rel_path)
-            import_path = "plugin.modules." + name
-            
-            if not os.path.isdir(module_dir):
-                # Legacy fallback for flat paths (e.g. "launcher_claude")
-                dir_name = name.replace(".", "_")
-                module_dir = os.path.join(get_plugin_dir(), "modules", dir_name)
-                import_path = "plugin.modules." + dir_name
-                if not os.path.isdir(module_dir):
-                    continue
-
-            # Dynamic ModuleBase initialization
-            try:
-                import importlib
-                import inspect
-                
-                mod_pkg = importlib.import_module(import_path)
-                module_class = None
-                
-                # Look for a class subclassing ModuleBase by checking MRO names (avoids LO sys.path duplicate issues)
-                for attr_name in dir(mod_pkg):
-                    attr = getattr(mod_pkg, attr_name)
-                    if inspect.isclass(attr) and attr.__name__ != "ModuleBase":
-                        if any(b.__name__ == "ModuleBase" for b in attr.__mro__):
-                            module_class = attr
-                            break
-                        
-                if module_class:
-                    mod = module_class()
-                    mod.name = name
-                    mod.initialize(_services)
-                    _modules.append(mod)
-            except Exception as e:
-                logging.getLogger("writeragent").warning("Failed to load module %s: %s", name, e)
+        from plugin.framework.module_loader import ModuleLoader
+        _modules.extend(ModuleLoader.load_modules(_services))
 
         # Wire event bus into config service
         events_svc = _services.get("events")
