@@ -1,11 +1,30 @@
 import pytest
-from unittest.mock import MagicMock
+import sys
+from unittest.mock import MagicMock, patch
 
+# Mock UNO modules before importing plugin code
+sys.modules["uno"] = MagicMock()
+sys.modules["unohelper"] = MagicMock()
+sys.modules["com.sun.star.beans"] = MagicMock()
+sys.modules["com.sun.star.table"] = MagicMock()
+
+
+class MockBase:
+    pass
+
+
+sys.modules["unohelper"].Base = MockBase
+
+from plugin.framework.errors import WriterError
 from plugin.modules.calc.manipulator import CellManipulator
 from plugin.modules.calc.__init__ import CalcError
-
-import sys
-sys.modules['com.sun.star.table'] = MagicMock()
+from plugin.modules.draw.shapes import DrawShapes, DrawError
+from plugin.modules.writer.ops import (
+    find_paragraph_for_range,
+    get_selection_range,
+    insert_html_at_cursor,
+    get_text_cursor_at_range,
+)
 
 
 @pytest.fixture
@@ -43,6 +62,7 @@ def test_safe_get_cell_value_cell_not_found(manipulator):
 
 def test_safe_get_cell_value_empty(manipulator):
     from com.sun.star.table import CellContentType as CCT
+
     sheet = MagicMock()
     cell = MagicMock()
     cell.getType.return_value = CCT.EMPTY
@@ -53,6 +73,7 @@ def test_safe_get_cell_value_empty(manipulator):
 
 def test_safe_get_cell_value_value(manipulator):
     from com.sun.star.table import CellContentType as CCT
+
     sheet = MagicMock()
     cell = MagicMock()
     cell.getType.return_value = CCT.VALUE
@@ -64,6 +85,7 @@ def test_safe_get_cell_value_value(manipulator):
 
 def test_safe_get_cell_value_text(manipulator):
     from com.sun.star.table import CellContentType as CCT
+
     sheet = MagicMock()
     cell = MagicMock()
     cell.getType.return_value = CCT.TEXT
@@ -75,6 +97,7 @@ def test_safe_get_cell_value_text(manipulator):
 
 def test_safe_get_cell_value_formula_success(manipulator):
     from com.sun.star.table import CellContentType as CCT
+
     sheet = MagicMock()
     cell = MagicMock()
     cell.getType.return_value = CCT.FORMULA
@@ -87,6 +110,7 @@ def test_safe_get_cell_value_formula_success(manipulator):
 
 def test_safe_get_cell_value_formula_error(manipulator):
     from com.sun.star.table import CellContentType as CCT
+
     sheet = MagicMock()
     cell = MagicMock()
     cell.getType.return_value = CCT.FORMULA
@@ -122,7 +146,7 @@ def test_safe_get_cell_value_unexpected_error(manipulator):
         manipulator.safe_get_cell_value(sheet, "A1")
     assert exc_info.value.code == "CALC_CELL_VALUE_ERROR"
     assert "Failed to get cell value" in exc_info.value.message
-from plugin.modules.draw.shapes import DrawShapes, DrawError
+
 
 def test_draw_shapes_safe_create_shape_valid():
     """Test safe_create_shape with valid inputs creates and adds the shape."""
@@ -152,6 +176,7 @@ def test_draw_shapes_safe_create_shape_valid():
 
     assert result == shape
 
+
 def test_draw_shapes_safe_create_shape_invalid_page():
     """Test safe_create_shape raises DrawError when page is None."""
     draw_shapes = DrawShapes()
@@ -169,6 +194,7 @@ def test_draw_shapes_safe_create_shape_invalid_page():
         draw_shapes.safe_create_shape(doc, None, "RectangleShape", position, size)
 
     assert exc_info.value.code == "DRAW_PAGE_NULL"
+
 
 def test_draw_shapes_safe_create_shape_invalid_position():
     """Test safe_create_shape raises DrawError when position is invalid."""
@@ -190,6 +216,7 @@ def test_draw_shapes_safe_create_shape_invalid_position():
 
     assert exc_info.value.code == "DRAW_INVALID_POSITION"
 
+
 def test_draw_shapes_safe_create_shape_invalid_size():
     """Test safe_create_shape raises DrawError when size is invalid."""
     draw_shapes = DrawShapes()
@@ -203,13 +230,14 @@ def test_draw_shapes_safe_create_shape_invalid_size():
 
     # Missing Width/Height
     size = MagicMock()
-    size.Width = 0 # Invalid
+    size.Width = 0  # Invalid
     size.Height = 400
 
     with pytest.raises(DrawError) as exc_info:
         draw_shapes.safe_create_shape(doc, page, "RectangleShape", position, size)
 
     assert exc_info.value.code == "DRAW_INVALID_SIZE"
+
 
 def test_draw_shapes_safe_create_shape_creation_failed():
     """Test safe_create_shape raises DrawError when shape creation fails."""
@@ -232,6 +260,7 @@ def test_draw_shapes_safe_create_shape_creation_failed():
 
     assert exc_info.value.code == "DRAW_SHAPE_CREATION_FAILED"
 
+
 def test_draw_shapes_safe_create_shape_exception_handling():
     """Test safe_create_shape wraps generic exceptions in DrawError."""
     draw_shapes = DrawShapes()
@@ -253,3 +282,64 @@ def test_draw_shapes_safe_create_shape_exception_handling():
 
     assert exc_info.value.code == "DRAW_SHAPE_CREATION_ERROR"
     assert "Some UNO error" in exc_info.value.details["original_error"]
+
+
+class TestWriterModuleErrors:
+    def test_find_paragraph_for_range_null_anchor(self):
+        with pytest.raises(WriterError) as exc_info:
+            find_paragraph_for_range(None, [MagicMock()], MagicMock())
+        assert exc_info.value.code == "WRITER_ANCHOR_NULL"
+
+    def test_find_paragraph_for_range_empty_ranges(self):
+        with pytest.raises(WriterError) as exc_info:
+            find_paragraph_for_range(MagicMock(), [], MagicMock())
+        assert exc_info.value.code == "WRITER_PARA_RANGES_EMPTY"
+
+    def test_find_paragraph_for_range_null_text_obj(self):
+        with pytest.raises(WriterError) as exc_info:
+            find_paragraph_for_range(MagicMock(), [MagicMock()], None)
+        assert exc_info.value.code == "WRITER_TEXT_OBJ_NULL"
+
+    def test_get_selection_range_null_model(self):
+        with pytest.raises(WriterError) as exc_info:
+            get_selection_range(None)
+        assert exc_info.value.code == "WRITER_MODEL_NULL"
+
+    def test_get_selection_range_null_controller(self):
+        mock_model = MagicMock()
+        mock_model.getCurrentController.return_value = None
+        with pytest.raises(WriterError) as exc_info:
+            get_selection_range(mock_model)
+        assert exc_info.value.code == "WRITER_CONTROLLER_NULL"
+
+    def test_insert_html_at_cursor_null_cursor(self):
+        with pytest.raises(WriterError) as exc_info:
+            insert_html_at_cursor(None, "<p>Test</p>")
+        assert exc_info.value.code == "WRITER_CURSOR_NULL"
+
+    def test_insert_html_at_cursor_empty_content(self):
+        with pytest.raises(WriterError) as exc_info:
+            insert_html_at_cursor(MagicMock(), "")
+        assert exc_info.value.code == "WRITER_HTML_CONTENT_EMPTY"
+
+    def test_get_text_cursor_at_range_null_model(self):
+        with pytest.raises(WriterError) as exc_info:
+            get_text_cursor_at_range(None, 0, 10)
+        assert exc_info.value.code == "WRITER_MODEL_NULL"
+
+    def test_get_text_cursor_at_range_null_offsets(self):
+        with pytest.raises(WriterError) as exc_info:
+            get_text_cursor_at_range(MagicMock(), None, 10)
+        assert exc_info.value.code == "WRITER_INVALID_OFFSETS"
+
+        with pytest.raises(WriterError) as exc_info:
+            get_text_cursor_at_range(MagicMock(), 0, None)
+        assert exc_info.value.code == "WRITER_INVALID_OFFSETS"
+
+    @patch("plugin.modules.writer.ops._doc_length", return_value=100)
+    def test_get_text_cursor_at_range_null_text_obj(self, mock_doc_len):
+        mock_model = MagicMock()
+        mock_model.getText.return_value = None
+        with pytest.raises(WriterError) as exc_info:
+            get_text_cursor_at_range(mock_model, 0, 10)
+        assert exc_info.value.code == "WRITER_TEXT_NOT_FOUND"
