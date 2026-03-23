@@ -31,9 +31,11 @@ class DrawBridge:
 
     def get_active_page(self):
         controller = self.doc.getCurrentController()
-        if hasattr(controller, "getCurrentPage"):
-            return controller.getCurrentPage()
-        # Fallback to first page
+        if controller is not None and hasattr(controller, "getCurrentPage"):
+            page = controller.getCurrentPage()
+            if page is not None:
+                return page
+        # Hidden / headless docs often have no current page; use first slide.
         pages = self.get_pages()
         if pages.getCount() > 0:
             return pages.getByIndex(0)
