@@ -1,7 +1,10 @@
 """Pure state machine for chat sidebar send handlers."""
 
+import time
+import dataclasses
 from dataclasses import dataclass, field
 from typing import List, Tuple, Any, Dict, Optional, NamedTuple
+from plugin.modules.http.errors import format_error_for_display
 
 try:
     import deal
@@ -30,6 +33,10 @@ class SendHandlerState:
     max_rounds: int = 10
     recent_effects: tuple = ()
 
+    # Simple error info
+    last_error: Optional[str] = None
+    error_time: Optional[float] = None
+
 
 # 2. Define Events
 
@@ -49,6 +56,8 @@ class StreamDoneEvent(NamedTuple):
 
 class ErrorEvent(NamedTuple):
     error: Exception
+    context: str = "state_machine"
+    error_time: Optional[float] = None
 
 class StopRequestedEvent(NamedTuple):
     pass
@@ -136,6 +145,35 @@ class EffectInterpreter:
 
 # 4. Pure Transition Function
 
+def handle_error(state: SendHandlerState, event: ErrorEvent) -> SendHandlerStep:
+    """Simple error handling - transition to error state"""
+    effects: List[SendHandlerEffect] = []
+
+    # Notify user using format_error_for_display
+    err_msg = format_error_for_display(event.error)
+    effects.append(UIEffect("status", "Error"))
+
+    if state.handler_type == 'audio':
+        effects.append(UIEffect("append", f"\n[Transcription error: {err_msg}]\n"))
+    elif state.handler_type == 'web':
+        effects.append(UIEffect("append", f"\n[Research Chat error: {err_msg}]\n"))
+    else:
+        effects.append(UIEffect("append", f"\n[Operation failed: {err_msg}]\n"))
+
+    effects.append(CompleteJobEffect("Error"))
+
+    # Transition to error state
+    new_state = dataclasses.replace(
+        state,
+        status='error',
+        last_error=str(event.error),
+        error_time=event.error_time or time.time(),
+        recent_effects=tuple(effects)
+    )
+
+    return SendHandlerStep(new_state, effects)
+
+
 @deal.pre(lambda state, event: state.round_num <= state.max_rounds)
 @deal.post(lambda result: result.state.round_num <= result.state.max_rounds)
 @deal.ensure(lambda state, event, result:
@@ -146,6 +184,9 @@ def next_state(
     event: SendHandlerEvent
 ) -> SendHandlerStep:
     """Pure state transition - NO SIDE EFFECTS"""
+
+    if state.status == 'error':
+        return SendHandlerStep(state, [])
 
     effects: List[SendHandlerEffect] = []
 
@@ -168,31 +209,8 @@ def next_state(
             )
             return SendHandlerStep(new_state, effects)
 
-        case ErrorEvent(error=err):
-            from plugin.modules.http.errors import format_error_message
-            err_msg = format_error_message(err)
-
-            effects.append(UIEffect("status", "Error"))
-            if state.handler_type == 'audio':
-                effects.append(UIEffect("append", f"\n[Transcription error: {err_msg}]\n"))
-            elif state.handler_type == 'web':
-                effects.append(UIEffect("append", f"\n[Research Chat error: {err_msg}]\n"))
-            else:
-                effects.append(UIEffect("append", f"\n[Error: {err_msg}]\n"))
-
-            effects.append(CompleteJobEffect("Error"))
-            new_state = SendHandlerState(
-                handler_type=state.handler_type,
-                status="error",
-                query_text=state.query_text,
-                model=state.model,
-                doc_type_str=state.doc_type_str,
-                round_num=state.round_num,
-                pending_tools=state.pending_tools,
-                max_rounds=state.max_rounds,
-                recent_effects=tuple(effects)
-            )
-            return SendHandlerStep(new_state, effects)
+        case ErrorEvent():
+            return handle_error(state, event)
 
         case StreamChunkEvent(chunk_text=text, is_thinking=thinking):
             effects.append(UIEffect("append", text, is_thinking=thinking))
