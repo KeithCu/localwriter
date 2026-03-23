@@ -36,17 +36,18 @@ class FormatService(ServiceBase):
 
     def export_as_text(self, model, max_chars=None):
         """Export document content as plain text."""
+        from plugin.framework.errors import UnoObjectError, safe_call
         try:
-            text = model.getText()
-            cursor = text.createTextCursor()
-            cursor.gotoStart(False)
-            cursor.gotoEnd(True)
-            content = cursor.getString()
+            text = safe_call(model.getText, "Get document text")
+            cursor = safe_call(text.createTextCursor, "Create text cursor")
+            safe_call(cursor.gotoStart, "Cursor gotoStart", False)
+            safe_call(cursor.gotoEnd, "Cursor gotoEnd", True)
+            content = safe_call(cursor.getString, "Cursor getString")
             if max_chars and len(content) > max_chars:
                 content = content[:max_chars] + "\n\n[... truncated ...]"
             return content
-        except Exception:
-            log.exception("export_as_text failed")
+        except UnoObjectError as e:
+            log.error("export_as_text UnoObjectError: %s", e)
             return ""
 
     def export_as_html(self, model):
@@ -55,6 +56,7 @@ class FormatService(ServiceBase):
         Returns:
             HTML string, or empty string on error.
         """
+        from plugin.framework.errors import UnoObjectError, safe_call
         try:
             import uno
             from com.sun.star.beans import PropertyValue
@@ -67,14 +69,17 @@ class FormatService(ServiceBase):
                 PropertyValue("FilterName", 0, "HTML (StarWriter)", 0),
                 PropertyValue("Overwrite", 0, True, 0),
             )
-            model.storeToURL(url, props)
+            safe_call(model.storeToURL, "Store document to HTML", url, props)
 
             with open(tmp_path, "r", encoding="utf-8") as f:
                 html = f.read()
             os.unlink(tmp_path)
             return html
-        except Exception:
-            log.exception("export_as_html failed")
+        except OSError as e:
+            log.error("export_as_html file error: %s", e)
+            return ""
+        except UnoObjectError as e:
+            log.error("export_as_html UnoObjectError: %s", e)
             return ""
 
     def import_from_html(self, model, html):
@@ -83,6 +88,7 @@ class FormatService(ServiceBase):
         Returns:
             True on success, False on error.
         """
+        from plugin.framework.errors import UnoObjectError, safe_call
         try:
             import uno
             from com.sun.star.beans import PropertyValue
@@ -94,15 +100,18 @@ class FormatService(ServiceBase):
                 tmp_path = tmp.name
 
             url = uno.systemPathToFileUrl(tmp_path)
-            text = model.getText()
-            cursor = text.createTextCursor()
-            cursor.gotoStart(False)
-            cursor.gotoEnd(True)
-            cursor.insertDocumentFromURL(url, (
+            text = safe_call(model.getText, "Get document text")
+            cursor = safe_call(text.createTextCursor, "Create text cursor")
+            safe_call(cursor.gotoStart, "Cursor gotoStart", False)
+            safe_call(cursor.gotoEnd, "Cursor gotoEnd", True)
+            safe_call(cursor.insertDocumentFromURL, "Insert document from HTML", url, (
                 PropertyValue("FilterName", 0, "HTML (StarWriter)", 0),
             ))
             os.unlink(tmp_path)
             return True
-        except Exception:
-            log.exception("import_from_html failed")
+        except OSError as e:
+            log.error("import_from_html file error: %s", e)
+            return False
+        except UnoObjectError as e:
+            log.error("import_from_html UnoObjectError: %s", e)
             return False

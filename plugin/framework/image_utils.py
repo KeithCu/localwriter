@@ -160,9 +160,17 @@ class EndpointImageProvider(ImageProvider):
 
                 if paths:
                     return paths, ""
-            except Exception as e:
-                logger.exception("Image generation failed")
+            except (ValueError, TypeError, IOError) as e:
+                logger.error("Image generation IO/Parse error: %s", e)
                 return [], str(e)
+            except Exception as e:
+                from plugin.framework.errors import NetworkError
+                if isinstance(e, NetworkError):
+                    logger.error("Image generation NetworkError: %s", e)
+                    return [], str(e)
+                else:
+                    logger.exception("Image generation unexpected error")
+                    return [], str(e)
 
         # Fallback: image in content string (some endpoints)
         if "data:image" in fallback_content:
@@ -185,12 +193,13 @@ class AIHordeImageProvider(ImageProvider):
                 self.outer_ctx = outer_ctx
                 self.toolkit = None
                 self.last_error = ""
+                from plugin.framework.errors import UnoObjectError, safe_call
                 try:
                     ctx = outer_ctx.get("ctx")
                     if ctx:
-                        self.toolkit = ctx.getServiceManager().createInstanceWithContext(
-                            "com.sun.star.awt.Toolkit", ctx)
-                except Exception:
+                        sm = safe_call(ctx.getServiceManager, "Get ServiceManager")
+                        self.toolkit = safe_call(sm.createInstanceWithContext, "Create Toolkit", "com.sun.star.awt.Toolkit", ctx)
+                except UnoObjectError:
                     pass
 
             def update_status(self, text, progress):
@@ -199,7 +208,7 @@ class AIHordeImageProvider(ImageProvider):
                 if self.outer_ctx.get("status_callback"):
                     try:
                         self.outer_ctx["status_callback"](msg)
-                    except Exception:
+                    except TypeError:
                         pass
 
             def show_error(self, msg, **kwargs):
@@ -208,7 +217,7 @@ class AIHordeImageProvider(ImageProvider):
                 if self.outer_ctx.get("status_callback"):
                     try:
                         self.outer_ctx["status_callback"](f"Error: {msg}")
-                    except Exception:
+                    except TypeError:
                         pass
 
             def set_finished(self): pass
@@ -266,8 +275,15 @@ class AIHordeImageProvider(ImageProvider):
         paths = []
         try:
             paths = self.client.generate_image(options)
+        except (ValueError, TypeError, IOError) as e:
+            logger.error("AIHorde generator crashed with IO/Parse error: %s", e)
+            self.informer.last_error = str(e)
         except Exception as e:
-            logger.exception("AIHorde generator crashed.")
+            from plugin.framework.errors import NetworkError
+            if isinstance(e, NetworkError):
+                logger.error("AIHorde generator crashed with NetworkError: %s", e)
+            else:
+                logger.exception("AIHorde generator crashed with unexpected error")
             self.informer.last_error = str(e)
 
         if not paths and self.informer.last_error:
@@ -343,7 +359,13 @@ class ImageService:
                 try:
                     from plugin.modules.chatbot.translation_tool import opustm_hf_translate
                     prompt = opustm_hf_translate(prompt, src_lang, "English")
+                except (ImportError, ValueError, TypeError) as e:
+                    logger.warning("Prompt translation failed (IO/Parse), using original: %s", e)
                 except Exception as e:
-                    logger.warning("Prompt translation failed, using original: %s", e)
+                    from plugin.framework.errors import NetworkError
+                    if isinstance(e, NetworkError):
+                        logger.warning("Prompt translation failed (NetworkError), using original: %s", e)
+                    else:
+                        logger.warning("Prompt translation failed (unexpected), using original: %s", e)
 
         return provider.generate(prompt, status_callback=status_callback, **kwargs)

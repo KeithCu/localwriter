@@ -63,8 +63,10 @@ class ServiceRegistry:
                     # Instantiate by passing the registry itself as 'services'
                     svc_instance = obj(self)
                     self.register(obj.name, svc_instance)
+                except (TypeError, ValueError, ImportError) as e:
+                    log.error("Failed to instantiate service %s (TypeError/ValueError/ImportError): %s", obj.__name__, e)
                 except Exception as e:
-                    log.error("Failed to instantiate service %s: %s", obj.__name__, e)
+                    log.error("Failed to instantiate service %s (unexpected): %s", obj.__name__, e)
 
     def get(self, name):
         """Get a service by name, or None if not registered."""
@@ -89,13 +91,16 @@ class ServiceRegistry:
 
     def shutdown_all(self):
         """Call ``shutdown()`` on every service that supports it."""
-        for svc in self._services.values():
+        for name, svc in self._services.items():
             shutdown = getattr(svc, "shutdown", None)
             if callable(shutdown):
                 try:
                     shutdown()
-                except Exception:
-                    pass
+                except Exception as e:
+                    # Generic catch is somewhat acceptable during global teardown to ensure other services
+                    # still get their shutdown called, but we must log it so we aren't swallowing shutdown errors silently.
+                    import logging
+                    logging.getLogger(__name__).error("Service %s failed during shutdown: %s", name, e)
 
     @property
     def service_names(self):

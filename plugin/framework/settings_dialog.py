@@ -81,8 +81,11 @@ def get_settings_field_specs(ctx):
                 if provider_path:
                     try:
                         field["options"] = _call_options_provider(ctx, provider_path)
+                    except (ImportError, AttributeError, TypeError, ValueError) as e:
+                                                log.error(f"Failed to resolve options_provider {provider_path}: {e}")
                     except Exception as e:
-                                                log.error(f"Failed to resolve options_provider: {provider_path} {e}")
+                        from plugin.framework.errors import ConfigError
+                        log.error(f"ConfigError in options_provider {provider_path}: {e}")
                 elif schema.get("options"):
                     field["options"] = schema["options"]
 
@@ -204,8 +207,14 @@ def _call_options_provider(ctx, provider_path):
         options = func(services)
         log.debug(f"_call_options_provider success: {len(options)} options returned")
         return options
-    except Exception as e:
-        log.error(f"_call_options_provider FAILED for {provider_path}: {e}")
+    except (ImportError, AttributeError, ValueError) as e:
+        log.error(f"_call_options_provider load FAILED for {provider_path}: {e}")
         import traceback
         log.error(traceback.format_exc())
         raise
+    except Exception as e:
+        log.error(f"_call_options_provider execution FAILED for {provider_path}: {e}")
+        import traceback
+        log.error(traceback.format_exc())
+        from plugin.framework.errors import ConfigError
+        raise ConfigError(f"Options provider {provider_path} failed: {e}") from e

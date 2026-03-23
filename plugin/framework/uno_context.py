@@ -56,6 +56,8 @@ def get_ctx():
     return _fallback_ctx
 
 
+from plugin.framework.errors import check_disposed, safe_call, UnoObjectError
+
 def get_desktop(ctx=None):
     """Return the UNO Desktop instance."""
     ctx = ctx or get_ctx()
@@ -67,9 +69,13 @@ def get_active_document(ctx=None):
     """Return the currently active document model."""
     try:
         desktop = get_desktop(ctx)
-        return desktop.getCurrentComponent()
+        check_disposed(desktop, "Desktop")
+        return safe_call(desktop.getCurrentComponent, "Desktop component resolution")
+    except UnoObjectError as e:
+        log.warning("get_active_document UnoObjectError: %s", e)
+        return None
     except Exception as e:
-        log.debug("get_active_document exception: %s", e)
+        log.warning("get_active_document unexpected exception: %s", e)
         return None
 
 

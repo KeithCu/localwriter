@@ -21,121 +21,114 @@ import time
 from plugin.modules.calc.bridge import CalcBridge
 from plugin.modules.calc.analyzer import SheetAnalyzer
 from plugin.framework.uno_context import get_active_document as get_active_doc
-from plugin.framework.errors import UnoObjectError
+from plugin.framework.errors import UnoObjectError, check_disposed, safe_call
 
 
 def is_writer(model):
     """Return True if model is a Writer document."""
     try:
-        return model.supportsService("com.sun.star.text.TextDocument")
-    except Exception as e:
-        logging.getLogger(__name__).debug("is_writer exception: %s", type(e).__name__)
+        check_disposed(model, "Document Model")
+        return safe_call(model.supportsService, "Check supportsService TextDocument", "com.sun.star.text.TextDocument")
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("is_writer error: %s", e)
         return False
 
 
 def is_calc(model):
     """Return True if model is a Calc document."""
     try:
-        return model.supportsService("com.sun.star.sheet.SpreadsheetDocument")
-    except Exception as e:
-        logging.getLogger(__name__).debug("is_calc exception: %s", type(e).__name__)
+        check_disposed(model, "Document Model")
+        return safe_call(model.supportsService, "Check supportsService SpreadsheetDocument", "com.sun.star.sheet.SpreadsheetDocument")
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("is_calc error: %s", e)
         return False
 
 
 def is_draw(model):
     """Return True if model is a Draw/Impress document."""
     try:
-        return (model.supportsService("com.sun.star.drawing.DrawingDocument") or
-                model.supportsService("com.sun.star.presentation.PresentationDocument"))
-    except Exception as e:
-        logging.getLogger(__name__).debug("is_draw exception: %s", type(e).__name__)
+        check_disposed(model, "Document Model")
+        is_drawing = safe_call(model.supportsService, "Check DrawingDocument", "com.sun.star.drawing.DrawingDocument")
+        is_presentation = safe_call(model.supportsService, "Check PresentationDocument", "com.sun.star.presentation.PresentationDocument")
+        return is_drawing or is_presentation
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("is_draw error: %s", e)
         return False
 
 
 def get_document_property(model, name, default=None):
     """Get a custom document property from the model."""
     try:
+        check_disposed(model, "Document Model")
         if hasattr(model, "getDocumentProperties"):
-            props = model.getDocumentProperties().UserDefinedProperties
+            doc_props = safe_call(model.getDocumentProperties, "Get document properties")
+            props = doc_props.UserDefinedProperties
             if props is None:
                 return default
 
-            # Some LibreOffice builds expose hasByName; others don't.
+            check_disposed(props, "UserDefinedProperties")
+
+            # Use safe_call and specific logic for properties
             if hasattr(props, "hasByName"):
-                try:
-                    if props.hasByName(name):
-                        return props.getPropertyValue(name)
-                    return default
-                except Exception:
-                    # Fall back to getPropertyValue attempt below.
-                    pass
+                if safe_call(props.hasByName, "Check property name", name):
+                    return safe_call(props.getPropertyValue, "Get property value", name)
+                return default
 
             if hasattr(props, "getPropertyValue"):
+                # Fallback if hasByName is missing
                 try:
-                    return props.getPropertyValue(name)
-                except Exception:
+                    return safe_call(props.getPropertyValue, "Get property value fallback", name)
+                except UnoObjectError:
                     return default
-    except Exception as e:
-        logging.getLogger(__name__).warning("get_document_property error: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_document_property error: %s", e)
     return default
 
 
 def set_document_property(model, name, value):
     """Set a custom document property in the model."""
     try:
+        check_disposed(model, "Document Model")
         if hasattr(model, "getDocumentProperties"):
-            props = model.getDocumentProperties().UserDefinedProperties
+            doc_props = safe_call(model.getDocumentProperties, "Get document properties")
+            props = doc_props.UserDefinedProperties
             if props is not None:
-                # Some LibreOffice builds expose hasByName; others don't.
-                # Prefer hasByName+addProperty when available, otherwise fall
-                # back to setPropertyValue and, on UnknownPropertyException,
-                # retry with addProperty.
+                check_disposed(props, "UserDefinedProperties")
                 exists = False
                 if hasattr(props, "hasByName"):
+                    # Catch the UnoObjectError specifically to treat missing as exists=False
                     try:
-                        exists = props.hasByName(name)
-                    except Exception:
+                        exists = safe_call(props.hasByName, "Check property name", name)
+                    except UnoObjectError:
                         exists = False
 
                 from com.sun.star.beans.PropertyAttribute import REMOVABLE
                 if not exists and hasattr(props, "addProperty"):
-                    # Using a fixed type (string) for session IDs
-                    props.addProperty(name, REMOVABLE, str(value))
+                    safe_call(props.addProperty, "Add property", name, REMOVABLE, str(value))
                 elif hasattr(props, "setPropertyValue"):
                     try:
-                        props.setPropertyValue(name, str(value))
-                    except Exception:
-                        # Some implementations raise UnknownPropertyException
-                        # when the property does not yet exist; try addProperty.
-                        try:
-                            if hasattr(props, "addProperty"):
-                                props.addProperty(name, REMOVABLE, str(value))
-                        except Exception as inner_e:
-                            raise UnoObjectError(f"Failed to set document property: {inner_e}", context={"property": name}) from inner_e
-    except Exception as e:
-        # Fallback to debug log if available, but avoid circular imports.
-        # We log richer context here to help diagnose benign startup errors
-        # like the commonly-seen "-1" when setting UserDefinedProperties.
+                        safe_call(props.setPropertyValue, "Set property value", name, str(value))
+                    except UnoObjectError:
+                        if hasattr(props, "addProperty"):
+                            safe_call(props.addProperty, "Add property fallback", name, REMOVABLE, str(value))
+                        else:
+                            raise
+    except UnoObjectError as e:
+        # Fallback context enrichment
+        doc_url = ""
+        readonly = ""
         try:
-            doc_url = ""
-            readonly = ""
-            try:
-                if hasattr(model, "getURL"):
-                    doc_url = model.getURL() or ""
-            except Exception:
-                pass
-            try:
-                if hasattr(model, "isReadonly"):
-                    readonly = str(model.isReadonly())
-            except Exception:
-                pass
-            logging.getLogger(__name__).warning(
-                "set_document_property error: %s (url=%s, readonly=%s)"
-                % (type(e).__name__, doc_url, readonly)
-            )
+            if hasattr(model, "getURL"):
+                doc_url = model.getURL() or ""
+            if hasattr(model, "isReadonly"):
+                readonly = str(model.isReadonly())
         except Exception:
             pass
-        raise UnoObjectError(f"Error setting document property: {type(e).__name__}", context={"operation": "set_document_property", "property": name}) from e
+
+        logging.getLogger(__name__).warning(
+            "set_document_property error: %s (url=%s, readonly=%s)", e, doc_url, readonly
+        )
+        raise
 
 
 def normalize_linebreaks(text: str) -> str:
@@ -239,6 +232,7 @@ def get_document_path(model):
 def get_full_document_text(model, max_chars=8000):
     """Get full document text for Writer or summary for Calc, truncated to max_chars."""
     try:
+        check_disposed(model, "Document Model")
         if is_calc(model):
             # Calc document
             bridge = CalcBridge(model)
@@ -249,33 +243,34 @@ def get_full_document_text(model, max_chars=8000):
             # Maybe add some preview rows?
             return text
         
-        text = model.getText()
+        text = safe_call(model.getText, "Get document text")
         # ... rest of Writer logic
-        cursor = text.createTextCursor()
-        cursor.gotoStart(False)
-        cursor.gotoEnd(True)
-        full = cursor.getString()
+        cursor = safe_call(text.createTextCursor, "Create text cursor")
+        safe_call(cursor.gotoStart, "Cursor gotoStart", False)
+        safe_call(cursor.gotoEnd, "Cursor gotoEnd", True)
+        full = safe_call(cursor.getString, "Cursor getString")
         if len(full) > max_chars:
             full = full[:max_chars] + "\n\n[... document truncated ...]"
         return full
-    except Exception as e:
-        logging.getLogger(__name__).warning("get_full_document_text exception: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_full_document_text error: %s", e)
         return ""
 
 
 def get_document_end(model, max_chars=4000):
     """Get the last max_chars of the document."""
     try:
-        text = model.getText()
-        cursor = text.createTextCursor()
-        cursor.gotoEnd(False)
-        cursor.gotoStart(True)  # expand backward to select from start to end
-        full = cursor.getString()
+        check_disposed(model, "Document Model")
+        text = safe_call(model.getText, "Get document text")
+        cursor = safe_call(text.createTextCursor, "Create text cursor")
+        safe_call(cursor.gotoEnd, "Cursor gotoEnd", False)
+        safe_call(cursor.gotoStart, "Cursor gotoStart", True)  # expand backward to select from start to end
+        full = safe_call(cursor.getString, "Cursor getString")
         if len(full) <= max_chars:
             return full
         return full[-max_chars:]
-    except Exception as e:
-        logging.getLogger(__name__).warning("get_document_end exception: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_document_end error: %s", e)
         return ""
 
 
@@ -286,14 +281,15 @@ _GO_RIGHT_CHUNK = 8192
 def get_document_length(model):
     """Return total character length of the document. Returns 0 on error."""
     try:
-        text = model.getText()
-        cursor = text.createTextCursor()
-        cursor.gotoStart(False)
-        cursor.gotoEnd(True)
-        length = len(normalize_linebreaks(cursor.getString()))
+        check_disposed(model, "Document Model")
+        text = safe_call(model.getText, "Get document text")
+        cursor = safe_call(text.createTextCursor, "Create text cursor")
+        safe_call(cursor.gotoStart, "Cursor gotoStart", False)
+        safe_call(cursor.gotoEnd, "Cursor gotoEnd", True)
+        length = len(normalize_linebreaks(safe_call(cursor.getString, "Cursor getString")))
         return length
-    except Exception as e:
-        logging.getLogger(__name__).warning("get_document_length exception: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_document_length error: %s", e)
         return 0
 
 
@@ -303,29 +299,30 @@ def get_text_cursor_at_range(model, start_offset, end_offset):
     goRight is used in chunks because UNO's goRight takes short (max 32767).
     Returns None on error or invalid range."""
     try:
+        check_disposed(model, "Document Model")
         doc_len = get_document_length(model)
         start_offset = max(0, min(start_offset, doc_len))
         end_offset = max(0, min(end_offset, doc_len))
         if start_offset > end_offset:
             start_offset, end_offset = end_offset, start_offset
-        text = model.getText()
-        cursor = text.createTextCursor()
-        cursor.gotoStart(False)
+        text = safe_call(model.getText, "Get document text")
+        cursor = safe_call(text.createTextCursor, "Create text cursor")
+        safe_call(cursor.gotoStart, "Cursor gotoStart", False)
         # Move to start_offset in chunks
         remaining = start_offset
         while remaining > 0:
             n = min(remaining, _GO_RIGHT_CHUNK)
-            cursor.goRight(n, False)
+            safe_call(cursor.goRight, "Cursor goRight", n, False)
             remaining -= n
         # Expand selection by (end_offset - start_offset)
         remaining = end_offset - start_offset
         while remaining > 0:
             n = min(remaining, _GO_RIGHT_CHUNK)
-            cursor.goRight(n, True)
+            safe_call(cursor.goRight, "Cursor goRight", n, True)
             remaining -= n
         return cursor
-    except Exception as e:
-        logging.getLogger(__name__).warning("get_text_cursor_at_range exception: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_text_cursor_at_range error: %s", e)
         return None
 
 
@@ -333,26 +330,28 @@ def get_selection_range(model):
     """Return (start_offset, end_offset) character positions into the document.
     Cursor (no selection) = same start and end. Returns (0, 0) on error or no text range."""
     try:
-        sel = model.getCurrentController().getSelection()
-        if not sel or sel.getCount() == 0:
+        check_disposed(model, "Document Model")
+        controller = safe_call(model.getCurrentController, "Get current controller")
+        sel = safe_call(controller.getSelection, "Get selection")
+        if not sel or safe_call(sel.getCount, "Get selection count") == 0:
             # No selection: use view cursor for insertion point
-            vc = model.getCurrentController().getViewCursor()
+            vc = safe_call(controller.getViewCursor, "Get view cursor")
             rng = vc
         else:
-            rng = sel.getByIndex(0)
+            rng = safe_call(sel.getByIndex, "Get selection by index", 0)
         if not rng or not hasattr(rng, "getStart") or not hasattr(rng, "getEnd"):
             return (0, 0)
-        text = model.getText()
-        cursor = text.createTextCursor()
-        cursor.gotoStart(False)
-        cursor.gotoRange(rng.getStart(), True)
-        start_offset = len(normalize_linebreaks(cursor.getString()))
-        cursor.gotoStart(False)
-        cursor.gotoRange(rng.getEnd(), True)
-        end_offset = len(normalize_linebreaks(cursor.getString()))
+        text = safe_call(model.getText, "Get document text")
+        cursor = safe_call(text.createTextCursor, "Create text cursor")
+        safe_call(cursor.gotoStart, "Cursor gotoStart", False)
+        safe_call(cursor.gotoRange, "Cursor gotoRange start", safe_call(rng.getStart, "Get range start"), True)
+        start_offset = len(normalize_linebreaks(safe_call(cursor.getString, "Cursor getString start")))
+        safe_call(cursor.gotoStart, "Cursor gotoStart", False)
+        safe_call(cursor.gotoRange, "Cursor gotoRange end", safe_call(rng.getEnd, "Get range end"), True)
+        end_offset = len(normalize_linebreaks(safe_call(cursor.getString, "Cursor getString end")))
         return (start_offset, end_offset)
-    except Exception as e:
-        logging.getLogger(__name__).warning("get_selection_range exception: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_selection_range error: %s", e)
         return (0, 0)
 
 
@@ -367,15 +366,16 @@ def get_document_context_for_chat(model, max_context=8000, include_end=True, inc
     
     # Original Writer logic
     try:
-        text = model.getText()
+        check_disposed(model, "Document Model")
+        text = safe_call(model.getText, "Get document text")
         # ... (rest of the function)
-        cursor = text.createTextCursor()
-        cursor.gotoStart(False)
-        cursor.gotoEnd(True)
-        full = normalize_linebreaks(cursor.getString())
+        cursor = safe_call(text.createTextCursor, "Create text cursor")
+        safe_call(cursor.gotoStart, "Cursor gotoStart", False)
+        safe_call(cursor.gotoEnd, "Cursor gotoEnd", True)
+        full = normalize_linebreaks(safe_call(cursor.getString, "Cursor getString"))
         doc_len = len(full)
-    except Exception as e:
-        logging.getLogger(__name__).warning("get_document_context_for_chat Writer exception: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_document_context_for_chat Writer error: %s", e)
         return "[Unable to read Writer document context. The document may be locked or initializing.]"
 
     # Selection/cursor range; cap selection span for very long selections (e.g. 100k chars)
@@ -429,6 +429,7 @@ def get_calc_context_for_chat(model, max_context=8000, ctx=None):
     if ctx is None:
         raise ValueError("ctx is required for get_calc_context_for_chat")
     try:
+        check_disposed(model, "Document Model")
         bridge = CalcBridge(model)
         analyzer = SheetAnalyzer(bridge)
         summary = analyzer.get_sheet_summary()
@@ -439,11 +440,11 @@ def get_calc_context_for_chat(model, max_context=8000, ctx=None):
         ctx_str += f"Columns: {', '.join([str(h) for h in summary['headers'] if h])}\n"
 
         # Add selection context if available
-        controller = model.getCurrentController()
-        selection = controller.getSelection()
+        controller = safe_call(model.getCurrentController, "Get current controller")
+        selection = safe_call(controller.getSelection, "Get selection")
         if selection:
             if hasattr(selection, "getRangeAddress"):
-                addr = selection.getRangeAddress()
+                addr = safe_call(selection.getRangeAddress, "Get range address")
                 from plugin.modules.calc.address_utils import index_to_column
                 sel_range = f"{index_to_column(addr.StartColumn)}{addr.StartRow + 1}:{index_to_column(addr.EndColumn)}{addr.EndRow + 1}"
                 ctx_str += f"Current Selection: {sel_range}\n"
@@ -458,6 +459,9 @@ def get_calc_context_for_chat(model, max_context=8000, ctx=None):
                         ctx_str += ", ".join([str(c['value']) if c['value'] is not None else "" for c in row]) + "\n"
 
         return ctx_str
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_calc_context_for_chat error: %s", e)
+        return "[Unable to read Calc spreadsheet context. The document may be locked or initializing.]"
     except Exception as e:
         logging.getLogger(__name__).warning("get_calc_context_for_chat exception: %s", type(e).__name__)
         return "[Unable to read Calc spreadsheet context. The document may be locked or initializing.]"
@@ -466,21 +470,22 @@ def get_calc_context_for_chat(model, max_context=8000, ctx=None):
 def get_draw_context_for_chat(model, max_context=8000, ctx=None):
     """Get context summary for a Draw/Impress document. ctx: component context (unused, kept for signature compat)."""
     try:
+        check_disposed(model, "Document Model")
         from plugin.modules.draw.bridge import DrawBridge
         bridge = DrawBridge(model)
         pages = bridge.get_pages()
         active_page = bridge.get_active_page()
         
-        is_impress = model.supportsService("com.sun.star.presentation.PresentationDocument")
+        is_impress = safe_call(model.supportsService, "Check supportsService", "com.sun.star.presentation.PresentationDocument")
         doc_type = "Impress Presentation" if is_impress else "Draw Document"
 
-        ctx_str = "%s: %s\n" % (doc_type, model.getURL() or "Untitled")
-        ctx_str += "Total %s: %d\n" % ("Slides" if is_impress else "Pages", pages.getCount())
+        ctx_str = "%s: %s\n" % (doc_type, safe_call(model.getURL, "Get document URL") or "Untitled")
+        ctx_str += "Total %s: %d\n" % ("Slides" if is_impress else "Pages", safe_call(pages.getCount, "Get page count"))
 
         # Get index of active page
         active_page_idx = -1
-        for i in range(pages.getCount()):
-            if pages.getByIndex(i) == active_page:
+        for i in range(safe_call(pages.getCount, "Get page count")):
+            if safe_call(pages.getByIndex, "Get page by index", i) == active_page:
                 active_page_idx = i
                 break
 
@@ -491,13 +496,13 @@ def get_draw_context_for_chat(model, max_context=8000, ctx=None):
             shapes = bridge.get_shapes(active_page)
             ctx_str += "\nShapes on %s %d:\n" % ("Slide" if is_impress else "Page", active_page_idx)
             for i, s in enumerate(shapes):
-                type_name = s.getShapeType().split(".")[-1]
-                pos = s.getPosition()
-                size = s.getSize()
+                type_name = safe_call(s.getShapeType, "Get shape type").split(".")[-1]
+                pos = safe_call(s.getPosition, "Get position")
+                size = safe_call(s.getSize, "Get size")
                 ctx_str += "- [%d] %s: pos(%d, %d) size(%dx%d)" % (
                     i, type_name, pos.X, pos.Y, size.Width, size.Height)
                 if hasattr(s, "getString"):
-                    text = normalize_linebreaks(s.getString())
+                    text = normalize_linebreaks(safe_call(s.getString, "Get string"))
                     if text:
                         ctx_str += " text: \"%s\"" % text[:200]
                 ctx_str += "\n"
@@ -505,18 +510,21 @@ def get_draw_context_for_chat(model, max_context=8000, ctx=None):
             # Impress-specific: Speaker Notes
             if is_impress and hasattr(active_page, "getNotesPage"):
                 try:
-                    notes_page = active_page.getNotesPage()
+                    notes_page = safe_call(active_page.getNotesPage, "Get notes page")
                     notes_text = ""
-                    for i in range(notes_page.getCount()):
-                        shape = notes_page.getByIndex(i)
-                        if shape.getShapeType() == "com.sun.star.presentation.NotesShape":
-                            notes_text += shape.getString() + "\n"
+                    for i in range(safe_call(notes_page.getCount, "Get notes page count")):
+                        shape = safe_call(notes_page.getByIndex, "Get notes shape by index", i)
+                        if safe_call(shape.getShapeType, "Get notes shape type") == "com.sun.star.presentation.NotesShape":
+                            notes_text += safe_call(shape.getString, "Get notes shape string") + "\n"
                     if notes_text.strip():
                         ctx_str += "\nSpeaker Notes:\n%s\n" % notes_text.strip()
-                except Exception:
+                except UnoObjectError:
                     pass
 
         return ctx_str
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("get_draw_context_for_chat error: %s", e)
+        return "[Unable to read Draw/Impress context. The document may be locked or initializing.]"
     except Exception as e:
         logging.getLogger(__name__).warning("get_draw_context_for_chat exception: %s", type(e).__name__)
         return "[Unable to read Draw/Impress context. The document may be locked or initializing.]"
@@ -561,104 +569,114 @@ def find_paragraph_for_range(match_range, para_ranges, text_obj=None):
     """Return the 0-based paragraph index that contains match_range."""
     try:
         if text_obj is None:
-            text_obj = match_range.getText()
-        match_start = match_range.getStart()
+            text_obj = safe_call(match_range.getText, "Get text object")
+        match_start = safe_call(match_range.getStart, "Get match start")
         for i, para in enumerate(para_ranges):
             try:
                 # compareRegionStarts: 1 if first is after second, -1 if before, 0 if equal
-                cmp_start = text_obj.compareRegionStarts(match_start, para.getStart())
-                cmp_end = text_obj.compareRegionStarts(match_start, para.getEnd())
+                cmp_start = safe_call(text_obj.compareRegionStarts, "compareRegionStarts start", match_start, safe_call(para.getStart, "Get para start"))
+                cmp_end = safe_call(text_obj.compareRegionStarts, "compareRegionStarts end", match_start, safe_call(para.getEnd, "Get para end"))
                 if cmp_start <= 0 and cmp_end >= 0:
                     return i
-            except Exception as e:
-                logging.getLogger(__name__).debug("find_paragraph_for_range comparison error at index %d: %s", i, type(e).__name__)
+            except UnoObjectError as e:
+                logging.getLogger(__name__).debug("find_paragraph_for_range comparison error at index %d: %s", i, e)
                 continue
-    except Exception as e:
-        logging.getLogger(__name__).warning("find_paragraph_for_range exception: %s", type(e).__name__)
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("find_paragraph_for_range error: %s", e)
     return 0
 
 
 def build_heading_tree(model):
     """Build a hierarchical heading tree. Single pass enumeration."""
-    text = model.getText()
-    enum = text.createEnumeration()
-    root = {"level": 0, "text": "root", "para_index": -1, "children": [], "body_paragraphs": 0}
-    stack = [root]
-    para_index = 0
+    try:
+        check_disposed(model, "Document Model")
+        text = safe_call(model.getText, "Get document text")
+        enum = safe_call(text.createEnumeration, "Create enumeration")
+        root = {"level": 0, "text": "root", "para_index": -1, "children": [], "body_paragraphs": 0}
+        stack = [root]
+        para_index = 0
 
-    while enum.hasMoreElements():
-        element = enum.nextElement()
-        if element.supportsService("com.sun.star.text.Paragraph"):
-            outline_level = 0
-            try:
-                outline_level = element.getPropertyValue("OutlineLevel")
-            except Exception as e:
-                logging.getLogger(__name__).debug("build_heading_tree could not get OutlineLevel: %s", type(e).__name__)
-            
-            if outline_level > 0:
-                while len(stack) > 1 and stack[-1]["level"] >= outline_level:
-                    stack.pop()
-                node = {
-                    "level": outline_level,
-                    "text": element.getString(),
-                    "para_index": para_index,
-                    "children": [],
-                    "body_paragraphs": 0
-                }
-                stack[-1]["children"].append(node)
-                stack.append(node)
-            else:
+        while safe_call(enum.hasMoreElements, "Check more elements"):
+            element = safe_call(enum.nextElement, "Get next element")
+            if safe_call(element.supportsService, "Check supportsService Paragraph", "com.sun.star.text.Paragraph"):
+                outline_level = 0
+                try:
+                    outline_level = safe_call(element.getPropertyValue, "Get OutlineLevel", "OutlineLevel")
+                except UnoObjectError as e:
+                    logging.getLogger(__name__).debug("build_heading_tree could not get OutlineLevel: %s", e)
+
+                if outline_level > 0:
+                    while len(stack) > 1 and stack[-1]["level"] >= outline_level:
+                        stack.pop()
+                    node = {
+                        "level": outline_level,
+                        "text": safe_call(element.getString, "Get paragraph string"),
+                        "para_index": para_index,
+                        "children": [],
+                        "body_paragraphs": 0
+                    }
+                    stack[-1]["children"].append(node)
+                    stack.append(node)
+                else:
+                    stack[-1]["body_paragraphs"] += 1
+            elif safe_call(element.supportsService, "Check supportsService TextTable", "com.sun.star.text.TextTable"):
                 stack[-1]["body_paragraphs"] += 1
-        elif element.supportsService("com.sun.star.text.TextTable"):
-            stack[-1]["body_paragraphs"] += 1
-        para_index += 1
-    return root
+            para_index += 1
+        return root
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("build_heading_tree error: %s", e)
+        return {"level": 0, "text": "root", "para_index": -1, "children": [], "body_paragraphs": 0}
 
 
 def ensure_heading_bookmarks(model):
     """Ensure every heading has an _mcp_ bookmark. Returns {para_index: bookmark_name}."""
-    text = model.getText()
-    para_ranges = get_paragraph_ranges(model)
-    
-    # 1. Map existing _mcp_ bookmarks
-    existing_map = {}
-    if hasattr(model, "getBookmarks"):
-        bookmarks = model.getBookmarks()
-        for name in bookmarks.getElementNames():
-            if name.startswith("_mcp_"):
-                bm = bookmarks.getByName(name)
-                idx = find_paragraph_for_range(bm.getAnchor(), para_ranges, text)
-                existing_map[idx] = name
-    
-    # 2. Scanthe document for headings
-    enum = text.createEnumeration()
-    para_index = 0
-    bookmark_map = {}
-    needs_bookmark = []
-    
-    while enum.hasMoreElements():
-        element = enum.nextElement()
-        if element.supportsService("com.sun.star.text.Paragraph"):
-            try:
-                if element.getPropertyValue("OutlineLevel") > 0:
-                    if para_index in existing_map:
-                        bookmark_map[para_index] = existing_map[para_index]
-                    else:
-                        needs_bookmark.append((para_index, element.getStart()))
-            except Exception as e:
-                logging.getLogger(__name__).debug("ensure_heading_bookmarks could not get OutlineLevel: %s", type(e).__name__)
-        para_index += 1
+    try:
+        check_disposed(model, "Document Model")
+        text = safe_call(model.getText, "Get document text")
+        para_ranges = get_paragraph_ranges(model)
+
+        # 1. Map existing _mcp_ bookmarks
+        existing_map = {}
+        if hasattr(model, "getBookmarks"):
+            bookmarks = safe_call(model.getBookmarks, "Get bookmarks")
+            for name in safe_call(bookmarks.getElementNames, "Get element names"):
+                if name.startswith("_mcp_"):
+                    bm = safe_call(bookmarks.getByName, "Get bookmark by name", name)
+                    idx = find_paragraph_for_range(safe_call(bm.getAnchor, "Get bookmark anchor"), para_ranges, text)
+                    existing_map[idx] = name
         
-    # 3. Add missing bookmarks
-    for idx, start_range in needs_bookmark:
-        name = f"_mcp_{uuid.uuid4().hex[:8]}"
-        bookmark = model.createInstance("com.sun.star.text.Bookmark")
-        bookmark.Name = name
-        cursor = text.createTextCursorByRange(start_range)
-        text.insertTextContent(cursor, bookmark, False)
-        bookmark_map[idx] = name
+        # 2. Scanthe document for headings
+        enum = safe_call(text.createEnumeration, "Create enumeration")
+        para_index = 0
+        bookmark_map = {}
+        needs_bookmark = []
         
-    return bookmark_map
+        while safe_call(enum.hasMoreElements, "Check more elements"):
+            element = safe_call(enum.nextElement, "Get next element")
+            if safe_call(element.supportsService, "Check supportsService Paragraph", "com.sun.star.text.Paragraph"):
+                try:
+                    if safe_call(element.getPropertyValue, "Get OutlineLevel", "OutlineLevel") > 0:
+                        if para_index in existing_map:
+                            bookmark_map[para_index] = existing_map[para_index]
+                        else:
+                            needs_bookmark.append((para_index, safe_call(element.getStart, "Get element start")))
+                except UnoObjectError as e:
+                    logging.getLogger(__name__).debug("ensure_heading_bookmarks could not get OutlineLevel: %s", e)
+            para_index += 1
+
+        # 3. Add missing bookmarks
+        for idx, start_range in needs_bookmark:
+            name = f"_mcp_{uuid.uuid4().hex[:8]}"
+            bookmark = safe_call(model.createInstance, "Create bookmark instance", "com.sun.star.text.Bookmark")
+            bookmark.Name = name
+            cursor = safe_call(text.createTextCursorByRange, "Create cursor by range", start_range)
+            safe_call(text.insertTextContent, "Insert text content", cursor, bookmark, False)
+            bookmark_map[idx] = name
+
+        return bookmark_map
+    except UnoObjectError as e:
+        logging.getLogger(__name__).warning("ensure_heading_bookmarks error: %s", e)
+        return {}
 
 
 def resolve_locator(model, locator: str):
@@ -734,44 +752,46 @@ class DocumentService(ServiceBase):
         Uses lockControllers + cursor save/restore to prevent visible viewport jumping.
         """
         try:
-            text = model.getText()
-            controller = model.getCurrentController()
-            vc = controller.getViewCursor()
-            saved = text.createTextCursorByRange(vc.getStart())
-            model.lockControllers()
+            check_disposed(model, "Document Model")
+            text = safe_call(model.getText, "Get document text")
+            controller = safe_call(model.getCurrentController, "Get current controller")
+            vc = safe_call(controller.getViewCursor, "Get view cursor")
+            saved = safe_call(text.createTextCursorByRange, "Create text cursor by range", safe_call(vc.getStart, "Get view cursor start"))
+            safe_call(model.lockControllers, "Lock controllers")
             try:
-                cursor = text.createTextCursor()
-                cursor.gotoStart(False)
+                cursor = safe_call(text.createTextCursor, "Create text cursor")
+                safe_call(cursor.gotoStart, "Cursor gotoStart", False)
                 for _ in range(para_index):
-                    if not cursor.gotoNextParagraph(False):
+                    if not safe_call(cursor.gotoNextParagraph, "Cursor gotoNextParagraph", False):
                         break
-                vc.gotoRange(cursor, False)
-                page = vc.getPage()
+                safe_call(vc.gotoRange, "View cursor gotoRange", cursor, False)
+                page = safe_call(vc.getPage, "Get page")
             finally:
-                vc.gotoRange(saved, False)
-                model.unlockControllers()
+                safe_call(vc.gotoRange, "Restore view cursor", saved, False)
+                safe_call(model.unlockControllers, "Unlock controllers")
             return page
-        except Exception as e:
-            logging.getLogger(__name__).warning("get_page_for_paragraph exception: %s", type(e).__name__)
+        except UnoObjectError as e:
+            logging.getLogger(__name__).warning("get_page_for_paragraph error: %s", e)
             return 1
 
     def get_page_count(self, model):
         """Return page count of a Writer document."""
         try:
-            text = model.getText()
-            controller = model.getCurrentController()
-            vc = controller.getViewCursor()
-            saved = text.createTextCursorByRange(vc.getStart())
-            model.lockControllers()
+            check_disposed(model, "Document Model")
+            text = safe_call(model.getText, "Get document text")
+            controller = safe_call(model.getCurrentController, "Get current controller")
+            vc = safe_call(controller.getViewCursor, "Get view cursor")
+            saved = safe_call(text.createTextCursorByRange, "Create text cursor by range", safe_call(vc.getStart, "Get view cursor start"))
+            safe_call(model.lockControllers, "Lock controllers")
             try:
-                vc.jumpToLastPage()
-                count = vc.getPage()
+                safe_call(vc.jumpToLastPage, "Jump to last page")
+                count = safe_call(vc.getPage, "Get page")
             finally:
-                vc.gotoRange(saved, False)
-                model.unlockControllers()
+                safe_call(vc.gotoRange, "Restore view cursor", saved, False)
+                safe_call(model.unlockControllers, "Unlock controllers")
             return count
-        except Exception as e:
-            logging.getLogger(__name__).warning("get_page_count exception: %s", type(e).__name__)
+        except UnoObjectError as e:
+            logging.getLogger(__name__).warning("get_page_count error: %s", e)
             return 0
 
     def doc_key(self, doc):

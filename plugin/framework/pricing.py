@@ -49,8 +49,14 @@ def fetch_openrouter_pricing(ctx, force=False):
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(data["data"], f, indent=2)
             log.info(f"Cached {len(data['data'])} models.")
+    except (OSError, ValueError, TypeError) as e:
+        log.error(f"Failed to fetch OpenRouter pricing (IO/Parse error): {e}")
     except Exception as e:
-        log.error(f"Failed to fetch OpenRouter pricing: {e}")
+        from plugin.framework.errors import NetworkError
+        if isinstance(e, NetworkError):
+            log.error(f"Failed to fetch OpenRouter pricing (NetworkError): {e}")
+        else:
+            log.error(f"Failed to fetch OpenRouter pricing (unexpected): {e}")
 
 def get_model_pricing(ctx, model_id):
     """Return (prompt_rate, completion_rate) per token in USD."""
