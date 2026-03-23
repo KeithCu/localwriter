@@ -36,9 +36,10 @@ from plugin.modules.chatbot.history_db import get_chat_history
 
 # Recording available only if audio_recorder (and contrib/audio) is present
 try:
-    from plugin.modules.chatbot.audio_recorder import start_recording, stop_recording  # noqa: F401
+    from plugin.modules.chatbot.audio_recorder import AudioRecorder  # noqa: F401
     HAS_RECORDING = True
 except ImportError:
+    AudioRecorder = None  # type: ignore[misc, assignment]
     HAS_RECORDING = False
 
 # Default max tool rounds when not in config (get_api_config supplies chat_max_tool_rounds)
@@ -194,6 +195,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         self._approval_event = None
         self._approval_ui_backup = None
         self._approval_query_for_engine = None
+        self.audio_recorder = AudioRecorder() if HAS_RECORDING else None
 
         # Initialize pure state machine state
         self.state = SendButtonState(
@@ -509,17 +511,19 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
                 self._set_status(_(effect.status_text))
 
         elif effect == "start_recording":
-            from plugin.modules.chatbot.audio_recorder import start_recording
+            if not self.audio_recorder:
+                return
             try:
-                start_recording()
+                self.audio_recorder.start_recording()
             except RuntimeError as re:
                 self._append_response("\n[Audio error: %s]\n" % str(re))
                 self.dispatch(SendEvent(SendEventKind.ERROR_OCCURRED))
 
         elif effect == "stop_recording":
-            from plugin.modules.chatbot.audio_recorder import stop_recording
+            if not self.audio_recorder:
+                return
             try:
-                self.audio_wav_path = stop_recording()
+                self.audio_wav_path = self.audio_recorder.stop_recording()
             except Exception as e:
                 from plugin.framework.errors import WriterAgentException
                 if isinstance(e, WriterAgentException):

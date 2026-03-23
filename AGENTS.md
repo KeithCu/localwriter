@@ -155,6 +155,7 @@ See [CHAT_SIDEBAR_IMPLEMENTATION.md](CHAT_SIDEBAR_IMPLEMENTATION.md) for impleme
 ### Audio recording (chat sidebar)
 
 - Audio recording in the chat sidebar uses a bundled `sounddevice` + PortAudio stack (see `plugin/modules/chatbot/audio_recorder.py` and `contrib/audio/`).
+- Each chat sidebar `SendButtonListener` owns its own `AudioRecorder` instance (`self.audio_recorder`); there is no module-level recorder singleton.
 - On systems where the PortAudio backend is missing or incompatible, attempts to start recording can fail with low-level errors (including `AssertionError` from `sounddevice`). These are now caught and surfaced as a user-friendly `"[Audio error: ...]"` message in the sidebar instead of crashing.
 - Typical causes: no microphone devices, misconfigured audio stack, or an older PortAudio library (`libportaudio2`) that does not match the bundled bindings. The error message hints at installing/upgrading PortAudio on Linux when appropriate.
 

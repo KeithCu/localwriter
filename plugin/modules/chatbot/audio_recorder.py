@@ -183,11 +183,3 @@ class AudioRecorder:
 
         # After stopping, return the temp filename (which may be None if error occurred)
         return self.temp_filename
-
-_recorder = AudioRecorder()
-
-def start_recording():
-    _recorder.start_recording()
-
-def stop_recording():
-    return _recorder.stop_recording()

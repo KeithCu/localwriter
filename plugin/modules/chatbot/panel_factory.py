@@ -47,7 +47,7 @@ if _audio_dir not in sys.path:
 
 # Recording available only if audio_recorder (and thus contrib/audio) is present
 try:
-    from plugin.modules.chatbot.audio_recorder import stop_recording  # noqa: F401
+    from plugin.modules.chatbot.audio_recorder import AudioRecorder  # noqa: F401
     HAS_RECORDING = True
 except ImportError:
     HAS_RECORDING = False
