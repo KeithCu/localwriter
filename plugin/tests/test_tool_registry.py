@@ -66,11 +66,13 @@ class TestRegister:
 
         class GoodTool(ToolBase):
             name = "good_tool"
+            description = "A good tool"
             def execute(self, ctx, **kwargs): pass
         GoodTool.__module__ = "mock_module"
 
         class AnotherTool(ToolBase):
             name = "another_tool"
+            description = "Another tool"
             def execute(self, ctx, **kwargs): pass
         AnotherTool.__module__ = "mock_module"
 
