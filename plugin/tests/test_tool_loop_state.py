@@ -31,7 +31,8 @@ def create_event(kind: EventKind, **kwargs):
 def test_stop_requested():
     state = create_base_state()
     event = create_event(EventKind.STOP_REQUESTED)
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
 
     assert new_state.is_stopped is True
     assert new_state.status == "Stopped"
@@ -43,7 +44,8 @@ def test_stop_requested():
 def test_final_done():
     state = create_base_state()
     event = create_event(EventKind.FINAL_DONE, content="Final words")
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
 
     assert new_state.status == "Ready"
     assert "exit_loop" in effects
@@ -55,7 +57,8 @@ def test_final_done():
 def test_error_event():
     state = create_base_state()
     event = create_event(EventKind.ERROR, error=Exception("Something broke"))
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
 
     assert new_state.status == "Error"
     assert "exit_loop" in effects
@@ -65,20 +68,23 @@ def test_stream_done_finish_reasons():
     
     # finish_reason="length"
     event_len = create_event(EventKind.STREAM_DONE, response={"finish_reason": "length", "content": None})
-    new_state_len, effects_len = next_state(state, event_len)
+    tr_len = next_state(state, event_len)
+    new_state_len, effects_len = tr_len.state, tr_len.effects
     assert new_state_len.status == "Ready"
     assert any(isinstance(e, UIEffect) and "out of tokens" in e.text for e in effects_len)
     
     # finish_reason="content_filter"
     event_filt = create_event(EventKind.STREAM_DONE, response={"finish_reason": "content_filter", "content": None})
-    new_state_filt, effects_filt = next_state(state, event_filt)
+    tr_filt = next_state(state, event_filt)
+    new_state_filt, effects_filt = tr_filt.state, tr_filt.effects
     assert any(isinstance(e, UIEffect) and "Content filter" in e.text for e in effects_filt)
 
 def test_stream_done_empty_tool_calls():
     state = create_base_state()
     # explicitly testing empty list
     event = create_event(EventKind.STREAM_DONE, response={"tool_calls": [], "content": "I couldn't figure it out."})
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
 
     assert new_state.status == "Ready"
     assert "exit_loop" in effects
@@ -91,7 +97,8 @@ def test_stream_done_with_tool_calls():
     state = create_base_state()
     tool_calls = [{"id": "1", "function": {"name": "test"}}]
     event = create_event(EventKind.STREAM_DONE, response={"tool_calls": tool_calls, "content": "Let me test."})
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
 
     assert len(new_state.pending_tools) == 1
     assert "trigger_next_tool" in effects
@@ -103,7 +110,8 @@ def test_next_tool_advances_round_and_handles_max_rounds():
     # Regular advance
     state = create_base_state(round_num=3, max_rounds=5)
     event = create_event(EventKind.NEXT_TOOL)
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
     
     assert new_state.round_num == 4
     spawn_eff = next((e for e in effects if isinstance(e, SpawnLLMWorkerEffect)), None)
@@ -113,7 +121,8 @@ def test_next_tool_advances_round_and_handles_max_rounds():
 
     # Exhausted advance
     state_exhausted = create_base_state(round_num=4, max_rounds=5)
-    new_state_ex, effects_ex = next_state(state_exhausted, event)
+    tr_ex = next_state(state_exhausted, event)
+    new_state_ex, effects_ex = tr_ex.state, tr_ex.effects
     assert new_state_ex.round_num == 5
     assert not any(isinstance(e, SpawnLLMWorkerEffect) for e in effects_ex)
     assert "spawn_final_stream" in effects_ex
@@ -122,7 +131,8 @@ def test_next_tool_invalid_max_rounds():
     # If round_num somehow exceeds max_rounds, it caps to current round_num to prevent going back
     state = create_base_state(round_num=5, max_rounds=2)
     event = create_event(EventKind.NEXT_TOOL)
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
     assert new_state.round_num == 5
     assert "spawn_final_stream" in effects
 
@@ -130,7 +140,8 @@ def test_next_tool_with_pending_tools_and_action_state():
     tool_calls = [{"id": "call_1", "function": {"name": "test_tool", "arguments": "{}"}}]
     state = create_base_state(pending_tools=tool_calls)
     event = create_event(EventKind.NEXT_TOOL)
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
     
     # Consumed 1 tool
     assert len(new_state.pending_tools) == 0
@@ -148,7 +159,8 @@ def test_next_tool_malformed_arguments_and_missing_func():
     tool_calls = [{"id": "call_1", "type": "function", "function": {"arguments": "invalid-json"}}]
     state = create_base_state(pending_tools=tool_calls)
     event = create_event(EventKind.NEXT_TOOL)
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
     
     assert len(new_state.pending_tools) == 0
     
@@ -161,7 +173,8 @@ def test_next_tool_when_stopped():
     # If is_stopped=True but empty pending_tools, it shouldn't update status
     state = create_base_state(is_stopped=True)
     event = create_event(EventKind.NEXT_TOOL)
-    new_state, effects = next_state(state, event)
+    tr = next_state(state, event)
+    new_state, effects = tr.state, tr.effects
     
     assert not any(isinstance(e, UIEffect) and e.kind == "status" for e in effects)
     assert any(isinstance(e, SpawnLLMWorkerEffect) for e in effects)
@@ -178,7 +191,8 @@ def test_tool_result_parsing():
         result='{"success": true, "message": "done"}',
         mutates_document=True
     )
-    new_state, effects = next_state(state, event_valid)
+    tr_valid = next_state(state, event_valid)
+    new_state, effects = tr_valid.state, tr_valid.effects
     assert "trigger_next_tool" in effects
     assert "update_document_context" in effects  # Because is_success=True and mutates=True
     
@@ -196,7 +210,8 @@ def test_tool_result_parsing():
         result='{"message": "Replaced 0 occurrences"}',
         mutates_document=False
     )
-    new_state_adc, effects_adc = next_state(state, event_adc)
+    tr_adc = next_state(state, event_adc)
+    new_state_adc, effects_adc = tr_adc.state, tr_adc.effects
     
     ui_effs = [e for e in effects_adc if isinstance(e, UIEffect)]
     assert any("[Debug: params" in e.text for e in ui_effs)
