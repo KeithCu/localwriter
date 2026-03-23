@@ -63,7 +63,7 @@ def init_logging(ctx):
                 _debug_log_path = os.path.join(udir, DEBUG_LOG_FILENAME)
                 _agent_log_path = os.path.join(udir, AGENT_LOG_FILENAME)
                 _enable_agent_log = config.as_bool(config.get_config(ctx, "enable_agent_log"))
-        except Exception:
+        except (OSError, ImportError, ValueError):
             pass
 
         try:
@@ -121,7 +121,7 @@ def init_logging(ctx):
             # Prevent double-logging for loggers under "writeragent.*" since
             # they are handled by `logger` above.
             logger.propagate = False
-        except Exception:
+        except OSError:
             pass
 
         if first_init:
@@ -295,7 +295,7 @@ def agent_log(location, message, data=None, hypothesis_id=None, run_id=None):
     try:
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
-    except Exception:
+    except OSError:
         pass
 
 
