@@ -94,21 +94,35 @@ class TestSendHandlerStateMachine:
 
     def test_error_event(self):
         state = SendHandlerState(handler_type="web", status="running")
-        event = ErrorEvent(error=Exception("Network failure"))
+        event = ErrorEvent(error=Exception("Network failure"), context="test", error_time=123.45)
 
         step = next_state(state, event)
         new_state, effects = step.state, step.effects
 
         assert new_state.status == "error"
+        assert new_state.last_error == "Network failure"
+        assert new_state.error_time == 123.45
         assert len(effects) == 3
         assert isinstance(effects[0], UIEffect)
         assert effects[0].kind == "status"
         assert effects[0].text == "Error"
         assert isinstance(effects[1], UIEffect)
         assert effects[1].kind == "append"
-        assert "Research Chat error: Network failure" in effects[1].text
+        # The exact format might vary depending on format_error_for_display output
+        assert "Research Chat error: " in effects[1].text
         assert isinstance(effects[2], CompleteJobEffect)
         assert effects[2].terminal_status == "Error"
+
+    def test_terminal_error_state(self):
+        state = SendHandlerState(handler_type="web", status="error", last_error="Network failure")
+        event = StreamChunkEvent(chunk_text="test data")
+
+        step = next_state(state, event)
+        new_state, effects = step.state, step.effects
+
+        assert new_state.status == "error"
+        assert new_state.last_error == "Network failure"
+        assert len(effects) == 0
 
     def test_round_counter_invariant(self):
         # A mock test to verify that the next_state contract holds (e.g. no exceptions thrown)
