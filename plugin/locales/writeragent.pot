@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-23 15:27-0400\n"
+"POT-Creation-Date: 2026-03-23 18:37-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: plugin/contrib/aihordeclient/__init__.py:262
-#: plugin/modules/chatbot/panel.py:552
+#: plugin/modules/chatbot/panel.py:598
 msgid "Starting..."
 msgstr ""
 
@@ -271,10 +271,10 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:625
-#: plugin/modules/chatbot/send_handlers.py:276
-#: plugin/modules/chatbot/send_handlers.py:286
-#: plugin/modules/chatbot/send_handlers.py:295
+#: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:676
+#: plugin/modules/chatbot/send_handlers.py:300
+#: plugin/modules/chatbot/send_handlers.py:310
+#: plugin/modules/chatbot/send_handlers.py:319
 msgid "Error"
 msgstr ""
 
@@ -470,74 +470,74 @@ msgid "WriterAgent: Extend Selection (Calc)"
 msgstr ""
 
 #: plugin/modules/writer/legacy.py:43 plugin/modules/writer/legacy.py:54
-#: plugin/modules/chatbot/selection.py:69
-#: plugin/modules/chatbot/selection.py:145
+#: plugin/modules/chatbot/selection.py:80
+#: plugin/modules/chatbot/selection.py:165
 msgid "WriterAgent: Extend Selection"
 msgstr ""
 
 #: plugin/modules/writer/legacy.py:78 plugin/modules/writer/legacy.py:88
-#: plugin/modules/writer/legacy.py:102 plugin/modules/chatbot/selection.py:256
-#: plugin/modules/chatbot/selection.py:358
+#: plugin/modules/writer/legacy.py:102 plugin/modules/chatbot/selection.py:290
+#: plugin/modules/chatbot/selection.py:404
 msgid "WriterAgent: Edit Selection"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_wiring.py:167 plugin/xdl_strings.py:41
+#: plugin/modules/chatbot/panel_wiring.py:191 plugin/xdl_strings.py:41
 msgid "Ready"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:254 plugin/modules/chatbot/panel.py:531
+#: plugin/modules/chatbot/panel.py:263 plugin/modules/chatbot/panel.py:577
 msgid "Accept"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:267 plugin/modules/chatbot/panel.py:716
+#: plugin/modules/chatbot/panel.py:279 plugin/modules/chatbot/panel.py:770
 msgid "Change"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:271 plugin/modules/chatbot/panel.py:723
+#: plugin/modules/chatbot/panel.py:283 plugin/modules/chatbot/panel.py:777
 msgid "Reject"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:283
+#: plugin/modules/chatbot/panel.py:300
 msgid "Waiting for approval…"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:537
+#: plugin/modules/chatbot/panel.py:583
 msgid "Record"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:539
+#: plugin/modules/chatbot/panel.py:585
 msgid "Stop Rec"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:541 plugin/xdl_strings.py:44
+#: plugin/modules/chatbot/panel.py:587 plugin/xdl_strings.py:44
 msgid "Send"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:561
+#: plugin/modules/chatbot/panel.py:607
 msgid "Getting document..."
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:566
+#: plugin/modules/chatbot/panel.py:612
 msgid ""
 "\n"
 "[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:576
+#: plugin/modules/chatbot/panel.py:622
 #, python-brace-format
 msgid ""
 "[Internal Error: Document type changed from {0} to {1}! Please file an "
 "error.]"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:583
+#: plugin/modules/chatbot/panel.py:629
 #, python-brace-format
 msgid ""
 "[Internal Error: Could not identify document type for {0}. Please report "
 "this!]"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:622
+#: plugin/modules/chatbot/panel.py:673
 #, python-brace-format
 msgid ""
 "[Model {0} does not support native audio. Please select an STT Model in "
@@ -607,57 +607,57 @@ msgid ""
 "[Transcription error: {0}]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:83
+#: plugin/modules/chatbot/send_handlers.py:89
 #, python-brace-format
 msgid ""
 "\n"
 "[Error: {0}]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:274
+#: plugin/modules/chatbot/send_handlers.py:298
 #, python-brace-format
 msgid ""
 "\n"
 "[Document context error: {0}]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:284
+#: plugin/modules/chatbot/send_handlers.py:308
 #, python-brace-format
 msgid ""
 "\n"
 "[Agent backend '{0}' not found.]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:291
+#: plugin/modules/chatbot/send_handlers.py:315
 #, python-brace-format
 msgid ""
 "\n"
 "[Agent backend '{0}' is not available. Check Settings (path, install).]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:492
+#: plugin/modules/chatbot/send_handlers.py:521
 #, python-brace-format
 msgid "AI (research): {0}\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:498
+#: plugin/modules/chatbot/send_handlers.py:527
 msgid "Unknown research error."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:499
+#: plugin/modules/chatbot/send_handlers.py:528
 #, python-brace-format
 msgid "[Research error: {0}]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:445
+#: plugin/modules/chatbot/panel_factory.py:473
 msgid "Size:"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:446
+#: plugin/modules/chatbot/panel_factory.py:474
 msgid "Height:"
 msgstr ""
 
-#: plugin/modules/chatbot/panel_factory.py:447
+#: plugin/modules/chatbot/panel_factory.py:475
 msgid "Width:"
 msgstr ""
 

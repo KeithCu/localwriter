@@ -1,6 +1,8 @@
 import dataclasses
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple, NamedTuple
+from typing import Any, Dict, List, Optional
+
+from plugin.framework.state import BaseState, FsmTransition
 
 # --- States ---
 class MCPStateStr(Enum):
@@ -12,7 +14,7 @@ class MCPStateStr(Enum):
     ERROR = "error"
 
 @dataclasses.dataclass(frozen=True)
-class MCPState:
+class MCPState(BaseState):
     status: MCPStateStr
     tool_name: Optional[str] = None
     arguments: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -72,7 +74,7 @@ class SendErrorEffect:
 
 # --- State Machine Transition ---
 
-def next_state(state: MCPState, event: MCPEvent) -> Tuple[MCPState, List[Any]]:
+def next_state(state: MCPState, event: MCPEvent) -> FsmTransition[MCPState]:
     """Pure transition function for the MCP tool-calling loop."""
     effects: List[Any] = []
 
@@ -85,18 +87,21 @@ def next_state(state: MCPState, event: MCPEvent) -> Tuple[MCPState, List[Any]]:
 
         if not tool_name:
             effects.append(SendErrorEffect(message="Missing 'name' in tools/call params", code="INVALID_PARAMS"))
-            return dataclasses.replace(state, status=MCPStateStr.ERROR, is_error=True), effects
+            return FsmTransition(dataclasses.replace(state, status=MCPStateStr.ERROR, is_error=True), effects)
 
         effects.append(ParseRequestEffect())
         effects.append(ResolveDocumentEffect(document_url=document_url, is_long_running=is_long_running))
-        return dataclasses.replace(
-            state,
-            status=MCPStateStr.RESOLVING_DOCUMENT,
-            tool_name=tool_name,
-            arguments=arguments,
-            document_url=document_url,
-            is_long_running=is_long_running
-        ), effects
+        return FsmTransition(
+            dataclasses.replace(
+                state,
+                status=MCPStateStr.RESOLVING_DOCUMENT,
+                tool_name=tool_name,
+                arguments=arguments,
+                document_url=document_url,
+                is_long_running=is_long_running,
+            ),
+            effects,
+        )
 
     elif event.kind == EventKind.DOCUMENT_RESOLVED:
         doc_context = event.data.get("doc_context")
@@ -107,12 +112,15 @@ def next_state(state: MCPState, event: MCPEvent) -> Tuple[MCPState, List[Any]]:
         if error_payload:
             # Resolution failed
             effects.append(StreamResponseEffect(result=error_payload, is_error=True))
-            return dataclasses.replace(
-                state,
-                status=MCPStateStr.ERROR,
-                is_error=True,
-                result=error_payload
-            ), effects
+            return FsmTransition(
+                dataclasses.replace(
+                    state,
+                    status=MCPStateStr.ERROR,
+                    is_error=True,
+                    result=error_payload,
+                ),
+                effects,
+            )
 
         # Move to executing tool
         effects.append(ExecuteToolEffect(
@@ -124,29 +132,35 @@ def next_state(state: MCPState, event: MCPEvent) -> Tuple[MCPState, List[Any]]:
             is_long_running=state.is_long_running,
             document_url=state.document_url
         ))
-        return dataclasses.replace(
-            state,
-            status=MCPStateStr.EXECUTING_TOOL,
-            doc_context=doc_context,
-            doc_type=doc_type,
-            uno_ctx=uno_ctx
-        ), effects
+        return FsmTransition(
+            dataclasses.replace(
+                state,
+                status=MCPStateStr.EXECUTING_TOOL,
+                doc_context=doc_context,
+                doc_type=doc_type,
+                uno_ctx=uno_ctx,
+            ),
+            effects,
+        )
 
     elif event.kind == EventKind.TOOL_EXECUTION_STARTED:
         # Just an informational event, we stay in EXECUTING_TOOL
-        return state, effects
+        return FsmTransition(state, effects)
 
     elif event.kind == EventKind.TOOL_COMPLETED:
         result = event.data.get("result")
         is_error = isinstance(result, dict) and result.get("status") == "error"
 
         effects.append(StreamResponseEffect(result=result, is_error=is_error))
-        return dataclasses.replace(
-            state,
-            status=MCPStateStr.STREAMING_RESPONSE,
-            result=result,
-            is_error=is_error
-        ), effects
+        return FsmTransition(
+            dataclasses.replace(
+                state,
+                status=MCPStateStr.STREAMING_RESPONSE,
+                result=result,
+                is_error=is_error,
+            ),
+            effects,
+        )
 
     elif event.kind == EventKind.REQUEST_ERROR:
         message = event.data.get("message", "Unknown error")
@@ -160,13 +174,16 @@ def next_state(state: MCPState, event: MCPEvent) -> Tuple[MCPState, List[Any]]:
             "message": message
         }
         effects.append(StreamResponseEffect(result=err_payload, is_error=True))
-        return dataclasses.replace(
-            state,
-            status=MCPStateStr.ERROR,
-            is_error=True,
-            error_message=message,
-            error_code=code,
-            result=err_payload
-        ), effects
+        return FsmTransition(
+            dataclasses.replace(
+                state,
+                status=MCPStateStr.ERROR,
+                is_error=True,
+                error_message=message,
+                error_code=code,
+                result=err_payload,
+            ),
+            effects,
+        )
 
-    return state, effects
+    return FsmTransition(state, effects)

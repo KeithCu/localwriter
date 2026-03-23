@@ -1,13 +1,15 @@
 from dataclasses import dataclass
-from typing import List, Tuple, Union, NamedTuple
+from typing import List, Union, NamedTuple
 #import deal
 
 from enum import Enum, auto
 
+from plugin.framework.state import BaseState, FsmTransition
+
 # --- State ---
 
 @dataclass(frozen=True)
-class SendButtonState:
+class SendButtonState(BaseState):
     is_busy: bool          # True when AI is generating (or transcribing)
     is_recording: bool     # True when audio is actively being recorded
     has_text: bool         # True when the query text area is non-empty
@@ -62,7 +64,7 @@ def _get_send_label(state: SendButtonState) -> str:
 # @deal.ensure(lambda state, event, result:
 #              all(not getattr(e, 'stop_enabled') or result[0].is_busy
 #                  for e in result[1] if isinstance(e, UpdateUIEffect)))
-def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonState, List[SendEffect]]:
+def next_state(state: SendButtonState, event: SendEvent) -> FsmTransition[SendButtonState]:
     """Pure state transition for the Send button."""
 
     effects: List[SendEffect] = []
@@ -90,11 +92,11 @@ def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonStat
             send_label=label,
             status_text="" # We'll let the interpreter ignore empty status_text if it wants, or we define it properly
         ))
-        return new_state, effects
+        return FsmTransition(new_state, effects)
 
     elif event.kind == SendEventKind.RECORD_CLICKED:
         if state.is_busy or state.is_recording or not state.audio_supported:
-            return state, effects # Invalid transition
+            return FsmTransition(state, effects) # Invalid transition
 
         new_state = SendButtonState(
             is_busy=False,
@@ -110,11 +112,11 @@ def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonStat
             send_label="Stop Rec",
             status_text="Recording audio..."
         ))
-        return new_state, effects
+        return FsmTransition(new_state, effects)
 
     elif event.kind == SendEventKind.STOP_REC_CLICKED:
         if not state.is_recording:
-            return state, effects
+            return FsmTransition(state, effects)
 
         new_state = SendButtonState(
             is_busy=True,
@@ -131,13 +133,13 @@ def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonStat
             status_text="Starting..."
         ))
         effects.append("start_send")
-        return new_state, effects
+        return FsmTransition(new_state, effects)
 
     elif event.kind == SendEventKind.SEND_CLICKED:
         if state.is_busy or state.is_recording:
-            return state, effects
+            return FsmTransition(state, effects)
         if not state.has_text and not state.has_audio:
-            return state, effects
+            return FsmTransition(state, effects)
 
         new_state = SendButtonState(
             is_busy=True,
@@ -153,11 +155,11 @@ def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonStat
             status_text="Starting..."
         ))
         effects.append("start_send")
-        return new_state, effects
+        return FsmTransition(new_state, effects)
 
     elif event.kind == SendEventKind.STOP_CLICKED:
         if not state.is_busy:
-            return state, effects
+            return FsmTransition(state, effects)
 
         # We don't change is_busy yet; the StopSendEffect will trigger the stopping logic
         # which will eventually dispatch SendCompletedEvent or ErrorOccurredEvent
@@ -170,11 +172,11 @@ def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonStat
             send_label="Send",
             status_text="Stopping..."
         ))
-        return new_state, effects
+        return FsmTransition(new_state, effects)
 
     elif event.kind == SendEventKind.SEND_COMPLETED:
         if not state.is_busy:
-            return state, effects
+            return FsmTransition(state, effects)
 
         new_state = SendButtonState(
             is_busy=False,
@@ -190,7 +192,7 @@ def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonStat
             send_label=label,
             status_text="Ready"
         ))
-        return new_state, effects
+        return FsmTransition(new_state, effects)
 
     elif event.kind == SendEventKind.ERROR_OCCURRED:
         new_state = SendButtonState(
@@ -207,6 +209,6 @@ def next_state(state: SendButtonState, event: SendEvent) -> Tuple[SendButtonStat
             send_label=label,
             status_text="Error"
         ))
-        return new_state, effects
+        return FsmTransition(new_state, effects)
 
-    return state, effects
+    return FsmTransition(state, effects)

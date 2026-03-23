@@ -2,7 +2,7 @@ import pytest
 from plugin.modules.chatbot.state_machine import (
     SendHandlerState, next_state, StartEvent, StopRequestedEvent,
     StreamChunkEvent, StreamDoneEvent, ErrorEvent, UIEffect, CompleteJobEffect,
-    SpawnDirectImageEffect, SpawnAgentWorkerEffect, SpawnWebWorkerEffect, SendHandlerStep
+    SpawnDirectImageEffect, SpawnAgentWorkerEffect, SpawnWebWorkerEffect,
 )
 
 class TestSendHandlerStateMachine:

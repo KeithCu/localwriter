@@ -1,9 +1,11 @@
 import dataclasses
 from enum import Enum, auto
-from typing import Any, Callable, Dict, List, Optional, Tuple, NamedTuple
+from typing import Any, Callable, Dict, List, Optional, NamedTuple
+
+from plugin.framework.state import BaseState, FsmTransition
 
 @dataclasses.dataclass(frozen=True)
-class ToolLoopState:
+class ToolLoopState(BaseState):
     round_num: int
     pending_tools: List[Dict[str, Any]]
     max_rounds: int
@@ -72,7 +74,7 @@ class CleanupAudioEffect:
 
 
 # --- State Machine Transition ---
-def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopState, List[Any]]:
+def next_state(state: ToolLoopState, event: ToolLoopEvent) -> FsmTransition[ToolLoopState]:
     """Pure transition function for the tool-calling loop."""
     effects: List[Any] = []
 
@@ -83,7 +85,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
             effects.append(UIEffect(kind="status", text="Stopped"))
             effects.append(UIEffect(kind="append", text="\n[Stopped by user]\n"))
             effects.append("exit_loop")
-            return dataclasses.replace(state, is_stopped=True, status="Stopped"), effects
+            return FsmTransition(dataclasses.replace(state, is_stopped=True, status="Stopped"), effects)
 
         case EventKind.FINAL_DONE:
             content = event.data.get("content")
@@ -92,12 +94,12 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
                 effects.append(UIEffect(kind="append", text="\n"))
             effects.append(UIEffect(kind="status", text="Ready"))
             effects.append("exit_loop")
-            return dataclasses.replace(state, status="Ready"), effects
+            return FsmTransition(dataclasses.replace(state, status="Ready"), effects)
 
         case EventKind.ERROR:
             # The caller handles rendering the actual error message
             effects.append("exit_loop")
-            return dataclasses.replace(state, status="Error"), effects
+            return FsmTransition(dataclasses.replace(state, status="Error"), effects)
 
         case EventKind.STREAM_DONE:
             response = event.data.get("response", {})
@@ -145,7 +147,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
 
                 effects.append(UIEffect(kind="status", text="Ready"))
                 effects.append("exit_loop")
-                return dataclasses.replace(state, status="Ready"), effects
+                return FsmTransition(dataclasses.replace(state, status="Ready"), effects)
 
             else:
                 effects.append(AddMessageEffect(role="assistant", content=content, tool_calls=tool_calls))
@@ -154,7 +156,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
 
                 new_pending_tools = list(state.pending_tools) + tool_calls
                 effects.append("trigger_next_tool")
-                return dataclasses.replace(state, pending_tools=new_pending_tools), effects
+                return FsmTransition(dataclasses.replace(state, pending_tools=new_pending_tools), effects)
 
         case EventKind.NEXT_TOOL:
             if not state.pending_tools or state.is_stopped:
@@ -171,10 +173,10 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
                     ))
                     effects.append("spawn_final_stream")
                     capped_round_num = max(state.round_num, state.max_rounds)
-                    return dataclasses.replace(state, round_num=capped_round_num), effects
+                    return FsmTransition(dataclasses.replace(state, round_num=capped_round_num), effects)
                 else:
                     effects.append(SpawnLLMWorkerEffect(round_num=new_round_num))
-                    return dataclasses.replace(state, round_num=new_round_num), effects
+                    return FsmTransition(dataclasses.replace(state, round_num=new_round_num), effects)
 
             else:
                 tc = state.pending_tools[0]
@@ -225,7 +227,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
                 ))
 
                 # The pending tool is consumed
-                return dataclasses.replace(state, pending_tools=state.pending_tools[1:]), effects
+                return FsmTransition(dataclasses.replace(state, pending_tools=state.pending_tools[1:]), effects)
 
         case EventKind.TOOL_RESULT:
             import json
@@ -257,6 +259,6 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopStat
                 effects.append("update_document_context")
 
             effects.append("trigger_next_tool")
-            return state, effects
+            return FsmTransition(state, effects)
 
-    return state, effects
+    return FsmTransition(state, effects)

@@ -2,9 +2,10 @@
 
 import time
 import dataclasses
-from dataclasses import dataclass, field
-from typing import List, Tuple, Any, Dict, Optional, NamedTuple
+from dataclasses import dataclass
+from typing import List, Any, Dict, Optional, NamedTuple
 from plugin.modules.http.errors import format_error_for_display
+from plugin.framework.state import BaseState, FsmTransition
 
 try:
     import deal
@@ -22,7 +23,7 @@ except ImportError:
 # 1. Define State (frozen dataclass)
 
 @dataclass(frozen=True)
-class SendHandlerState:
+class SendHandlerState(BaseState):
     handler_type: str # 'audio', 'image', 'agent', 'web'
     status: str       # 'ready', 'starting', 'running', 'done', 'error', 'stopped'
     query_text: str = ""
@@ -104,11 +105,6 @@ class CompleteJobEffect(NamedTuple):
 
 SendHandlerEffect = SpawnAudioWorkerEffect | SpawnDirectImageEffect | SpawnAgentWorkerEffect | SpawnWebWorkerEffect | UIEffect | ProceedToChatEffect | CompleteJobEffect
 
-@dataclass(frozen=True)
-class SendHandlerStep:
-    state: SendHandlerState
-    effects: List[SendHandlerEffect]
-
 # 5. Effect Interpreter Interface/Placeholder
 # The EffectInterpreter class executes the side effects returned by next_state.
 # It will be instantiated and called by SendHandlersMixin in send_handlers.py.
@@ -145,7 +141,7 @@ class EffectInterpreter:
 
 # 4. Pure Transition Function
 
-def handle_error(state: SendHandlerState, event: ErrorEvent) -> SendHandlerStep:
+def handle_error(state: SendHandlerState, event: ErrorEvent) -> FsmTransition[SendHandlerState]:
     """Simple error handling - transition to error state"""
     effects: List[SendHandlerEffect] = []
 
@@ -171,7 +167,7 @@ def handle_error(state: SendHandlerState, event: ErrorEvent) -> SendHandlerStep:
         recent_effects=tuple(effects)
     )
 
-    return SendHandlerStep(new_state, effects)
+    return FsmTransition(new_state, effects)
 
 
 @deal.pre(lambda state, event: state.round_num <= state.max_rounds)
@@ -182,11 +178,11 @@ def handle_error(state: SendHandlerState, event: ErrorEvent) -> SendHandlerStep:
 def next_state(
     state: SendHandlerState,
     event: SendHandlerEvent
-) -> SendHandlerStep:
+) -> FsmTransition[SendHandlerState]:
     """Pure state transition - NO SIDE EFFECTS"""
 
     if state.status == 'error':
-        return SendHandlerStep(state, [])
+        return FsmTransition(state, [])
 
     effects: List[SendHandlerEffect] = []
 
@@ -207,7 +203,7 @@ def next_state(
                 max_rounds=state.max_rounds,
                 recent_effects=tuple(effects)
             )
-            return SendHandlerStep(new_state, effects)
+            return FsmTransition(new_state, effects)
 
         case ErrorEvent():
             return handle_error(state, event)
@@ -225,11 +221,11 @@ def next_state(
                 max_rounds=state.max_rounds,
                 recent_effects=tuple(effects)
             )
-            return SendHandlerStep(new_state, effects)
+            return FsmTransition(new_state, effects)
 
         case StreamDoneEvent(response=resp):
             if state.status in ("error", "stopped"):
-                return SendHandlerStep(state, effects)
+                return FsmTransition(state, effects)
 
             if state.handler_type == 'audio':
                 transcript_text = resp if resp else ""
@@ -261,7 +257,7 @@ def next_state(
                 max_rounds=state.max_rounds,
                 recent_effects=tuple(effects)
             )
-            return SendHandlerStep(new_state, effects)
+            return FsmTransition(new_state, effects)
 
         case StartEvent(query_text=q_text, model=mod, doc_type_str=doc_type, wav_path=w_path, stt_model=stt_mod):
             base_state_kwargs = dict(
@@ -303,6 +299,6 @@ def next_state(
                 effects.append(SpawnWebWorkerEffect(q_text, mod))
 
             new_state = SendHandlerState(**base_state_kwargs, recent_effects=tuple(effects))
-            return SendHandlerStep(new_state, effects)
+            return FsmTransition(new_state, effects)
 
-    return SendHandlerStep(state, effects)
+    return FsmTransition(state, effects)

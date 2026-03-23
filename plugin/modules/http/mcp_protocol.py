@@ -398,7 +398,9 @@ class MCPProtocolHandler:
 
         while events_to_process:
             event = events_to_process.pop(0)
-            state, effects = next_state(state, event)
+            tr = next_state(state, event)
+            state = tr.state
+            effects = tr.effects
 
             for effect in effects:
                 if isinstance(effect, ParseRequestEffect):

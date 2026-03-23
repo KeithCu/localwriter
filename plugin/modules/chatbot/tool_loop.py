@@ -630,8 +630,8 @@ class ToolCallingMixin:
             return False
 
         # Run the state machine transition
-        new_state, effects = next_state(self._sm_state, event)
-        self._sm_state = new_state
+        tr = next_state(self._sm_state, event)
+        self._sm_state = tr.state
 
         # Keep old instance variables synced for external readers or edge cases
         self._active_round_num = self._sm_state.round_num
@@ -639,7 +639,7 @@ class ToolCallingMixin:
 
         # Execute the effects
         exit_loop = False
-        for effect in effects:
+        for effect in tr.effects:
             if self._execute_effect(effect):
                 exit_loop = True
 
@@ -647,10 +647,10 @@ class ToolCallingMixin:
 
     def _handle_stream_stopped(self):
         event = ToolLoopEvent(kind=EventKind.STOP_REQUESTED)
-        new_state, effects = next_state(self._sm_state, event)
-        self._sm_state = new_state
+        tr = next_state(self._sm_state, event)
+        self._sm_state = tr.state
 
-        for effect in effects:
+        for effect in tr.effects:
             self._execute_effect(effect)
 
     def _is_400_input_validation(self, err):

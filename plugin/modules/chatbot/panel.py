@@ -472,11 +472,11 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
     def dispatch(self, event):
         """Dispatch an event to the state machine, compute new state, and apply effects."""
         log.debug(f"SendButtonListener: dispatching {type(event).__name__}")
-        new_state, effects = next_state(self.state, event)
-        self.state = new_state
+        tr = next_state(self.state, event)
+        self.state = tr.state
         self._send_busy = self.state.is_busy # Keep public flag synced for external queries
 
-        for effect in effects:
+        for effect in tr.effects:
             self._interpret_effect(effect)
 
     def _interpret_effect(self, effect):
