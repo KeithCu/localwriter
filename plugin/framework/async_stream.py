@@ -241,7 +241,8 @@ def run_stream_completion_async(
         toolkit = ctx.getServiceManager().createInstanceWithContext(
             "com.sun.star.awt.Toolkit", ctx)
     except Exception as e:
-        on_error_fn(e)
+        from plugin.framework.errors import UnoObjectError
+        on_error_fn(UnoObjectError(f"Failed to create toolkit for async stream: {e}"))
         return
 
     run_in_background(worker, daemon=True, name="stream-completion")
@@ -309,8 +310,9 @@ def run_stream_async(
         toolkit = ctx.getServiceManager().createInstanceWithContext(
             "com.sun.star.awt.Toolkit", ctx)
     except Exception as e:
+        from plugin.framework.errors import UnoObjectError
         if on_error_fn:
-            on_error_fn(e)
+            on_error_fn(UnoObjectError(f"Failed to create toolkit for async stream: {e}"))
         return
 
     run_in_background(worker, daemon=True, name="stream-async")
@@ -350,6 +352,7 @@ def run_blocking_in_thread(ctx, func, *args, **kwargs):
         toolkit = ctx.getServiceManager().createInstanceWithContext(
             "com.sun.star.awt.Toolkit", ctx)
     except Exception as e:
+        log.warning("run_blocking_with_pump: Failed to create toolkit, running synchronously. %s", e)
         # Fallback if toolkit isn't available (unlikely in UI context)
         return func(*args, **kwargs)
 

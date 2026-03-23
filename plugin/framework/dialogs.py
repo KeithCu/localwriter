@@ -117,8 +117,11 @@ def show_approval_dialog(ctx, description, tool_name="", parent_frame=None):
         box = toolkit.createMessageBox(window, 1, 3, title, message)
         result = box.execute()
         return result == 1
-    except Exception:
+    except Exception as e:
         log.exception("Approval dialog failed")
+        from plugin.framework.errors import UnoObjectError
+        if "com.sun.star" in str(type(e)):
+            log.debug("Approval dialog UNO failure: %s", e)
         return False
 
 
@@ -686,7 +689,13 @@ def get_optional(root_window, name):
     try:
         return root_window.getControl(name)
     except Exception as e:
-        log.debug("get_optional %s error: %s", name, e)
+        # Expected exception from UNO when an element is not found,
+        # but catch Exception broadly since LibreOffice Python bridges
+        # raise varying error types across platforms when missing names.
+        if "DisposedException" in str(type(e)):
+            log.warning("get_optional %s error: control disposed %s", name, e)
+        else:
+            log.debug("get_optional %s error: %s", name, e)
         return None
 
 

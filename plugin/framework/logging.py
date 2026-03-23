@@ -63,7 +63,7 @@ def init_logging(ctx):
                 _debug_log_path = os.path.join(udir, DEBUG_LOG_FILENAME)
                 _agent_log_path = os.path.join(udir, AGENT_LOG_FILENAME)
                 _enable_agent_log = config.as_bool(config.get_config(ctx, "enable_agent_log"))
-        except Exception:
+        except (OSError, ImportError, ValueError):
             pass
 
         try:
@@ -121,7 +121,7 @@ def init_logging(ctx):
             # Prevent double-logging for loggers under "writeragent.*" since
             # they are handled by `logger` above.
             logger.propagate = False
-        except Exception:
+        except OSError:
             pass
 
         if first_init:
@@ -224,7 +224,7 @@ def format_tool_call_for_display(tool, args, method=None):
             return f"{tool}({args_str})"
         else:
             return method or "GET"
-    except Exception as e:
+    except (TypeError, ValueError) as e:
         return f"{tool or method} (format error: {e})"
 
 
@@ -275,7 +275,7 @@ def format_tool_result_for_display(tool, result, args=None):
         if args_str:
             return f"{tool}({args_str}) -> {val_repr}"
         return f"{tool}() -> {val_repr}"
-    except Exception as e:
+    except (TypeError, ValueError) as e:
         return f"{tool}() -> (format error: {e})"
 
 
@@ -295,7 +295,7 @@ def agent_log(location, message, data=None, hypothesis_id=None, run_id=None):
     try:
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
-    except Exception:
+    except OSError:
         pass
 
 
