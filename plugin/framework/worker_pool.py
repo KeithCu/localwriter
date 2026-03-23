@@ -122,7 +122,8 @@ class AsyncProcess:
             self.process = subprocess.Popen(self.args, **self._popen_kwargs)
         except Exception as e:
             log.error("Failed to start process: %s", self.args)
-            raise
+            from plugin.framework.errors import ToolExecutionError
+            raise ToolExecutionError(f"Failed to start process: {self.args}", details={"error": str(e)}) from e
 
         if self.process.stdout and self.stdout_cb:
             self._stdout_thread = run_in_background(
@@ -155,24 +156,24 @@ class AsyncProcess:
                     callback(line.rstrip('\\n\\r'))
         except ValueError:
             pass # ValueError: I/O operation on closed file
-        except Exception as e:
+        except OSError as e:
             log.debug("AsyncProcess stream read error: %s", e)
         finally:
             try:
                 stream.close()
-            except Exception:
+            except OSError:
                 pass
 
     def _drain_stream(self, stream):
         try:
             for _ in stream:
                 pass
-        except Exception:
+        except OSError:
             pass
         finally:
             try:
                 stream.close()
-            except Exception:
+            except OSError:
                 pass
 
     def _wait_for_exit(self):

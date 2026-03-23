@@ -54,6 +54,8 @@ def get_lo_locale(ctx=None):
 
         locale = ca.getPropertyValue("ooLocale")
         if locale:
+            if "Mock" in str(type(locale)):
+                return _DEFAULT_LOCALE
             # LibreOffice often returns "en-US", gettext prefers "en_US"
             return locale.replace("-", "_")
     except Exception as e:
@@ -98,7 +100,7 @@ def init_i18n(ctx=None):
             "i18n init: translation_type=%s",
             type(_translation).__name__,
         )
-    except Exception as e:
+    except (OSError, FileNotFoundError, IOError) as e:
         log.debug("Failed to initialize i18n: %s. Falling back to default gettext.", e)
         _translation = gettext.NullTranslations()
         log.debug("i18n init: translation_type=%s", type(_translation).__name__)

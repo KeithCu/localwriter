@@ -52,7 +52,8 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
         import traceback
         log.error("input_box: failed to create dialog: %s" % e)
         log.error("input_box: traceback: %s" % traceback.format_exc())
-        raise
+        from plugin.framework.errors import UnoObjectError
+        raise UnoObjectError(f"Failed to create dialog: {e}") from e
     try:
         dlg.getControl("label").getModel().Label = str(message)
         set_control_text(dlg.getControl("edit"), str(default))
@@ -89,7 +90,8 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
         import traceback
         log.error("input_box: error while showing or reading dialog: %s" % e)
         log.error("input_box: traceback: %s" % traceback.format_exc())
-        raise
+        from plugin.framework.errors import UnoObjectError
+        raise UnoObjectError(f"Error while showing or reading dialog: {e}") from e
     finally:
         try:
             dlg.dispose()
@@ -329,8 +331,16 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                             result[field["name"]] = control_text
                     else:
                         result[field["name"]] = ""
-                except Exception:
-                    result[field["name"]] = ""
+                except (ValueError, TypeError, AttributeError) as e:
+                    from plugin.framework.logging import log
+                    from plugin.framework.errors import UnoObjectError
+                    log.error(f"Failed to extract or parse field {field['name']}: {e}")
+                    raise UnoObjectError(f"Failed to extract or parse field {field['name']}: {e}") from e
+                except Exception as e:
+                    from plugin.framework.logging import log
+                    from plugin.framework.errors import UnoObjectError
+                    log.error(f"Unexpected error extracting field {field['name']}: {e}")
+                    raise UnoObjectError(f"Unexpected error extracting field {field['name']}: {e}") from e
 
         if result:
             apply_settings_result(ctx, result)

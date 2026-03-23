@@ -81,8 +81,10 @@ class ToolRegistry:
             try:
                 module = importlib.import_module(full_module_name)
                 self.auto_discover(module)
+            except ImportError as e:
+                log.error("Failed to import module %s for tool discovery: %s", full_module_name, e)
             except Exception as e:
-                log.error("Failed to discover tools in module %s: %s", full_module_name, e)
+                log.error("Unexpected error during tool discovery in %s: %s", full_module_name, e)
 
     def auto_discover(self, module):
         """Automatically discover and register ToolBase subclasses in a module."""

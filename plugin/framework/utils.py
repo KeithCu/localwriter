@@ -16,7 +16,7 @@ def get_url_hostname(url):
     try:
         parsed = urllib.parse.urlparse(url)
         return parsed.hostname or ""
-    except Exception:
+    except ValueError:
         return ""
 
 def get_url_domain(url):
@@ -27,7 +27,7 @@ def get_url_domain(url):
         if domain.startswith("www."):
             domain = domain[4:]
         return domain
-    except Exception:
+    except ValueError:
         return str(url)[:30]
 
 def get_url_path(url):
@@ -35,7 +35,7 @@ def get_url_path(url):
     try:
         parsed = urllib.parse.urlparse(url)
         return parsed.path
-    except Exception:
+    except ValueError:
         return ""
 
 def get_url_query_dict(url):
@@ -43,7 +43,7 @@ def get_url_query_dict(url):
     try:
         parsed = urllib.parse.urlparse(url)
         return urllib.parse.parse_qs(parsed.query)
-    except Exception:
+    except ValueError:
         return {}
 
 def get_url_path_and_query(url):
@@ -54,7 +54,7 @@ def get_url_path_and_query(url):
         if parsed.query:
             path += "?" + parsed.query
         return path
-    except Exception:
+    except ValueError:
         return ""
 
 def is_pdf_url(url):
@@ -62,5 +62,5 @@ def is_pdf_url(url):
     try:
         parsed = urllib.parse.urlparse(url)
         return (parsed.path or "").lower().endswith(".pdf")
-    except Exception:
+    except ValueError:
         return False
