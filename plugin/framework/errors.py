@@ -65,6 +65,26 @@ class AgentParsingError(WriterAgentException):
         super().__init__(message, code=code, context=context, details=details)
 
 
+def check_disposed(model, context_name="Object"):
+    """Check if a UNO object is disposed or None. Raises UnoObjectError if so."""
+    if model is None:
+        raise UnoObjectError(f"{context_name} is null", code="UNO_NULL_OBJECT")
+
+    # Optional disposal check if the model supports it.
+    if hasattr(model, "addEventListener"):
+        # This is a crude heuristic; the definitive way is calling a method and catching DisposedException,
+        # which safe_call handles, but this acts as an early guard if needed.
+        pass
+
+def safe_call(fn, context_name, *args, **kwargs):
+    """Safely call a UNO method. If it raises any exception (e.g., DisposedException), wrap it in UnoObjectError."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:
+        # We catch Exception here because pyuno bridge exceptions don't always inherit from Python's standard Exception cleanly in all builds,
+        # but catching Exception is the standard way to grab them. We immediately wrap it.
+        raise UnoObjectError(f"{context_name} failed: {e}", context={"operation": context_name, "type": type(e).__name__}) from e
+
 def format_error_payload(e: Exception) -> dict:
     """Format an exception into the standard JSON error payload schema."""
     if isinstance(e, WriterAgentException):

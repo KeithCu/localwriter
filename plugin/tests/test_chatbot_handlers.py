@@ -167,6 +167,7 @@ def test_web_research_tool():
     # Setup mock context
     ctx = MagicMock()
     ctx.ctx = MockContext()
+    ctx.ctx.getServiceManager = MagicMock()  # for ConfigService
     ctx.status_callback = MagicMock()
     ctx.append_thinking_callback = MagicMock()
     ctx.stop_checker = lambda: False
@@ -257,6 +258,7 @@ def test_web_research_tool():
 def test_web_research_tool_stop():
     ctx = MagicMock()
     ctx.ctx = MockContext()
+    ctx.ctx.getServiceManager = MagicMock()  # for ConfigService
     ctx.stop_checker = lambda: True  # Stop immediately
 
     with patch("plugin.framework.smol_model.WriterAgentSmolModel.generate", return_value=ChatMessage(role=MessageRole.ASSISTANT, content="")):

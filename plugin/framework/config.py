@@ -87,30 +87,28 @@ AI_SIMPLE_FIELDS = {
 def _config_path(ctx):
     """Return the absolute path to writeragent.json."""
     if ctx is None:
-        return None
+        raise ConfigError("UNO context is required to resolve config path")
     try:
-        sm = ctx.getServiceManager()
-        path_settings = sm.createInstanceWithContext(
-            "com.sun.star.util.PathSettings", ctx)
+        from plugin.framework.errors import check_disposed, safe_call, UnoObjectError
+        sm = safe_call(ctx.getServiceManager, "Get ServiceManager")
+        path_settings = safe_call(sm.createInstanceWithContext, "Create PathSettings", "com.sun.star.util.PathSettings", ctx)
         user_config_path = getattr(path_settings, "UserConfig", "")
         if user_config_path and str(user_config_path).startswith("file://"):
             user_config_path = str(uno.fileUrlToSystemPath(user_config_path))
         return os.path.join(user_config_path, CONFIG_FILENAME)
     except Exception as e:
-        log.debug("_config_path exception: %s", e)
-        return None
+        raise ConfigError(f"Failed to resolve config path: {e}", "CONFIG_PATH_ERROR") from e
 
 
 def user_config_dir(ctx):
-    """Return LibreOffice user config directory, or None if unavailable."""
+    """Return LibreOffice user config directory."""
     if ctx is None:
-        return None
+        raise ConfigError("UNO context is required to resolve config dir")
     try:
         p = _config_path(ctx)
         return os.path.dirname(p) if p else None
     except Exception as e:
-        log.debug("user_config_dir exception: %s", e)
-        return None
+        raise ConfigError(f"Failed to resolve config dir: {e}", "CONFIG_DIR_ERROR") from e
 
 
 def _get_schema_default(key):
@@ -370,7 +368,11 @@ def _get_validated_config_dict(ctx):
     keyed off the file modification time."""
     global _cached_config_dict, _cached_config_mtime, _cached_config_mtime_last_checked
 
-    config_file_path = _config_path(ctx)
+    try:
+        config_file_path = _config_path(ctx)
+    except ConfigError:
+        return {}
+
     if not config_file_path or not os.path.exists(config_file_path):
         return {}
 
@@ -394,6 +396,9 @@ def _get_validated_config_dict(ctx):
         with open(config_file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
+        if not isinstance(data, dict):
+            raise ConfigError("Config must be a JSON object", "CONFIG_INVALID_FORMAT")
+
         # Perform validation when config is loaded
         config = WriterAgentConfig.from_dict(data)
         config.validate()
@@ -403,7 +408,11 @@ def _get_validated_config_dict(ctx):
         _cached_config_dict = out
         _cached_config_mtime = current_mtime
         return out
-    except (IOError, json.JSONDecodeError):
+    except json.JSONDecodeError as e:
+        log.error("Invalid JSON in %s: %s", config_file_path, e)
+        return {}
+    except OSError as e:
+        log.error("Error reading %s: %s", config_file_path, e)
         return {}
 
 def get_config(ctx, key):
@@ -442,14 +451,24 @@ def get_current_endpoint(ctx):
 
 def set_config(ctx, key, value):
     """Set a config key to value. Creates file if needed."""
-    config_file_path = _config_path(ctx)
+    try:
+        config_file_path = _config_path(ctx)
+    except ConfigError:
+        return
+
     if not config_file_path:
         return
     if os.path.exists(config_file_path):
         try:
             with open(config_file_path, "r", encoding="utf-8") as f:
                 config_data = json.load(f)
-        except (IOError, json.JSONDecodeError):
+            if not isinstance(config_data, dict):
+                config_data = {}
+        except json.JSONDecodeError as e:
+            log.warning("Invalid JSON when updating %s: %s", config_file_path, e)
+            config_data = {}
+        except OSError as e:
+            log.warning("Error reading %s: %s", config_file_path, e)
             config_data = {}
     else:
         config_data = {}
@@ -463,19 +482,26 @@ def set_config(ctx, key, value):
         _cached_config_mtime = 0
         _cached_config_mtime_last_checked = 0.0
 
-    except IOError as e:
-                log.error("Error writing to %s: %s" % (config_file_path, e))
+    except OSError as e:
+        log.error("Error writing to %s: %s", config_file_path, e)
+        raise ConfigError(f"Failed to save config: {e}", "CONFIG_SAVE_ERROR") from e
 
 
 def remove_config(ctx, key):
     """Remove a config key."""
-    config_file_path = _config_path(ctx)
+    try:
+        config_file_path = _config_path(ctx)
+    except ConfigError:
+        return
+
     if not config_file_path or not os.path.exists(config_file_path):
         return
     try:
         with open(config_file_path, "r", encoding="utf-8") as f:
             config_data = json.load(f)
-    except (IOError, json.JSONDecodeError):
+        if not isinstance(config_data, dict):
+            return
+    except (OSError, json.JSONDecodeError):
         return
     config_data.pop(key, None)
     try:
@@ -487,8 +513,9 @@ def remove_config(ctx, key):
         _cached_config_mtime = 0
         _cached_config_mtime_last_checked = 0.0
 
-    except IOError as e:
-                log.error("Error writing to %s: %s" % (config_file_path, e))
+    except OSError as e:
+        log.error("Error writing to %s: %s", config_file_path, e)
+        raise ConfigError(f"Failed to remove config key: {e}", "CONFIG_SAVE_ERROR") from e
 
 
 # Listeners are called when config is changed (e.g. after Settings dialog).
@@ -633,8 +660,14 @@ def fetch_available_models(endpoint):
                     models.append(mid)
             _model_fetch_cache[url] = models
             return models
+    except (ValueError, TypeError, IOError) as e:
+        log.warning("fetch_available_models network/parse error for %s: %s", url, e)
     except Exception as e:
-                log.warning(f"fetch_available_models failed for {url}: {e}")
+        from plugin.framework.errors import NetworkError
+        if isinstance(e, NetworkError):
+            log.warning("fetch_available_models NetworkError for %s: %s", url, e)
+        else:
+            log.warning("fetch_available_models unexpected error for %s: %s", url, type(e).__name__)
     _model_fetch_cache[url] = None
     return None
 
@@ -1035,12 +1068,18 @@ class ConfigService(ServiceBase):
         # Test fallback
         if self._config_path and os.path.exists(self._config_path):
              try:
-                 with open(self._config_path, "r") as f:
+                 with open(self._config_path, "r", encoding="utf-8") as f:
                      data = json.load(f)
+                     if not isinstance(data, dict):
+                         raise ConfigError("Config file must be a JSON object")
                      if key in data:
                          return data[key]
-             except Exception as e:
-                 log.debug("ConfigService.get config file read error for key %s: %s", key, e)
+             except json.JSONDecodeError as e:
+                 log.debug("ConfigService.get invalid JSON in %s: %s", self._config_path, e)
+             except OSError as e:
+                 log.debug("ConfigService.get IO error for %s: %s", self._config_path, e)
+             except ConfigError as e:
+                 log.debug("ConfigService.get ConfigError: %s", e)
 
         ctx = get_ctx()
         val = get_config(ctx, key)
@@ -1113,13 +1152,18 @@ class ConfigService(ServiceBase):
             data = {}
             if os.path.exists(self._config_path):
                 try:
-                    with open(self._config_path, "r") as f:
+                    with open(self._config_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                except Exception as e:
+                    if not isinstance(data, dict):
+                        data = {}
+                except (OSError, json.JSONDecodeError) as e:
                     log.debug("ConfigService.set config file load error: %s", e)
             data[key] = value
-            with open(self._config_path, "w") as f:
-                json.dump(data, f)
+            try:
+                with open(self._config_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f)
+            except OSError as e:
+                log.error("ConfigService.set config file save error: %s", e)
         else:
             set_config(get_ctx(), key, value)
 
@@ -1146,14 +1190,14 @@ class ConfigService(ServiceBase):
         self._check_write_access(key, caller_module)
         if self._config_path and os.path.exists(self._config_path):
              try:
-                 with open(self._config_path, "r") as f:
+                 with open(self._config_path, "r", encoding="utf-8") as f:
                      data = json.load(f)
-                 if key in data:
+                 if isinstance(data, dict) and key in data:
                      del data[key]
-                     with open(self._config_path, "w") as f:
+                     with open(self._config_path, "w", encoding="utf-8") as f:
                          json.dump(data, f)
-             except Exception as e:
-                 log.warning("ConfigService.remove config file modify error for key %s: %s", key, e)
+             except (OSError, json.JSONDecodeError) as e:
+                 log.warning("ConfigService.remove config file error for key %s: %s", key, e)
         else:
             remove_config(get_ctx(), key)
 
@@ -1163,10 +1207,14 @@ class ConfigService(ServiceBase):
         ctx = get_ctx()
         if self._config_path and os.path.exists(self._config_path):
              try:
-                 with open(self._config_path, "r") as f:
-                     return json.load(f)
-             except Exception as e:
+                 with open(self._config_path, "r", encoding="utf-8") as f:
+                     data = json.load(f)
+                 if not isinstance(data, dict):
+                     return {}
+                 return data
+             except (OSError, json.JSONDecodeError) as e:
                  log.debug("ConfigService.get_dict config file read error: %s", e)
+                 return {}
         return get_config_dict(ctx)
 
     def _check_read_access(self, key, caller_module):
