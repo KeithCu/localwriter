@@ -224,7 +224,7 @@ def format_tool_call_for_display(tool, args, method=None):
             return f"{tool}({args_str})"
         else:
             return method or "GET"
-    except (TypeError, ValueError) as e:
+    except Exception as e:
         return f"{tool or method} (format error: {e})"
 
 
@@ -275,7 +275,7 @@ def format_tool_result_for_display(tool, result, args=None):
         if args_str:
             return f"{tool}({args_str}) -> {val_repr}"
         return f"{tool}() -> {val_repr}"
-    except (TypeError, ValueError) as e:
+    except Exception as e:
         return f"{tool}() -> (format error: {e})"
 
 

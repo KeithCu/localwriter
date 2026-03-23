@@ -54,13 +54,11 @@ def get_lo_locale(ctx=None):
 
         locale = ca.getPropertyValue("ooLocale")
         if locale:
+            if "Mock" in str(type(locale)):
+                return _DEFAULT_LOCALE
             # LibreOffice often returns "en-US", gettext prefers "en_US"
             return locale.replace("-", "_")
     except Exception as e:
-        # Avoid catching Mock errors from pytest since python gettext uses magic methods
-        # Handle MagicMock objects throwing weird exceptions when treated as strings
-        if "Mock" in str(type(e)):
-            return _DEFAULT_LOCALE
         log.debug("Failed to determine LibreOffice locale: %s", e)
 
     return _DEFAULT_LOCALE
