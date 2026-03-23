@@ -43,11 +43,24 @@ class ToolRegistry:
 
     def register(self, tool):
         """Register a single ToolBase instance."""
+        # Validate tool schema
+        if not tool.name or not isinstance(tool.name, str):
+            log.error("Failed to register tool '%s': missing or invalid name.", type(tool).__name__)
+            return
+        if not tool.description or not isinstance(tool.description, str):
+            log.error("Failed to register tool '%s': missing or invalid description.", tool.name)
+            return
+        if tool.parameters is not None and not isinstance(tool.parameters, dict):
+            log.error("Failed to register tool '%s': parameters must be a dictionary or None.", tool.name)
+            return
+
         if tool.name in self._tools:
             # If it's the exact same class, skip silently.
-            if type(self._tools[tool.name]) is type(tool):
+            existing_tool = self._tools[tool.name]
+            if type(existing_tool) is type(tool):
                 return
-            log.warning("Tool already registered, replacing: %s", tool.name)
+            log.warning("Tool '%s' already registered (class %s), replacing with class %s",
+                        tool.name, type(existing_tool).__name__, type(tool).__name__)
         self._tools[tool.name] = tool
 
     def register_many(self, tools):

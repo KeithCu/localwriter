@@ -66,11 +66,13 @@ class TestRegister:
 
         class GoodTool(ToolBase):
             name = "good_tool"
+            description = "A good tool"
             def execute(self, ctx, **kwargs): pass
         GoodTool.__module__ = "mock_module"
 
         class AnotherTool(ToolBase):
             name = "another_tool"
+            description = "Another tool"
             def execute(self, ctx, **kwargs): pass
         AnotherTool.__module__ = "mock_module"
 
@@ -288,6 +290,7 @@ class TestToolIsolation:
 
         class FailingTool(ToolBase):
             name = "test_fail"
+            description = "Test tool that raises ValueError"
             parameters = {"type": "object", "properties": {}}
 
             def execute(self, ctx, **kwargs):
@@ -313,6 +316,7 @@ class TestToolIsolation:
 
         class SlowTool(ToolBase):
             name = "test_slow"
+            description = "Test tool that sleeps past timeout"
             timeout = 0.1
             parameters = {"type": "object", "properties": {}}
 
