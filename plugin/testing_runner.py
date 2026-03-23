@@ -222,6 +222,22 @@ def run_all_tests(ctx: Any) -> str:
     calc_doc = model if (model is not None and is_calc(model)) else None
     draw_doc = model if (model is not None and is_draw(model)) else None
 
+    # Initialize the tool registry (Writer/Calc/Draw modules) before loading any
+    # UNO test file. Each suite below snapshots/restores sys.modules (uno, com,
+    # …); if the first suite only pulled in a partial UNO graph, a later suite's
+    # first ``get_tools()`` could otherwise see an empty registry or hit import
+    # edge cases. Extension startup already sets ``_initialized``; this is a
+    # no-op then.
+    try:
+        from plugin.framework.uno_context import set_fallback_ctx
+
+        set_fallback_ctx(ctx)
+        from plugin.main import bootstrap
+
+        bootstrap(ctx=ctx)
+    except Exception as e:
+        log.warning("run_all_tests: bootstrap failed (in-LO tool tests may fail): %s", e)
+
     import os
     from plugin.framework.utils import get_plugin_dir
     import importlib.util
