@@ -499,10 +499,9 @@ class LauncherModule(ModuleBase):
         # Check command exists
         if not shutil.which(provider.binary_name):
             msgbox(ctx, "WriterAgent",
-                   _("Command '{0}' not found.\n"
-                     "Make sure it is installed and in your PATH.\n\n"
-                     "Use 'Install AI CLI' from the menu to get install instructions.")
-                   .format(provider.binary_name))
+                   _("Command '{0}' not found.").format(provider.binary_name) + "\n" +
+                   _("Make sure it is installed and in your PATH.") + "\n\n" +
+                   _("Use 'Install AI CLI' from the menu to get install instructions."))
             return
 
         # Build CLI command

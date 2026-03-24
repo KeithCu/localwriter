@@ -163,7 +163,7 @@ def _run_test_suite(test_func, doc_checker, test_name):
         p, f, suite_log = run_blocking_in_thread(ctx, run_module_suite, ctx, test_func, test_name, doc_model)
         log.info(f"_run_test_suite finished: {test_name}, p={p}, f={f}")
         from plugin.framework.i18n import _
-        msgbox(ctx, test_name, _("{0}: {1} passed, {2} failed.\n\n{3}").format(test_name, p, f, "\n".join(suite_log)))
+        msgbox(ctx, test_name, _("{0}: {1} passed, {2} failed.").format(test_name, p, f) + "\n\n" + "\n".join(suite_log))
     except Exception as e:
         from plugin.framework.i18n import _
         msgbox(ctx, test_name, _("Tests failed to run: {0}").format(str(e)))

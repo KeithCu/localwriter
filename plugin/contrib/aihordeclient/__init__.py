@@ -962,9 +962,7 @@ class AiHordeClient:
                     message = (
                         _("Get a free API Key at ")
                         + REGISTER_AI_HORDE_URL
-                        + _(
-                            ".\n This model takes more time than your current configuration."
-                        )
+                + _(".") + "\n " + _("This model takes more time than your current configuration.")
                     )
                     raise IdentifiedError(message, url=REGISTER_AI_HORDE_URL)
                 else:
@@ -1000,9 +998,7 @@ class AiHordeClient:
                 message = (
                     _("Get an Api key for free at ")
                     + REGISTER_AI_HORDE_URL
-                    + _(
-                        ".\n This model takes more time than your current configuration."
-                    )
+                + _(".") + "\n " + _("This model takes more time than your current configuration.")
                 )
                 raise IdentifiedError(message, url=REGISTER_AI_HORDE_URL)
             else:

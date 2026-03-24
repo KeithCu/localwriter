@@ -666,7 +666,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         model = self._get_document_model()
         if not model:
             log.info("_do_send: no document found")
-            self._append_response(_("\n[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n"))
+            self._append_response("\n" + _("[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]") + "\n")
             self._terminal_status = "Error"
             return
         log.debug("_do_send: got document model OK")

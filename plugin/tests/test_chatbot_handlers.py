@@ -328,7 +328,7 @@ def test_run_web_research_invalid_json():
                 assert "\nYou: What is the speed of light?\n" in panel.responses
 
                 # Verify fallback error message is surfaced
-                assert "[Research error: Invalid JSON from web search tool.]\n" in panel.responses
+                assert "\n[Research error: Invalid JSON from web search tool.]\n" in panel.responses
 
                 # Verify stream completed normally (terminal status is Ready)
                 assert panel._terminal_status == "Ready"

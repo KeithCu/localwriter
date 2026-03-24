@@ -205,10 +205,10 @@ class HttpModule(ModuleBase):
             if self._server and self._server.is_running():
                 status = self._server.get_status()
                 msgbox(ctx, "WriterAgent",
-                       _("HTTP server started\n{0}").format(status.get("url", "")))
+                       _("HTTP server started") + "\n{0}".format(status.get("url", "")))
             else:
                 msgbox(ctx, "WriterAgent",
-                       _("HTTP server failed to start\nCheck ~/localwriter.log"))
+                       _("HTTP server failed to start") + "\n" + _("Check ~/localwriter.log"))
 
     def _action_server_status(self):
         from plugin.framework.dialogs import msgbox, add_dialog_label, add_dialog_edit, add_dialog_button
@@ -228,7 +228,7 @@ class HttpModule(ModuleBase):
 
         url = status.get("url", "?")
         routes = status.get("routes", 0)
-        msg = _("HTTP server running\nRoutes: {0}").format(routes)
+        msg = _("HTTP server running") + "\n" + _("Routes: {0}").format(routes)
 
         try:
             smgr = ctx.ServiceManager
@@ -256,7 +256,7 @@ class HttpModule(ModuleBase):
             dlg.dispose()
         except Exception:
             log.exception("Status dialog error")
-            msgbox(ctx, "WriterAgent", _("{0}\nURL: {1}").format(msg, url))
+            msgbox(ctx, "WriterAgent", msg + "\n" + _("URL: {0}").format(url))
 
     # ---- Built-in route handlers ----
 
