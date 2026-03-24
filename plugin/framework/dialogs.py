@@ -510,8 +510,7 @@ def about_dialog(ctx):
     except Exception:
         log.exception("About dialog error")
         msgbox(ctx, _("About WriterAgent"),
-               _("WriterAgent {0}\nhttps://github.com/quazardous/localwriter")
-               .format(EXTENSION_VERSION))
+           _("WriterAgent {0}").format(EXTENSION_VERSION) + "\nhttps://github.com/quazardous/localwriter")
 
 
 # ── XDL dialog loading ──────────────────────────────────────────────

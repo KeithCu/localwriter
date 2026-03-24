@@ -25,17 +25,17 @@ def web_search_engine_step_chat_text(
 
     if step_index <= 0:
         header = (
-            _("[Web search — approval required]\n")
+            _("[Web search — approval required]")
             if approval_required
-            else _("[Web search]\n")
+            else _("[Web search]")
         )
-        block = "\n" + header
-        block += _("Tool: %s\n") % "web_search"
+        block = "\n" + header + "\n"
+        block += _("Tool: %s") % "web_search" + "\n"
         block += search_engine_preview_line(query_for_engine) + "\n\n"
         return block
 
-    block = "\n" + _("[Additional web search]\n")
-    block += _("Tool: %s\n") % "web_search"
+    block = "\n" + _("[Additional web search]") + "\n"
+    block += _("Tool: %s") % "web_search" + "\n"
     block += search_engine_preview_line(query_for_engine) + "\n\n"
     return block
 
@@ -56,12 +56,12 @@ def web_research_outer_chat_block(outer_query: str, history_text: str | None = N
     """
     from plugin.framework.i18n import _
 
-    block = "\n" + _("[Web research]\n")
-    block += _("Research request:\n%s\n") % (outer_query or "").strip()
+    block = "\n" + _("[Web research]") + "\n"
+    block += _("Research request:") + "\n%s\n" % (outer_query or "").strip()
     if history_text and str(history_text).strip():
         hist = str(history_text).strip()
         if len(hist) > 8000:
             hist = hist[:8000] + "\n…"
-        block += _("\nContext for the research agent:\n%s\n") % hist
+        block += "\n" + _("Context for the research agent:") + "\n%s\n" % hist
     block += "\n"
     return block

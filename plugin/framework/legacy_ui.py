@@ -343,7 +343,7 @@ def settings_box(ctx, title="Settings", x=None, y=None):
     except Exception as e:
         from plugin.framework.dialogs import msgbox
         import traceback
-        msgbox(ctx, _("Error"), _("Failed to open Settings: {0}\n\n{1}").format(e, traceback.format_exc()))
+        msgbox(ctx, _("Error"), _("Failed to open Settings: {0}").format(e) + "\n\n" + traceback.format_exc())
         return format_error_payload(e)
     finally:
         dlg.dispose()
