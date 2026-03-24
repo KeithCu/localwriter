@@ -187,7 +187,7 @@ make deploy   # or: unopkg remove org.extension.writeragent
 make test     # pytest + in-LO runner (skips if no soffice)
 ```
 
-Also: `make build-no-recording`, `make release` (strips debug menu from bundle). **Translations**: `make build` runs `extract-strings` (regenerates `writeragent.pot`), then **`merge-translations`** (`msgmerge --update` each `writeragent.po` + `msgattrib --no-obsolete` so strings removed from sources drop out of `.po` files), then optional AI fill via `translate_missing.py`, then `compile-translations` (`.mo`). Details → [`plugin/locales/README.md`](plugin/locales/README.md).
+Also: `make build-no-recording`, `make release` (runs `make test` first, then builds a smaller bundle without bundled plugin tests; strips debug menu). **Translations**: `make build` runs `extract-strings` (regenerates `writeragent.pot`), then **`merge-translations`** (`msgmerge --update` each `writeragent.po` + `msgattrib --no-obsolete` so strings removed from sources drop out of `.po` files), then optional AI fill via `translate_missing.py`, then `compile-translations` (`.mo`). Details → [`plugin/locales/README.md`](plugin/locales/README.md).
 
 Restart LibreOffice after deploy.
 

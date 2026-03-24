@@ -342,9 +342,15 @@ def main():
 
     parser.add_argument("--model", type=str, default="x-ai/grok-4.1-fast", help="Model name")
     parser.add_argument("--api-key", type=str, default=None, help="Force API key")
+    parser.add_argument(
+        "--skip-initial-status",
+        action="store_true",
+        help="Do not print the localization table at start (e.g. second phase after --preview in make auto-translate)",
+    )
     args = parser.parse_args()
 
-    print_status_report()
+    if not args.skip_initial_status:
+        print_status_report()
 
     if not args.execute and not args.preview:
         print("Dry run active. Run with `--execute` to perform updates, or `--preview` for a test output.")
@@ -370,9 +376,8 @@ def main():
     if not work_items:
         if args.preview:
             print("\n=== [PREVIEW DONE] (No files edited) ===\n")
-        else:
-            print("\n=== Post Translation Status ===")
-            print_status_report()
+        elif not args.skip_initial_status:
+            print("\n=== All locales up to date. ===\n")
         return
 
     batch_size = args.batch_size
@@ -416,13 +421,16 @@ def main():
             except Exception as e:
                 log.error(f"Batch failed with exception: {e}")
 
+    did_update = False
     for f_path, translations in aggregated.items():
         if translations:
-            update_po_file(f_path, translations)
+            if update_po_file(f_path, translations):
+                did_update = True
             subprocess.run(["msgfmt", "-o", f_path.replace(".po", ".mo"), f_path])
 
-    print("\n=== Post Translation Status ===")
-    print_status_report()
+    if did_update:
+        print("\n=== Post Translation Status ===")
+        print_status_report()
 
 
 
