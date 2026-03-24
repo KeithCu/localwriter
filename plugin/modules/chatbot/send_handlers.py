@@ -378,13 +378,25 @@ class SendHandlersMixin:
         def on_approval_required(item):
             # item = ("approval_required", description, tool_name, args, request_id)
             from plugin.framework.dialogs import show_approval_dialog
+            from plugin.framework.config import get_config, as_bool
 
             description = item[1] if len(item) > 1 else ""
             tool_name = item[2] if len(item) > 2 else ""
             request_id = item[4] if len(item) > 4 else None
-            approved = show_approval_dialog(
-                self.ctx, description, tool_name, parent_frame=getattr(self, "frame", None)
-            )
+
+            # Option to auto-approve web research or other tools from external agents
+            try:
+                prompt_for_research = as_bool(get_config(self.ctx, "chatbot.prompt_for_web_research"))
+            except Exception:
+                prompt_for_research = True
+
+            if not prompt_for_research:
+                approved = True
+            else:
+                approved = show_approval_dialog(
+                    self.ctx, description, tool_name, parent_frame=getattr(self, "frame", None)
+                )
+
             if request_id is not None and hasattr(adapter, "submit_approval"):
                 try:
                     adapter.submit_approval(request_id, approved)

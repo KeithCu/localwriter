@@ -374,7 +374,9 @@ class ACPBackend(AgentBackend):
                 return
             if method == "session/request_permission":
                 description = params.get("description", "Agent requests permission")
-                queue.put(("approval_required", description, "", {}, msg_id))
+                tool_call = params.get("toolCall", {})
+                tool_name = tool_call.get("name", "") if isinstance(tool_call, dict) else ""
+                queue.put(("approval_required", description, tool_name, tool_call, msg_id))
             elif method in ("notifications/session", "session/update"):
                 update = params.get("update", {})
                 self._handle_session_update(update, queue)
@@ -422,6 +424,17 @@ class ACPBackend(AgentBackend):
             except Exception:
                 pass
         self._prompt_done.set()
+
+    def submit_approval(self, request_id, approved):
+        """Submit HITL approval response back to ACP process."""
+        if not self._conn or not self._conn.is_alive:
+            log.warning("Cannot submit approval, ACP connection is dead")
+            return
+            
+        try:
+            self._conn.send_response(request_id, result={"approved": approved})
+        except Exception as e:
+            log.error(f"Failed to submit approval: {e}")
 
     def shutdown(self):
         """Clean up resources."""

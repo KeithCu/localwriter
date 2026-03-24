@@ -81,7 +81,6 @@ class WebResearchTool(ToolBase):
         },
         "required": ["query"]
     }
-    uno_services = ["com.sun.star.text.TextDocument", "com.sun.star.sheet.SpreadsheetDocument", "com.sun.star.drawing.DrawingDocument", "com.sun.star.presentation.PresentationDocument"]
     tier = "agent"
     is_mutation = False
     long_running = True

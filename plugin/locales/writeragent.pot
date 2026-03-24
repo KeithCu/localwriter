@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-23 21:20-0400\n"
+"POT-Creation-Date: 2026-03-23 21:44-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -586,7 +586,7 @@ msgid ""
 "%s\n"
 msgstr ""
 
-#: plugin/modules/chatbot/web_research.py:293
+#: plugin/modules/chatbot/web_research.py:292
 msgid "Web research completed."
 msgstr ""
 
@@ -635,16 +635,16 @@ msgid ""
 "[Agent backend '{0}' is not available. Check Settings (path, install).]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:521
+#: plugin/modules/chatbot/send_handlers.py:533
 #, python-brace-format
 msgid "AI (research): {0}\n"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:527
+#: plugin/modules/chatbot/send_handlers.py:539
 msgid "Unknown research error."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:528
+#: plugin/modules/chatbot/send_handlers.py:540
 #, python-brace-format
 msgid "[Research error: {0}]\n"
 msgstr ""

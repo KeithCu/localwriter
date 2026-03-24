@@ -161,6 +161,26 @@ class ACPConnection:
         except Exception:
             pass
 
+    def send_response(self, msg_id, result=None, error=None):
+        """Send a JSON-RPC response to a request from the agent."""
+        if not self.is_alive:
+            return
+        msg = {
+            "jsonrpc": _JSONRPC_VERSION,
+            "id": msg_id,
+        }
+        if error is not None:
+            msg["error"] = error
+        else:
+            msg["result"] = result or {}
+            
+        line = json.dumps(msg) + "\n"
+        try:
+            self._proc.stdin.write(line.encode("utf-8"))
+            self._proc.stdin.flush()
+        except Exception as e:
+            log.error(f"Failed to send response: {e}")
+
     def set_notification_callback(self, callback):
         """Set a callback(method, params, msg_id) for incoming notifications."""
         self._notify_callback = callback

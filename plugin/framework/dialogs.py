@@ -113,10 +113,10 @@ def show_approval_dialog(ctx, description, tool_name="", parent_frame=None):
             tool_name,
             parent_frame is not None,
         )
-        # 1 = INFO, 3 = BUTTONS_YES_NO. Result 1 = Yes (Approve), 2 = No (Reject)
-        box = toolkit.createMessageBox(window, 1, 3, title, message)
+        # 4 = QUERYBOX, 3 = BUTTONS_YES_NO. Result 2 = Yes (Approve), 3 = No (Reject), 1 = OK
+        box = toolkit.createMessageBox(window, 4, 3, title, message)
         result = box.execute()
-        return result == 1
+        return result in (1, 2)
     except Exception as e:
         log.exception("Approval dialog failed")
         from plugin.framework.errors import UnoObjectError

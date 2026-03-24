@@ -107,7 +107,9 @@ class VibeBackend(ACPBackend):
                 return
             if method == "session/request_permission":
                 description = params.get("description", "Agent requests permission")
-                queue.put(("approval_required", description, "", {}, msg_id))
+                tool_call = params.get("toolCall", {})
+                tool_name = tool_call.get("name", "") if isinstance(tool_call, dict) else ""
+                queue.put(("approval_required", description, tool_name, tool_call, msg_id))
             elif method in ("notifications/session", "session/update"):
                 update = params.get("update", {})
                 self._handle_session_update(update, queue)
