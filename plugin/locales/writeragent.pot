@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-23 18:37-0400\n"
+"POT-Creation-Date: 2026-03-23 21:20-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: plugin/contrib/aihordeclient/__init__.py:262
-#: plugin/modules/chatbot/panel.py:598
+#: plugin/modules/chatbot/panel.py:651
 msgid "Starting..."
 msgstr ""
 
@@ -271,7 +271,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:676
+#: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:729
 #: plugin/modules/chatbot/send_handlers.py:300
 #: plugin/modules/chatbot/send_handlers.py:310
 #: plugin/modules/chatbot/send_handlers.py:319
@@ -294,25 +294,25 @@ msgstr ""
 msgid "Temperature must be <= 1.0"
 msgstr ""
 
-#: plugin/framework/constants.py:168
+#: plugin/framework/constants.py:185
 msgid ""
 "AI: I can edit or translate your document instantly with professional "
 "formatting and color. Try me!"
 msgstr ""
 
-#: plugin/framework/constants.py:169
+#: plugin/framework/constants.py:186
 msgid ""
 "AI: I can help you with formulas, data analysis, and colorful charts. Try "
 "me!"
 msgstr ""
 
-#: plugin/framework/constants.py:170
+#: plugin/framework/constants.py:187
 msgid ""
 "AI: I can help you create and edit polished, colorful shapes in Draw and "
 "Impress. Try me!"
 msgstr ""
 
-#: plugin/framework/constants.py:171
+#: plugin/framework/constants.py:188
 msgid ""
 "AI: I can do web research to answer any question, or summarize a web page, "
 "without seeing or changing your document. Let's chat."
@@ -485,59 +485,59 @@ msgstr ""
 msgid "Ready"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:263 plugin/modules/chatbot/panel.py:577
+#: plugin/modules/chatbot/panel.py:311 plugin/modules/chatbot/panel.py:630
 msgid "Accept"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:279 plugin/modules/chatbot/panel.py:770
+#: plugin/modules/chatbot/panel.py:327 plugin/modules/chatbot/panel.py:823
 msgid "Change"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:283 plugin/modules/chatbot/panel.py:777
+#: plugin/modules/chatbot/panel.py:331 plugin/modules/chatbot/panel.py:830
 msgid "Reject"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:300
+#: plugin/modules/chatbot/panel.py:348
 msgid "Waiting for approval…"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:583
+#: plugin/modules/chatbot/panel.py:636
 msgid "Record"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:585
+#: plugin/modules/chatbot/panel.py:638
 msgid "Stop Rec"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:587 plugin/xdl_strings.py:44
+#: plugin/modules/chatbot/panel.py:640 plugin/xdl_strings.py:44
 msgid "Send"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:607
+#: plugin/modules/chatbot/panel.py:660
 msgid "Getting document..."
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:612
+#: plugin/modules/chatbot/panel.py:665
 msgid ""
 "\n"
 "[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:622
+#: plugin/modules/chatbot/panel.py:675
 #, python-brace-format
 msgid ""
 "[Internal Error: Document type changed from {0} to {1}! Please file an "
 "error.]"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:629
+#: plugin/modules/chatbot/panel.py:682
 #, python-brace-format
 msgid ""
 "[Internal Error: Could not identify document type for {0}. Please report "
 "this!]"
 msgstr ""
 
-#: plugin/modules/chatbot/panel.py:673
+#: plugin/modules/chatbot/panel.py:726
 #, python-brace-format
 msgid ""
 "[Model {0} does not support native audio. Please select an STT Model in "
@@ -929,6 +929,9 @@ msgid "Hermes"
 msgstr ""
 
 msgid "Claude Code (ACP)"
+msgstr ""
+
+msgid "Mistral Vibe (ACP)"
 msgstr ""
 
 msgid "Path / URL"

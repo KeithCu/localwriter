@@ -1203,3 +1203,6 @@ msgstr "[Recherche web supplémentaire]\n"
 
 msgid "Web research completed."
 msgstr "Recherche web terminée."
+
+msgid "Mistral Vibe (ACP)"
+msgstr "Mistral Vibe (ACP)"

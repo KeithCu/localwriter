@@ -1183,3 +1183,6 @@ msgstr "[Dodatkowe wyszukiwanie w sieci]\n"
 
 msgid "Web research completed."
 msgstr "Badania internetowe zakończone."
+
+msgid "Mistral Vibe (ACP)"
+msgstr "Mistral Vibe (ACP)"

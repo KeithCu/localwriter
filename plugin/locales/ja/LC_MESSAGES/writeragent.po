@@ -1141,6 +1141,9 @@ msgstr "[追加のウェブ検索]\n"
 msgid "Web research completed."
 msgstr "ウェブリサーチが完了しました。"
 
+msgid "Mistral Vibe (ACP)"
+msgstr "ミストラル・バイブ (ACP)"
+
 #~ msgid "AI chat sidebar and REST API"
 #~ msgstr "AI チャット サイドバーと REST API"
 

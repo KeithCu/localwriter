@@ -1193,6 +1193,9 @@ msgstr "[Búsqueda web adicional]\n"
 msgid "Web research completed."
 msgstr "Investigación web completada."
 
+msgid "Mistral Vibe (ACP)"
+msgstr "Mistral Vibe (ACP)"
+
 #~ msgid "AI chat sidebar and REST API"
 #~ msgstr "Barra lateral de chat IA y API REST"
 

@@ -17,6 +17,8 @@ config:
         label: Hermes
       - value: claude
         label: Claude Code (ACP)
+      - value: vibe
+        label: Mistral Vibe (ACP)
       # - value: openhands
       #   label: OpenHands
       # - value: opencode

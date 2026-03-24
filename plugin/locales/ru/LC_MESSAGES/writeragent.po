@@ -1202,3 +1202,6 @@ msgstr "[Дополнительный поиск в Интернете]\n"
 
 msgid "Web research completed."
 msgstr "Веб-исследование завершено."
+
+msgid "Mistral Vibe (ACP)"
+msgstr "Вайб Mistral (ACP)"
