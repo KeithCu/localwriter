@@ -28,7 +28,7 @@ import threading
 import time
 import uuid
 
-from plugin.framework.main_thread import execute_on_main_thread
+from plugin.framework.queue_executor import QueueExecutor
 from plugin.framework.errors import WriterAgentException, safe_json_loads
 from plugin.modules.http.mcp_state import (
     MCPState, MCPStateStr, EventKind, MCPEvent,
@@ -97,6 +97,7 @@ class MCPProtocolHandler:
 
     def __init__(self, services):
         self.services = services
+        self.queue_executor = QueueExecutor()
         self.tool_registry = services.tools
         self.event_bus = getattr(services, "events", None)
         self.version = "unknown"
@@ -363,7 +364,7 @@ class MCPProtocolHandler:
                 return doc
             return doc_svc.get_active_document()
 
-        doc = execute_on_main_thread(_get_doc, timeout=10.0)
+        doc = self.queue_executor.execute(_get_doc, timeout=10.0)
 
         schemas = self.tool_registry.get_schemas("mcp", doc=doc)
         return {"tools": schemas}
@@ -541,7 +542,7 @@ class MCPProtocolHandler:
                 "LibreOffice is busy processing another tool call. "
                 "Please wait a moment and retry.")
         try:
-            return execute_on_main_thread(
+            return self.queue_executor.execute(
                 self._execute_tool_on_main, tool_name, arguments, document_url,
                 timeout=_PROCESS_TIMEOUT)
         finally:
@@ -566,7 +567,7 @@ class MCPProtocolHandler:
             ctx = uno.getComponentContext()
             return doc, doc_type, ctx
 
-        doc, doc_type, ctx = execute_on_main_thread(_get_context, timeout=10.0)
+        doc, doc_type, ctx = self.queue_executor.execute(_get_context, timeout=10.0)
 
         if doc is None and not document_url:
             return {
@@ -671,7 +672,7 @@ class MCPProtocolHandler:
             from plugin.framework.settings_dialog import show_settings
             from plugin._manifest import MODULES
             config_svc = get_services().config
-            execute_on_main_thread(
+            self.queue_executor.execute(
                 show_settings, None, config_svc, MODULES,
                 timeout=120.0)
             return "Settings dialog shown"
