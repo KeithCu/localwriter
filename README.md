@@ -1,5 +1,5 @@
 # WriterAgent
-**Note:** We are excited to announce an official release of the extension! However, the ![version on the LibreOffice site](`https://extensions.libreoffice.org/en/extensions/show/99526`) is **updated less frequently** than this repository. For the **newest builds with the latest features and fixes**, please use the GitHub release from this repo instead.
+**Note:** We are excited to announce an official release of the extension! However, the [version on the LibreOffice site](https://extensions.libreoffice.org/en/extensions/show/99526) is **updated less frequently** than this repository. For the **newest builds with the latest features and fixes**, please use the GitHub release from this repo instead.
 
 ![WriterAgent logo](https://raw.githubusercontent.com/KeithCu/writeragent/master/extension/assets/logo.png)
 
@@ -33,15 +33,21 @@ It's better than a standard Google search box because it understands natural lan
 *   **Complex Tasks**: "Write a long and pretty summary of After the Software Wars, according to Wikipedia."
 *   **Real-time Data**: Ask it to find the current price of a specific item and it can update your document with current data.
 
-### 4. Edit & Extend Selection (Writer)
-**Hotkey:** `Ctrl+Q`
-The model continues the selected text. Ideal for drafting emails, stories, or generating lists.
+#### How it works (technical)
+WriterAgent can delegate “research on the open web” to a small autonomous sub-agent built with a vendored subset of Hugging Face’s **smolagents**:
 
-### 5. Edit Selection
-**Hotkey:** `Ctrl+E`
-Prompt the model to rewrite your selection according to specific instructions (e.g., "make this more formal", "translate to Spanish").
+*   **ToolCallingAgent + tools**: We vendor `ToolCallingAgent` and lightweight tools `DuckDuckGoSearchTool` and `VisitWebpageTool` in `plugin/contrib/smolagents/`. They use only standard library networking (`urllib.request`) and parsing (`html.parser`), plus a realistic Firefox user agent string for fewer 403s.
+*   **`search_web` tool (Writer Chat)**: In `core/document_tools.py` we expose a `search_web` tool that the main chat agent can call. It spins up a ToolCallingAgent with those web tools and runs a ReAct loop (search → visit → synthesize) until it calls the `final_answer` tool, then returns `{"status": "ok", "result": "<answer>"}` back to the main agent.
+*   **Same model & endpoint as chat**: Inside LibreOffice, the sub-agent uses `WriterAgentSmolModel`, which wraps WriterAgent’s existing `LlmClient` and therefore respects your configured endpoint, model, API key, temperature, etc.
+*   **Sidebar “Web search” checkbox**: In the Chat with Document sidebar, a per-message **Web search** checkbox lets you bypass document-aware chat for that turn and directly invoke the `search_web` sub-agent. The answer is streamed into the response area (labeled `AI (web): ...`) without editing the document. When the checkbox is off, the AI can still call `search_web` autonomously as a normal tool when it decides web research is needed.
 
-### 6. HTML Richness & Compatibility (Writer)
+### 4. Extend & Edit Selection (Writer)
+Two Writer shortcuts act on the current selection:
+
+*   **Extend selection** (`Ctrl+Q`): The model continues the selected text. Ideal for drafting emails, stories, or generating lists.
+*   **Edit selection** (`Ctrl+E`): Prompt the model to rewrite your selection according to specific instructions (e.g., "make this more formal", "translate to Spanish").
+
+### 5. HTML Richness & Compatibility (Writer)
 When you ask the AI to fix a typo or change a name, the result can keep the formatting you already had: highlights, bold, colors, font size, and so on. We prioritize **HTML** for document edits because it provides a richer formatting model and better backward compatibility than Markdown (which was only added to LibreOffice in version 26.2, February 2026). By using HTML, WriterAgent remains functional on slightly older versions of LibreOffice while providing the AI with a standardized way to describe complex layouts.
 
 *   **Auto-detection**: If the AI returns plain text, we use a format-preserving path that keeps your existing background colors and highlights. If it returns HTML (or Markdown), we use the native import path.
@@ -50,16 +56,16 @@ When you ask the AI to fix a typo or change a name, the result can keep the form
 ### Ongoing Challenge: Styles vs. Custom Formatting
 One of the unique challenges of building an AI assistant for a rich word processor, unlike a plain-text code editor, is the multiple ways of applying formatting, both directly and through character and paragraph styles. Eventually, we will encourage models to output properly classed HTML that maps to your LibreOffice template, ensuring documents remain maintainable and consistently branded. For more details, see [LLM_STYLES.md](LLM_STYLES.md).
 
-### 7. Image generation and AI Horde integration
+### 6. Image generation and AI Horde integration
 Image generation and editing are integrated and complete. You can generate images from the chat (via tools or “Use Image model”) and edit selected images (Img2Img). Two backends are supported: **AI Horde** (Stable Diffusion, SDXL, etc., with its own API key and queue) and **same endpoint as chat** (uses your configured endpoint and a separate image model). Settings are in **WriterAgent > Settings** under the **Image Settings** tab, with shared options (size, insert behavior, prompt translation) and a clearly separated **AI Horde only** section.
 
-### 8. MCP Server (optional, external AI clients)
+### 7. MCP Server (optional, external AI clients)
 When enabled in **WriterAgent > Settings** (Chat/Text page), an HTTP server runs on localhost and exposes the same Writer/Calc/Draw tools to external AI clients (Cursor, Claude Desktop via a proxy, or any script).
 *   **Real-time Sidebar Monitoring**: All MCP activity (requests and tool results) is logged in real-time in the WriterAgent chat sidebar, providing full visibility into how external agents are interacting with your document.
 *   **Targeting**: Clients target a document by sending the **`X-Document-URL`** header (or use the active document).
 *   **Control**: Use **WriterAgent > Toggle MCP Server** and **MCP Server Status** to control and check the server. See [MCP_PROTOCOL.md](MCP_PROTOCOL.md) for endpoints, usage, and future work.
 
-### 8b. Agent backends (Hermes)
+### 8. Agent backends (Hermes)
 You can plug in **external agent backends** so that Chat with Document uses an external process (e.g. Hermes or others) instead of the built-in LLM. When enabled, the sidebar sends your message and document context to the selected backend; the backend uses WriterAgent’s MCP server as its tool layer, so edits still apply to your document. This is aimed at power users who want to use a dedicated coding or planning agent while keeping the document in LibreOffice.
 
 *   **[Hermes ACP Integration](https://github.com/NousResearch/hermes-agent)**: WriterAgent features a robust, native integration with the **Hermes Agent** using the emerging **Agent Communication Protocol (ACP)** via **stdio JSON-RPC** transport. By communicating directly over stdin/stdout pipes, WriterAgent spawns Hermes locally as a subprocess—no background web servers or network ports required. Hermes natively uses LocalWriter's MCP tools to read paragraphs, analyze spreadsheets, and autonomously execute complex multi-turn document edits.
@@ -72,11 +78,6 @@ You can plug in **external agent backends** so that Chat with Document uses an e
 A cell formula to call the model directly from within your spreadsheet:
 `=PROMPT(message, [system_prompt], [model], [max_tokens])`
 
-Opus 4.6 one-shotted this Arch Linux resume:
-![Opus 4.6 Resume](Showcase/Opus46Resume.png)
-Sonnet 4.6 one-shotted this "pretty spreadsheet"
-![Chat Sidebar with Dashboard](Showcase/Sonnet46Spreadsheet.png)
-
 ### 10. Audio Support & Voice Recording
 Integrated cross-platform audio recording directly in the chat sidebar.
 *   **One-Click Recording**: Start and stop recording directly from the chat panel.
@@ -84,11 +85,17 @@ Integrated cross-platform audio recording directly in the chat sidebar.
 *   **Talk to Your Document**: Recorded audio is handled intelligently—it will be sent directly to native audio LLMs or automatically transcribed via an STT engine before being sent as text, depending on your model's capabilities.
 *   **Flexible Deployment**: Optional build support (see `Makefile`) allows for deployment in environments where audio dependencies are not needed.
 
-## Translations (i18n)
+### 11. Translations (i18n)
+WriterAgent ships with the interface translated into Spanish, French, Portuguese, Russian, German, Japanese, Italian, and Polish.
 
-WriterAgent's user interface is fully localized into Spanish, French, Portuguese, Russian, German, Japanese, Italian, and Polish.
 
-We use **AI-assisted tooling** to keep coverage 100% as the UI evolves. **Spot a bad, awkward, or missing translation?** Please [open an issue](https://github.com/KeithCu/writeragent/issues) so we can fix it—or contribute directly, the files are in  [plugin/locales](https://github.com/KeithCu/writeragent/tree/bad49930d38bb0e22eef154091ae0265f885a8b3/plugin/locales).
+### Showcase
+Examples built with **`=PROMPT()`** and the chat sidebar:
+
+Opus 4.6 one-shotted this Arch Linux resume:
+![Opus 4.6 Resume](Showcase/Opus46Resume.png)
+Sonnet 4.6 one-shotted this "pretty spreadsheet"
+![Chat Sidebar with Dashboard](Showcase/Sonnet46Spreadsheet.png)
 
 ## WriterAgent Architecture
 
@@ -107,6 +114,7 @@ WriterAgent isn't just a wrapper; it's built for performance and deep integratio
     *   **Track Changes**: The AI can make edits in tracked-changes mode so every modification is visible and reversible.
     *   **Tables**: The AI can enumerate named tables, read their full contents as a 2D grid, and write individual cells using standard cell references.
 *   **HiDPI Compatible UI**: All dialogs and sidebar panels are defined via XDL and optimized for modern high-resolution displays using device-independent units.
+* We use **AI-assisted tooling** to keep coverage 100% as the UI evolves. **Spot a bad, awkward, or missing translation?** Please [open an issue](https://github.com/KeithCu/writeragent/issues) so we can fix it—or contribute directly, the files are in [plugin/locales](https://github.com/KeithCu/writeragent/tree/master/plugin/locales).
 
 ## Credits & Collaboration
 
@@ -185,39 +193,19 @@ This framework allows us to differentiate between "Flash" models that prioritize
 
 **Tool set and model size.** WriterAgent already exposes a rich but curated subset of Writer/Calc/Draw operations (styles, comments, tables, markdown apply, etc.), not the full OpenDocument/UNO surface. An open question is whether we should or can **expose more of the full UNO tool set** for capable models, while keeping a **smaller subset** for smaller or cheaper models that might be confused or wasteful with too many options. That would allow “right-sized” backends: minimal tools for fast local models, full power for frontier models when the user needs it.
 
-### Implementation Details: Web Search via Smolagents
-WriterAgent can delegate “research on the open web” to a small autonomous sub-agent built with a vendored subset of Hugging Face’s **smolagents**:
+## Getting started
 
-*   **ToolCallingAgent + tools**: We vendor `ToolCallingAgent` and lightweight tools `DuckDuckGoSearchTool` and `VisitWebpageTool` in `plugin/contrib/smolagents/`. They use only standard library networking (`urllib.request`) and parsing (`html.parser`), plus a realistic Firefox user agent string for fewer 403s.
-*   **`search_web` tool (Writer Chat)**: In `core/document_tools.py` we expose a `search_web` tool that the main chat agent can call. It spins up a ToolCallingAgent with those web tools and runs a ReAct loop (search → visit → synthesize) until it calls the `final_answer` tool, then returns `{"status": "ok", "result": "<answer>"}` back to the main agent.
-*   **Same model & endpoint as chat**: Inside LibreOffice, the sub-agent uses `WriterAgentSmolModel`, which wraps WriterAgent’s existing `LlmClient` and therefore respects your configured endpoint, model, API key, temperature, etc.
-*   **Sidebar “Web search” checkbox**: In the Chat with Document sidebar, a per-message **Web search** checkbox lets you bypass document-aware chat for that turn and directly invoke the `search_web` sub-agent. The answer is streamed into the response area (labeled `AI (web): ...`) without editing the document. When the checkbox is off, the AI can still call `search_web` autonomously as a normal tool when it decides web research is needed.
-
-## Roadmap
-
-We are moving towards a native "AI co-pilot" experience:
-
-*   **Richer Document Awareness**: Adding deep metadata awareness (paragraph styles, word counts, formula dependencies) so the AI understands document structure as well as text.
-*   **Predictive "Ghost Text"**: Real-time suggestions as you type, driven by local trigram models trained on your current document context.
-*   **Reliability Foundations**: Strengthening timeout management, clear error recovery, and universal rollback-friendly behavior for professional stability.
-*   **Suite-Wide Completeness**: Finalizing deep integration for **LibreOffice Draw and Impress**, ensuring every application in the suite is AI-powered.
-*   **Offline First**: Continued focus on performance with the fastest local models (Ollama, etc.) to ensure privacy and speed without cloud dependencies.
-*   **MCP Server**: Implemented. Optional HTTP server (enable in Settings) exposes WriterAgent's tool set to external clients; document targeting via `X-Document-URL` header. See [MCP_PROTOCOL.md](MCP_PROTOCOL.md) for status and future work (e.g. stdio proxy for Claude Desktop, dynamic menu icons).
-
-## Setup
-
-### 1. Installation
+### Installation
 1. Download the latest `.oxt` file from the [releases page](https://github.com/KeithCu/writeragent/releases).
 2. Double-click the downloaded `.oxt` file to install it in LibreOffice, then restart LibreOffice if prompted.
 
-### 2. Backend Setup
+### Backend setup
 WriterAgent requires an OpenAI-compatible backend. Recommended options:
 *   **Ollama**: [ollama.com](https://ollama.com/) (easiest for local usage)
 *   **text-generation-webui**: [github.com/oobabooga/text-generation-webui](https://github.com/oobabooga/text-generation-webui)
 *   **OpenRouter / OpenAI**: Cloud-based providers.
 
-## Settings
-
+### Settings
 Configure your endpoint, model, and behavior in **WriterAgent > Settings**. The dialog includes **Chat/Text** (endpoint, models, API key, etc.), **Image Settings** (size, aspect ratio, AI Horde options), **Http** (MCP server), **Agent backends**, and other tabs generated from the extension modules.
 
 *   **Endpoint URL**: e.g., `http://localhost:11434` for Ollama.
