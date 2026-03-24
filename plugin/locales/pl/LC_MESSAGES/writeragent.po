@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-22 03:59+0000\n"
+"POT-Creation-Date: 2026-03-24 18:56-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,7 +17,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: plugin/contrib/aihordeclient/__init__.py:262
-#: plugin/modules/chatbot/panel.py:409
+#: plugin/modules/chatbot/panel.py:655
 msgid "Starting..."
 msgstr "Uruchamianie..."
 
@@ -34,10 +34,12 @@ msgid "Register at "
 msgstr "Zarejestruj się na "
 
 #: plugin/contrib/aihordeclient/__init__.py:617
+#, python-brace-format
 msgid "You have {} kudos"
 msgstr "Masz {} kudosów"
 
 #: plugin/contrib/aihordeclient/__init__.py:625
+#, python-brace-format
 msgid "«{}» is not a valid API KEY, double check it or create a new one"
 msgstr "«{}» nie jest prawidłowym kluczem API, sprawdź go lub utwórz nowy"
 
@@ -59,8 +61,8 @@ msgid ""
 "The Horde is in maintenance mode, please try again later, if you have tried "
 "and the service does not respond for hours, please contact via Discord"
 msgstr ""
-"Horda jest w trybie konserwacji, spróbuj ponownie później, jeśli próbowałeś,"
-" a usługa nie odpowiada od godzin, skontaktuj się przez Discord"
+"Horda jest w trybie konserwacji, spróbuj ponownie później, jeśli próbowałeś, "
+"a usługa nie odpowiada od godzin, skontaktuj się przez Discord"
 
 #: plugin/contrib/aihordeclient/__init__.py:656
 msgid ""
@@ -71,6 +73,7 @@ msgstr ""
 "później"
 
 #: plugin/contrib/aihordeclient/__init__.py:662
+#, python-brace-format
 msgid ""
 "Seems that «{}» has problems, double check it, create a new one or join "
 "Discord to ask for help"
@@ -101,15 +104,6 @@ msgstr ""
 "Podczas próby zażądania obrazu, Horda była zbyt wolna, spróbuj ponownie "
 "później"
 
-#: plugin/contrib/aihordeclient/__init__.py:836
-#, python-brace-format
-msgid ""
-"Register at {REGISTER_AI_HORDE_URL} and use your key to improve your rate "
-"success. Detail:"
-msgstr ""
-"Zarejestruj się na {REGISTER_AI_HORDE_URL} i użyj swojego klucza, aby "
-"poprawić wskaźnik sukcesu. Szczegóły:"
-
 #: plugin/contrib/aihordeclient/__init__.py:843
 msgid "to learn to earn kudos. Detail:"
 msgstr "aby nauczyć się zdobywać kudosy. Szczegóły:"
@@ -139,68 +133,70 @@ msgstr "Generowanie..."
 msgid "Get a free API Key at "
 msgstr "Zdobądź darmowy klucz API na "
 
-#: plugin/contrib/aihordeclient/__init__.py:966
-#: plugin/contrib/aihordeclient/__init__.py:1004
-msgid ""
-".\n"
-" This model takes more time than your current configuration."
-msgstr ""
-".\n"
-" Ten model zajmuje więcej czasu niż twoja obecna konfiguracja."
+#: plugin/contrib/aihordeclient/__init__.py:965
+#: plugin/contrib/aihordeclient/__init__.py:1001
+msgid "."
+msgstr "."
 
-#: plugin/contrib/aihordeclient/__init__.py:972
+#: plugin/contrib/aihordeclient/__init__.py:965
+#: plugin/contrib/aihordeclient/__init__.py:1001
+msgid "This model takes more time than your current configuration."
+msgstr "Ten model zajmuje więcej czasu niż Twoja bieżąca konfiguracja."
+
+#: plugin/contrib/aihordeclient/__init__.py:970
 msgid "Please try another model,"
 msgstr "Spróbuj innego modelu,"
 
-#: plugin/contrib/aihordeclient/__init__.py:973
+#: plugin/contrib/aihordeclient/__init__.py:971
+#, python-brace-format
 msgid "{} would take more time than you configured,"
 msgstr "{} zajmie więcej czasu niż skonfigurowałeś,"
 
-#: plugin/contrib/aihordeclient/__init__.py:976
+#: plugin/contrib/aihordeclient/__init__.py:974
 msgid " or try again later."
 msgstr " lub spróbuj ponownie później."
 
-#: plugin/contrib/aihordeclient/__init__.py:995
+#: plugin/contrib/aihordeclient/__init__.py:993
 msgid ""
 "There are no workers available with these settings. Please try again later."
 msgstr ""
-"Brak dostępnych pracowników przy tych ustawieniach. Spróbuj ponownie "
-"później."
+"Brak dostępnych pracowników przy tych ustawieniach. Spróbuj ponownie później."
 
-#: plugin/contrib/aihordeclient/__init__.py:1001
+#: plugin/contrib/aihordeclient/__init__.py:999
 msgid "Get an Api key for free at "
 msgstr "Zdobądź klucz Api za darmo na "
 
-#: plugin/contrib/aihordeclient/__init__.py:1013
+#: plugin/contrib/aihordeclient/__init__.py:1009
 msgid "Probably your image will take one additional minute."
 msgstr "Prawdopodobnie Twój obraz zajmie jedną dodatkową minutę."
 
-#: plugin/contrib/aihordeclient/__init__.py:1015
-#: plugin/contrib/aihordeclient/__init__.py:1022
+#: plugin/contrib/aihordeclient/__init__.py:1011
+#: plugin/contrib/aihordeclient/__init__.py:1018
 msgid "Please try again later."
 msgstr "Spróbuj ponownie później."
 
-#: plugin/contrib/aihordeclient/__init__.py:1020
+#: plugin/contrib/aihordeclient/__init__.py:1016
+#, python-brace-format
 msgid "Probably your image will take {} additional minutes."
 msgstr "Prawdopodobnie Twój obraz zajmie {} dodatkowych minut."
 
-#: plugin/contrib/aihordeclient/__init__.py:1034
+#: plugin/contrib/aihordeclient/__init__.py:1030
 msgid "Fetching images..."
 msgstr "Pobieranie obrazów..."
 
-#: plugin/contrib/aihordeclient/__init__.py:1044
+#: plugin/contrib/aihordeclient/__init__.py:1040
 msgid " is censored, try changing the prompt wording"
 msgstr " jest ocenzurowane, spróbuj zmienić sformułowanie promptu"
 
-#: plugin/contrib/aihordeclient/__init__.py:1072
+#: plugin/contrib/aihordeclient/__init__.py:1068
 msgid "Downloading result..."
 msgstr "Pobieranie wyniku..."
 
-#: plugin/contrib/aihordeclient/__init__.py:1075
+#: plugin/contrib/aihordeclient/__init__.py:1071
 msgid "Downloading image"
 msgstr "Pobieranie obrazu"
 
-#: plugin/contrib/aihordeclient/__init__.py:1091
+#: plugin/contrib/aihordeclient/__init__.py:1087
 msgid ""
 "You may need to reduce your settings or choose another model, or you may "
 "have been censored. Horde message"
@@ -208,304 +204,144 @@ msgstr ""
 "Być może będziesz musiał zmniejszyć ustawienia lub wybrać inny model, albo "
 "mogłeś zostać ocenzurowany. Wiadomość Hordy"
 
-#: plugin/contrib/aihordeclient/__init__.py:1118
-#: plugin/contrib/aihordeclient/__init__.py:1130
+#: plugin/contrib/aihordeclient/__init__.py:1114
+#: plugin/contrib/aihordeclient/__init__.py:1126
 msgid " generated by "
 msgstr " wygenerowane przez "
 
-#: plugin/contrib/aihordeclient/__init__.py:1128
+#: plugin/contrib/aihordeclient/__init__.py:1124
 msgid " with "
 msgstr " z "
 
-#: plugin/main.py:243
+#: plugin/framework/dialogs.py:107
+msgid "Agent requests approval"
+msgstr "Agent prosi o zatwierdzenie"
+
+#: plugin/framework/dialogs.py:108
+msgid "Proceed with this action?"
+msgstr "Kontynuować tę akcję?"
+
+#: plugin/framework/dialogs.py:109
+#: plugin/modules/chatbot/web_research_chat.py:33
+#: plugin/modules/chatbot/web_research_chat.py:38
+#, python-format
+msgid "Tool: %s"
+msgstr "Narzędzie: %s"
+
+#: plugin/framework/dialogs.py:155
+msgid "Edit search query"
+msgstr "Edytuj zapytanie wyszukiwania"
+
+#: plugin/framework/dialogs.py:160
+msgid "Search query:"
+msgstr "Zapytanie wyszukiwania:"
+
+#: plugin/framework/dialogs.py:168 plugin/framework/dialogs.py:341
+#: plugin/framework/dialogs.py:413 plugin/framework/dialogs.py:500
+#: plugin/modules/http/__init__.py:247 plugin/xdl_strings.py:39
+msgid "OK"
+msgstr "OK"
+
+#: plugin/framework/dialogs.py:169
+msgid "Cancel"
+msgstr "Anuluj"
+
+#: plugin/framework/dialogs.py:340
+msgid "Copy"
+msgstr "Kopiuj"
+
+#: plugin/framework/dialogs.py:360 plugin/framework/dialogs.py:435
+msgid "Copied!"
+msgstr "Skopiowano!"
+
+#: plugin/framework/dialogs.py:410
+msgid "Copy URL"
+msgstr "Skopiuj URL"
+
+#: plugin/framework/dialogs.py:484 plugin/framework/dialogs.py:512
+#: plugin/main.py:290
+msgid "About WriterAgent"
+msgstr "O WriterAgent"
+
+#: plugin/framework/dialogs.py:491
+#, python-format
+msgid "Version: %s"
+msgstr "Wersja: %s"
+
+#: plugin/framework/dialogs.py:492
+msgid "AI-powered extension for LibreOffice"
+msgstr "Rozszerzenie oparte na AI dla LibreOffice"
+
+#: plugin/framework/dialogs.py:497
+msgid "GitHub: quazardous/localwriter"
+msgstr "GitHub: quazardous/localwriter"
+
+#: plugin/framework/dialogs.py:513
 #, python-brace-format
-msgid ""
-"{0}: {1} passed, {2} failed.\n"
-"\n"
-"{3}"
-msgstr ""
-"{0}: {1} przeszło, {2} nie powiodło się.\n"
-"\n"
-"{3}"
+msgid "WriterAgent {0}"
+msgstr "Agent pisarza {0}"
 
-#: plugin/main.py:246
+#: plugin/framework/errors.py:67
 #, python-brace-format
-msgid "Tests failed to run: {0}"
-msgstr "Testy nie powiodły się: {0}"
+msgid "{resource_type} not found: {identifier}"
+msgstr "\"{resource_type} nie znaleziono: {identifier}\""
 
-#: plugin/main.py:356
-msgid "Extend Selection"
-msgstr "Rozszerz zaznaczenie"
-
-#: plugin/main.py:357
-msgid "Edit Selection"
-msgstr "Edytuj zaznaczenie"
-
-#: plugin/main.py:358 plugin/framework/legacy_ui.py:282
+#: plugin/framework/legacy_ui.py:294 plugin/main.py:281
 #: plugin/xdl_strings.py:45
 msgid "Settings"
 msgstr "Ustawienia"
 
-#: plugin/main.py:359
-msgid "Toggle MCP Server"
-msgstr "Przełącz serwer MCP"
-
-#: plugin/main.py:360
-msgid "MCP Server Status"
-msgstr "Status serwera MCP"
-
-#: plugin/main.py:362
-msgid "Run format tests"
-msgstr "Uruchom testy formatu"
-
-#: plugin/main.py:363
-msgid "Run calc tests"
-msgstr "Uruchom testy calc"
-
-#: plugin/main.py:364
-msgid "Run Calc API integration tests"
-msgstr "Uruchom testy integracji API Calc"
-
-#: plugin/main.py:365
-msgid "Run draw tests"
-msgstr "Uruchom testy draw"
-
-#: plugin/main.py:366
-msgid "Evaluation Dashboard"
-msgstr "Panel ewaluacyjny"
-
-#: plugin/main.py:367 plugin/framework/dialogs.py:378
-#: plugin/framework/dialogs.py:406
-msgid "About WriterAgent"
-msgstr "O WriterAgent"
-
-#: plugin/main.py:715
-msgid "Dispatch Error"
-msgstr "Błąd wysyłania"
-
-#: plugin/modules/writer/legacy.py:43 plugin/modules/writer/legacy.py:54
-#: plugin/modules/chatbot/selection.py:69
-#: plugin/modules/chatbot/selection.py:145
-msgid "WriterAgent: Extend Selection"
-msgstr "WriterAgent: Rozszerz zaznaczenie"
-
-#: plugin/modules/writer/legacy.py:70 plugin/modules/calc/legacy.py:32
-msgid "Please enter edit instructions!"
-msgstr "Proszę wprowadzić instrukcje edycji!"
-
-#: plugin/modules/writer/legacy.py:70 plugin/modules/calc/legacy.py:32
-#: plugin/xdl_strings.py:32
-msgid "Input"
-msgstr "Dane wejściowe"
-
-#: plugin/modules/writer/legacy.py:78 plugin/modules/writer/legacy.py:88
-#: plugin/modules/writer/legacy.py:102 plugin/modules/chatbot/selection.py:256
-#: plugin/modules/chatbot/selection.py:358
-msgid "WriterAgent: Edit Selection"
-msgstr "WriterAgent: Edytuj zaznaczenie"
-
-#: plugin/modules/chatbot/panel_factory.py:445
-msgid "Size:"
-msgstr "Rozmiar:"
-
-#: plugin/modules/chatbot/panel_factory.py:446
-msgid "Height:"
-msgstr "Wysokość:"
-
-#: plugin/modules/chatbot/panel_factory.py:447
-msgid "Width:"
-msgstr "Szerokość:"
-
-#: plugin/modules/chatbot/panel_wiring.py:145 plugin/xdl_strings.py:41
-msgid "Ready"
-msgstr "Gotowy"
-
-#: plugin/modules/chatbot/panel.py:394
-msgid "Record"
-msgstr "Nagrywaj"
-
-#: plugin/modules/chatbot/panel.py:396
-msgid "Stop Rec"
-msgstr "Zatrzymaj"
-
-#: plugin/modules/chatbot/panel.py:398 plugin/xdl_strings.py:44
-msgid "Send"
-msgstr "Wyślij"
-
-#: plugin/modules/chatbot/panel.py:418
-msgid "Getting document..."
-msgstr "Pobieranie dokumentu..."
-
-#: plugin/modules/chatbot/panel.py:423
-msgid ""
-"\n"
-"[No compatible LibreOffice document (Writer, Calc, or Draw) found in the active window.]\n"
-msgstr ""
-"\n"
-"[Nie znaleziono kompatybilnego dokumentu LibreOffice (Writer, Calc lub Draw) w aktywnym oknie.]\n"
-
-#: plugin/modules/chatbot/panel.py:433
-#, python-brace-format
-msgid ""
-"[Internal Error: Document type changed from {0} to {1}! Please file an "
-"error.]"
-msgstr ""
-"[Błąd wewnętrzny: Typ dokumentu zmienił się z {0} na {1}! Zgłoś błąd.]"
-
-#: plugin/modules/chatbot/panel.py:440
-#, python-brace-format
-msgid ""
-"[Internal Error: Could not identify document type for {0}. Please report "
-"this!]"
-msgstr ""
-"[Błąd wewnętrzny: Nie można zidentyfikować typu dokumentu dla {0}. Zgłoś "
-"to!]"
-
-#: plugin/modules/chatbot/panel.py:474
-#, python-brace-format
-msgid ""
-"[Model {0} does not support native audio. Please select an STT Model in "
-"Settings.]"
-msgstr ""
-"[Model {0} nie obsługuje natywnego audio. Wybierz model STT w Ustawieniach.]"
-
-#: plugin/modules/chatbot/panel.py:477
-#: plugin/modules/chatbot/send_handlers.py:282
-#: plugin/modules/chatbot/send_handlers.py:293
-#: plugin/modules/chatbot/send_handlers.py:302
-#: plugin/modules/chatbot/send_handlers.py:543
-#: plugin/framework/legacy_ui.py:330
+#: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:732
+#: plugin/modules/chatbot/send_handlers.py:300
+#: plugin/modules/chatbot/send_handlers.py:310
+#: plugin/modules/chatbot/send_handlers.py:319
 msgid "Error"
 msgstr "Błąd"
 
-#: plugin/modules/chatbot/send_handlers.py:197
-#: plugin/modules/chatbot/send_handlers.py:365
-#: plugin/modules/chatbot/send_handlers.py:541
+#: plugin/framework/legacy_ui.py:346
 #, python-brace-format
+msgid "Failed to open Settings: {0}"
+msgstr "Nie udało się otworzyć Ustawień: {0}"
+
+#: plugin/framework/settings_dialog.py:156
+msgid "Invalid Setting"
+msgstr "Nieprawidłowe ustawienie"
+
+#: plugin/framework/settings_dialog.py:156
+msgid "Temperature must be <= 1.0"
+msgstr "Temperatura musi być <= 1.0"
+
+#: plugin/framework/constants.py:185
 msgid ""
-"\n"
-"[Error: {0}]\n"
+"AI: I can edit or translate your document instantly with professional "
+"formatting and color. Try me!"
 msgstr ""
-"\n"
-"[Błąd: {0}]\n"
+"AI: Mogę błyskawicznie edytować lub przetłumaczyć Twój dokument, zachowując "
+"profesjonalne formatowanie i kolory. Wypróbuj!"
 
-#: plugin/modules/chatbot/send_handlers.py:280
-#, python-brace-format
+#: plugin/framework/constants.py:186
 msgid ""
-"\n"
-"[Document context error: {0}]\n"
+"AI: I can help you with formulas, data analysis, and colorful charts. Try me!"
 msgstr ""
-"\n"
-"[Błąd kontekstu dokumentu: {0}]\n"
+"AI: Mogę pomóc Ci z formułami, analizą danych i kolorowymi wykresami. "
+"Wypróbuj!"
 
-#: plugin/modules/chatbot/send_handlers.py:291
-#, python-brace-format
+#: plugin/framework/constants.py:187
 msgid ""
-"\n"
-"[Agent backend '{0}' not found.]\n"
+"AI: I can help you create and edit polished, colorful shapes in Draw and "
+"Impress. Try me!"
 msgstr ""
-"\n"
-"[Nie znaleziono zaplecza agenta '{0}'.]\n"
+"AI: Mogę pomóc Ci tworzyć i edytować eleganckie, kolorowe kształty w Draw i "
+"Impress. Wypróbuj!"
 
-#: plugin/modules/chatbot/send_handlers.py:298
-#, python-brace-format
+#: plugin/framework/constants.py:188
 msgid ""
-"\n"
-"[Agent backend '{0}' is not available. Check Settings (path, install).]\n"
+"AI: I can do web research to answer any question, or summarize a web page, "
+"without seeing or changing your document. Let's chat."
 msgstr ""
-"\n"
-"[Zaplecze agenta '{0}' nie jest dostępne. Sprawdź Ustawienia (ścieżka, instalacja).]\n"
-
-#: plugin/modules/chatbot/send_handlers.py:517
-#, python-brace-format
-msgid "AI (research): {0}\n"
-msgstr "AI (badania): {0}\n"
-
-#: plugin/modules/chatbot/send_handlers.py:523
-msgid "Unknown research error."
-msgstr "Nieznany błąd badania."
-
-#: plugin/modules/chatbot/send_handlers.py:524
-#, python-brace-format
-msgid "[Research error: {0}]\n"
-msgstr "[Błąd badania: {0}]\n"
-
-#: plugin/modules/http/__init__.py:179
-msgid "Stop HTTP Server"
-msgstr "Zatrzymaj serwer HTTP"
-
-#: plugin/modules/http/__init__.py:180
-msgid "Start HTTP Server"
-msgstr "Uruchom serwer HTTP"
-
-#: plugin/modules/http/__init__.py:201
-msgid "HTTP server stopped"
-msgstr "Serwer HTTP zatrzymany"
-
-#: plugin/modules/http/__init__.py:208
-#, python-brace-format
-msgid ""
-"HTTP server started\n"
-"{0}"
-msgstr ""
-"Serwer HTTP uruchomiony\n"
-"{0}"
-
-#: plugin/modules/http/__init__.py:211
-msgid ""
-"HTTP server failed to start\n"
-"Check ~/localwriter.log"
-msgstr ""
-"Nie udało się uruchomić serwera HTTP\n"
-"Sprawdź ~/localwriter.log"
-
-#: plugin/modules/http/__init__.py:220
-msgid "HTTP server is not running"
-msgstr "Serwer HTTP nie jest uruchomiony"
-
-#: plugin/modules/http/__init__.py:226
-msgid "HTTP server not running"
-msgstr "Serwer HTTP nie uruchomiony"
-
-#: plugin/modules/http/__init__.py:231
-#, python-brace-format
-msgid ""
-"HTTP server running\n"
-"Routes: {0}"
-msgstr ""
-"Serwer HTTP uruchomiony\n"
-"Trasy: {0}"
-
-#: plugin/modules/http/__init__.py:238
-msgid "Server Status"
-msgstr "Status serwera"
-
-#: plugin/modules/http/__init__.py:247 plugin/framework/dialogs.py:235
-#: plugin/framework/dialogs.py:307 plugin/framework/dialogs.py:394
-#: plugin/xdl_strings.py:39
-msgid "OK"
-msgstr "OK"
-
-#: plugin/modules/http/__init__.py:259
-#, python-brace-format
-msgid ""
-"{0}\n"
-"URL: {1}"
-msgstr ""
-"{0}\n"
-"URL: {1}"
-
-#: plugin/modules/http/client.py:534
-msgid "Stream ended with finish_reason=error"
-msgstr "Strumień zakończył się z finish_reason=error"
-
-#: plugin/modules/http/client.py:547
-msgid ""
-"The model is repeating the same chunk (infinite loop). Try again or use a "
-"different model."
-msgstr ""
-"Model powtarza ten sam fragment (nieskończona pętla). Spróbuj ponownie lub "
-"użyj innego modelu."
+"AI: Mogę przeszukiwać sieć, aby odpowiedzieć na dowolne pytanie lub "
+"podsumować stronę internetową, nie widząc ani nie zmieniając Twojego "
+"dokumentu. Porozmawiajmy."
 
 #: plugin/modules/http/errors.py:15
 #, python-brace-format
@@ -542,8 +378,7 @@ msgstr ""
 "Ustawieniach."
 
 #: plugin/modules/http/errors.py:35
-msgid ""
-"Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
+msgid "Connection Refused. Is your local AI server (Ollama/LM Studio) running?"
 msgstr ""
 "Odrzucono połączenie. Czy Twój lokalny serwer AI (Ollama/LM Studio) działa?"
 
@@ -560,18 +395,72 @@ msgstr "Błąd połączenia: {0}"
 msgid "The AI provider reported an error. Try again."
 msgstr "Dostawca AI zgłosił błąd. Spróbuj ponownie."
 
-#: plugin/modules/http/errors.py:70
+#: plugin/modules/http/errors.py:69
 #, python-brace-format
 msgid "Error: {0}"
 msgstr "Błąd: {0}"
 
-#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
-msgid "WriterAgent: Edit Selection (Calc)"
-msgstr "WriterAgent: Edytuj zaznaczenie (Calc)"
+#: plugin/modules/http/client.py:534
+msgid "Stream ended with finish_reason=error"
+msgstr "Strumień zakończył się z finish_reason=error"
 
-#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
-msgid "WriterAgent: Extend Selection (Calc)"
-msgstr "WriterAgent: Rozszerz zaznaczenie (Calc)"
+#: plugin/modules/http/client.py:547
+msgid ""
+"The model is repeating the same chunk (infinite loop). Try again or use a "
+"different model."
+msgstr ""
+"Model powtarza ten sam fragment (nieskończona pętla). Spróbuj ponownie lub "
+"użyj innego modelu."
+
+#: plugin/modules/http/__init__.py:179
+msgid "Stop HTTP Server"
+msgstr "Zatrzymaj serwer HTTP"
+
+#: plugin/modules/http/__init__.py:180
+msgid "Start HTTP Server"
+msgstr "Uruchom serwer HTTP"
+
+#: plugin/modules/http/__init__.py:201
+msgid "HTTP server stopped"
+msgstr "Serwer HTTP zatrzymany"
+
+#: plugin/modules/http/__init__.py:208
+msgid "HTTP server started"
+msgstr "Serwer HTTP uruchomiony"
+
+#: plugin/modules/http/__init__.py:211
+msgid "HTTP server failed to start"
+msgstr "Nie udało się uruchomić serwera HTTP"
+
+#: plugin/modules/http/__init__.py:211
+msgid "Check ~/localwriter.log"
+msgstr "Sprawdź ~/localwriter.log"
+
+#: plugin/modules/http/__init__.py:220
+msgid "HTTP server is not running"
+msgstr "Serwer HTTP nie jest uruchomiony"
+
+#: plugin/modules/http/__init__.py:226
+msgid "HTTP server not running"
+msgstr "Serwer HTTP nie uruchomiony"
+
+#: plugin/modules/http/__init__.py:231
+msgid "HTTP server running"
+msgstr "Serwer HTTP działa"
+
+#: plugin/modules/http/__init__.py:231
+#, python-brace-format
+msgid "Routes: {0}"
+msgstr "Trasy: {0}"
+
+#: plugin/modules/http/__init__.py:238
+msgid "Server Status"
+msgstr "Status serwera"
+
+#: plugin/modules/http/__init__.py:259
+#, python-brace-format
+msgid "URL: {0}"
+msgstr "URL: {0}"
 
 #: plugin/modules/launcher/__init__.py:407
 #, python-brace-format
@@ -585,119 +474,268 @@ msgstr "Uruchom {0}"
 
 #: plugin/modules/launcher/__init__.py:502
 #, python-brace-format
+msgid "Command '{0}' not found."
+msgstr "Nie znaleziono polecenia '{0}'."
+
+#: plugin/modules/launcher/__init__.py:503
+msgid "Make sure it is installed and in your PATH."
+msgstr "Upewnij się, że jest zainstalowane i znajduje się w twojej PATH."
+
+#: plugin/modules/launcher/__init__.py:504
+msgid "Use 'Install AI CLI' from the menu to get install instructions."
+msgstr "Użyj 'Install AI CLI' z menu, aby uzyskać instrukcje instalacji."
+
+#: plugin/modules/calc/legacy.py:32 plugin/modules/writer/legacy.py:70
+msgid "Please enter edit instructions!"
+msgstr "Proszę wprowadzić instrukcje edycji!"
+
+#: plugin/modules/calc/legacy.py:32 plugin/modules/writer/legacy.py:70
+#: plugin/xdl_strings.py:32
+msgid "Input"
+msgstr "Dane wejściowe"
+
+#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
+msgid "WriterAgent: Edit Selection (Calc)"
+msgstr "WriterAgent: Edytuj zaznaczenie (Calc)"
+
+#: plugin/modules/calc/legacy.py:73 plugin/modules/calc/legacy.py:98
+msgid "WriterAgent: Extend Selection (Calc)"
+msgstr "WriterAgent: Rozszerz zaznaczenie (Calc)"
+
+#: plugin/modules/writer/legacy.py:43 plugin/modules/writer/legacy.py:54
+#: plugin/modules/chatbot/selection.py:80
+#: plugin/modules/chatbot/selection.py:165
+msgid "WriterAgent: Extend Selection"
+msgstr "WriterAgent: Rozszerz zaznaczenie"
+
+#: plugin/modules/writer/legacy.py:78 plugin/modules/writer/legacy.py:88
+#: plugin/modules/writer/legacy.py:102 plugin/modules/chatbot/selection.py:290
+#: plugin/modules/chatbot/selection.py:404
+msgid "WriterAgent: Edit Selection"
+msgstr "WriterAgent: Edytuj zaznaczenie"
+
+#: plugin/modules/chatbot/panel_wiring.py:191 plugin/xdl_strings.py:41
+msgid "Ready"
+msgstr "Gotowy"
+
+#: plugin/modules/chatbot/panel.py:311 plugin/modules/chatbot/panel.py:630
+msgid "Accept"
+msgstr "Akceptuj"
+
+#: plugin/modules/chatbot/panel.py:327 plugin/modules/chatbot/panel.py:826
+msgid "Change"
+msgstr "Zmień"
+
+#: plugin/modules/chatbot/panel.py:331 plugin/modules/chatbot/panel.py:833
+msgid "Reject"
+msgstr "Odrzuć"
+
+#: plugin/modules/chatbot/panel.py:348
+msgid "Waiting for approval…"
+msgstr "Oczekiwanie na zatwierdzenie…"
+
+#: plugin/modules/chatbot/panel.py:636
+msgid "Record"
+msgstr "Nagrywaj"
+
+#: plugin/modules/chatbot/panel.py:638
+msgid "Stop Rec"
+msgstr "Zatrzymaj"
+
+#: plugin/modules/chatbot/panel.py:640 plugin/xdl_strings.py:44
+msgid "Send"
+msgstr "Wyślij"
+
+#: plugin/modules/chatbot/panel.py:664
+msgid "Getting document..."
+msgstr "Pobieranie dokumentu..."
+
+#: plugin/modules/chatbot/panel.py:669
 msgid ""
-"Command '{0}' not found.\n"
-"Make sure it is installed and in your PATH.\n"
-"\n"
-"Use 'Install AI CLI' from the menu to get install instructions."
+"[No compatible LibreOffice document (Writer, Calc, or Draw) found in the "
+"active window.]"
 msgstr ""
-"Nie znaleziono polecenia '{0}'.\n"
-"Upewnij się, że jest zainstalowane i znajduje się w PATH.\n"
-"\n"
-"Użyj opcji 'Install AI CLI' z menu, aby uzyskać instrukcje instalacji."
+"[Nie znaleziono zgodnego dokumentu LibreOffice (Writer, Calc lub Draw) w "
+"aktywnym oknie.]"
 
-#: plugin/framework/settings_dialog.py:153
-msgid "Invalid Setting"
-msgstr "Nieprawidłowe ustawienie"
-
-#: plugin/framework/settings_dialog.py:153
-msgid "Temperature must be <= 1.0"
-msgstr "Temperatura musi być <= 1.0"
-
-#: plugin/framework/constants.py:168
-msgid ""
-"AI: I can edit or translate your document instantly with professional "
-"formatting and color. Try me!"
-msgstr ""
-"AI: Mogę błyskawicznie edytować lub przetłumaczyć Twój dokument, zachowując "
-"profesjonalne formatowanie i kolory. Wypróbuj!"
-
-#: plugin/framework/constants.py:169
-msgid ""
-"AI: I can help you with formulas, data analysis, and colorful charts. Try "
-"me!"
-msgstr ""
-"AI: Mogę pomóc Ci z formułami, analizą danych i kolorowymi wykresami. "
-"Wypróbuj!"
-
-#: plugin/framework/constants.py:170
-msgid ""
-"AI: I can help you create and edit polished, colorful shapes in Draw and "
-"Impress. Try me!"
-msgstr ""
-"AI: Mogę pomóc Ci tworzyć i edytować eleganckie, kolorowe kształty w Draw i "
-"Impress. Wypróbuj!"
-
-#: plugin/framework/constants.py:171
-msgid ""
-"AI: I can do web research to answer any question, or summarize a web page, "
-"without seeing or changing your document. Let's chat."
-msgstr ""
-"AI: Mogę przeszukiwać sieć, aby odpowiedzieć na dowolne pytanie lub "
-"podsumować stronę internetową, nie widząc ani nie zmieniając Twojego "
-"dokumentu. Porozmawiajmy."
-
-#: plugin/framework/legacy_ui.py:330
+#: plugin/modules/chatbot/panel.py:678
 #, python-brace-format
 msgid ""
-"Failed to open Settings: {0}\n"
-"\n"
-"{1}"
-msgstr ""
-"Nie udało się otworzyć ustawień: {0}\n"
-"\n"
-"{1}"
+"[Internal Error: Document type changed from {0} to {1}! Please file an "
+"error.]"
+msgstr "[Błąd wewnętrzny: Typ dokumentu zmienił się z {0} na {1}! Zgłoś błąd.]"
 
-#: plugin/framework/dialogs.py:93
-msgid "Agent requests approval"
-msgstr "Agent prosi o zatwierdzenie"
-
-#: plugin/framework/dialogs.py:94
-msgid "Proceed with this action?"
-msgstr "Kontynuować tę akcję?"
-
-#: plugin/framework/dialogs.py:95
-#, python-format
-msgid "Tool: %s"
-msgstr "Narzędzie: %s"
-
-#: plugin/framework/dialogs.py:234
-msgid "Copy"
-msgstr "Kopiuj"
-
-#: plugin/framework/dialogs.py:254 plugin/framework/dialogs.py:329
-msgid "Copied!"
-msgstr "Skopiowano!"
-
-#: plugin/framework/dialogs.py:304
-msgid "Copy URL"
-msgstr "Skopiuj URL"
-
-#: plugin/framework/dialogs.py:385
-#, python-format
-msgid "Version: %s"
-msgstr "Wersja: %s"
-
-#: plugin/framework/dialogs.py:386
-msgid "AI-powered extension for LibreOffice"
-msgstr "Rozszerzenie oparte na AI dla LibreOffice"
-
-#: plugin/framework/dialogs.py:391
-msgid "GitHub: quazardous/localwriter"
-msgstr "GitHub: quazardous/localwriter"
-
-#: plugin/framework/dialogs.py:407
+#: plugin/modules/chatbot/panel.py:685
 #, python-brace-format
 msgid ""
-"WriterAgent {0}\n"
-"https://github.com/quazardous/localwriter"
+"[Internal Error: Could not identify document type for {0}. Please report "
+"this!]"
 msgstr ""
-"WriterAgent {0}\n"
-"https://github.com/quazardous/localwriter"
+"[Błąd wewnętrzny: Nie można zidentyfikować typu dokumentu dla {0}. Zgłoś to!]"
 
-#: plugin/tests/test_i18n.py:16
+#: plugin/modules/chatbot/panel.py:729
+#, python-brace-format
+msgid ""
+"[Model {0} does not support native audio. Please select an STT Model in "
+"Settings.]"
+msgstr ""
+"[Model {0} nie obsługuje natywnego audio. Wybierz model STT w Ustawieniach.]"
+
+#: plugin/modules/chatbot/web_research_chat.py:15
+#, python-format
+msgid "This search query '%s' will be sent to the search engine."
+msgstr "To zapytanie wyszukiwania '%s' zostanie wysłane do wyszukiwarki."
+
+#: plugin/modules/chatbot/web_research_chat.py:28
+msgid "[Web search — approval required]"
+msgstr "[Wyszukiwanie w sieci — wymagana zgoda]"
+
+#: plugin/modules/chatbot/web_research_chat.py:30
+msgid "[Web search]"
+msgstr "[Wyszukiwanie w sieci]"
+
+#: plugin/modules/chatbot/web_research_chat.py:37
+msgid "[Additional web search]"
+msgstr "[Dodatkowe wyszukiwanie w sieci]"
+
+#: plugin/modules/chatbot/web_research_chat.py:59
+msgid "[Web research]"
+msgstr "[Badania w sieci]"
+
+#: plugin/modules/chatbot/web_research_chat.py:60
+msgid "Research request:"
+msgstr "Żądanie badań:"
+
+#: plugin/modules/chatbot/web_research_chat.py:65
+msgid "Context for the research agent:"
+msgstr "Kontekst dla agenta badawczego:"
+
+#: plugin/modules/chatbot/web_research.py:288
+msgid "Web research completed."
+msgstr "Badania internetowe zakończone."
+
+#: plugin/modules/chatbot/send_handlers.py:39
+msgid "Transcribing audio..."
+msgstr "Transkrybuję audio..."
+
+#: plugin/modules/chatbot/send_handlers.py:40
+msgid "[Transcribing audio...]"
+msgstr "[Transkrypcja audio...]"
+
+#: plugin/modules/chatbot/send_handlers.py:58
+#, python-brace-format
+msgid "[Transcription error: {0}]"
+msgstr "[Błąd transkrypcji: {0}]"
+
+#: plugin/modules/chatbot/send_handlers.py:89
+#, python-brace-format
+msgid "[Error: {0}]"
+msgstr "[Błąd: {0}]"
+
+#: plugin/modules/chatbot/send_handlers.py:298
+#, python-brace-format
+msgid "[Document context error: {0}]"
+msgstr "[Błąd kontekstu dokumentu: {0}]"
+
+#: plugin/modules/chatbot/send_handlers.py:308
+#, python-brace-format
+msgid "[Agent backend '{0}' not found.]"
+msgstr "[Backend agenta '{0}' nie znaleziony.]"
+
+#: plugin/modules/chatbot/send_handlers.py:315
+#, python-brace-format
+msgid "[Agent backend '{0}' is not available. Check Settings (path, install).]"
+msgstr ""
+"[Backend agenta '{0}' jest niedostępny. Sprawdź Ustawienia (ścieżka, "
+"instalacja).]"
+
+#: plugin/modules/chatbot/send_handlers.py:533
+#, python-brace-format
+msgid "AI (research): {0}"
+msgstr "AI (badania): {0}"
+
+#: plugin/modules/chatbot/send_handlers.py:539
+msgid "Unknown research error."
+msgstr "Nieznany błąd badania."
+
+#: plugin/modules/chatbot/send_handlers.py:540
+#, python-brace-format
+msgid "[Research error: {0}]"
+msgstr "[Błąd badań: {0}]"
+
+#: plugin/modules/chatbot/panel_factory.py:473
+msgid "Size:"
+msgstr "Rozmiar:"
+
+#: plugin/modules/chatbot/panel_factory.py:474
+msgid "Height:"
+msgstr "Wysokość:"
+
+#: plugin/modules/chatbot/panel_factory.py:475
+msgid "Width:"
+msgstr "Szerokość:"
+
+#: plugin/tests/test_i18n.py:24
 msgid "ThisIsAnUntranslatedString999"
 msgstr "ThisIsAnUntranslatedString999"
+
+#: plugin/tests/test_i18n.py:194
+msgid "Built-in"
+msgstr "Wbudowany"
+
+#: plugin/tests/test_i18n.py:195
+msgid "Backend"
+msgstr "Backend"
+
+#: plugin/main.py:166
+#, python-brace-format
+msgid "{0}: {1} passed, {2} failed."
+msgstr "{0}: {1} przeszło, {2} nie przeszło."
+
+#: plugin/main.py:169
+#, python-brace-format
+msgid "Tests failed to run: {0}"
+msgstr "Testy nie powiodły się: {0}"
+
+#: plugin/main.py:279
+msgid "Extend Selection"
+msgstr "Rozszerz zaznaczenie"
+
+#: plugin/main.py:280
+msgid "Edit Selection"
+msgstr "Edytuj zaznaczenie"
+
+#: plugin/main.py:282
+msgid "Toggle MCP Server"
+msgstr "Przełącz serwer MCP"
+
+#: plugin/main.py:283
+msgid "MCP Server Status"
+msgstr "Status serwera MCP"
+
+#: plugin/main.py:285
+msgid "Run format tests"
+msgstr "Uruchom testy formatu"
+
+#: plugin/main.py:286
+msgid "Run calc tests"
+msgstr "Uruchom testy calc"
+
+#: plugin/main.py:287
+msgid "Run Calc API integration tests"
+msgstr "Uruchom testy integracji API Calc"
+
+#: plugin/main.py:288
+msgid "Run draw tests"
+msgstr "Uruchom testy draw"
+
+#: plugin/main.py:289
+msgid "Evaluation Dashboard"
+msgstr "Panel ewaluacyjny"
+
+#: plugin/main.py:639
+msgid "Dispatch Error"
+msgstr "Błąd wysyłania"
 
 #: plugin/xdl_strings.py:4
 msgid "-1"
@@ -898,27 +936,24 @@ msgstr "Pisarz"
 msgid "Agent backends"
 msgstr "Agenci"
 
-msgid "Backend"
-msgstr "Backend"
-
-msgid "Built-in"
-msgstr "Wbudowany"
-
 msgid "Hermes"
 msgstr "Hermes"
 
 msgid "Claude Code (ACP)"
 msgstr "Claude Code (ACP)"
 
+msgid "Mistral Vibe (ACP)"
+msgstr "Mistral Vibe (ACP)"
+
 msgid "Path / URL"
 msgstr "Ścieżka / URL"
 
 msgid ""
-"Path to backend CLI (e.g. aider) or ACP server URL (e.g. "
-"http://localhost:8000 for Hermes). Empty = try default."
+"Path to backend CLI (e.g. aider) or ACP server URL (e.g. http://"
+"localhost:8000 for Hermes). Empty = try default."
 msgstr ""
-"Ścieżka do CLI backendu (np. aider) lub URL serwera ACP (np. "
-"http://localhost:8000 dla Hermes). Puste = spróbuj domyślne."
+"Ścieżka do CLI backendu (np. aider) lub URL serwera ACP (np. http://"
+"localhost:8000 dla Hermes). Puste = spróbuj domyślne."
 
 msgid "Extra arguments"
 msgstr "Dodatkowe argumenty"
@@ -977,11 +1012,18 @@ msgstr "Edytuj zaznaczenie"
 
 msgid "Extra tokens beyond original text length. 0 = same length as original."
 msgstr ""
-"Dodatkowe tokeny poza oryginalną długością tekstu. 0 = taka sama długość jak"
-" oryginalna."
+"Dodatkowe tokeny poza oryginalną długością tekstu. 0 = taka sama długość jak "
+"oryginalna."
 
 msgid "Show Web Search Thinking"
 msgstr "Pokaż rozumowanie wyszukiwania w sieci"
+
+msgid "Prompt for Web Research"
+msgstr "Podpowiedź do badań internetowych"
+
+msgid "Ask for confirmation before sending a web search query"
+msgstr ""
+"Pytaj o potwierdzenie przed wysłaniem zapytania wyszukiwania internetowego"
 
 msgid "Web Cache Max Size (MB)"
 msgstr "Maks. rozmiar pamięci podręcznej sieci (MB)"
@@ -1056,8 +1098,7 @@ msgid "Extra Arguments"
 msgstr "Dodatkowe argumenty"
 
 msgid "Additional CLI arguments. Placeholders: {mcp_url}, {port}, {host}."
-msgstr ""
-"Dodatkowe argumenty CLI. Miejsca zastępcze: {mcp_url}, {port}, {host}."
+msgstr "Dodatkowe argumenty CLI. Miejsca zastępcze: {mcp_url}, {port}, {host}."
 
 msgid "Global AI Instructions"
 msgstr "Globalne instrukcje AI"
@@ -1101,91 +1142,3 @@ msgstr "Token uwierzytelniający Ngrok"
 
 msgid "Writer document tools (including navigation and search)"
 msgstr "Narzędzia do dokumentów Writer (w tym nawigacja i wyszukiwanie)"
-
-msgid "Transcribing audio..."
-msgstr "Transkrybuję audio..."
-
-msgid ""
-"\n"
-"[Transcribing audio...]\n"
-msgstr ""
-"\n"
-"[Transkrybuję audio...]\n"
-
-msgid ""
-"\n"
-"[Transcription error: {0}]\n"
-msgstr ""
-"\n"
-"[Błąd transkrypcji: {0}]\n"
-
-msgid "Prompt for Web Research"
-msgstr "Podpowiedź do badań internetowych"
-
-msgid "Ask for confirmation before sending a web search query"
-msgstr ""
-"Pytaj o potwierdzenie przed wysłaniem zapytania wyszukiwania internetowego"
-
-msgid "Accept"
-msgstr "Akceptuj"
-
-msgid "Reject"
-msgstr "Odrzuć"
-
-msgid "Allow this web search?"
-msgstr "Zezwól na to wyszukiwanie w sieci?"
-
-msgid "[Web search — approval required]\n"
-msgstr "[Wyszukiwanie w sieci — wymagane zatwierdzenie]\n"
-
-msgid "Tool: %s\n"
-msgstr "Narzędzie: %s\n"
-
-msgid "Waiting for approval…"
-msgstr "Oczekiwanie na zatwierdzenie…"
-
-msgid "Edit search query"
-msgstr "Edytuj zapytanie wyszukiwania"
-
-msgid "Search query:"
-msgstr "Zapytanie wyszukiwania:"
-
-msgid "Cancel"
-msgstr "Anuluj"
-
-msgid "Change"
-msgstr "Zmień"
-
-msgid "This search query '%s' will be sent to the search engine."
-msgstr "To zapytanie wyszukiwania '%s' zostanie wysłane do wyszukiwarki."
-
-msgid "[Web search]\n"
-msgstr "[Wyszukiwanie internetowe]\\n\n"
-
-msgid "[Web research]\n"
-msgstr "[Badania internetowe]\\n\n"
-
-msgid ""
-"Research request:\n"
-"%s\n"
-msgstr "Zapytanie badawcze:\\n%s\\n\n"
-
-msgid ""
-"\n"
-"Context for the research agent:\n"
-"%s\n"
-msgstr ""
-"\n"
-"\\nKontekst dla agenta badawczego:\\n%s\\n\n"
-
-msgid "[Additional web search]\n"
-msgstr "[Dodatkowe wyszukiwanie w sieci]\n"
-
-msgid "Web research completed."
-msgstr "Badania internetowe zakończone."
-
-msgid "Mistral Vibe (ACP)"
-msgstr "Mistral Vibe (ACP)"
-
-msgid "{resource_type} not found: {identifier}"
-msgstr "\"{resource_type} nie znaleziono: {identifier}\""

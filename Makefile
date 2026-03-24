@@ -95,7 +95,7 @@ endif
         lo-start lo-start-full lo-kill lo-restart \
         clean-cache nuke-cache nuke-cache-force unbundle \
         log log-tail lo-log test check-ext check-setup deploy \
-        set-config vendor docker-build compile-translations
+        set-config vendor docker-build compile-translations merge-translations
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 
@@ -296,6 +296,12 @@ extract-strings:
 	xgettext -d writeragent -o plugin/locales/writeragent.pot $$(find plugin -name "*.py")
 	$(PYTHON) scripts/merge_module_yaml_into_pot.py plugin/locales/writeragent.pot
 	rm -f plugin/xdl_strings.py
+	$(MAKE) merge-translations
+
+# Merge each locale .po with writeragent.pot, then strip obsolete entries (#~) so removed
+# source strings do not accumulate. (msgattrib --no-obsolete: portable where msgmerge lacks --no-obsolete.)
+merge-translations:
+	find plugin/locales -name writeragent.po -exec sh -c 'f="$$1"; msgmerge --update --backup=none "$$f" plugin/locales/writeragent.pot && msgattrib --no-obsolete -o "$$f.tmp" "$$f" && mv -f "$$f.tmp" "$$f"' _ {} \;
 
 
 add-language:
