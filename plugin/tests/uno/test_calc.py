@@ -525,14 +525,31 @@ def test_calc_conditional_formatting():
     assert rule.get("formula1") == "15", f"Expected 15, got {rule.get('formula1')}"
     assert rule.get("style_name") == "Result", f"Expected Result, got {rule.get('style_name')}"
 
-    # 3. Clear formats
-    res_clear = _execute_calc_tool("clear_conditional_formats", {"range_name": "C20:C22"})
-    assert res_clear.get("status") == "ok", f"clear_conditional_formats failed: {res_clear}"
+    # 3. Clear formats (using new unified tool)
+    res_clear = _execute_calc_tool("remove_conditional_formats", {"range_name": "C20:C22"})
+    assert res_clear.get("status") == "ok", f"remove_conditional_formats (clear) failed: {res_clear}"
 
     # 4. Verify cleared
     res_list_after = _execute_calc_tool("list_conditional_formats", {"range_name": "C20:C22"})
     rules_after = res_list_after.get("rules", [])
     assert len(rules_after) == 0, f"Expected rules to be cleared, but found {len(rules_after)}"
+
+    # 5. Add two rules to test removing by index
+    _execute_calc_tool("add_conditional_format", {
+        "range_name": "C20:C22", "operator": "GREATER", "formula1": "10", "style_name": "Result"
+    })
+    _execute_calc_tool("add_conditional_format", {
+        "range_name": "C20:C22", "operator": "LESS", "formula1": "5", "style_name": "Result"
+    })
+
+    # 6. Remove the first rule by index
+    res_remove_idx = _execute_calc_tool("remove_conditional_formats", {"range_name": "C20:C22", "rule_index": 0})
+    assert res_remove_idx.get("status") == "ok", f"remove_conditional_formats (index) failed: {res_remove_idx}"
+
+    # 7. Verify only 1 rule remains
+    res_list_final = _execute_calc_tool("list_conditional_formats", {"range_name": "C20:C22"})
+    rules_final = res_list_final.get("rules", [])
+    assert len(rules_final) == 1, f"Expected 1 rule remaining after removing by index, found {len(rules_final)}"
 
 
 @native_test
