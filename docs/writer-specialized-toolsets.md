@@ -156,17 +156,17 @@ While the "Fat API" approach drastically reduces tool count and could potentiall
 
 ### 1.4 Two Implementations for Specialized Workflows
 
-We currently support two alternative implementations for the `delegate_to_specialized_writer_toolset` tool. This allows us to experiment, research, and quantify which approach works best (e.g., perhaps smaller models need the sub-agent approach to avoid confusion, while larger models can handle in-place tool switching seamlessly). You can toggle between them using the `USE_SUB_AGENT` global variable in `plugin/modules/writer/specialized.py`.
+We currently support two alternative implementations for the `delegate_to_specialized_writer_toolset` tool. This allows us to experiment, research, and quantify which approach works best (e.g., perhaps smaller models need the sub-agent approach to avoid confusion, while larger models can handle in-place tool switching seamlessly). You can toggle between them using the `USE_SUB_AGENT` global variable in `plugin/modules/writer/specialized.py`. Both modes use a `final_answer` tool to explicitly return control and exit the mode.
 
 **Approach A: The Sub-Agent Model (`USE_SUB_AGENT = True`)**
 - The gateway tool launches a **short-lived sub-agent** (via `smolagents`) in a background thread.
-- This sub-agent receives the user's task description and has access *only* to the specialized domain tools and the `specialized_workflow_finished` tool.
-- The main chat model is blocked, waiting for the sub-agent to finish and return a final summary.
+- This sub-agent receives the user's task description and has access *only* to the specialized domain tools (and `smolagents`' built-in `final_answer` tool).
+- The main chat model is blocked, waiting for the sub-agent to finish and return its final answer.
 
 **Approach B: In-Place Tool Switching (`USE_SUB_AGENT = False`)**
 - The gateway tool simply sets an active domain flag on the current session and immediately returns control to the main chat model with a message like: `"Tool call switched to '{domain}'..."`.
-- On the next turn, the main chat model receives *only* the specialized tools for that domain (plus the finish tool). All normal core/extended tools are hidden to keep the context clean and make the sub-task easy for the model.
-- The model continues its reasoning within the same context and explicitly calls `specialized_workflow_finished` when the sub-task is complete, which clears the active domain and restores the default toolset.
+- On the next turn, the main chat model receives *only* the specialized tools for that domain, plus a custom `final_answer` tool (designed to perfectly mimic the smolagents exit approach). All normal core/extended tools are hidden to keep the context clean and make the sub-task easy for the model.
+- The model continues its reasoning within the same context and explicitly calls `final_answer` when the sub-task is complete, which clears the active domain and restores the default toolset.
 
 ---
 
@@ -191,8 +191,8 @@ flowchart LR
 
 1. **Tier filtering** on `ToolRegistry.get_tools` / `get_schemas` hides `specialized` and `specialized_control` from the default lists used by chat and MCP `tools/list`. The registry accepts an `active_domain` parameter to explicitly bypass this exclusion when the session is in a specialized mode.
 2. **Domain bases** (`ToolWriterTableBase`, …) set `tier = "specialized"` and a `specialized_domain` string.
-3. **Delegation** (Sub-Agent mode) collects tools where `isinstance(t, ToolWriterSpecialBase) and t.specialized_domain == domain`, adds `specialized_workflow_finished`, wraps them for smolagents, and runs a bounded `ToolCallingAgent` loop in a **background thread** (`is_async()` on the gateway).
-4. **Delegation** (In-Place mode) sets the `active_specialized_domain` on the `ChatSession` and responds to the LLM to trigger a new cycle with the updated schema.
+3. **Delegation** (Sub-Agent mode) collects tools where `isinstance(t, ToolWriterSpecialBase) and t.specialized_domain == domain`, wraps them for smolagents, and runs a bounded `ToolCallingAgent` loop in a **background thread** (`is_async()` on the gateway).
+4. **Delegation** (In-Place mode) sets the `active_specialized_domain` on the `ChatSession`, dynamically returning a customized `final_answer` tool along with the domain tools, and responds to the LLM to trigger a new cycle with the updated schema.
 
 ---
 
@@ -376,7 +376,7 @@ When implementing, align service names and includes with the installed LibreOffi
 | Smaller default tool list | `exclude_tiers` default in `ToolRegistry.get_tools` / `get_schemas` |
 | Domain grouping | `ToolWriter*Base.specialized_domain` + `tier = "specialized"` |
 | User/model entry point | `delegate_to_specialized_writer_toolset` (`tier = "core"`, async) |
-| Sub-agent completion | `specialized_workflow_finished` (`tier = "specialized_control"`) |
+| Sub-agent completion | `final_answer` (`tier = "specialized_control"`) |
 | Prompt teaching | `WRITER_SPECIALIZED_DELEGATION` in `constants.py` |
 | Execution by name | Unchanged `execute()` — tier only affects **listing**, not **dispatch** |
 

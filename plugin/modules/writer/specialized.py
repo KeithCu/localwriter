@@ -106,7 +106,7 @@ class DelegateToSpecializedWriter(ToolBase):
 
             from plugin.framework.i18n import _
             msg = _("Tool call switched to '{0}'. You are in a specialized toolset mode. "
-                    "You must call 'specialized_workflow_finished' when done to restore "
+                    "You must call 'final_answer' when done to restore "
                     "the full set of APIs.").format(domain)
 
             if status_callback:
@@ -135,8 +135,8 @@ class DelegateToSpecializedWriter(ToolBase):
                 # Check if it's a subclass of our special base and matches the domain
                 if isinstance(t, ToolWriterSpecialBase) and t.specialized_domain == domain:
                     domain_tools.append(t)
-                elif getattr(t, "name", "") == "specialized_workflow_finished":
-                    domain_tools.append(t)
+                # Note: We do NOT append our custom 'final_answer' tool here because
+                # smolagents provides its own 'final_answer' tool natively.
 
             if not domain_tools:
                 return self._tool_error(
@@ -190,9 +190,7 @@ class DelegateToSpecializedWriter(ToolBase):
             instructions = (
                 f"You are a specialized Writer agent focused on the '{domain}' domain. "
                 f"You have a focused set of tools to accomplish your task. "
-                f"Use them to fulfill the user's request. When you are finished, "
-                f"you MUST call the 'specialized_workflow_finished' tool with a summary. "
-                f"Do not attempt to provide a final answer directly until you have called this tool."
+                f"Use them to fulfill the user's request."
             )
 
             agent = ToolCallingAgent(

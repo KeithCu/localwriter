@@ -204,7 +204,7 @@ class ToolRegistry:
             for t in tools:
                 if isinstance(t, ToolWriterSpecialBase) and t.specialized_domain == active_domain:
                     filtered_tools.append(t)
-                elif getattr(t, "name", "") == "specialized_workflow_finished":
+                elif getattr(t, "name", "") == "final_answer":
                     filtered_tools.append(t)
             tools = filtered_tools
         else:
