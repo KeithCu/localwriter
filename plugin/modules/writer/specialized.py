@@ -126,11 +126,25 @@ class DelegateToSpecializedWriter(ToolBase):
             from plugin.contrib.smolagents.tools import Tool as SmolTool
 
             class WrappedSmolTool(SmolTool):
+                skip_forward_signature_validation = True
                 def __init__(self, writer_tool, ctx):
                     self.writer_tool = writer_tool
                     self.ctx = ctx
                     self.name = writer_tool.name
                     self.description = writer_tool.description
+                    #FIXME: the code used to work without this
+                    # Convert JSON Schema parameters to smolagents inputs
+                    self.inputs = {}
+                    params = getattr(writer_tool, "parameters", {}) or {}
+                    props = params.get("properties", {})
+                    for param_name, spec in props.items():
+                        # smolagents expects a dict with 'type' and 'description'
+                        self.inputs[param_name] = {
+                            "type": spec.get("type", "any"),
+                            "description": spec.get("description", ""),
+                        }
+                    
+                    self.output_type = "object"
                     super().__init__()
 
                 def __call__(self, *args, **kwargs):
