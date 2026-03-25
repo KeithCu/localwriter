@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-24 18:56-0400\n"
+"POT-Creation-Date: 2026-03-24 21:17-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,7 +17,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 
 #: plugin/contrib/aihordeclient/__init__.py:262
-#: plugin/modules/chatbot/panel.py:655
+#: plugin/modules/chatbot/panel.py:657
 msgid "Starting..."
 msgstr "Uruchamianie..."
 
@@ -259,7 +259,7 @@ msgid "Copy URL"
 msgstr "Skopiuj URL"
 
 #: plugin/framework/dialogs.py:484 plugin/framework/dialogs.py:512
-#: plugin/main.py:290
+#: plugin/main.py:316
 msgid "About WriterAgent"
 msgstr "O WriterAgent"
 
@@ -286,15 +286,15 @@ msgstr "Agent pisarza {0}"
 msgid "{resource_type} not found: {identifier}"
 msgstr "\"{resource_type} nie znaleziono: {identifier}\""
 
-#: plugin/framework/legacy_ui.py:294 plugin/main.py:281
+#: plugin/framework/legacy_ui.py:294 plugin/main.py:307
 #: plugin/xdl_strings.py:45
 msgid "Settings"
 msgstr "Ustawienia"
 
-#: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:732
+#: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:734
 #: plugin/modules/chatbot/send_handlers.py:300
 #: plugin/modules/chatbot/send_handlers.py:310
-#: plugin/modules/chatbot/send_handlers.py:319
+#: plugin/modules/chatbot/send_handlers.py:319 plugin/main.py:212
 msgid "Error"
 msgstr "Błąd"
 
@@ -462,29 +462,6 @@ msgstr "Status serwera"
 msgid "URL: {0}"
 msgstr "URL: {0}"
 
-#: plugin/modules/launcher/__init__.py:407
-#, python-brace-format
-msgid "{0} Running"
-msgstr "{0} Uruchomiony"
-
-#: plugin/modules/launcher/__init__.py:408
-#, python-brace-format
-msgid "Launch {0}"
-msgstr "Uruchom {0}"
-
-#: plugin/modules/launcher/__init__.py:502
-#, python-brace-format
-msgid "Command '{0}' not found."
-msgstr "Nie znaleziono polecenia '{0}'."
-
-#: plugin/modules/launcher/__init__.py:503
-msgid "Make sure it is installed and in your PATH."
-msgstr "Upewnij się, że jest zainstalowane i znajduje się w twojej PATH."
-
-#: plugin/modules/launcher/__init__.py:504
-msgid "Use 'Install AI CLI' from the menu to get install instructions."
-msgstr "Użyj 'Install AI CLI' z menu, aby uzyskać instrukcje instalacji."
-
 #: plugin/modules/calc/legacy.py:32 plugin/modules/writer/legacy.py:70
 msgid "Please enter edit instructions!"
 msgstr "Proszę wprowadzić instrukcje edycji!"
@@ -518,39 +495,39 @@ msgstr "WriterAgent: Edytuj zaznaczenie"
 msgid "Ready"
 msgstr "Gotowy"
 
-#: plugin/modules/chatbot/panel.py:311 plugin/modules/chatbot/panel.py:630
+#: plugin/modules/chatbot/panel.py:313 plugin/modules/chatbot/panel.py:632
 msgid "Accept"
 msgstr "Akceptuj"
 
-#: plugin/modules/chatbot/panel.py:327 plugin/modules/chatbot/panel.py:826
+#: plugin/modules/chatbot/panel.py:329 plugin/modules/chatbot/panel.py:828
 msgid "Change"
 msgstr "Zmień"
 
-#: plugin/modules/chatbot/panel.py:331 plugin/modules/chatbot/panel.py:833
+#: plugin/modules/chatbot/panel.py:333 plugin/modules/chatbot/panel.py:835
 msgid "Reject"
 msgstr "Odrzuć"
 
-#: plugin/modules/chatbot/panel.py:348
+#: plugin/modules/chatbot/panel.py:350
 msgid "Waiting for approval…"
 msgstr "Oczekiwanie na zatwierdzenie…"
 
-#: plugin/modules/chatbot/panel.py:636
+#: plugin/modules/chatbot/panel.py:638
 msgid "Record"
 msgstr "Nagrywaj"
 
-#: plugin/modules/chatbot/panel.py:638
+#: plugin/modules/chatbot/panel.py:640
 msgid "Stop Rec"
 msgstr "Zatrzymaj"
 
-#: plugin/modules/chatbot/panel.py:640 plugin/xdl_strings.py:44
+#: plugin/modules/chatbot/panel.py:642 plugin/xdl_strings.py:44
 msgid "Send"
 msgstr "Wyślij"
 
-#: plugin/modules/chatbot/panel.py:664
+#: plugin/modules/chatbot/panel.py:666
 msgid "Getting document..."
 msgstr "Pobieranie dokumentu..."
 
-#: plugin/modules/chatbot/panel.py:669
+#: plugin/modules/chatbot/panel.py:671
 msgid ""
 "[No compatible LibreOffice document (Writer, Calc, or Draw) found in the "
 "active window.]"
@@ -558,14 +535,14 @@ msgstr ""
 "[Nie znaleziono zgodnego dokumentu LibreOffice (Writer, Calc lub Draw) w "
 "aktywnym oknie.]"
 
-#: plugin/modules/chatbot/panel.py:678
+#: plugin/modules/chatbot/panel.py:680
 #, python-brace-format
 msgid ""
 "[Internal Error: Document type changed from {0} to {1}! Please file an "
 "error.]"
 msgstr "[Błąd wewnętrzny: Typ dokumentu zmienił się z {0} na {1}! Zgłoś błąd.]"
 
-#: plugin/modules/chatbot/panel.py:685
+#: plugin/modules/chatbot/panel.py:687
 #, python-brace-format
 msgid ""
 "[Internal Error: Could not identify document type for {0}. Please report "
@@ -573,7 +550,7 @@ msgid ""
 msgstr ""
 "[Błąd wewnętrzny: Nie można zidentyfikować typu dokumentu dla {0}. Zgłoś to!]"
 
-#: plugin/modules/chatbot/panel.py:729
+#: plugin/modules/chatbot/panel.py:731
 #, python-brace-format
 msgid ""
 "[Model {0} does not support native audio. Please select an STT Model in "
@@ -663,15 +640,15 @@ msgstr "Nieznany błąd badania."
 msgid "[Research error: {0}]"
 msgstr "[Błąd badań: {0}]"
 
-#: plugin/modules/chatbot/panel_factory.py:473
+#: plugin/modules/chatbot/panel_factory.py:485
 msgid "Size:"
 msgstr "Rozmiar:"
 
-#: plugin/modules/chatbot/panel_factory.py:474
+#: plugin/modules/chatbot/panel_factory.py:486
 msgid "Height:"
 msgstr "Wysokość:"
 
-#: plugin/modules/chatbot/panel_factory.py:475
+#: plugin/modules/chatbot/panel_factory.py:487
 msgid "Width:"
 msgstr "Szerokość:"
 
@@ -687,53 +664,53 @@ msgstr "Wbudowany"
 msgid "Backend"
 msgstr "Backend"
 
-#: plugin/main.py:166
+#: plugin/main.py:229
 #, python-brace-format
 msgid "{0}: {1} passed, {2} failed."
 msgstr "{0}: {1} przeszło, {2} nie przeszło."
 
-#: plugin/main.py:169
+#: plugin/main.py:232
 #, python-brace-format
 msgid "Tests failed to run: {0}"
 msgstr "Testy nie powiodły się: {0}"
 
-#: plugin/main.py:279
+#: plugin/main.py:305
 msgid "Extend Selection"
 msgstr "Rozszerz zaznaczenie"
 
-#: plugin/main.py:280
+#: plugin/main.py:306
 msgid "Edit Selection"
 msgstr "Edytuj zaznaczenie"
 
-#: plugin/main.py:282
+#: plugin/main.py:308
 msgid "Toggle MCP Server"
 msgstr "Przełącz serwer MCP"
 
-#: plugin/main.py:283
+#: plugin/main.py:309
 msgid "MCP Server Status"
 msgstr "Status serwera MCP"
 
-#: plugin/main.py:285
+#: plugin/main.py:311
 msgid "Run format tests"
 msgstr "Uruchom testy formatu"
 
-#: plugin/main.py:286
+#: plugin/main.py:312
 msgid "Run calc tests"
 msgstr "Uruchom testy calc"
 
-#: plugin/main.py:287
+#: plugin/main.py:313
 msgid "Run Calc API integration tests"
 msgstr "Uruchom testy integracji API Calc"
 
-#: plugin/main.py:288
+#: plugin/main.py:314
 msgid "Run draw tests"
 msgstr "Uruchom testy draw"
 
-#: plugin/main.py:289
+#: plugin/main.py:315
 msgid "Evaluation Dashboard"
 msgstr "Panel ewaluacyjny"
 
-#: plugin/main.py:639
+#: plugin/main.py:665
 msgid "Dispatch Error"
 msgstr "Błąd wysyłania"
 
@@ -1056,59 +1033,6 @@ msgstr "Tylko localhost, bez autoryzacji. Dostęp przez stdio zawsze włączony.
 
 msgid "MCP Port"
 msgstr "Port MCP"
-
-msgid "AI CLI Launcher"
-msgstr "Uruchomiacz AI CLI"
-
-msgid "AI CLI Provider"
-msgstr "Dostawca AI CLI"
-
-msgid "Install"
-msgstr "Zainstaluj"
-
-msgid "CLI Status"
-msgstr "Status serwera"
-
-msgid "Auto-configure MCP"
-msgstr "Autokonfiguruj MCP"
-
-msgid ""
-"Generate a temporary config file pointing the CLI to LocalWriter's MCP "
-"server."
-msgstr ""
-"Wygeneruj tymczasowy plik konfiguracyjny wskazujący CLI na serwer MCP "
-"LocalWriter."
-
-msgid "Terminal Emulator"
-msgstr "Emulator terminala"
-
-msgid ""
-"Terminal to use (e.g. xterm, gnome-terminal, konsole). Empty = auto-detect."
-msgstr ""
-"Terminal do użycia (np. xterm, gnome-terminal, konsole). Pusty = auto-"
-"wykrywanie."
-
-msgid "Working Directory"
-msgstr "Katalog roboczy"
-
-msgid "Directory to launch AI CLI in. Clear to restore default."
-msgstr "Katalog do uruchomienia AI CLI. Wyczyść, aby przywrócić domyślny."
-
-msgid "Extra Arguments"
-msgstr "Dodatkowe argumenty"
-
-msgid "Additional CLI arguments. Placeholders: {mcp_url}, {port}, {host}."
-msgstr "Dodatkowe argumenty CLI. Miejsca zastępcze: {mcp_url}, {port}, {host}."
-
-msgid "Global AI Instructions"
-msgstr "Globalne instrukcje AI"
-
-msgid ""
-"Persona and rules sent to any AI CLI you launch. For Claude this is "
-"CLAUDE.md, for OpenCode this is AGENTS.md."
-msgstr ""
-"Persona i reguły wysyłane do każdego uruchamianego AI CLI. Dla Claude to "
-"CLAUDE.md, dla OpenCode to AGENTS.md."
 
 msgid "Tunnel providers for external MCP access"
 msgstr "Dostawcy tuneli dla zewnętrznego dostępu MCP"
