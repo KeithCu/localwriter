@@ -69,6 +69,17 @@ When you ask the AI to fix a typo or change a name, the result can keep the form
 ### Ongoing Challenge: Styles vs. Custom Formatting
 One of the unique challenges of building an AI assistant for a rich word processor, unlike a plain-text code editor, is the multiple ways of applying formatting, both directly and through character and paragraph styles. Eventually, we will encourage models to output properly classed HTML that maps to your LibreOffice template, ensuring documents remain maintainable and consistently branded. For more details, see [LLM_STYLES.md](LLM_STYLES.md).
 
+### Ongoing work: splitting the Writer tool API (specialized toolsets)
+
+A related challenge is **scale**: LibreOffice Writer exposes an enormous UNO surface (fields, indexes, tables, frames, embedded objects, shapes, charts, track changes, and more). If **every** operation is advertised to the model on **every** turn, context grows fast, tool choice gets noisier, and providers with **strict JSON schemas** struggle as definitions multiply.
+
+Active development (including on branches such as **Nested-Writer-Features**) explores **progressive disclosure**:
+
+- **Specialized sub-agent (delegation)** — The main chat keeps a **small default** Writer tool list. When the user or model needs deep work in one area (e.g. fields, footnotes, nested tables), it calls a **delegate** tool that hands off to a **second LLM turn** with only that domain’s tools, then returns a summary to the main conversation. Same sidebar session; different **tool registry** for that sub-run.
+- **Swapping tools per send or mode** — The same idea without a nested model hop: branch in the send path (similar to the **Web search** checkbox, which already switches to a research sub-agent and a different tool surface) so a turn uses **memory-only**, **full Writer**, or **domain X** tools only.
+
+Design tradeoffs—**skinny vs fat** tool schemas, tiering, and future domains like **track changes**—are written up in **[docs/writer-specialized-toolsets.md](docs/writer-specialized-toolsets.md)**. That document is the reference for *why* we are breaking APIs apart and *how* the pieces are intended to fit together.
+
 ### 6. Image generation and AI Horde integration
 Image generation and editing are integrated and complete. You can generate images from the chat (via tools or “Use Image model”) and edit selected images (Img2Img). Two backends are supported: **AI Horde** (Stable Diffusion, SDXL, etc., with its own API key and queue) and **same endpoint as chat** (uses your configured endpoint and a separate image model). Settings are in **WriterAgent > Settings** under the **Image Settings** tab, with shared options (size, insert behavior, prompt translation) and a clearly separated **AI Horde only** section.
 
