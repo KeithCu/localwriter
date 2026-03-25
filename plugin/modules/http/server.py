@@ -71,7 +71,7 @@ class GenericRequestHandler(BaseHTTPRequestHandler):
         try:
             if route.raw:
                 if route.main_thread:
-                    from plugin.framework.main_thread import execute_on_main_thread
+                    from plugin.framework.queue_executor import execute_on_main_thread
                     execute_on_main_thread(route.handler, self)
                 else:
                     route.handler(self)
@@ -81,7 +81,7 @@ class GenericRequestHandler(BaseHTTPRequestHandler):
                     return  # _read_body already sent error response
                 query = get_url_query_dict(self.path)
                 if route.main_thread:
-                    from plugin.framework.main_thread import execute_on_main_thread
+                    from plugin.framework.queue_executor import execute_on_main_thread
                     status, data = execute_on_main_thread(
                         route.handler, body, self.headers, query)
                 else:

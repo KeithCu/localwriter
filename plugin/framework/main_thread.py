@@ -128,50 +128,37 @@ def _poke_vcl():
             log.warning("_poke_vcl failed: %s", e2)
 
 
+import warnings
+
 def execute_on_main_thread(fn, *args, timeout=30.0, **kwargs):
-    """Execute fn(*args, **kwargs) on the LibreOffice main (VCL) thread.
+    """DEPRECATED: Use plugin.framework.queue_executor.execute_on_main_thread instead.
+
+    Execute fn(*args, **kwargs) on the LibreOffice main (VCL) thread.
 
     If already on the main thread, calls directly (avoids deadlock).
     Otherwise blocks the calling thread up to *timeout* seconds.
     Raises TimeoutError if the main thread doesn't process the item in time.
     Re-raises any exception thrown by *fn*.
     """
-    # Already on main thread — call directly to avoid deadlock
-    if threading.current_thread() is threading.main_thread():
-        return fn(*args, **kwargs)
-
-    svc = _get_async_callback()
-
-    if svc is None:
-        # Fallback: call directly (not thread-safe).
-        return fn(*args, **kwargs)
-
-    item = _WorkItem(fn, args, kwargs)
-    _work_queue.put(item)
-    _poke_vcl()
-
-    if not item.event.wait(timeout):
-        raise TimeoutError(
-            "Main-thread execution of %s timed out after %ss"
-            % (getattr(fn, "__name__", str(fn)), timeout))
-
-    if item.exception is not None:
-        raise item.exception
-
-    return item.result
+    warnings.warn(
+        "plugin.framework.main_thread is deprecated. Use plugin.framework.queue_executor instead.",
+        DeprecationWarning, stacklevel=2
+    )
+    from plugin.framework.queue_executor import execute_on_main_thread as executor_exec
+    return executor_exec(fn, *args, timeout=timeout, **kwargs)
 
 
-def post_to_main_thread(fn):
-    """Fire-and-forget: post fn() to the VCL main thread.
+def post_to_main_thread(fn, *args, **kwargs):
+    """DEPRECATED: Use plugin.framework.queue_executor.post_to_main_thread instead.
+
+    Fire-and-forget: post fn() to the VCL main thread.
 
     Unlike execute_on_main_thread, does not block or return a result.
     Used for UI updates from background threads.
     """
-    svc = _get_async_callback()
-    if svc is None:
-        fn()
-        return
-
-    item = _WorkItem(fn, (), {})
-    _work_queue.put(item)
-    _poke_vcl()
+    warnings.warn(
+        "plugin.framework.main_thread is deprecated. Use plugin.framework.queue_executor instead.",
+        DeprecationWarning, stacklevel=2
+    )
+    from plugin.framework.queue_executor import post_to_main_thread as executor_post
+    return executor_post(fn, *args, **kwargs)

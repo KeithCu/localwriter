@@ -471,7 +471,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
 
     def _on_mcp_result(self, tool="", result_snippet="", **kwargs):
         """Handle MCP result events from the bus (background thread)."""
-        from plugin.framework.main_thread import execute_on_main_thread
+        from plugin.framework.queue_executor import execute_on_main_thread
 
         def _update_ui():
             try:
