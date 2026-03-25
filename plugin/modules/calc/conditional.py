@@ -19,11 +19,39 @@
 
 import logging
 
+from plugin.framework.errors import ToolExecutionError, UnoObjectError
 from plugin.framework.tool_base import ToolBase
 from plugin.modules.calc.bridge import CalcBridge
-from plugin.modules.calc.manipulator import CellManipulator
 
 logger = logging.getLogger("writeragent.calc")
+
+def _entry_to_dict(entry, idx):
+    """Convert a conditional entry to a readable dict."""
+    result = {"index": idx}
+    try:
+        op = entry.getOperator()
+        # UNO enum handling
+        op_name = str(op.value) if hasattr(op, "value") else str(op)
+        result["operator"] = op_name
+    except Exception:
+        pass
+    try:
+        f1 = entry.getFormula1()
+        if f1: result["formula1"] = f1
+    except Exception:
+        pass
+    try:
+        f2 = entry.getFormula2()
+        if f2 and f2 != "0": result["formula2"] = f2
+    except Exception:
+        pass
+    try:
+        sn = entry.getStyleName()
+        if sn: result["style_name"] = sn
+    except Exception:
+        pass
+
+    return result
 
 
 class ListConditionalFormats(ToolBase):
@@ -49,15 +77,36 @@ class ListConditionalFormats(ToolBase):
 
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
-        manipulator = CellManipulator(bridge)
         range_str = kwargs.get("range_name")
-        rules = manipulator.list_conditional_formats(range_str)
-        return {
-            "status": "ok",
-            "range_name": range_str or "(used area)",
-            "rules": rules,
-            "count": len(rules),
-        }
+
+        try:
+            sheet = bridge.get_active_sheet()
+            if range_str:
+                cell_range = bridge.get_cell_range(sheet, range_str)
+            else:
+                cursor = sheet.createCursor()
+                cursor.gotoStartOfUsedArea(False)
+                cursor.gotoEndOfUsedArea(True)
+                cell_range = cursor
+
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+            if formats is None or formats.getCount() == 0:
+                rules = []
+            else:
+                rules = []
+                for i in range(formats.getCount()):
+                    entry = formats.getByIndex(i)
+                    rules.append(_entry_to_dict(entry, i))
+
+            return {
+                "status": "ok",
+                "range_name": range_str or "(used area)",
+                "rules": rules,
+                "count": len(rules),
+            }
+        except Exception as e:
+            logger.error("List conditional formats error: %s", str(e))
+            raise ToolExecutionError(str(e)) from e
 class AddConditionalFormat(ToolBase):
     """Add a conditional formatting rule to a cell range."""
 
@@ -111,19 +160,71 @@ class AddConditionalFormat(ToolBase):
 
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
-        manipulator = CellManipulator(bridge)
-        count = manipulator.add_conditional_format(
-            kwargs["range_name"],
-            kwargs["operator"],
-            kwargs["formula1"],
-            kwargs["style_name"],
-            kwargs.get("formula2", ""),
-        )
-        return {
-            "status": "ok",
-            "range_name": kwargs["range_name"],
-            "rule_count": count,
-        }
+        range_str = kwargs["range_name"]
+        operator = kwargs["operator"]
+        formula1 = kwargs["formula1"]
+        style_name = kwargs["style_name"]
+        formula2 = kwargs.get("formula2", "")
+
+        try:
+            from com.sun.star.beans import PropertyValue
+            from com.sun.star.sheet.ConditionOperator import (
+                NONE, EQUAL, NOT_EQUAL, GREATER, GREATER_EQUAL,
+                LESS, LESS_EQUAL, BETWEEN, NOT_BETWEEN, FORMULA,
+            )
+
+            op_map = {
+                "NONE": NONE, "EQUAL": EQUAL, "NOT_EQUAL": NOT_EQUAL,
+                "GREATER": GREATER, "GREATER_EQUAL": GREATER_EQUAL,
+                "LESS": LESS, "LESS_EQUAL": LESS_EQUAL,
+                "BETWEEN": BETWEEN, "NOT_BETWEEN": NOT_BETWEEN,
+                "FORMULA": FORMULA,
+            }
+
+            op_val = op_map.get(operator.upper())
+            if op_val is None:
+                raise UnoObjectError(f"Unknown condition operator: {operator}")
+
+            sheet = bridge.get_active_sheet()
+            cell_range = bridge.get_cell_range(sheet, range_str)
+
+            props = []
+            pv = PropertyValue()
+            pv.Name = "Operator"
+            pv.Value = op_val
+            props.append(pv)
+
+            pv = PropertyValue()
+            pv.Name = "Formula1"
+            pv.Value = formula1
+            props.append(pv)
+
+            if formula2:
+                pv = PropertyValue()
+                pv.Name = "Formula2"
+                pv.Value = formula2
+                props.append(pv)
+
+            pv = PropertyValue()
+            pv.Name = "StyleName"
+            pv.Value = style_name
+            props.append(pv)
+
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+            formats.addNew(tuple(props))
+            cell_range.setPropertyValue("ConditionalFormat", formats)
+
+            logger.info("Conditional format added to %s.", range_str.upper())
+            count = formats.getCount()
+
+            return {
+                "status": "ok",
+                "range_name": range_str,
+                "rule_count": count,
+            }
+        except Exception as e:
+            logger.error("Add conditional format error: %s", str(e))
+            raise ToolExecutionError(str(e)) from e
 class RemoveConditionalFormat(ToolBase):
     """Remove a conditional formatting rule from a cell range."""
 
@@ -152,11 +253,23 @@ class RemoveConditionalFormat(ToolBase):
 
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
-        manipulator = CellManipulator(bridge)
-        if manipulator.remove_conditional_format(kwargs["range_name"], kwargs["rule_index"]):
-            return {"status": "ok", "range_name": kwargs["range_name"], "removed_index": kwargs["rule_index"]}
-        else:
-            return self._tool_error(f"Rule index {kwargs['rule_index']} not found on {kwargs['range_name']}.")
+        range_str = kwargs["range_name"]
+        index = kwargs["rule_index"]
+
+        try:
+            sheet = bridge.get_active_sheet()
+            cell_range = bridge.get_cell_range(sheet, range_str)
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+
+            if formats and 0 <= index < formats.getCount():
+                formats.removeByIndex(index)
+                cell_range.setPropertyValue("ConditionalFormat", formats)
+                return {"status": "ok", "range_name": range_str, "removed_index": index}
+            else:
+                return self._tool_error(f"Rule index {index} not found on {range_str}.")
+        except Exception as e:
+            logger.error("Remove conditional format error: %s", str(e))
+            raise ToolExecutionError(str(e)) from e
 class ClearConditionalFormats(ToolBase):
     """Clear all conditional formatting from a cell range."""
 
@@ -178,6 +291,15 @@ class ClearConditionalFormats(ToolBase):
 
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
-        manipulator = CellManipulator(bridge)
-        manipulator.clear_conditional_formats(kwargs["range_name"])
-        return {"status": "ok", "range_name": kwargs["range_name"], "cleared": True}
+        range_str = kwargs["range_name"]
+
+        try:
+            sheet = bridge.get_active_sheet()
+            cell_range = bridge.get_cell_range(sheet, range_str)
+            formats = cell_range.getPropertyValue("ConditionalFormat")
+            formats.clear()
+            cell_range.setPropertyValue("ConditionalFormat", formats)
+            return {"status": "ok", "range_name": range_str, "cleared": True}
+        except Exception as e:
+            logger.error("Clear conditional formats error: %s", str(e))
+            raise ToolExecutionError(str(e)) from e
