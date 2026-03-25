@@ -32,6 +32,7 @@ from plugin.modules.chatbot.send_handlers import SendHandlersMixin
 from plugin.modules.chatbot.tool_loop import ToolCallingMixin
 
 from plugin.framework.logging import update_activity_state
+from plugin.framework.queue_executor import QueueExecutor
 from plugin.modules.chatbot.history_db import get_chat_history
 
 # Recording available only if audio_recorder (and contrib/audio) is present
@@ -210,6 +211,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         self._approval_ui_backup = None
         self._approval_query_for_engine = None
         self.audio_recorder = AudioRecorder() if HAS_RECORDING else None
+        self.queue_executor = QueueExecutor()
 
         send_initial = SendButtonState(
             is_busy=False,
@@ -471,7 +473,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
 
     def _on_mcp_result(self, tool="", result_snippet="", **kwargs):
         """Handle MCP result events from the bus (background thread)."""
-        from plugin.framework.queue_executor import execute_on_main_thread
+
 
         def _update_ui():
             try:
@@ -482,7 +484,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
                                 log.error("_on_mcp_result UI update error: %s" % e)
 
         try:
-            execute_on_main_thread(_update_ui)
+            self.queue_executor.post(_update_ui)
         except Exception as e:
                         log.error("_on_mcp_result post error: %s" % e)
 

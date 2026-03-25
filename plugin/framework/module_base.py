@@ -51,7 +51,7 @@ class ModuleBase(ABC):
         have initialized.
 
         Safe for UNO operations: document listeners, UI setup, toolkit
-        calls. Dispatched via execute_on_main_thread (blocking).
+        calls. Dispatched via QueueExecutor.execute() (blocking).
         Called in dependency order.
 
         Args:

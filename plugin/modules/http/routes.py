@@ -41,7 +41,7 @@ class HttpRouteRegistry:
         # Raw handler — receives the BaseHTTPRequestHandler, writes directly
         routes.add("POST", "/mcp", mcp_handler, raw=True)
 
-        # Main-thread handler — wrapped in execute_on_main_thread()
+        # Main-thread handler — wrapped in QueueExecutor.execute()
         routes.add("GET", "/doc-info", doc_handler, main_thread=True)
     """
 
@@ -57,7 +57,7 @@ class HttpRouteRegistry:
             handler:     Callable. See ``raw`` for signature.
             raw:         If False (default): fn(body, headers, query) -> (status, dict).
                          If True: fn(http_handler) -> None (writes directly).
-            main_thread: If True, handler is wrapped in execute_on_main_thread().
+            main_thread: If True, handler is wrapped in QueueExecutor.execute().
         """
         key = (method.upper(), path)
         if key in self._routes:
