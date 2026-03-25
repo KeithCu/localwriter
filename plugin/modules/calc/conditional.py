@@ -225,13 +225,13 @@ class AddConditionalFormat(ToolBase):
         except Exception as e:
             logger.error("Add conditional format error: %s", str(e))
             raise ToolExecutionError(str(e)) from e
-class RemoveConditionalFormat(ToolBase):
-    """Remove a conditional formatting rule from a cell range."""
+class RemoveConditionalFormats(ToolBase):
+    """Remove or clear conditional formatting rules from a cell range."""
 
-    name = "remove_conditional_format"
+    name = "remove_conditional_formats"
     intent = "edit"
     description = (
-        "Remove a conditional formatting rule from a Calc cell range by index. "
+        "Remove a conditional formatting rule from a Calc cell range by index, or clear all rules if no index is provided. "
         "Use list_conditional_formats to see current rules and their indices."
     )
     parameters = {
@@ -243,45 +243,7 @@ class RemoveConditionalFormat(ToolBase):
             },
             "rule_index": {
                 "type": "integer",
-                "description": "0-based index of the rule to remove.",
-            },
-        },
-        "required": ["range_name", "rule_index"],
-    }
-    uno_services = ["com.sun.star.sheet.SpreadsheetDocument"]
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        bridge = CalcBridge(ctx.doc)
-        range_str = kwargs["range_name"]
-        index = kwargs["rule_index"]
-
-        try:
-            sheet = bridge.get_active_sheet()
-            cell_range = bridge.get_cell_range(sheet, range_str)
-            formats = cell_range.getPropertyValue("ConditionalFormat")
-
-            if formats and 0 <= index < formats.getCount():
-                formats.removeByIndex(index)
-                cell_range.setPropertyValue("ConditionalFormat", formats)
-                return {"status": "ok", "range_name": range_str, "removed_index": index}
-            else:
-                return self._tool_error(f"Rule index {index} not found on {range_str}.")
-        except Exception as e:
-            logger.error("Remove conditional format error: %s", str(e))
-            raise ToolExecutionError(str(e)) from e
-class ClearConditionalFormats(ToolBase):
-    """Clear all conditional formatting from a cell range."""
-
-    name = "clear_conditional_formats"
-    intent = "edit"
-    description = "Remove all conditional formatting rules from a Calc cell range."
-    parameters = {
-        "type": "object",
-        "properties": {
-            "range_name": {
-                "type": "string",
-                "description": "Cell range (e.g. 'A1:D10').",
+                "description": "0-based index of the rule to remove. If omitted, all rules are cleared.",
             },
         },
         "required": ["range_name"],
@@ -292,14 +254,25 @@ class ClearConditionalFormats(ToolBase):
     def execute(self, ctx, **kwargs):
         bridge = CalcBridge(ctx.doc)
         range_str = kwargs["range_name"]
+        index = kwargs.get("rule_index")
 
         try:
             sheet = bridge.get_active_sheet()
             cell_range = bridge.get_cell_range(sheet, range_str)
             formats = cell_range.getPropertyValue("ConditionalFormat")
-            formats.clear()
-            cell_range.setPropertyValue("ConditionalFormat", formats)
-            return {"status": "ok", "range_name": range_str, "cleared": True}
+
+            if index is not None:
+                if formats and 0 <= index < formats.getCount():
+                    formats.removeByIndex(index)
+                    cell_range.setPropertyValue("ConditionalFormat", formats)
+                    return {"status": "ok", "range_name": range_str, "removed_index": index}
+                else:
+                    return self._tool_error(f"Rule index {index} not found on {range_str}.")
+            else:
+                formats.clear()
+                cell_range.setPropertyValue("ConditionalFormat", formats)
+                return {"status": "ok", "range_name": range_str, "cleared": True}
+
         except Exception as e:
-            logger.error("Clear conditional formats error: %s", str(e))
+            logger.error("Remove conditional formats error: %s", str(e))
             raise ToolExecutionError(str(e)) from e
