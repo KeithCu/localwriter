@@ -327,9 +327,9 @@ def test_import_csv_from_string():
 
     # Test case 1: Standard comma-separated
     csv_1 = "Name,Age\nAlice,30\nBob,25"
-    res1 = _execute_calc_tool("import_csv_from_string", {
-        "csv_data": csv_1,
-        "target_cell": "E1"
+    res1 = _execute_calc_tool("write_formula_range", {
+        "formula_or_values": csv_1,
+        "range_name": "E1"
     })
     assert res1.get("status") == "ok", f"CSV import failed: {res1}"
     assert active_sheet.getCellByPosition(4, 0).getString() == "Name" # E1
@@ -340,9 +340,9 @@ def test_import_csv_from_string():
 
     # Test case 2: Semicolon-separated
     csv_2 = "Item;Price\nApple;1.5\nBanana;0.75"
-    res2 = _execute_calc_tool("import_csv_from_string", {
-        "csv_data": csv_2,
-        "target_cell": "G1"
+    res2 = _execute_calc_tool("write_formula_range", {
+        "formula_or_values": csv_2,
+        "range_name": "G1"
     })
     assert res2.get("status") == "ok", f"Semicolon CSV import failed: {res2}"
     assert active_sheet.getCellByPosition(6, 0).getString() == "Item" # G1
@@ -352,9 +352,9 @@ def test_import_csv_from_string():
 
     # Test case 3: CSV with quoted commas
     csv_3 = "Person,Description\nCarol,\"Smart, Funny, Tall\"\nDave,Cool"
-    res3 = _execute_calc_tool("import_csv_from_string", {
-        "csv_data": csv_3,
-        "target_cell": "E5"
+    res3 = _execute_calc_tool("write_formula_range", {
+        "formula_or_values": csv_3,
+        "range_name": "E5"
     })
     assert res3.get("status") == "ok", f"Quoted CSV import failed: {res3}"
     assert active_sheet.getCellByPosition(4, 5).getString() == "Carol" # E6

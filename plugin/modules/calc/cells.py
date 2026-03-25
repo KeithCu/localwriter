@@ -402,41 +402,6 @@ class SortRange(ToolBase):
             "message": f"Sorted {len(rn)} ranges",
         }
 
-class ImportCsv(ToolBase):
-    """Import CSV data into the sheet."""
-
-    name = "import_csv_from_string"
-    intent = "edit"
-    description = (
-        "Inserts CSV data into the sheet starting at a cell. "
-        "Handles large datasets efficiently."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "csv_data": {
-                "type": "string",
-                "description": "CSV content as string (rows separated by \\n).",
-            },
-            "target_cell": {
-                "type": "string",
-                "description": "Starting cell (default 'A1').",
-            },
-        },
-        "required": ["csv_data"],
-    }
-    uno_services = ["com.sun.star.sheet.SpreadsheetDocument"]
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        bridge = CalcBridge(ctx.doc)
-        manipulator = CellManipulator(bridge)
-        csv_data = kwargs["csv_data"]
-        target_cell = kwargs.get("target_cell", "A1")
-
-        result = manipulator.import_csv_from_string(csv_data, target_cell=target_cell)
-        return {"status": "ok", "message": result}
-
 class DeleteStructure(ToolBase):
     """Delete rows or columns."""
 
