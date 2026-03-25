@@ -17,7 +17,7 @@
 """Writer table tools.
 
 Tool classes below are fully commented out. To re-enable: uncomment them, add
-``from plugin.framework.tool_base import ToolBase``, register instances in
+``from plugin.modules.writer.base import ToolWriterTableBase as ToolBase``, register instances in
 ``plugin/modules/writer/__init__.py``, and set
 ``WRITER_TABLE_TOOLS_DISABLED = False`` in ``plugin/tests/smoke_writer_tools.py``.
 """
