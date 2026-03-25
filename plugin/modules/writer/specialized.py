@@ -24,6 +24,10 @@ from plugin.modules.writer.base import ToolWriterSpecialBase
 log = logging.getLogger("writeragent.writer")
 
 
+# Global variable to toggle between the sub-agent approach (True) and the
+# in-place tool-switching approach (False).
+USE_SUB_AGENT = True
+
 # Available domains matching the specialized_domain attributes of subclasses
 _AVAILABLE_DOMAINS = [
     "tables",
@@ -94,6 +98,24 @@ class DelegateToSpecializedWriter(ToolBase):
         status_callback = getattr(ctx, "status_callback", None)
         append_thinking_callback = getattr(ctx, "append_thinking_callback", None)
         stop_checker = getattr(ctx, "stop_checker", None)
+
+        if not USE_SUB_AGENT:
+            # Tell the main LLM loop to switch tools for the next round
+            if getattr(ctx, "set_active_domain_callback", None):
+                ctx.set_active_domain_callback(domain)
+
+            from plugin.framework.i18n import _
+            msg = _("Tool call switched to '{0}'. You are in a specialized toolset mode. "
+                    "You must call 'specialized_workflow_finished' when done to restore "
+                    "the full set of APIs.").format(domain)
+
+            if status_callback:
+                status_callback(f"Switched to '{domain}' tools.")
+
+            return {
+                "status": "ok",
+                "message": msg,
+            }
 
         if status_callback:
             status_callback(f"Delegating to specialized agent ({domain})...")

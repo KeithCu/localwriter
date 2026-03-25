@@ -105,4 +105,15 @@ class SpecializedWorkflowFinished(ToolBase):
     tier = "specialized_control"
 
     def execute(self, ctx, **kwargs):
-        return {"status": "ok", "finished": True, "summary": kwargs.get("summary")}
+        # Allow the main LLM loop to exit specialized mode
+        from plugin.modules.writer.specialized import USE_SUB_AGENT
+        if not USE_SUB_AGENT:
+            if getattr(ctx, "set_active_domain_callback", None):
+                ctx.set_active_domain_callback(None)
+
+        return {
+            "status": "ok",
+            "finished": True,
+            "summary": kwargs.get("summary"),
+            "message": "Specialized workflow finished. Normal toolset restored."
+        }
