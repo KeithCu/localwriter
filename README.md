@@ -150,7 +150,7 @@ Their client-side tool call parsers (from `environments/tool_call_parsers/`) pro
 To handle complex spreadsheet tasks, WriterAgent is optimized for high-throughput "batch" operations:
 
 *   **Batch Tool-Calling**: Instead of making one-by-one changes, tools like `write_formula_range` and `set_cell_style` operate on entire ranges in a single call.
-*   **High-Volume Insertion**: The `import_csv_from_string` tool allows the AI to generate and inject large datasets instantly. This is orders of magnitude faster than inserting data cell-by-cell; we found that providing these batch tools encourages the AI to perform far more ambitious spreadsheet automation and data analysis.
+*   **High-Volume Insertion**: The `write_formula_range` tool allows the AI to generate and inject large CSV datasets instantly. This is orders of magnitude faster than inserting data cell-by-cell; we found that providing these batch tools encourages the AI to perform far more ambitious spreadsheet automation and data analysis.
 *   **Optimized Ranges**: Formatting and number formats are applied at the range level, minimizing UNO calls and ensuring the UI remains fluid even during heavy document analysis.
 
 ## Recent Progress & Benchmarks (Feb 2026)

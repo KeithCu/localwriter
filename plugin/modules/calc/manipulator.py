@@ -90,18 +90,33 @@ def _parse_formula_or_values_string(s: str):
         except TypeError:
             pass
 
-    # Case 2: Raw semicolon-separated string e.g. "Name;Age;Country"
-    # Only if it is not a formula (starting with =) and not a single value.
-    if ";" in s and not s_strip.startswith("="):
-        try:
-            reader = csv.reader(
-                io.StringIO(s), delimiter=";", skipinitialspace=True,
-            )
-            rows = list(reader)
-            if rows:
-                return [val.strip() for val in rows[0]]
-        except Exception as e:
-            logger.debug("Failed to read sample csv: %s", e)
+    # Case 2: Raw semicolon-separated string or multiline CSV
+    # Only if it is not a formula (starting with =)
+    if not s_strip.startswith("="):
+        # Could be multiline CSV or single line with delimiter
+        delimiter = ","
+        first_line = s.split('\n')[0] if s else ""
+        if ";" in first_line and "," not in first_line:
+            delimiter = ";"
+
+        # If it has a delimiter or is multiline, try to parse it
+        if delimiter in s or "\n" in s:
+            try:
+                reader = csv.reader(
+                    io.StringIO(s), delimiter=delimiter, skipinitialspace=True,
+                )
+                rows = list(reader)
+                if rows:
+                    if len(rows) == 1:
+                        # 1D row
+                        return [val.strip() for val in rows[0]]
+                    else:
+                        # 2D array representing multiline CSV
+                        # We return it as a list of lists, but write_formula_range needs to flatten it
+                        # Wait, if we return a 2D array, write_formula_range can process it and adjust its target range.
+                        return [[val.strip() for val in row] for row in rows]
+            except Exception as e:
+                logger.debug("Failed to read sample csv: %s", e)
 
     return None
 
@@ -597,6 +612,32 @@ class CellManipulator:
                     formula_or_values = parsed
 
             if isinstance(formula_or_values, (list, tuple)):
+                if len(formula_or_values) > 0 and isinstance(formula_or_values[0], (list, tuple)):
+                    rows_cnt = len(formula_or_values)
+                    cols_cnt = max(len(r) for r in formula_or_values)
+
+                    if total_cells == 1:
+                        # Expand single cell target to fit the 2D array
+                        end = (start[0] + cols_cnt - 1, start[1] + rows_cnt - 1)
+                        num_rows = end[1] - start[1] + 1
+                        num_cols = end[0] - start[0] + 1
+                        total_cells = num_rows * num_cols
+
+                        range_str = (
+                            f"{self.bridge._index_to_column(start[0])}{start[1]}"
+                            f":"
+                            f"{self.bridge._index_to_column(end[0])}{end[1]}"
+                        )
+
+                    # Pad rows to ensure uniform width, and flatten into 1D
+                    flat_vals = []
+                    for r in formula_or_values:
+                        row_vals = list(r)
+                        if num_cols > len(row_vals):
+                            row_vals.extend([""] * (num_cols - len(row_vals)))
+                        flat_vals.extend(row_vals[:num_cols])
+                    formula_or_values = flat_vals
+
                 if len(formula_or_values) != total_cells:
                     raise UnoObjectError(
                         f"Array has {len(formula_or_values)} values but range has "
@@ -668,71 +709,6 @@ class CellManipulator:
             return f"Range {range_str} filled with {len(values)} values."
         except Exception as e:
             logger.error("Range formula write error (%s): %s", range_str, str(e))
-            raise ToolExecutionError(str(e)) from e
-
-    def import_csv_from_string(self, csv_data: str, target_cell: str = "A1"):
-        """Import CSV data into the sheet starting at *target_cell*.
-
-        Automatically detects comma vs semicolon delimiter.
-
-        Args:
-            csv_data: CSV content as a string.
-            target_cell: Starting cell (e.g. "A1").
-
-        Returns:
-            Summary string.
-        """
-        try:
-            delimiter = ","
-            first_line = csv_data.split('\n')[0] if csv_data else ""
-            if ";" in first_line and "," not in first_line:
-                delimiter = ";"
-
-            col_start, row_start = parse_address(target_cell)
-            reader = csv.reader(io.StringIO(csv_data), delimiter=delimiter)
-            rows = list(reader)
-            if not rows:
-                return "No data to import."
-
-            sheet = self.bridge.get_active_sheet()
-            total_rows = len(rows)
-            total_cols = max(len(r) for r in rows) if rows else 0
-
-            data_array = []
-            for row_data in rows:
-                data_row = []
-                for c_idx in range(total_cols):
-                    if c_idx < len(row_data):
-                        cell_value = row_data[c_idx]
-                        try:
-                            # Convert to float if possible, but keeping it as a string
-                            # if we just want to import it as string. Wait, if we use
-                            # setDataArray, it takes floats and strings.
-                            data_row.append(float(cell_value))
-                        except ValueError:
-                            data_row.append(cell_value)
-                    else:
-                        data_row.append("")
-                data_array.append(tuple(data_row))
-
-            range_imported = (
-                f"{target_cell}:"
-                f"{self.bridge._index_to_column(col_start + total_cols - 1)}"
-                f"{row_start + total_rows}"
-            )
-            # -1 because rows are 1-based in address strings but total_rows is count
-            end_col = col_start + total_cols - 1
-            end_row = row_start + total_rows - 1
-
-            cell_range = sheet.getCellRangeByPosition(
-                col_start, row_start, end_col, end_row
-            )
-            cell_range.setDataArray(tuple(data_array))
-
-            logger.info("CSV imported to range %s.", range_imported)
-            return f"Imported {total_rows} rows, {total_cols} cols to {range_imported}."
-        except Exception as e:
-            logger.error("CSV import error: %s", str(e))
             raise ToolExecutionError(str(e)) from e
 
     # ── Chart ──────────────────────────────────────────────────────────
