@@ -89,7 +89,7 @@ endif
 
 # ── Phony targets ────────────────────────────────────────────────────────────
 
-.PHONY: help build build-no-recording release repack repack-deploy manifest xcu clean \
+.PHONY: help build build-no-recording release release-build repack repack-deploy manifest xcu clean \
         install install-force uninstall cache \
         dev-deploy dev-deploy-remove \
         lo-start lo-start-full lo-kill lo-restart \
@@ -106,7 +106,7 @@ help:
 	@echo ""
 	@echo "Build:"
 	@echo "  make build                  Build .oxt with plugin/tests (compiles gettext .mo, UI test menu + make test)"
-	@echo "  make release               Build .oxt without tests (smaller; use before uploading)"
+	@echo "  make release               Run make test, then build .oxt without bundled tests (smaller; use before uploading)"
 	@echo "  make build-no-recording     Build .oxt without voice recording (no contrib/audio, no Record button)"
 	@echo "  make xcu                    Generate XCS/XCU from config schemas"
 	@echo "  make clean                  Remove build artifacts"
@@ -156,11 +156,10 @@ docker-build:
 auto-translate:
 	@echo "Regenerating translation templates (.pot)..."; \
 	$(MAKE) extract-strings; \
-	echo "Translation status (vs template)..."; \
 	$(PYTHON) scripts/translate_missing.py --preview; \
 	if [ -n "$$OPENROUTER_API_KEY" ]; then \
 		echo "Auto-translating missing strings with AI..."; \
-		$(PYTHON) scripts/translate_missing.py --execute; \
+		$(PYTHON) scripts/translate_missing.py --execute --skip-initial-status; \
 	fi
 
 
@@ -179,8 +178,13 @@ build-no-recording: auto-translate vendor manifest compile-translations
 	$(PYTHON) $(SCRIPTS)/build_oxt.py --no-recording --output build/$(EXTENSION_NAME).oxt
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 
-release: auto-translate vendor manifest compile-translations
-	@echo "Building $(EXTENSION_NAME).oxt (release, no tests)..."
+# Run tests first (sub-make so ordering holds even with make -j).
+release:
+	@$(MAKE) test
+	@$(MAKE) release-build
+
+release-build: auto-translate vendor manifest compile-translations
+	@echo "Building $(EXTENSION_NAME).oxt (release, bundle without plugin/tests)..."
 	$(PYTHON) $(SCRIPTS)/build_oxt.py --no-tests --output build/$(EXTENSION_NAME).oxt $(if $(filter 1,$(NO_RECORDING)),--no-recording)
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 
