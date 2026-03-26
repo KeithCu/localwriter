@@ -1,99 +1,454 @@
-# LocalWriter Roadmap & General Improvements
+# WriterAgent Roadmap 🗺️
 
-This document consolidates general planned improvements, feature ideas, and technical debt reduction strategies for LocalWriter. It serves as a central roadmap, combining insights from various past analyses.
+**Last Updated**: 2024-03-25
+**Status**: Active Development
 
-For specific, detailed feature plans, please see the **Referenced Feature Plans** section at the bottom of this document.
-
----
-
-## 1. High-Priority UX & Configuration
-
-These are high-value, relatively contained changes that directly improve the user experience.
-- **Advanced Settings Toggle**: Hide advanced settings (like max tokens, context length, reasoning effort) behind an "Advanced" toggle to declutter the main settings view.
-- **Status Indicators**: Improve status reporting in the UI. Make the status bar more dynamic (e.g., auto-clearing after timeouts, using colors to indicate success/warning/error states).
-- **Typing Indicators**: Show a visual typing indicator or animation in the chat panel when the AI is processing or responding.
+This document outlines the planned features, improvements, and technical debt to address in WriterAgent. Items are organized by priority and domain.
 
 ---
 
-## 2. Advanced Document & Tool Capabilities
+## 🚀 High Priority Features
 
-### 2.1 Format-Preserving Replacement Improvements
-- **Proportional Format Mapping**: For large length differences in replacements, distribute the original formatting pattern proportionally across the new text instead of strict 1:1 character mapping.
-- **Paragraph-Style Preservation**: Handle replacements that span paragraph breaks (multiple paragraphs or paragraph-level styles).
-- **Edit Selection Streaming**: Apply the same format-preserving logic to the Edit Selection streaming path so that live edits retain character-level formatting (not just tool-calling paths).
+### 1. **Shape API Enhancements** 🎨
+**Files**: `plugin/modules/draw/shapes.py`, `plugin/modules/writer/shapes.py`
+**Status**: In Progress (Google Jules working on it)
 
-### 2.2 Richer Context (Metadata)
-- Enhance `get_document_context_for_chat` and its Calc equivalent to include optional document metadata. This provides better summaries for the model.
-  - **Writer**: Word/paragraph count, fonts used, table/image counts, style stats.
-  - **Calc**: Formula counts, chart counts, error counts, column types.
-- Add an optional configuration setting (e.g., `context_include_metadata`) to toggle this for speed.
+- [ ] Enhance `CreateShape` with rich formatting properties
+  - Line properties: color, width, style (solid/dash/dot)
+  - Fill properties: color, style (solid/transparent/gradient)
+  - Text properties: font, size, color
+  - Transformations: rotation angle
+- [ ] Support generic UNO shape types (accept any shape type string)
+- [ ] Implement `ConnectShapes` using `com.sun.star.drawing.ConnectorShape`
+- [ ] Implement `GroupShapes` using `com.sun.star.drawing.GroupShape`
+- [ ] Update Writer shapes to inherit new Draw capabilities
+- [ ] Test all shape operations across Writer/Draw/Impress
 
-### 2.3 Safer Workflows (Propose-First / Confirm)
-- **Safe Edit Mode**: Add an optional mode where tool-calling shows a preview (e.g., a diff or short description) and waits for user confirmation ("Accept"/"Reject") before applying changes to the document. This builds trust and avoids accidental overwrites.
-- **Undo Grouping**: Wrap changes in a UNO undo context (`model.enterUndoContext("AI Edit")`) so all changes from a single tool call or chat turn can be undone at once.
+**Dependencies**: None
+**Blockers**: None
+**Testing**: Need comprehensive UNO shape operation tests
 
-### 2.4 Generative AI Feature Enhancements
-- **Predictive Suggestions ("Ghost Text")**: Implement a lightweight suggestion model (e.g., n-gram/trigram) trained on the user's recent document context to provide autocomplete suggestions.
-- **Smart Auto-Correct**: AI-powered spell check and grammar correction tool that learns from document context and user preferences over time.
-- **Style Consistency Checker**: Identify and fix style inconsistencies throughout the document (e.g., inconsistent heading formats, spacing, font usage).
-- **Context-Aware Auto-Save Summaries**: Automatically generate brief summaries of document changes at save points, stored as metadata.
-- **Template Assistant**: Analyze document content and structure to suggest or create templates.
-- **Collaborative Editing Assistant**: Track and suggest resolutions for conflicts when multiple users edit the same document.
-- **Multi-Document Analysis**: Analyze relationships and content across multiple open documents.
+### 2. **Fields Domain Completion** 📝
+**Files**: `plugin/modules/writer/fields.py`
+**Status**: Jules working on basic implementation
 
----
+- [ ] Complete `fields_insert` with full field type support
+  - PageNumber, PageCount, DateTime, Author, FileName
+  - WordCount, CharacterCount, ParagraphCount
+  - Custom fields and properties
+- [ ] Implement field master/dependent system
+- [ ] Add field refresh patterns and error handling
+- [ ] Create field listing with detailed properties
+- [ ] Add field deletion with proper cleanup
 
-## 3. Architecture & Code Quality Improvements
+**Dependencies**: UNO field service documentation
+**Blockers**: Complex field type variations
+**Testing**: Need test documents with various field types
 
-### 3.1 Consolidate and Simplify Logging
-- Merge different log sinks (`log_to_file`, `debug_log`) into a single unified debug logger writing to one file.
-- Implement Log Rotation (e.g., rotate when file > 5MB) to prevent disk filling.
-- Defer log path resolution until the first `debug_log` call to prevent early initialization failures.
-- Remove redundant log paths and the fragile watchdog thread (replace with simpler timeout logging in the main loop).
-- Centralize logging code into a single module with context-aware prefixes (e.g., `[API]`, `[Chat]`).
+### 3. **Indexes/TOC Domain** 📚
+**Files**: `plugin/modules/writer/indexes.py`
+**Status**: Jules working on basic implementation
 
-### 3.2 Refactor Large Monolithic Files
-- Break down `main.py` (~500+ lines): Move settings/input dialogs to `core/dialogs.py` and edit actions to `core/edit_actions.py`.
-- Break down `plugin/modules/chatbot/panel.py` and `panel_factory.py`: Extract `ChatSession`, listeners, and streaming/draining logic into separate files (e.g., `core/chat_session.py`, `core/streaming.py`).
-- Abstract XDL dialog wiring into a reusable `DialogWiring` class in `core/xdl_utils.py` to reduce duplicate UI boilerplate.
+- [ ] Implement `indexes_create` with full UNO wiring
+  - Support TOC, bibliographies, custom indexes
+  - Handle index types and styles
+- [ ] Implement `indexes_add_mark` for manual entries
+  - Support different mark types and levels
+  - Handle mark positioning
+- [ ] Enhance `indexes_update_all` with detailed reporting
+- [ ] Add index listing and inspection tools
 
-### 3.3 Reduce UI Dispatch Frequency
-- Optimize `toolkit.processEventsToIdle()` calls. Call it only after processing a full batch of queue items or on a drain-loop timeout, rather than per-chunk or aggressively when idle, to prevent hangs and UI stuttering.
-
-### 3.4 Centralize UNO Utilities
-- Create a `core/uno_utils.py` to centralize common UNO patterns, reducing code duplication. Include helpers for getting current documents/frames, creating cursors, handling limits, and creating common structs like `PropertyValue`.
-
-### 3.5 Framework & Core Logic Consolidation
-- **Config Management**: Centralize config I/O into `core/config_io.py`. Implement schema validation on write via `jsonschema`. Cleanly deprecate legacy keys (like migrating `chat_system_prompt` to `additional_instructions`).
-- **Tool Registry**: Implement a unified `ToolRegistry` in `plugin/framework/tool_registry.py` instead of maintaining separate lists (`WRITER_TOOLS`, `CALC_TOOLS`, `DRAW_TOOLS`). Use an auto-discovery mechanism based on a centralized `DocumentType` enum.
-- **Image Generation Simplification**: Merge the AI Horde and Endpoint image provider logic into a single `ImageService` to centralize timeouts, retries, and error handling.
-- **Streaming Unification**: Standardize queue items across all streaming paths (Chat, Editor, Calc `=PROMPT()`) using a `QueueItem` named tuple, and process them in a single `run_stream_drain_loop`.
-- **LiteLLM Provider Auto-Detection**: Instead of bundling the heavy 50MB LiteLLM library, create a minimal `core/providers.py` that auto-detects provider endpoints and auth headers (e.g., `x-api-key` for Anthropic, `?key=` for Gemini) based on the model name prefix in the settings.
-
-### 3.6 Robust Error Handling & Recovery
-- Implement a comprehensive error handling system with specific exception classes (`LocalWriterError`, `APIError`, `DocumentError`).
-- Provide better user-facing error messages with actionable suggestions (e.g., "Network timeout: Check endpoint"). Never write error stack traces directly into the user's document selection.
-- Add graceful degradation or fallback mechanisms when specific tools or operations fail.
-
-### 3.7 Testing & QA
-- **Evaluation Framework Expansion**: Expand the `EvalRunner` suite (introduced in `Eval_Framework` branch) to include the full 50+ test cases outlined in `evaluation-plan.md`. Implement multimodal vision tests.
-- Expand standard unit test coverage, specifically mock tests for API requests, streaming logic, malformed tool JSON, and multi-doc scoping (preventing regressions in document targeting).
-- Implement automated testing workflows and performance benchmarks (document processing speed, memory usage).
+**Dependencies**: UNO index service documentation
+**Blockers**: Complex index creation workflows
+**Testing**: Need test documents with index structures
 
 ---
 
-## 4. Referenced Feature Plans
+## 📋 Medium Priority Features
 
-The following specific features and integrations have dedicated planning documents. Please refer to them for detailed implementation strategies:
+### 4. **Librarian Agentic Onboarding** 🤖
+**Files**: `plugin/modules/chatbot/librarian.py` (new)
+**Status**: Design complete, not started
 
-*   **[Web Search Sub-Agent](agent-search.md)**: Architecture for autonomous web research using vendored smolagents.
-*   **[Calc Integration](calc-integration.md)**: Details on the existing deep LibreCalc integration and planned expansions.
-*   **[Evaluation Plan](evaluation-plan.md)**: The comprehensive list of 50+ test cases for Writer, Calc, Draw, and Multimodal testing.
-*   **[Evaluation Dev Plan](eval-dev-plan.md)**: The architecture and roadmap for the integrated evaluation dashboard and runner.
-*   **[Prompt Optimization (DSPy)](dspy-prompt-optimization-plan.md)**: Strategy for using DSPy to systematically optimize system prompts.
-*   **[Impress Tools](impress-tools.md)**: Roadmap for extending Draw tools to support presentation generation and management in LibreOffice Impress.
-*   **[LangChain Integration](langchain-plan.md)**: Phased plan for integrating `langchain-core` for memory, history persistence, and RAG.
-*   **[Localization (i18n)](localization.md)**: High-level plan for adding multi-language support to UI and AI prompts.
-*   **[AI Horde Improvements](next-steps-horde.md)**: Next steps for improving the image generation UX with AI Horde.
-*   **[Section Replacement Options](section-replace-options.md)**: Technical options for fixing coordinates when using `get_markdown(scope="range")`.
-*   **[Tool Simplification](tool_simplify.md)**: Proposal to consolidate fine-grained tools into grouped operations to reduce LLM overhead.
+- [ ] Create knowledge goal system
+- [ ] Implement agent mind architecture
+- [ ] Add system prompt enhancements
+- [ ] Integrate with memory system
+- [ ] Test conversation flows
+- [ ] Add skip/opt-out options
+
+**Dependencies**: None
+**Blockers**: None
+**Testing**: Need user testing for natural conversation
+
+### 5. **Track Changes Domain** 🔄
+**Files**: `plugin/modules/writer/tracking.py` (new domain)
+**Status**: Not started
+
+- [ ] Create `ToolWriterTrackingBase` with `specialized_domain = "tracking"`
+- [ ] Implement change recording (start/stop)
+- [ ] Add change listing and filtering
+- [ ] Implement accept/reject operations
+- [ ] Add bulk operations
+- [ ] Handle change visibility toggling
+
+**Dependencies**: UNO track changes documentation
+**Blockers**: Complex change enumeration
+**Testing**: Need documents with tracked changes
+
+### 6. **Enhanced Style Management** 🎭
+**Files**: `plugin/modules/writer/styles.py`
+**Status**: Partial implementation exists
+
+- [ ] Implement `styles_create_or_update`
+- [ ] Add style inheritance system
+- [ ] Support conditional styles
+- [ ] Add style preview functionality
+- [ ] Implement style import/export
+
+**Dependencies**: UNO style family documentation
+**Blockers**: Style inheritance complexity
+**Testing**: Need style-heavy test documents
+
+---
+
+## 🛠️ Technical Improvements
+
+### 7. **Test Infrastructure Consolidation** 🧪
+**Files**: `plugin/tests/testing_utils.py`
+**Status**: Identified opportunity
+
+- [ ] Create reusable mock factory functions
+  - `create_mock_ctx()` - standardized context mock
+  - `create_mock_document()` - with service support
+  - `create_mock_cursor()` - with positioning
+  - `create_mock_page()` - for Draw/Impress tests
+- [ ] Consolidate duplicate UNO mocks across test files
+- [ ] Add common test patterns and assertions
+- [ ] Document testing best practices
+
+**Impact**: Reduces test code duplication by ~40%
+**Dependencies**: None
+**Blockers**: None
+
+### 8. **Error Handling Standardization** ⚠️
+**Files**: `plugin/framework/errors.py`
+**Status**: Needs review
+
+- [ ] Audit all error codes for consistency
+- [ ] Standardize error message formats
+- [ ] Add missing error codes for new features
+- [ ] Improve error context reporting
+- [ ] Add error recovery patterns
+
+**Impact**: Better debugging and user experience
+**Dependencies**: None
+**Blockers**: None
+
+### 9. **Performance Optimization** ⚡
+**Files**: Various
+**Status**: Ongoing
+
+- [ ] Profile tool execution times
+- [ ] Optimize UNO service calls
+- [ ] Add caching for frequent operations
+- [ ] Review memory usage patterns
+- [ ] Optimize document context generation
+
+**Impact**: Faster response times, better UX
+**Dependencies**: Profiling tools
+**Blockers**: None
+
+---
+
+## 📚 Documentation Tasks
+
+### 10. **API Documentation** 📖
+**Files**: `docs/api/` (new directory)
+**Status**: Not started
+
+- [ ] Document all tool APIs with examples
+- [ ] Create UNO service reference guide
+- [ ] Add domain-specific documentation
+- [ ] Generate API reference from code
+- [ ] Add usage examples and best practices
+
+**Dependencies**: None
+**Blockers**: None
+
+### 11. **Developer Guide** 👨‍💻
+**Files**: `docs/development.md`
+**Status**: Partial
+
+- [ ] Document architecture overview
+- [ ] Add contribution guidelines
+- [ ] Create tool development guide
+- [ ] Add testing patterns
+- [ ] Document release process
+
+**Dependencies**: None
+**Blockers**: None
+
+### 12. **User Guide** 📚
+**Files**: `docs/user-guide.md`
+**Status**: Not started
+
+- [ ] Create getting started guide
+- [ ] Add feature tutorials
+- [ ] Document common workflows
+- [ ] Add troubleshooting section
+- [ ] Create FAQ
+
+**Dependencies**: None
+**Blockers**: None
+
+---
+
+## 🐛 Known Issues & Technical Debt
+
+### 13. **Tool Registry Improvements** 🔧
+**Files**: `plugin/framework/tool_registry.py`
+**Status**: Technical debt
+
+- [ ] Review tool discovery performance
+- [ ] Add tool dependency management
+- [ ] Improve error reporting
+- [ ] Add tool versioning support
+
+**Impact**: Better tool management
+**Priority**: Medium
+
+### 14. **Memory System Enhancements** 🧠
+**Files**: `plugin/modules/chatbot/memory.py`
+**Status**: Functional but limited
+
+- [ ] Add memory search capabilities
+- [ ] Implement memory expiration
+- [ ] Add memory compression
+- [ ] Improve memory conflict resolution
+
+**Impact**: More robust personalization
+**Priority**: Medium
+
+### 15. **Configuration System Review** ⚙️
+**Files**: `plugin/framework/config.py`
+**Status**: Needs modernization
+
+- [ ] Review configuration structure
+- [ ] Add schema validation
+- [ ] Improve change detection
+- [ ] Add configuration profiles
+
+**Impact**: More maintainable config
+**Priority**: Low
+
+---
+
+## 🌐 Integration & Ecosystem
+
+### 16. **MCP Protocol Enhancements** 📡
+**Files**: `plugin/modules/http/mcp_protocol.py`
+**Status**: Functional but expandable
+
+- [ ] Add specialized tool opt-in for MCP
+- [ ] Implement domain switching via MCP
+- [ ] Add better error reporting
+- [ ] Improve document targeting
+
+**Impact**: More powerful remote control
+**Priority**: Medium
+
+### 17. **External Tool Integration** 🔌
+**Files**: Various
+**Status**: Future
+
+- [ ] Design plugin architecture
+- [ ] Create extension API
+- [ ] Add tool discovery mechanism
+- [ ] Implement security sandbox
+
+**Impact**: Extensible ecosystem
+**Priority**: Low
+
+---
+
+## 🎯 Future Research & Exploration
+
+### 18. **Agent Personality System** 🤖
+**Status**: Conceptual
+
+- [ ] Research personality models
+- [ ] Design personality selection
+- [ ] Implement personality traits
+- [ ] Test user preferences
+
+**Potential Impact**: More engaging user experience
+
+### 19. **Voice Interface** 🎤
+**Status**: Future
+
+- [ ] Research speech recognition
+- [ ] Design voice command system
+- [ ] Implement voice feedback
+- [ ] Test accessibility
+
+**Potential Impact**: Hands-free operation
+
+### 20. **Collaborative Features** 👥
+**Status**: Future
+
+- [ ] Research real-time collaboration
+- [ ] Design change tracking
+- [ ] Implement multi-user sessions
+- [ ] Add conflict resolution
+
+**Potential Impact**: Team document editing
+
+---
+
+## 📊 Metrics & Analytics
+
+### 21. **Usage Tracking** 📈
+**Status**: Not started
+
+- [ ] Design privacy-compliant tracking
+- [ ] Implement feature usage logging
+- [ ] Add performance metrics
+- [ ] Create analytics dashboard
+
+**Priority**: Low (privacy considerations)
+
+### 22. **User Feedback System** 💬
+**Status**: Future
+
+- [ ] Design feedback collection
+- [ ] Implement rating system
+- [ ] Add bug reporting
+- [ ] Create feedback analysis
+
+**Priority**: Low
+
+---
+
+## 🎓 Learning & Growth
+
+### 23. **UNO API Documentation** 📚
+**Status**: Ongoing
+
+- [ ] Document key UNO services
+- [ ] Create service capability matrix
+- [ ] Add usage examples
+- [ ] Note limitations and quirks
+
+**Impact**: Faster development
+
+### 24. **Code Quality Initiatives** ✨
+**Status**: Ongoing
+
+- [ ] Add more type hints
+- [ ] Improve docstrings
+- [ ] Add code examples
+- [ ] Review naming conventions
+
+**Impact**: More maintainable codebase
+
+---
+
+## 🗂️ Backlog (Nice to Have)
+
+### 25. **Theme System** 🎨
+- [ ] Implement UI theming
+- [ ] Add color scheme support
+- [ ] Create theme editor
+
+### 26. **Template System** 📑
+- [ ] Design document templates
+- [ ] Implement template storage
+- [ ] Add template sharing
+
+### 27. **Advanced Search** 🔍
+- [ ] Implement full-text search
+- [ ] Add regex support
+- [ ] Create search history
+
+### 28. **Batch Operations** ⚡
+- [ ] Add batch processing
+- [ ] Implement queue system
+- [ ] Add progress tracking
+
+### 29. **Offline Mode** ✈️
+- [ ] Design offline capabilities
+- [ ] Implement local caching
+- [ ] Add sync mechanism
+
+---
+
+## 📅 Timeline Estimates
+
+### Next 2 Weeks (Sprint 1)
+- Complete Shape API enhancements
+- Finish Fields domain basics
+- Start Indexes domain
+- Begin test infrastructure consolidation
+
+### Next 4 Weeks (Sprint 2)
+- Complete Fields and Indexes domains
+- Implement Librarian agentic onboarding
+- Start Track Changes domain
+- Continue test improvements
+
+### Next 8 Weeks (Sprint 3)
+- Complete remaining specialized domains
+- Enhance documentation
+- Address technical debt
+- Begin future research
+
+---
+
+## 🤝 Contribution Opportunities
+
+### Good First Issues
+- Test infrastructure consolidation
+- Documentation improvements
+- Error message enhancements
+- Code quality initiatives
+
+### Mentored Projects
+- Librarian agentic onboarding
+- Shape API enhancements
+- Fields domain completion
+
+### Research Projects
+- Agent personality system
+- Voice interface
+- Collaborative features
+
+---
+
+## 📝 Changelog
+
+**2024-03-25**: Initial roadmap created
+- Added high priority features (Shapes, Fields, Indexes)
+- Organized medium priority features
+- Identified technical improvements
+- Added documentation tasks
+- Listed known issues and technical debt
+
+**2024-03-24**: Previous work
+- Completed tool switching architecture
+- Implemented specialized domains
+- Created comprehensive documentation
+
+---
+
+## 🎯 Vision
+
+WriterAgent aims to be the most powerful, flexible, and user-friendly document automation platform for LibreOffice. By systematically addressing this roadmap, we'll create a tool that:
+
+- **Empowers users** with intuitive interfaces
+- **Automates complex tasks** through intelligent tools
+- **Adapts to workflows** with personalized experiences
+- **Scales with needs** from simple edits to complex document systems
+- **Delights users** with thoughtful design and helpful guidance
+
+Every item on this roadmap brings us closer to that vision. 🚀
