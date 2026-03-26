@@ -62,7 +62,7 @@ class MemoryTool(ToolBase):
     }
 
     def execute(self, ctx, **kwargs):
-        import yaml
+        import json
         key = kwargs.get("key")
         content = kwargs.get("content", "")
         
@@ -81,11 +81,13 @@ class MemoryTool(ToolBase):
             return self._tool_error(f"Failed to read existing memory: {e}")
         
         try:
-            parsed = yaml.safe_load(current) if current.strip() else {}
+            parsed = json.loads(current) if current.strip() else {}
             if not isinstance(parsed, dict):
-                parsed = {"_raw": current}
-        except Exception as e:
-            return self._tool_error(f"Failed to parse existing memory YAML: {e}")
+                # Not a JSON object: start over so the librarian can rebuild memory.
+                parsed = {}
+        except json.JSONDecodeError:
+            # Invalid JSON (e.g. legacy YAML): start over.
+            parsed = {}
 
         # Nested update
         parts = key.split(".")
@@ -97,7 +99,7 @@ class MemoryTool(ToolBase):
 
         current_dict[parts[-1]] = content
 
-        new_content = yaml.dump(parsed, sort_keys=False, allow_unicode=True)
+        new_content = json.dumps(parsed, indent=2, ensure_ascii=False)
         try:
             store.write(target, new_content)
             return {"status": "ok", "message": f"Upserted key '{key}' in memory."}
