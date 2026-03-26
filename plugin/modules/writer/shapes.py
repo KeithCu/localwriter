@@ -22,6 +22,8 @@ from plugin.modules.draw.shapes import CreateShape as DrawCreateShape
 from plugin.modules.draw.shapes import EditShape as DrawEditShape
 from plugin.modules.draw.shapes import DeleteShape as DrawDeleteShape
 from plugin.modules.draw.shapes import GetDrawSummary as DrawGetDrawSummary
+from plugin.modules.draw.shapes import ConnectShapes as DrawConnectShapes
+from plugin.modules.draw.shapes import GroupShapes as DrawGroupShapes
 
 log = logging.getLogger("writeragent.writer")
 
@@ -92,64 +94,11 @@ class ListWriterImages(ToolWriterShapeBase):
         return {"status": "ok", "images": images, "count": len(images)}
 
 
-# Writer-specific WIP placeholders (Draw did not provide these):
-
-class ConnectShapes(ToolWriterShapeBase):
-    """Connect two shapes with a connector."""
-
+class ConnectShapes(DrawConnectShapes, ToolWriterShapeBase):
     name = "shapes_connect"
-    intent = "edit"
-    description = (
-        "WIP stub: connector between shapes is not implemented. "
-        "Use Draw/Writer UI or create_shape for new objects."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "start_shape": {
-                "type": "string",
-                "description": "Name of the starting shape.",
-            },
-            "end_shape": {
-                "type": "string",
-                "description": "Name of the ending shape.",
-            },
-        },
-        "required": ["start_shape", "end_shape"],
-    }
-    uno_services = ["com.sun.star.text.TextDocument"]
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        return {"status": "ok", "message": f"WIP: Connected '{kwargs.get('start_shape')}' to '{kwargs.get('end_shape')}'."}
+    uno_services = _WRITER_DRAW_SHAPE_DOCS
 
 
-class GroupShapes(ToolWriterShapeBase):
-    """Group multiple shapes together."""
-
+class GroupShapes(DrawGroupShapes, ToolWriterShapeBase):
     name = "shapes_group"
-    intent = "edit"
-    description = (
-        "WIP stub: shape grouping is not implemented. "
-        "Group objects in LibreOffice Draw/Writer UI if needed."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "shape_names": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "List of shape names to group.",
-            },
-            "group_name": {
-                "type": "string",
-                "description": "Name for the new group shape.",
-            },
-        },
-        "required": ["shape_names"],
-    }
-    uno_services = ["com.sun.star.text.TextDocument"]
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        return {"status": "ok", "message": f"WIP: Grouped shapes: {kwargs.get('shape_names')}."}
+    uno_services = _WRITER_DRAW_SHAPE_DOCS

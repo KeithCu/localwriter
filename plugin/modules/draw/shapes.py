@@ -199,6 +199,86 @@ class DrawShapes:
             ) from e
 
 
+def _apply_shape_properties(shape, kwargs):
+    """Helper to apply rich formatting properties to a shape."""
+    if kwargs.get("text") and hasattr(shape, "setString"):
+        shape.setString(kwargs["text"])
+
+    # Background/Fill Color
+    if kwargs.get("bg_color") or kwargs.get("fill_color"):
+        color_str = kwargs.get("fill_color") or kwargs.get("bg_color")
+        color = _parse_color(color_str)
+        if color is not None:
+            # LineShape doesn't have FillColor, typically LineColor is used instead
+            prop = "LineColor" if "LineShape" in shape.getShapeType() else "FillColor"
+            try:
+                shape.setPropertyValue(prop, color)
+            except Exception:
+                pass
+
+    # Fill Style (solid, transparent, etc)
+    if kwargs.get("fill_style") and hasattr(shape, "FillStyle"):
+        try:
+            import sys
+            fill_enum = sys.modules.get("com.sun.star.drawing.FillStyle")
+            if not fill_enum:
+                import uno
+                from com.sun.star.drawing import FillStyle
+                fill_enum = FillStyle
+            style_str = kwargs["fill_style"].lower()
+            if style_str == "none" or style_str == "transparent":
+                shape.setPropertyValue("FillStyle", fill_enum.NONE)
+            elif style_str == "solid":
+                shape.setPropertyValue("FillStyle", fill_enum.SOLID)
+        except Exception:
+            pass
+
+    # Line Color
+    if kwargs.get("line_color") and hasattr(shape, "LineColor"):
+        color = _parse_color(kwargs["line_color"])
+        if color is not None:
+            try:
+                shape.setPropertyValue("LineColor", color)
+            except Exception:
+                pass
+
+    # Line Width
+    if kwargs.get("line_width") is not None and hasattr(shape, "LineWidth"):
+        try:
+            shape.setPropertyValue("LineWidth", int(kwargs["line_width"]))
+        except Exception:
+            pass
+
+    # Text Properties (Font Size, Name, Color)
+    if kwargs.get("text_color") and hasattr(shape, "CharColor"):
+        color = _parse_color(kwargs["text_color"])
+        if color is not None:
+            try:
+                shape.setPropertyValue("CharColor", color)
+            except Exception:
+                pass
+
+    if kwargs.get("font_size") and hasattr(shape, "CharHeight"):
+        try:
+            shape.setPropertyValue("CharHeight", float(kwargs["font_size"]))
+        except Exception:
+            pass
+
+    if kwargs.get("font_name") and hasattr(shape, "CharFontName"):
+        try:
+            shape.setPropertyValue("CharFontName", kwargs["font_name"])
+        except Exception:
+            pass
+
+    # Rotation
+    if kwargs.get("rotation_angle") is not None and hasattr(shape, "RotateAngle"):
+        try:
+            # Angle is in 100ths of a degree
+            shape.setPropertyValue("RotateAngle", int(kwargs["rotation_angle"] * 100))
+        except Exception:
+            pass
+
+
 class CreateShape(ToolBase):
     name = "create_shape"
     description = "Creates a new shape on the active page."
@@ -207,7 +287,7 @@ class CreateShape(ToolBase):
         "properties": {
             "shape_type": {
                 "type": "string",
-                "enum": ["rectangle", "ellipse", "text", "line"],
+                "enum": ["rectangle", "ellipse", "text", "line", "connector"],
                 "description": "Type of shape",
             },
             "x": {"type": "integer", "description": "X position (100ths of mm)"},
@@ -215,10 +295,15 @@ class CreateShape(ToolBase):
             "width": {"type": "integer", "description": "Width (100ths of mm)"},
             "height": {"type": "integer", "description": "Height (100ths of mm)"},
             "text": {"type": "string", "description": "Initial text"},
-            "bg_color": {
-                "type": "string",
-                "description": "Hex (#FF0000) or name (red)",
-            },
+            "bg_color": {"type": "string", "description": "Alias for fill_color. Hex (#FF0000) or name (red)"},
+            "fill_color": {"type": "string", "description": "Fill color. Hex (#FF0000) or name (red)"},
+            "fill_style": {"type": "string", "enum": ["solid", "transparent", "none"], "description": "Fill style"},
+            "line_color": {"type": "string", "description": "Line border color"},
+            "line_width": {"type": "integer", "description": "Line width (100ths of mm)"},
+            "text_color": {"type": "string", "description": "Text character color"},
+            "font_size": {"type": "number", "description": "Font size in points"},
+            "font_name": {"type": "string", "description": "Font family name"},
+            "rotation_angle": {"type": "number", "description": "Rotation angle in degrees"},
         },
         "required": ["shape_type", "x", "y", "width", "height"],
     }
@@ -237,10 +322,13 @@ class CreateShape(ToolBase):
             "ellipse": "EllipseShape",
             "text": "TextShape",
             "line": "LineShape",
+            "connector": "ConnectorShape",
         }
-        uno_type = type_map.get(kwargs["shape_type"])
-        if not uno_type:
-            return self._tool_error(f"Unsupported shape type: {kwargs['shape_type']}")
+        shape_type_raw = kwargs["shape_type"]
+        uno_type = type_map.get(shape_type_raw, shape_type_raw)
+        # If it doesn't look like a class name (no dots), it's probably unsupported
+        if "." not in uno_type and uno_type not in type_map.values():
+             return self._tool_error(f"Unsupported shape type: {shape_type_raw}")
 
         page = bridge.get_active_page()
         position = Point(kwargs["x"], kwargs["y"])
@@ -255,24 +343,11 @@ class CreateShape(ToolBase):
         except DrawError as e:
             return self._tool_error(e.message)
 
-        if kwargs.get("text") and hasattr(shape, "setString"):
-            shape.setString(kwargs["text"])
-        if kwargs.get("bg_color"):
-            color = _parse_color(kwargs["bg_color"])
-            if color is not None:
-                prop = (
-                    "LineColor"
-                    if "LineShape" in shape.getShapeType()
-                    else "FillColor"
-                )
-                try:
-                    shape.setPropertyValue(prop, color)
-                except Exception:
-                    pass
+        _apply_shape_properties(shape, kwargs)
 
         return {
             "status": "ok",
-            "message": f"Created {kwargs['shape_type']}",
+            "message": f"Created {shape_type_raw}",
             "shape_index": page.getCount() - 1,
         }
 
@@ -284,17 +359,22 @@ class EditShape(ToolBase):
     parameters = {
         "type": "object",
         "properties": {
-            "shape_index": {
-                "type": "integer",
-                "description": "Index of the shape",
-            },
+            "shape_index": {"type": "integer", "description": "Index of the shape"},
             "page_index": {"type": "integer", "description": "Page index"},
-            "x": {"type": "integer"},
-            "y": {"type": "integer"},
-            "width": {"type": "integer"},
-            "height": {"type": "integer"},
-            "text": {"type": "string"},
-            "bg_color": {"type": "string"},
+            "x": {"type": "integer", "description": "X position (100ths of mm)"},
+            "y": {"type": "integer", "description": "Y position (100ths of mm)"},
+            "width": {"type": "integer", "description": "Width (100ths of mm)"},
+            "height": {"type": "integer", "description": "Height (100ths of mm)"},
+            "text": {"type": "string", "description": "Text content"},
+            "bg_color": {"type": "string", "description": "Alias for fill_color. Hex (#FF0000) or name (red)"},
+            "fill_color": {"type": "string", "description": "Fill color. Hex (#FF0000) or name (red)"},
+            "fill_style": {"type": "string", "enum": ["solid", "transparent", "none"], "description": "Fill style"},
+            "line_color": {"type": "string", "description": "Line border color"},
+            "line_width": {"type": "integer", "description": "Line width (100ths of mm)"},
+            "text_color": {"type": "string", "description": "Text character color"},
+            "font_size": {"type": "number", "description": "Font size in points"},
+            "font_name": {"type": "string", "description": "Font family name"},
+            "rotation_angle": {"type": "number", "description": "Rotation angle in degrees"},
         },
         "required": ["shape_index"],
     }
@@ -321,21 +401,141 @@ class EditShape(ToolBase):
             shape.setSize(
                 Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height))
             )
-        if "text" in kwargs and hasattr(shape, "setString"):
-            shape.setString(kwargs["text"])
-        if "bg_color" in kwargs:
-            color = _parse_color(kwargs["bg_color"])
-            if color is not None:
-                prop = (
-                    "LineColor"
-                    if "LineShape" in shape.getShapeType()
-                    else "FillColor"
-                )
-                try:
-                    shape.setPropertyValue(prop, color)
-                except Exception:
-                    pass
+
+        _apply_shape_properties(shape, kwargs)
+
         return {"status": "ok", "message": "Shape updated"}
+
+
+class ConnectShapes(ToolBase):
+    """Connect two shapes with a connector."""
+    name = "shapes_connect"
+    intent = "edit"
+    description = "Connect two shapes on the same page with a connector."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "start_shape_index": {
+                "type": "integer",
+                "description": "Index of the starting shape.",
+            },
+            "end_shape_index": {
+                "type": "integer",
+                "description": "Index of the ending shape.",
+            },
+            "page_index": {
+                "type": "integer",
+                "description": "Page index containing the shapes"
+            },
+            "line_color": {"type": "string", "description": "Color of the connector line"},
+            "line_width": {"type": "integer", "description": "Line width (100ths of mm)"},
+        },
+        "required": ["start_shape_index", "end_shape_index"],
+    }
+    uno_services = ["com.sun.star.drawing.DrawingDocument"]
+    doc_types = ["draw", "impress"]
+    is_mutation = True
+
+    def execute(self, ctx, **kwargs):
+        from plugin.modules.draw.bridge import DrawBridge
+        from com.sun.star.awt import Point, Size
+
+        bridge = DrawBridge(ctx.doc)
+        idx = kwargs.get("page_index")
+        page = (
+            bridge.get_pages().getByIndex(idx)
+            if idx is not None
+            else bridge.get_active_page()
+        )
+
+        start_idx = kwargs["start_shape_index"]
+        end_idx = kwargs["end_shape_index"]
+
+        try:
+            start_shape = page.getByIndex(start_idx)
+            end_shape = page.getByIndex(end_idx)
+        except Exception as e:
+            return self._tool_error(f"Failed to find shapes at given indices: {str(e)}")
+
+        draw_shapes = DrawShapes()
+        try:
+            # position and size are technically ignored since it's a connector, but safe_create_shape expects them
+            shape = draw_shapes.safe_create_shape(
+                ctx.doc, page, "com.sun.star.drawing.ConnectorShape", Point(0, 0), Size(100, 100)
+            )
+        except DrawError as e:
+            return self._tool_error(e.message)
+
+        # Connect the shapes
+        try:
+            shape.setPropertyValue("StartShape", start_shape)
+            shape.setPropertyValue("EndShape", end_shape)
+
+            # Additional properties
+            _apply_shape_properties(shape, kwargs)
+
+        except Exception as e:
+            return self._tool_error(f"Failed to set connector properties: {str(e)}")
+
+        return {"status": "ok", "message": f"Connected shape {start_idx} to {end_idx}", "shape_index": page.getCount() - 1}
+
+
+class GroupShapes(ToolBase):
+    """Group multiple shapes together."""
+    name = "shapes_group"
+    intent = "edit"
+    description = "Groups multiple shapes together on the same page."
+    parameters = {
+        "type": "object",
+        "properties": {
+            "shape_indices": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "List of shape indices to group.",
+            },
+            "page_index": {
+                "type": "integer",
+                "description": "Page index containing the shapes",
+            },
+        },
+        "required": ["shape_indices"],
+    }
+    uno_services = ["com.sun.star.drawing.DrawingDocument"]
+    doc_types = ["draw", "impress"]
+    is_mutation = True
+
+    def execute(self, ctx, **kwargs):
+        from plugin.modules.draw.bridge import DrawBridge
+
+        bridge = DrawBridge(ctx.doc)
+        idx = kwargs.get("page_index")
+        page = (
+            bridge.get_pages().getByIndex(idx)
+            if idx is not None
+            else bridge.get_active_page()
+        )
+
+        indices = kwargs["shape_indices"]
+        if not indices or len(indices) < 2:
+            return self._tool_error("At least two shape indices are required to group.")
+
+        try:
+            # Create a shape collection
+            shape_collection = ctx.doc.createInstance("com.sun.star.drawing.ShapeCollection")
+            for i in indices:
+                shape = page.getByIndex(i)
+                shape_collection.add(shape)
+
+            # Group the shapes
+            group_shape = page.group(shape_collection)
+        except Exception as e:
+            return self._tool_error(f"Failed to group shapes: {str(e)}")
+
+        return {
+            "status": "ok",
+            "message": f"Grouped {len(indices)} shapes.",
+            "group_shape_index": page.getCount() - 1 # Note: Grouping usually replaces the individual shapes with the group shape
+        }
 
 
 class DeleteShape(ToolBase):
