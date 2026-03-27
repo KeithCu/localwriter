@@ -120,18 +120,18 @@
                   <value>_self</value>
                 </prop>
               </node>
+              <node oor:name="M8" oor:op="replace">
+                <prop oor:name="Title">
+                  <value xml:lang="en-US">Evaluation Dashboard</value>
+                </prop>
+                <prop oor:name="URL">
+                  <value>org.extension.writeragent:main.EvaluationDashboard</value>
+                </prop>
+                <prop oor:name="Target" oor:type="xs:string">
+                  <value>_self</value>
+                </prop>
+              </node>
             </node>
-          </node>
-          <node oor:name="M8" oor:op="replace">
-            <prop oor:name="Title">
-              <value xml:lang="en-US">Evaluation Dashboard</value>
-            </prop>
-            <prop oor:name="URL">
-              <value>org.extension.writeragent:main.EvaluationDashboard</value>
-            </prop>
-            <prop oor:name="Target" oor:type="xs:string">
-              <value>_self</value>
-            </prop>
           </node>
         </node>
       </node>
