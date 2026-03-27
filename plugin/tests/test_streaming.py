@@ -448,7 +448,7 @@ class TestStreamingHttpErrors(unittest.TestCase):
         # `format_error_message` operates on the string for generic Exception,
         # meaning it outputs what `_format_http_error_response` built, which is
         # "HTTP Error <status>: <reason>. <detail>"
-        self.assertEqual(str(ctx.exception), "HTTP Error 404: Not Found. Model not found")
+        self.assertEqual(str(ctx.exception), "HTTP Error 404 from AI Provider: Not Found. Model not found")
 
         # Scenario 2: Non-JSON body (e.g., HTML or plain text)
         plain_error_body = b"Internal Server Error: Database Down"
@@ -459,7 +459,7 @@ class TestStreamingHttpErrors(unittest.TestCase):
                 "POST", "/v1/chat/completions", b"{}", {},
                 lambda t: None,
             )
-        self.assertEqual(str(ctx.exception), "HTTP Error 500: Internal Server Error. Internal Server Error: Database Down")
+        self.assertEqual(str(ctx.exception), "HTTP Error 500 from AI Provider: Internal Server Error.\nProvider Response:\nInternal Server Error: Database Down")
 
 
 if __name__ == "__main__":
