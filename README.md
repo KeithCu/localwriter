@@ -38,6 +38,8 @@ The main way to interact with your document. While you can ask it anything, **it
 *   **Librarian onboarding agent (memory-aware)**: For new users without a config/Memories/USER.md, the sidebar starts with a Librarian / Welcome sub-agent that chats with the user to learn preferences: name, favorite color, etc. When the Librarian (or main agent) decides something is worth remembering, it uses the `upsert_memory` tool. The memories are passed into requests automatically. When the Librarian / new user are done chatting and want to work, it switches control to the main document assistant for the current session and future ones.
 *   **Robust Session Tracking**: Chat history is linked directly to the document using an internal metadata ID (saved in the file). This means your conversation follows the document even if you rename it or move it to a different folder.
 *   **Performance**: Features built-in connection management with persistent HTTPS connections for fast response times.
+*   **Multilingual**: WriterAgent ships with the interface translated into Spanish, French, Portuguese, Russian, German, Japanese, Italian, and Polish.
+
 
 ### 3. Web Research & Fact-Checking (Local & Private)
 Powered by [Hugging Face smolagents](https://github.com/huggingface/smolagents) (vendored and adapted to have zero dependencies, per [this discussion](https://github.com/huggingface/smolagents/issues/1999)). Now you can ask the AI a question and it will search the web and give you the answer—with all requests running directly from your computer. It uses DuckDuckGo for privacy and executes the entire search-and-browse loop locally, ensuring your research stays private.
@@ -109,10 +111,6 @@ Integrated cross-platform audio recording directly in the chat sidebar.
 *   **Multi-Platform**: Robust recording support on Linux, Windows, and macOS.
 *   **Talk to Your Document**: Recorded audio is handled intelligently—it will be sent directly to native audio LLMs or automatically transcribed via an STT engine before being sent as text, depending on your model's capabilities.
 *   **Flexible Deployment**: Optional build support (see `Makefile`) allows for deployment in environments where audio dependencies are not needed.
-
-### 11. Translations (i18n)
-WriterAgent ships with the interface translated into Spanish, French, Portuguese, Russian, German, Japanese, Italian, and Polish.
-
 
 ### Showcase
 Examples built with **`=PROMPT()`** and the chat sidebar:
