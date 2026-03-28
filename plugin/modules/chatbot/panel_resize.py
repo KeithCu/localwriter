@@ -5,6 +5,15 @@ from plugin.framework.listeners import BaseWindowListener
 
 log = logging.getLogger(__name__)
 
+# Chat sidebar resize/layout tracing is very noisy. Set True to log these steps
+# to the debug log even when log_level is DEBUG.
+PANEL_RESIZE_VERBOSE_DEBUG = False
+
+
+def _resize_debug(msg: str, *args: object) -> None:
+    if PANEL_RESIZE_VERBOSE_DEBUG:
+        log.debug(msg % args if args else msg)
+
 
 # Minimum sane widths (in dialog Map AppFont / pixel units) for key controls.
 # This protects against GTK/layout glitches where controls end up ~10px wide
@@ -52,7 +61,7 @@ class _PanelResizeListener(BaseWindowListener):
         if not win:
             return
         if self._in_relayout:
-            log.debug("relayout_now: skipped (in_relayout)")
+            _resize_debug("relayout_now: skipped (in_relayout)")
             return
         try:
             self._in_relayout = True
@@ -64,9 +73,9 @@ class _PanelResizeListener(BaseWindowListener):
 
     def on_window_resized(self, rEvent):
         r = rEvent.Source.getPosSize()
-        log.debug("windowResized: W=%d H=%d" % (r.Width, r.Height))
+        _resize_debug("windowResized: W=%d H=%d" % (r.Width, r.Height))
         if self._in_relayout:
-            log.debug("windowResized: skipped (in_relayout)")
+            _resize_debug("windowResized: skipped (in_relayout)")
             return
         self.relayout_now(rEvent.Source)
 
@@ -75,7 +84,7 @@ class _PanelResizeListener(BaseWindowListener):
         r = win.getPosSize()
         if r.Width <= 0 or r.Height <= 0:
             return
-        log.debug("_capture_initial: starting snapshot for win W=%d H=%d" % (r.Width, r.Height))
+        _resize_debug("_capture_initial: starting snapshot for win W=%d H=%d" % (r.Width, r.Height))
         info = {"win_w": r.Width, "win_h": r.Height, "ctrls": {}}
         resp = self._c.get("response")
         if resp:
@@ -112,7 +121,7 @@ class _PanelResizeListener(BaseWindowListener):
                 info["bottom_bottom"] = cast(int, info["resp_bottom"])
                 info["gap_below_response"] = 2
 
-        log.debug(
+        _resize_debug(
             "_capture_initial: win=(%d,%d) resp_bottom=%s bottom_top=%s gap=%s"
             % (
                 info["win_w"],
@@ -130,7 +139,7 @@ class _PanelResizeListener(BaseWindowListener):
                 for n in summary_names
                 if n in info["ctrls"]
             }
-            log.debug("_capture_initial ctrl_widths=%s" % width_summary)
+            _resize_debug("_capture_initial ctrl_widths=%s" % width_summary)
         except Exception:
             # Logging must never break layout; ignore any issues here.
             pass
@@ -159,7 +168,7 @@ class _PanelResizeListener(BaseWindowListener):
                 else:
                     target_w = pw
                 if target_w > 0 and abs(w - target_w) > 1:
-                    log.debug(
+                    _resize_debug(
                         "_relayout: sync root W %d -> target W %d (parent=%s deck=%s)"
                         % (w, target_w, pw, deck)
                     )
@@ -167,9 +176,9 @@ class _PanelResizeListener(BaseWindowListener):
                     r = win.getPosSize()
                     w, h = r.Width, r.Height
             except Exception as e:
-                log.debug("_relayout: parent sync skipped: %s" % e)
+                _resize_debug("_relayout: parent sync skipped: %s" % e)
 
-        log.debug(
+        _resize_debug(
             "_relayout: win W=%d H=%d (have_initial=%s)"
             % (w, h, bool(self._initial))
         )
@@ -293,7 +302,7 @@ class _PanelResizeListener(BaseWindowListener):
                     ctrl.setPosSize(new_x, oy, new_w, oh, 15)
 
         if fluid_debug:
-            log.debug("_relayout fluid widths: %s" % fluid_debug)
+            _resize_debug("_relayout fluid widths: %s" % fluid_debug)
 
         # Second pass: stretch response area to fill remaining vertical gap
         resp_orig = initial["ctrls"].get("response")

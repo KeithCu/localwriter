@@ -251,7 +251,7 @@ Use `WriterAgentException` hierarchy and **`format_error_payload`** ([`plugin/fr
 
 ## 21. Static Type Checking (ty)
 
-The project uses `ty` for static type checking.
+The project uses `ty` for static type checking. Background on the cleanup, configuration, and workflow: [`docs/type-checking.md`](docs/type-checking.md).
 
 - **Dependencies**: Requires `types-unopy` (in `dev` group) for LibreOffice API stubs.
 - **UNO Resolution**: Because the `uno` module is typically provided by the system (not PyPI), you MUST run `make fix-uno` to symlink the system UNO paths into your `.venv`. Otherwise, `ty` will fail to resolve `import uno` or `com.sun.star` types.
