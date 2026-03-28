@@ -2,6 +2,13 @@
 <description xmlns="http://openoffice.org/extensions/description/2006"
              xmlns:d="http://openoffice.org/extensions/description/2006"
              xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!--
+      Maintainer: bump version only AFTER the same release is published on
+      extensions.libreoffice.org. LibreOffice reads this file (update.xml) to
+      report an outdated extension, but users cannot install the new build from
+      Extension Manager until that catalog entry exists. Bumping here first
+      only shows "update available" without a workable LO-side upgrade path.
+    -->
     <identifier value="org.extension.writeragent" />
     <version value="0.7.2" />
     <update-download>

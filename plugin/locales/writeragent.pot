@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-27 23:46-0400\n"
+"POT-Creation-Date: 2026-03-28 15:21-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -247,7 +247,7 @@ msgid "Copy URL"
 msgstr ""
 
 #: plugin/framework/dialogs.py:485 plugin/framework/dialogs.py:513
-#: plugin/main.py:365
+#: plugin/main.py:386
 msgid "About WriterAgent"
 msgstr ""
 
@@ -274,15 +274,15 @@ msgstr ""
 msgid "{resource_type} not found: {identifier}"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:300 plugin/main.py:356
+#: plugin/framework/legacy_ui.py:300 plugin/main.py:377
 #: plugin/xdl_strings.py:45
 msgid "Settings"
 msgstr ""
 
 #: plugin/framework/legacy_ui.py:352 plugin/modules/chatbot/panel.py:749
-#: plugin/modules/chatbot/send_handlers.py:357
-#: plugin/modules/chatbot/send_handlers.py:367
-#: plugin/modules/chatbot/send_handlers.py:376 plugin/main.py:261
+#: plugin/modules/chatbot/send_handlers.py:371
+#: plugin/modules/chatbot/send_handlers.py:381
+#: plugin/modules/chatbot/send_handlers.py:390 plugin/main.py:282
 msgid "Error"
 msgstr ""
 
@@ -299,28 +299,39 @@ msgstr ""
 msgid "Temperature must be <= 1.0"
 msgstr ""
 
-#: plugin/framework/constants.py:193
+#: plugin/framework/constants.py:196
 msgid ""
 "AI: I can edit or translate your document instantly with professional "
 "formatting and color. Try me!"
 msgstr ""
 
-#: plugin/framework/constants.py:194
+#: plugin/framework/constants.py:197
 msgid ""
 "AI: I can help you with formulas, data analysis, and colorful charts. Try "
 "me!"
 msgstr ""
 
-#: plugin/framework/constants.py:195
+#: plugin/framework/constants.py:198
 msgid ""
 "AI: I can help you create and edit polished, colorful shapes in Draw and "
 "Impress. Try me!"
 msgstr ""
 
-#: plugin/framework/constants.py:196
+#: plugin/framework/constants.py:199
 msgid ""
 "AI: I can do web research to answer any question, or summarize a web page, "
 "without seeing or changing your document. Let's chat."
+msgstr ""
+
+#: plugin/framework/extension_update_check.py:149
+msgid "Update available"
+msgstr ""
+
+#: plugin/framework/extension_update_check.py:151
+#, python-format
+msgid ""
+"A newer WriterAgent (%s) is available. Use Tools → Extension Manager to "
+"check for updates and install the latest extension."
 msgstr ""
 
 #: plugin/modules/http/errors.py:15
@@ -459,8 +470,8 @@ msgstr ""
 msgid "WriterAgent: Extend Selection (Calc)"
 msgstr ""
 
-#: plugin/modules/calc/specialized.py:97
-#: plugin/modules/writer/specialized.py:108
+#: plugin/modules/calc/specialized.py:98
+#: plugin/modules/writer/specialized.py:110
 #, python-brace-format
 msgid ""
 "Tool call switched to '{0}'. You are in a specialized toolset mode. You must"
@@ -576,74 +587,74 @@ msgstr ""
 msgid "Web research completed."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:91
+#: plugin/modules/chatbot/send_handlers.py:104
 msgid "Transcribing audio..."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:92
+#: plugin/modules/chatbot/send_handlers.py:105
 msgid "[Transcribing audio...]"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:110
+#: plugin/modules/chatbot/send_handlers.py:123
 #, python-brace-format
 msgid "[Transcription error: {0}]"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:141
+#: plugin/modules/chatbot/send_handlers.py:154
 #, python-brace-format
 msgid "[Error: {0}]"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:355
+#: plugin/modules/chatbot/send_handlers.py:369
 #, python-brace-format
 msgid "[Document context error: {0}]"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:365
+#: plugin/modules/chatbot/send_handlers.py:379
 #, python-brace-format
 msgid "[Agent backend '{0}' not found.]"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:372
+#: plugin/modules/chatbot/send_handlers.py:386
 #, python-brace-format
 msgid ""
 "[Agent backend '{0}' is not available. Check Settings (path, install).]"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:617
-#: plugin/modules/chatbot/send_handlers.py:624
+#: plugin/modules/chatbot/send_handlers.py:631
+#: plugin/modules/chatbot/send_handlers.py:638
 #, python-brace-format
 msgid "Librarian: {0}"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:623
+#: plugin/modules/chatbot/send_handlers.py:637
 msgid "Perfect! I'm switching you to the main assistant now."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:629
+#: plugin/modules/chatbot/send_handlers.py:643
 msgid "Unknown librarian error."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:630
+#: plugin/modules/chatbot/send_handlers.py:644
 #, python-brace-format
 msgid "[Librarian error: {0}]"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:653
+#: plugin/modules/chatbot/send_handlers.py:667
 #, python-brace-format
 msgid "AI (research): {0}"
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:659
+#: plugin/modules/chatbot/send_handlers.py:673
 msgid "Unknown research error."
 msgstr ""
 
-#: plugin/modules/chatbot/send_handlers.py:660
+#: plugin/modules/chatbot/send_handlers.py:674
 #, python-brace-format
 msgid "[Research error: {0}]"
 msgstr ""
 
-#: plugin/modules/chatbot/librarian.py:73
+#: plugin/modules/chatbot/librarian.py:90
 msgid "Switching to document mode..."
 msgstr ""
 
@@ -671,53 +682,53 @@ msgstr ""
 msgid "Backend"
 msgstr ""
 
-#: plugin/main.py:278
+#: plugin/main.py:299
 #, python-brace-format
 msgid "{0}: {1} passed, {2} failed."
 msgstr ""
 
-#: plugin/main.py:281
+#: plugin/main.py:302
 #, python-brace-format
 msgid "Tests failed to run: {0}"
 msgstr ""
 
-#: plugin/main.py:354
+#: plugin/main.py:375
 msgid "Extend Selection"
 msgstr ""
 
-#: plugin/main.py:355
+#: plugin/main.py:376
 msgid "Edit Selection"
 msgstr ""
 
-#: plugin/main.py:357
+#: plugin/main.py:378
 msgid "Toggle MCP Server"
 msgstr ""
 
-#: plugin/main.py:358
+#: plugin/main.py:379
 msgid "MCP Server Status"
 msgstr ""
 
-#: plugin/main.py:360
+#: plugin/main.py:381
 msgid "Run format tests"
 msgstr ""
 
-#: plugin/main.py:361
+#: plugin/main.py:382
 msgid "Run calc tests"
 msgstr ""
 
-#: plugin/main.py:362
+#: plugin/main.py:383
 msgid "Run Calc API integration tests"
 msgstr ""
 
-#: plugin/main.py:363
+#: plugin/main.py:384
 msgid "Run draw tests"
 msgstr ""
 
-#: plugin/main.py:364
+#: plugin/main.py:385
 msgid "Evaluation Dashboard"
 msgstr ""
 
-#: plugin/main.py:733
+#: plugin/main.py:755
 msgid "Dispatch Error"
 msgstr ""
 
