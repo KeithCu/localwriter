@@ -17,8 +17,10 @@ if TYPE_CHECKING:
     from plugin.modules.chatbot.panel import ChatSession
 
 from plugin.framework.async_stream import (
+    coerce_stream_queue_kind,
     run_stream_completion_async,
     run_stream_drain_loop,
+    StreamQueueKind,
 )
 from plugin.framework.logging import agent_log, update_activity_state
 from plugin.modules.http.errors import (
@@ -191,7 +193,7 @@ class ToolCallingMixin:
                     def chat_append_callback(text):
                         aq = getattr(self, "_active_q", None)
                         if aq is not None:
-                            aq.put(("chunk", text))
+                            aq.put((StreamQueueKind.CHUNK, text))
 
                     try:
                         if as_bool(get_config(ctx, "chatbot.prompt_for_web_research")):
@@ -208,7 +210,7 @@ class ToolCallingMixin:
                                 setattr(event, "query_override", None)
                                 q.put(
                                     (
-                                        "approval_required",
+                                        StreamQueueKind.APPROVAL_REQUIRED,
                                         query_for_engine,
                                         tool_name,
                                         event,
@@ -216,7 +218,7 @@ class ToolCallingMixin:
                                 )
                                 event.wait()
                                 if not getattr(event, "approved", False):
-                                    q.put(("stopped",))
+                                    q.put((StreamQueueKind.STOPPED,))
                                 return (
                                     bool(getattr(event, "approved", False)),
                                     getattr(event, "query_override", None),
@@ -455,22 +457,22 @@ class ToolCallingMixin:
                     self.session.messages,
                     max_tokens,
                     tools=tools,
-                    append_callback=lambda t: q.put(("chunk", t)),
-                    append_thinking_callback=lambda t: q.put(("thinking", t)),
+                    append_callback=lambda t: q.put((StreamQueueKind.CHUNK, t)),
+                    append_thinking_callback=lambda t: q.put((StreamQueueKind.THINKING, t)),
                     stop_checker=lambda: self.stop_requested,
                 )
                 if self.stop_requested:
-                    q.put(("stopped",))
+                    q.put((StreamQueueKind.STOPPED,))
                 else:
                     update_activity_state("tool_loop", round_num=round_num)
-                    q.put(("stream_done", response))
+                    q.put((StreamQueueKind.STREAM_DONE, response))
             except Exception as e:
                 from plugin.framework.errors import NetworkError
                 if isinstance(e, NetworkError):
                     log.error("Tool loop round %d: NetworkError: %s" % (round_num, e))
                 else:
                     log.error("Tool loop round %d: API ERROR: %s" % (round_num, e))
-                q.put(("error", format_error_payload(e)))
+                q.put((StreamQueueKind.ERROR, format_error_payload(e)))
 
         from plugin.framework.worker_pool import run_in_background
         run_in_background(run, name=f"llm-worker-{round_num}")
@@ -486,11 +488,11 @@ class ToolCallingMixin:
             try:
 
                 def append_c(c):
-                    q.put(("chunk", c))
+                    q.put((StreamQueueKind.CHUNK, c))
                     last_streamed.append(c)
 
                 def append_t(t):
-                    q.put(("thinking", t))
+                    q.put((StreamQueueKind.THINKING, t))
 
                 client.stream_chat_response(
                     self.session.messages,
@@ -500,33 +502,37 @@ class ToolCallingMixin:
                     stop_checker=lambda: self.stop_requested,
                 )
                 if self.stop_requested:
-                    q.put(("stopped",))
+                    q.put((StreamQueueKind.STOPPED,))
                 else:
-                    q.put(("final_done", "".join(last_streamed)))
+                    q.put((StreamQueueKind.FINAL_DONE, "".join(last_streamed)))
             except Exception as e:
                 from plugin.framework.errors import NetworkError
                 if isinstance(e, NetworkError):
                     log.error("Final stream NetworkError: %s", e)
                 else:
                     log.error("Final stream error: %s", e)
-                q.put(("error", format_error_payload(e)))
+                q.put((StreamQueueKind.ERROR, format_error_payload(e)))
 
         from plugin.framework.worker_pool import run_in_background
         run_in_background(run_final, name="llm-worker-final")
 
     def _create_event_from_stream_item(self: ToolLoopHost, item: Any) -> ToolLoopEvent | None:
         """Factory method to convert a raw stream item tuple into a ToolLoopEvent."""
-        kind = item[0] if isinstance(item, (tuple, list)) else item
+        raw_kind = item[0] if isinstance(item, (tuple, list)) else item
+        try:
+            kind = coerce_stream_queue_kind(raw_kind)
+        except (ValueError, TypeError):
+            return None
         data = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else None
 
-        if kind == "stream_done":
+        if kind == StreamQueueKind.STREAM_DONE:
             return ToolLoopEvent(kind=EventKind.STREAM_DONE, data={
                 "response": data,
                 "has_audio": bool(self.audio_wav_path)
             })
-        elif kind == "next_tool":
+        elif kind == StreamQueueKind.NEXT_TOOL:
             return ToolLoopEvent(kind=EventKind.NEXT_TOOL)
-        elif kind == "tool_done":
+        elif kind == StreamQueueKind.TOOL_DONE:
             mutates = False
             try:
                 from plugin.main import get_tools as _get_tools_registry
@@ -563,9 +569,9 @@ class ToolCallingMixin:
                     "mutates_document": mutates
                 }
             )
-        elif kind == "final_done":
+        elif kind == StreamQueueKind.FINAL_DONE:
             return ToolLoopEvent(kind=EventKind.FINAL_DONE, data={"content": data})
-        elif kind == "error":
+        elif kind == StreamQueueKind.ERROR:
             return ToolLoopEvent(kind=EventKind.ERROR, data={"error": data})
         return None
 
@@ -574,7 +580,7 @@ class ToolCallingMixin:
         if effect == "exit_loop":
             return True
         elif effect == "trigger_next_tool":
-            self._active_q.put(("next_tool",))
+            self._active_q.put((StreamQueueKind.NEXT_TOOL,))
         elif effect == "spawn_final_stream":
             self._spawn_final_stream(self._active_q, self._active_client, self._active_max_tokens)
         elif effect == "update_document_context":
@@ -659,13 +665,13 @@ class ToolCallingMixin:
                 func_args["image_model"] = image_model_override
 
             def tool_status_callback(msg):
-                self._active_q.put(("status", msg))
+                self._active_q.put((StreamQueueKind.STATUS, msg))
 
             if effect.is_async:
                 def run_async():
                     try:
                         def tool_thinking_callback(msg):
-                            self._active_q.put(("tool_thinking", msg))
+                            self._active_q.put((StreamQueueKind.TOOL_THINKING, msg))
 
                         if self._active_supports_status:
                             res = self._active_execute_tool_fn(
@@ -685,10 +691,10 @@ class ToolCallingMixin:
                                 self.ctx,
                                 stop_checker=lambda: self.stop_requested,
                             )
-                        self._active_q.put(("tool_done", call_id, func_name, func_args_str, res))
+                        self._active_q.put((StreamQueueKind.TOOL_DONE, call_id, func_name, func_args_str, res))
                     except Exception as e:
                         import json
-                        self._active_q.put(("tool_done", call_id, func_name, func_args_str, json.dumps(format_error_payload(e))))
+                        self._active_q.put((StreamQueueKind.TOOL_DONE, call_id, func_name, func_args_str, json.dumps(format_error_payload(e))))
 
                 from plugin.framework.worker_pool import run_in_background
                 run_in_background(run_async, name=f"tool-async-{func_name}")
@@ -706,16 +712,20 @@ class ToolCallingMixin:
                         res = self._active_execute_tool_fn(
                             func_name, func_args, self._active_model, self.ctx
                         )
-                    self._active_q.put(("tool_done", call_id, func_name, func_args_str, res))
+                    self._active_q.put((StreamQueueKind.TOOL_DONE, call_id, func_name, func_args_str, res))
                 except Exception as e:
                     import json
-                    self._active_q.put(("tool_done", call_id, func_name, func_args_str, json.dumps(format_error_payload(e))))
+                    self._active_q.put((StreamQueueKind.TOOL_DONE, call_id, func_name, func_args_str, json.dumps(format_error_payload(e))))
 
         return False
 
     def _handle_stream_completion(self: ToolLoopHost, item: Any) -> bool:
-        kind = item[0] if isinstance(item, (tuple, list)) else item
-        if kind == "next_tool" and self.stop_requested and not self._sm_state.is_stopped:
+        raw_kind = item[0] if isinstance(item, (tuple, list)) else item
+        try:
+            kind = coerce_stream_queue_kind(raw_kind)
+        except (ValueError, TypeError):
+            kind = None
+        if kind == StreamQueueKind.NEXT_TOOL and self.stop_requested and not self._sm_state.is_stopped:
             # Synchronize stop state into the state machine
             self._sm_state = dataclasses.replace(self._sm_state, is_stopped=True)
 

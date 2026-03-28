@@ -77,6 +77,7 @@ class TypedEvent(Protocol):
 
 T = TypeVar("T", bound="SendHandlersMixin")
 
+from plugin.framework.async_stream import StreamQueueKind
 from plugin.framework.errors import safe_json_loads
 from plugin.modules.chatbot.state_machine import (
     SendHandlerState, StartEvent, StreamChunkEvent, StreamDoneEvent,
@@ -259,7 +260,7 @@ class SendHandlersMixin:
                     doc_type="writer",
                     services=get_tools()._services,
                     caller="chat",
-                    status_callback=lambda t: q.put(("status", t)),
+                    status_callback=lambda t: q.put((StreamQueueKind.STATUS, t)),
                 )
                 try:
                     from plugin.framework.config import update_lru_history
@@ -299,14 +300,14 @@ class SendHandlersMixin:
                 else:
                     log.error("Failed to parse generate_image result in _do_send_direct_image")
                     note = "done"
-                q.put(("chunk", "[generate_image: %s]\n" % note))
-                q.put(("stream_done", {}))
+                q.put((StreamQueueKind.CHUNK, "[generate_image: %s]\n" % note))
+                q.put((StreamQueueKind.STREAM_DONE, {}))
             except Exception as e:
                 doc_type = self._get_doc_type_str(model).lower() if model else "unknown"
                 log.error("Direct image path ERROR in _do_send_direct_image [doc: %s]: %s",
                           doc_type, e)
                 from plugin.framework.errors import format_error_payload
-                q.put(("error", format_error_payload(e)))
+                q.put((StreamQueueKind.ERROR, format_error_payload(e)))
 
         self._run_unified_worker_drain_loop(
             q,
@@ -436,7 +437,7 @@ class SendHandlersMixin:
                 log.error("Agent backend ERROR in _do_send_via_agent_backend [backend: %s, doc: %s]: %s",
                           backend_id, doc_type_str, e)
                 from plugin.framework.errors import format_error_payload
-                q.put(("error", format_error_payload(e)))
+                q.put((StreamQueueKind.ERROR, format_error_payload(e)))
             finally:
                 self._current_agent_backend = None
 
@@ -560,16 +561,16 @@ class SendHandlersMixin:
                 # If librarian mode, clear active_run_librarian and run librarian
 
                 def status_cb(msg):
-                    q.put(("status", msg))
+                    q.put((StreamQueueKind.STATUS, msg))
 
                 # Always push thinking to the queue so the drain loop stays active
                 # (processEventsToIdle fires each iteration). Display is controlled
                 # by show_thinking in apply_chunk below.
                 def thinking_cb(msg):
-                    q.put(("thinking", msg))
+                    q.put((StreamQueueKind.THINKING, msg))
 
                 def chat_append_cb(text):
-                    q.put(("chunk", text))
+                    q.put((StreamQueueKind.CHUNK, text))
 
                 def approval_cb(query_for_engine, tool_name, args):
                     import threading
@@ -577,14 +578,14 @@ class SendHandlersMixin:
                     # Use setattr/getattr to avoid static attribute errors on Event
                     setattr(event, "approved", False)
                     setattr(event, "query_override", None)
-                    q.put(("approval_required", query_for_engine, tool_name, event))
+                    q.put((StreamQueueKind.APPROVAL_REQUIRED, query_for_engine, tool_name, event))
                     event.wait()
                     if not getattr(event, "approved", False):
                         # If the user rejects the search query, do not let the LLM
                         # keep going without the data it requested. Instead, immediately
                         # halt the entire tool call loop, acting exactly as if the
                         # user clicked the explicit 'Stop' button in the UI.
-                        q.put(("stopped",))
+                        q.put((StreamQueueKind.STOPPED,))
                     return (
                         bool(getattr(event, "approved", False)),
                         getattr(event, "query_override", None),
@@ -628,21 +629,21 @@ class SendHandlersMixin:
                         if not isinstance(answer, str):
                             answer = str(answer)
                         msg = _("Librarian: {0}").format(answer) + "\n"
-                        q.put(("chunk", msg))
+                        q.put((StreamQueueKind.CHUNK, msg))
                         self.session.add_assistant_message(content=msg)
                     elif data.get("status") == "switch_mode":
                         # We want to exit librarian flow on the next turn.
                         from plugin.framework.i18n import _
                         answer = data.get("result", _("Perfect! I'm switching you to the main assistant now."))
                         msg = _("Librarian: {0}").format(answer) + "\n"
-                        q.put(("chunk", msg))
+                        q.put((StreamQueueKind.CHUNK, msg))
                         self.session.add_assistant_message(content=msg)
                     else:
                         from plugin.framework.i18n import _
                         msg = data.get("message", _("Unknown librarian error."))
-                        q.put(("chunk", "\n" + _("[Librarian error: {0}]").format(msg) + "\n"))
+                        q.put((StreamQueueKind.CHUNK, "\n" + _("[Librarian error: {0}]").format(msg) + "\n"))
 
-                    q.put(("stream_done", {}))
+                    q.put((StreamQueueKind.STREAM_DONE, {}))
                 else:
                     res = get_tools().execute(
                         "web_research",
@@ -664,19 +665,19 @@ class SendHandlersMixin:
                         if not isinstance(answer, str):
                             answer = str(answer)
                         msg = _("AI (research): {0}").format(answer) + "\n"
-                        q.put(("chunk", msg))
+                        q.put((StreamQueueKind.CHUNK, msg))
                         # Persist assistant result to current session
                         self.session.add_assistant_message(content=msg)
                     else:
                         from plugin.framework.i18n import _
                         msg = data.get("message", _("Unknown research error."))
-                        q.put(("chunk", "\n" + _("[Research error: {0}]").format(msg) + "\n"))
+                        q.put((StreamQueueKind.CHUNK, "\n" + _("[Research error: {0}]").format(msg) + "\n"))
 
-                    q.put(("stream_done", {}))
+                    q.put((StreamQueueKind.STREAM_DONE, {}))
             except Exception as e:
                 log.error("Web/Librarian path ERROR in _run_web_research [doc: %s]: %s", doc_type, e)
                 from plugin.framework.errors import format_error_payload
-                q.put(("error", format_error_payload(e)))
+                q.put((StreamQueueKind.ERROR, format_error_payload(e)))
 
         def on_approval_required(item):
             # item = ("approval_required", query_for_engine, tool_name, event_obj)

@@ -20,9 +20,11 @@ Handles both simple streaming and complex tool-calling loops with thinking/statu
 Runs blocking API calls on worker threads and drains logic via a main-thread loop
 to keep the LibreOffice UI responsive (processEventsToIdle).
 """
+from __future__ import annotations
+
 import logging
 import queue
-import threading
+from enum import StrEnum
 
 from plugin.framework.worker_pool import run_in_background
 
@@ -30,6 +32,41 @@ log = logging.getLogger(__name__)
 
 
 from plugin.framework.errors import format_error_payload
+
+
+class StreamQueueKind(StrEnum):
+    """First element of stream queue tuples; string values match legacy tags."""
+
+    CHUNK = "chunk"
+    THINKING = "thinking"
+    STATUS = "status"
+    STREAM_DONE = "stream_done"
+    NEXT_TOOL = "next_tool"
+    TOOL_DONE = "tool_done"
+    TOOL_THINKING = "tool_thinking"
+    APPROVAL_REQUIRED = "approval_required"
+    FINAL_DONE = "final_done"
+    STOPPED = "stopped"
+    ERROR = "error"
+
+
+class BlockingPumpKind(StrEnum):
+    """Tags for :func:`run_blocking_in_thread` queue (not the stream drain protocol)."""
+
+    DONE = "done"
+    ERROR = "error"
+
+
+def coerce_stream_queue_kind(raw: StreamQueueKind | str) -> StreamQueueKind:
+    if isinstance(raw, StreamQueueKind):
+        return raw
+    return StreamQueueKind(raw)
+
+
+def coerce_blocking_pump_kind(raw: BlockingPumpKind | str) -> BlockingPumpKind:
+    if isinstance(raw, BlockingPumpKind):
+        return raw
+    return BlockingPumpKind(raw)
 
 def run_stream_drain_loop(
     q,
@@ -50,18 +87,18 @@ def run_stream_drain_loop(
     and dispatches to callbacks. Keeps UI responsive via processEventsToIdle().
     Includes comprehensive error handling to prevent UI thread crashes.
 
-    Supported queue items (kind, *args):
-    - ('chunk', text): Applied via apply_chunk_fn(text, is_thinking=False).
-    - ('thinking', text): Applied via apply_chunk_fn(text, is_thinking=True).
-    - ('status', text): Passed to on_status_fn(text).
-    - ('stream_done', response): Calls on_stream_done(response). Returns True if job finished.
-    - ('next_tool',): Internal trigger for multi-round loops.
-    - ('tool_done', call_id, func_name, args_str, res): Handled by orchestration (if used).
-    - ('tool_thinking', text): Thinking tokens from a tool (e.g. web search).
-    - ('final_done', text): Final non-tool response.
-    - ('approval_required', description, tool_name, args, request_id): HITL; call on_approval_required(item).
-    - ('stopped',): Calls on_stopped().
-    - ('error', exception): Calls on_error(exception).
+    Supported queue items (kind, *args); kind is :class:`StreamQueueKind` or the same legacy string:
+    - (CHUNK, text): Applied via apply_chunk_fn(text, is_thinking=False).
+    - (THINKING, text): Applied via apply_chunk_fn(text, is_thinking=True).
+    - (STATUS, text): Passed to on_status_fn(text).
+    - (STREAM_DONE, response): Calls on_stream_done(item). Returns True if job finished.
+    - (NEXT_TOOL,): Internal trigger for multi-round loops.
+    - (TOOL_DONE, call_id, func_name, args_str, res): Handled by orchestration (if used).
+    - (TOOL_THINKING, text): Thinking tokens from a tool (e.g. web search).
+    - (FINAL_DONE, text): Final non-tool response.
+    - (APPROVAL_REQUIRED, ...): HITL; call on_approval_required(item).
+    - (STOPPED,): Calls on_stopped().
+    - (ERROR, payload): Calls on_error(payload).
     """
     thinking_open = [False]
 
@@ -128,28 +165,38 @@ def run_stream_drain_loop(
                         job_done[0] = True
                         break
 
-                    kind = item[0] if isinstance(item, (tuple, list)) else item
+                    raw_kind = item[0] if isinstance(item, (tuple, list)) else item
                     data = item[1] if isinstance(item, (tuple, list)) and len(item) > 1 else None
 
                     try:
-                        if kind == "chunk":
+                        try:
+                            kind = coerce_stream_queue_kind(raw_kind)
+                        except (ValueError, TypeError) as ek:
+                            log.error("Invalid stream queue tag: %s", ek)
+                            flush_buffers()
+                            close_thinking()
+                            on_error(format_error_payload(ek))
+                            job_done[0] = True
+                            break
+
+                        if kind == StreamQueueKind.CHUNK:
                             if current_thinking:
                                 flush_buffers()
                             current_content.append(data)
-                        elif kind == "thinking":
+                        elif kind == StreamQueueKind.THINKING:
                             if current_content:
                                 flush_buffers()
                             current_thinking.append(data)
-                        elif kind == "status":
+                        elif kind == StreamQueueKind.STATUS:
                             if on_status_fn:
                                 on_status_fn(data)
-                        elif kind == "stream_done":
+                        elif kind == StreamQueueKind.STREAM_DONE:
                             flush_buffers()
                             close_thinking()
                             if on_stream_done(item): # Pass whole item for consistency
                                 job_done[0] = True
                                 break
-                        elif kind == "tool_done":
+                        elif kind == StreamQueueKind.TOOL_DONE:
                             # For unified tool loop handling, we relay back to on_stream_done
                             # with a special structure or just let the caller handle it if they passed
                             # accurate on_stream_done logic.
@@ -158,12 +205,12 @@ def run_stream_drain_loop(
                             if on_stream_done(item): # Pass whole item for tool_done
                                 job_done[0] = True
                                 break
-                        elif kind == "tool_thinking":
+                        elif kind == StreamQueueKind.TOOL_THINKING:
                             if show_search_thinking:
                                 if current_content:
                                     flush_buffers()
                                 current_thinking.append(data)
-                        elif kind == "approval_required":
+                        elif kind == StreamQueueKind.APPROVAL_REQUIRED:
                             flush_buffers()
                             close_thinking()
                             if on_approval_required:
@@ -171,13 +218,13 @@ def run_stream_drain_loop(
                                     on_approval_required(item)
                                 except Exception as e:
                                     log.error("approval_required handler: %s" % e)
-                        elif kind == "final_done":
+                        elif kind == StreamQueueKind.FINAL_DONE:
                             flush_buffers()
                             close_thinking()
                             if on_stream_done(item): # Same as tool_done
                                 job_done[0] = True
                                 break
-                        elif kind == "next_tool":
+                        elif kind == StreamQueueKind.NEXT_TOOL:
                             # Caller usually puts this back in to trigger next iteration
                             # if it's a multi-tool-round loop.
                             flush_buffers()
@@ -185,13 +232,13 @@ def run_stream_drain_loop(
                             if on_stream_done(item):
                                 job_done[0] = True
                                 break
-                        elif kind == "stopped":
+                        elif kind == StreamQueueKind.STOPPED:
                             flush_buffers()
                             close_thinking()
                             on_stopped()
                             job_done[0] = True
                             break
-                        elif kind == "error":
+                        elif kind == StreamQueueKind.ERROR:
                             flush_buffers()
                             close_thinking()
                             on_error(data)
@@ -200,7 +247,7 @@ def run_stream_drain_loop(
                     except Exception as loop_e:
                         error_payload = format_error_payload(loop_e)
                         log.error("Stream processing error: %s" % error_payload)
-                        q.put(("error", error_payload))
+                        q.put((StreamQueueKind.ERROR, error_payload))
 
                 flush_buffers()
 
@@ -258,18 +305,18 @@ def run_stream_completion_async(
                 prompt,
                 system_prompt,
                 max_tokens,
-                append_callback=lambda t: q.put(("chunk", t)),
-                append_thinking_callback=lambda t: q.put(("thinking", t)),
-                status_callback=lambda t: q.put(("status", t)),
+                append_callback=lambda t: q.put((StreamQueueKind.CHUNK, t)),
+                append_thinking_callback=lambda t: q.put((StreamQueueKind.THINKING, t)),
+                status_callback=lambda t: q.put((StreamQueueKind.STATUS, t)),
                 stop_checker=stop_checker,
             )
             if stop_checker and stop_checker():
-                q.put(("stopped",))
+                q.put((StreamQueueKind.STOPPED,))
             else:
-                q.put(("stream_done", None))
+                q.put((StreamQueueKind.STREAM_DONE, None))
         except Exception as e:
             from plugin.framework.errors import format_error_payload
-            q.put(("error", format_error_payload(e)))
+            q.put((StreamQueueKind.ERROR, format_error_payload(e)))
 
     try:
         toolkit = ctx.getServiceManager().createInstanceWithContext(
@@ -320,25 +367,25 @@ def run_stream_async(
                     messages,
                     max_tokens or 512,
                     tools=tools,
-                    append_callback=lambda t: q.put(("chunk", t)),
-                    append_thinking_callback=lambda t: q.put(("thinking", t)),
+                    append_callback=lambda t: q.put((StreamQueueKind.CHUNK, t)),
+                    append_thinking_callback=lambda t: q.put((StreamQueueKind.THINKING, t)),
                     stop_checker=stop_checker,
                 )
             else:
                 client.stream_chat_response(
                     messages,
                     max_tokens or 512,
-                    append_callback=lambda t: q.put(("chunk", t)),
-                    append_thinking_callback=lambda t: q.put(("thinking", t)),
+                    append_callback=lambda t: q.put((StreamQueueKind.CHUNK, t)),
+                    append_thinking_callback=lambda t: q.put((StreamQueueKind.THINKING, t)),
                     stop_checker=stop_checker,
                 )
             if stop_checker and stop_checker():
-                q.put(("stopped",))
+                q.put((StreamQueueKind.STOPPED,))
             else:
-                q.put(("stream_done", None))
+                q.put((StreamQueueKind.STREAM_DONE, None))
         except Exception as e:
             from plugin.framework.errors import format_error_payload
-            q.put(("error", format_error_payload(e)))
+            q.put((StreamQueueKind.ERROR, format_error_payload(e)))
 
     try:
         toolkit = ctx.getServiceManager().createInstanceWithContext(
@@ -378,9 +425,9 @@ def run_blocking_in_thread(ctx, func, *args, **kwargs):
     def worker():
         try:
             result = func(*args, **kwargs)
-            q.put(("done", result))
+            q.put((BlockingPumpKind.DONE, result))
         except Exception as e:
-            q.put(("error", e))
+            q.put((BlockingPumpKind.ERROR, e))
 
     try:
         toolkit = ctx.getServiceManager().createInstanceWithContext(
@@ -397,9 +444,10 @@ def run_blocking_in_thread(ctx, func, *args, **kwargs):
             # Check for result without long block
             item = q.get(timeout=0.1)
             kind, data = item
-            if kind == "done":
+            kind = coerce_blocking_pump_kind(kind)
+            if kind == BlockingPumpKind.DONE:
                 return data
-            elif kind == "error":
+            if kind == BlockingPumpKind.ERROR:
                 raise data
         except queue.Empty:
             # Pulse MCP if enabled (similar to drain loop)

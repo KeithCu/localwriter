@@ -15,6 +15,9 @@ class ToolLoopState(BaseState):
     async_tools: frozenset[str] = frozenset()
 
 # --- Events ---
+# Background threads enqueue tuples whose first element is StreamQueueKind
+# (see plugin.framework.async_stream); ToolCallingMixin turns them into
+# ToolLoopEvent / EventKind via _create_event_from_stream_item.
 class EventKind(Enum):
     STOP_REQUESTED = auto()
     STREAM_DONE = auto()
