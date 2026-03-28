@@ -40,4 +40,4 @@ dev = [
 [tool.ty.src]
 # Optional: explicitly set what to include (defaults to common patterns)
 include = ["plugin"]
-exclude = ["plugin/contrib"]
+exclude = ["plugin/contrib", "plugin/tests"]
