@@ -995,7 +995,7 @@ class ToolCallingMixin:
 
     def begin_inline_web_approval(self, query: str, tool: str, event: Any) -> None:
         """Override on ``SendButtonListener`` for real UI. Default: auto-approve (tests / no panel)."""
-        if event_obj is not None:
-            event_obj.approved = True
-            event_obj.query_override = None
-            event_obj.set()
+        if event is not None:
+            event.approved = True
+            event.query_override = None
+            event.set()

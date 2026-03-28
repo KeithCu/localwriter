@@ -182,7 +182,7 @@ class ErrorDetector:
                 logger.debug("Explain error getString exception: %s", e2)
             return {}
 
-    def detect_errors(self, range_str: str = None) -> list:
+    def detect_errors(self, range_str: str | None = None) -> list:
         """Detect errors in the specified range or the entire sheet.
 
         Args:
@@ -298,7 +298,7 @@ class ErrorDetector:
             logger.error("Error explanation failure (%s): %s", address, str(e))
             raise ToolExecutionError(str(e)) from e
 
-    def detect_and_explain(self, range_str: str = None) -> dict:
+    def detect_and_explain(self, range_str: str | None = None) -> dict:
         """Detect formula errors in a range and return them with explanations.
 
         Args:

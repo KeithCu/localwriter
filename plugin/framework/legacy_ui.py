@@ -123,14 +123,17 @@ def settings_box(ctx, title="Settings", x=None, y=None):
     dlg.getControl("btn_tab_image").addActionListener(TabListener(dlg, 2))
     
     try:
-        from plugin._manifest import MODULES  # type: ignore
+        from plugin._manifest import MODULES
         
         inline_targets = {}
         for m in MODULES:
             inline_val = m.get("config_inline")
             if not inline_val:
                 continue
-            target = inline_val if isinstance(inline_val, str) else (m["name"].rsplit(".", 1)[0] if "." in m["name"] else None)
+            m_name = m.get("name")
+            if not isinstance(m_name, str):
+                continue
+            target = inline_val if isinstance(inline_val, str) else (m_name.rsplit(".", 1)[0] if "." in m_name else None)
             if target:
                 inline_targets[m["name"]] = target
 
@@ -160,7 +163,10 @@ def settings_box(ctx, title="Settings", x=None, y=None):
             if not config and not children:
                 continue
 
-            btn_id = f"btn_tab_{m['name'].replace('.', '_')}"
+            m_name = m.get("name")
+            if not isinstance(m_name, str):
+                continue
+            btn_id = f"btn_tab_{m_name.replace('.', '_')}"
             ctrl = dlg.getControl(btn_id)
             if ctrl:
                 ctrl.addActionListener(TabListener(dlg, page_num))

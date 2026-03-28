@@ -85,7 +85,9 @@ class WebResearchTool(ToolBase):
         """Run in a background thread so HITL approval can use the main-thread queue/drain loop."""
         return True
 
-    def execute(self, ctx, query, history_text=None):
+    def execute(self, ctx, **kwargs):
+        query = kwargs.get("query")
+        history_text = kwargs.get("history_text")
         from plugin.framework.errors import format_error_payload, ToolExecutionError
         import os
         from plugin.framework.utils import get_url_domain
@@ -113,7 +115,7 @@ class WebResearchTool(ToolBase):
 
         try:
             if status_callback:
-                status_callback("Sub-agent starting web search: " + query)
+                status_callback("Sub-agent starting web search: " + str(query or ""))
 
             config = get_api_config(ctx.ctx)
             max_tokens = int(config.get("chat_max_tokens", 2048))

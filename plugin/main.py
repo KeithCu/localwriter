@@ -37,7 +37,7 @@ if _vendor_dir not in sys.path:
 
 import unohelper
 try:
-    import officehelper  # type: ignore
+    import officehelper
 except ImportError:
     pass
 
@@ -331,7 +331,7 @@ def get_menu_text(command):
 
     # Fallback to the title from the manifest
     try:
-        from plugin._manifest import MODULES  # type: ignore
+        from plugin._manifest import MODULES
         for m in MODULES:
             if m["name"] == mod_name:
                 # The manifest doesn't store action titles directly in a map,
@@ -446,7 +446,7 @@ def _collect_icon_commands():
     Returns {command_url: (module_name, icon_prefix)} for the current state.
     """
     try:
-        from plugin._manifest import MODULES  # type: ignore
+        from plugin._manifest import MODULES
     except ImportError:
         return {}
 

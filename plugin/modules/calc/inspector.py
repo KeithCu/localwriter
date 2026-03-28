@@ -222,7 +222,7 @@ class CellInspector:
             logger.error("Range reading error (%s): %s", range_name, str(e))
             raise ToolExecutionError(str(e)) from e
 
-    def get_all_formulas(self, sheet_name: str = None) -> list[dict]:
+    def get_all_formulas(self, sheet_name: str | None = None) -> list[dict]:
         """List all formulas in a sheet.
 
         Args:

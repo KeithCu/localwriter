@@ -98,7 +98,9 @@ class LibrarianOnboardingTool(ToolBase):
     def is_async(self):
         return True
 
-    def execute(self, ctx, query, history_text=None):
+    def execute(self, ctx, **kwargs):
+        query = kwargs.get("query")
+        history_text = kwargs.get("history_text")
         from plugin.framework.errors import format_error_payload, ToolExecutionError
 
         try:
