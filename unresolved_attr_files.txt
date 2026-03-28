@@ -1,0 +1,126 @@
+     14 error[unresolved-attribute]: Object of type `None` has no attribute `getCurrentController`
+     11 error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `ctx`
+     11 error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `_append_response`
+     10 error[unresolved-attribute]: Object of type `None` has no attribute `getText`
+      9 error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `ctx`
+      9 error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `ctx`
+      7 error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `session`
+      6 error[unresolved-attribute]: Attribute `stdin` is not defined on `None` in union `Unknown | None | Popen[bytes]`
+      6 error[unresolved-attribute]: Attribute `join` is not defined on `None` in union `Unknown | None`
+      5 error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `_append_response`
+      5 error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `base_size_input`
+      5 error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `_set_status`
+      5 error[unresolved-attribute]: Object of type `None` has no attribute `getBookmarks`
+      5 error[unresolved-attribute]: Object of type `None` has no attribute `findFirst`
+      5 error[unresolved-attribute]: Object of type `None` has no attribute `createSearchDescriptor`
+      5 error[unresolved-attribute]: Attribute `get` is not defined on `None` in union `None | Any`
+      4 error[unresolved-attribute]: Object of type `SmolToolAdapter` has no attribute `inputs`
+      4 error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `ctx`
+      4 error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `_set_status`
+      4 error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `ctx`
+      4 error[unresolved-attribute]: Object of type `Event` has no attribute `approved`
+      4 error[unresolved-attribute]: Attribute `set_notification_callback` is not defined on `None` in union `Unknown | None | ACPConnection`
+      4 error[unresolved-attribute]: Attribute `ServiceManager` is not defined on `Any` in union `Any | Any`
+      3 error[unresolved-attribute]: Unresolved attribute `getServiceManager` on type `MockContext`
+      3 error[unresolved-attribute]: Object of type `Self@_transcribe_audio` has no attribute `ctx`
+      3 error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `_append_response`
+      3 error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `session`
+      3 error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `ctx`
+      3 error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `session`
+      3 error[unresolved-attribute]: Object of type `Self@_get_mcp_url` has no attribute `ctx`
+      3 error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `session`
+      3 error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `response_control`
+      3 error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `session`
+      3 error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `image_model_selector`
+      3 error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `aspect_ratio_selector`
+      3 error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `_set_status`
+      3 error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `_append_response`
+      3 error[unresolved-attribute]: Object of type `None` has no attribute `getDrawPages`
+      3 error[unresolved-attribute]: Object of type `None` has no attribute `get`
+      3 error[unresolved-attribute]: Attribute `write` is not defined on `None` in union `Unknown | IO[bytes] | None`
+      3 error[unresolved-attribute]: Attribute `session_id` is not defined on `None` in union `Unknown | None | ChatSession`
+      3 error[unresolved-attribute]: Attribute `send_request` is not defined on `None` in union `Unknown | None | ACPConnection`
+      3 error[unresolved-attribute]: Attribute `is_set` is not defined on `None` in union `Unknown | Event | None`
+      3 error[unresolved-attribute]: Attribute `getServiceManager` is not defined on `MockContext` in union `Unknown | MockContext`
+      3 error[unresolved-attribute]: Attribute `flush` is not defined on `None` in union `Unknown | IO[bytes] | None`
+      2 error[unresolved-attribute]: Unresolved attribute `XCallback` on type `ModuleType`
+      2 error[unresolved-attribute]: Unresolved attribute `query_override` on type `Event`
+      2 error[unresolved-attribute]: Unresolved attribute `approved` on type `Event`
+      2 error[unresolved-attribute]: Object of type `Self@_transcribe_audio` has no attribute `_append_response`
+      2 error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `_set_status`
+      2 error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `stop_requested`
+      2 error[unresolved-attribute]: Object of type `Self@_spawn_llm_worker` has no attribute `stop_requested`
+      2 error[unresolved-attribute]: Object of type `Self@_spawn_llm_worker` has no attribute `session`
+      2 error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `stop_requested`
+      2 error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `_append_response`
+      2 error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `ctx`
+      2 error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `stop_requested`
+      2 error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `image_model_selector`
+      2 error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `ctx`
+      2 error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `model_selector`
+      2 error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `image_model_selector`
+      2 error[unresolved-attribute]: Object of type `None` has no attribute `getSheets`
+      2 error[unresolved-attribute]: Object of type `None` has no attribute `empty`
+      2 error[unresolved-attribute]: Attribute `wait` is not defined on `None` in union `Popen[Unknown] | None`
+      2 error[unresolved-attribute]: Attribute `items` is not defined on `str`, `list[Unknown]`, `None`, `list[str]` in union `str | list[Unknown] | dict[Unknown, Unknown] | ... omitted 7 union elements`
+      2 error[unresolved-attribute]: Attribute `get` is not defined on `str` in union `Unknown | str | dict[str, str]`
+      2 error[unresolved-attribute]: Attribute `emit` is not defined on `None` in union `Unknown | None`
+      1 error[unresolved-attribute]: Unresolved attribute `XClipboardListener` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `XActionListener` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `TestModule` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `Size` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `session` on type `DummyChatbotPanel`
+      1 error[unresolved-attribute]: Unresolved attribute `response_control` on type `DummyChatbotPanel`
+      1 error[unresolved-attribute]: Unresolved attribute `PropertyValue` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `Point` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `parse_address` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `NotATool` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `ImportedTool` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `GoodTool` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `DummyTool` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `Base` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `Base` on type `MockModule`
+      1 error[unresolved-attribute]: Unresolved attribute `AT_FRAME` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `AS_CHARACTER` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `AnotherTool` on type `ModuleType`
+      1 error[unresolved-attribute]: Unresolved attribute `AbstractTool` on type `ModuleType`
+      1 error[unresolved-attribute]: Object of type `SmolToolAdapter` has no attribute `forward`
+      1 error[unresolved-attribute]: Object of type `Self@_transcribe_audio` has no attribute `_set_status`
+      1 error[unresolved-attribute]: Object of type `Self@test_doc_type_leakage` has no attribute `set_control_text`
+      1 error[unresolved-attribute]: Object of type `Self@test_doc_type_leakage` has no attribute `get_control_text`
+      1 error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `stop_requested`
+      1 error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `ctx`
+      1 error[unresolved-attribute]: Object of type `Self@_spawn_llm_worker` has no attribute `_set_status`
+      1 error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `_set_status`
+      1 error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `session`
+      1 error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `_append_response`
+      1 error[unresolved-attribute]: Object of type `Self@_run_web_research` has no attribute `session`
+      1 error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `stop_requested`
+      1 error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `_set_status`
+      1 error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `_append_response`
+      1 error[unresolved-attribute]: Object of type `Self@_run_librarian` has no attribute `session`
+      1 error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `_transcribe_audio`
+      1 error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `_set_status`
+      1 error[unresolved-attribute]: Object of type `Self@_handle_stream_completion` has no attribute `stop_requested`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `stop_requested`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `begin_inline_web_approval`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `_set_status`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `_append_response`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `stop_requested`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `_get_doc_type_str`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `stop_requested`
+      1 error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `session`
+      1 error[unresolved-attribute]: Object of type `Self@_do_send_via_agent_backend` has no attribute `session`
+      1 error[unresolved-attribute]: Object of type `object` has no attribute `name`
+      1 error[unresolved-attribute]: Object of type `bound method MemoryTool.execute(ctx, **kwargs) -> Unknown` has no attribute `call_args`
+      1 error[unresolved-attribute]: Object of type `bound method MemoryTool.execute(ctx, **kwargs) -> Unknown` has no attribute `assert_called_once`
+      1 error[unresolved-attribute]: Attribute `tool_calls` is not defined on `None` in union `(Any & AddMessageEffect) | None`
+      1 error[unresolved-attribute]: Attribute `serve_forever` is not defined on `None` in union `Unknown | None | _ThreadedHTTPServer`
+      1 error[unresolved-attribute]: Attribute `rsplit` is not defined on `list[Unknown]`, `dict[Unknown, Unknown]`, `None`, `list[str]`, `dict[str, dict[str, str | bool | list[dict[str, str]]]]`, `dict[str, dict[str, str | bool] | dict[str, str | int]]`, `dict[str, dict[str, str | int]]`, `dict[str, dict[str, str | int] | dict[str, str | list[dict[str, str]]] | dict[str, str | bool]]`, `dict[str, dict[str, str | list[dict[str, str]]] | dict[str, str]]` in union `str | list[Unknown] | dict[Unknown, Unknown] | ... omitted 7 union elements`
+      1 error[unresolved-attribute]: Attribute `replace` is not defined on `None`, `list[Unknown]`, `dict[Unknown, Unknown]`, `list[str]`, `dict[str, dict[str, str | bool | list[dict[str, str]]]]`, `dict[str, dict[str, str | bool] | dict[str, str | int]]`, `dict[str, dict[str, str | int]]`, `dict[str, dict[str, str | int] | dict[str, str | list[dict[str, str]]] | dict[str, str | bool]]`, `dict[str, dict[str, str | list[dict[str, str]]] | dict[str, str]]` in union `None | str | list[Unknown] | ... omitted 7 union elements`
+      1 error[unresolved-attribute]: Attribute `replace` is not defined on `list[Unknown]`, `dict[Unknown, Unknown]`, `list[str]`, `dict[str, dict[str, str | bool | list[dict[str, str]]]]`, `dict[str, dict[str, str | bool] | dict[str, str | int]]`, `dict[str, dict[str, str | int]]`, `dict[str, dict[str, str | int] | dict[str, str | list[dict[str, str]]] | dict[str, str | bool]]`, `dict[str, dict[str, str | list[dict[str, str]]] | dict[str, str]]` in union `(None & Unknown) | str | list[Unknown] | ... omitted 7 union elements`
+      1 error[unresolved-attribute]: Attribute `readline` is not defined on `None` in union `Unknown | IO[bytes] | None`
+      1 error[unresolved-attribute]: Attribute `lower` is not defined on `int` in union `int | Unknown`
+      1 error[unresolved-attribute]: Attribute `content` is not defined on `None` in union `(Any & AddMessageEffect) | None`
+      1 error[unresolved-attribute]: Attribute `close` is not defined on `None` in union `Unknown | IO[bytes] | None`
+      1 error[unresolved-attribute]: Attribute `append` is not defined on `int`, `str` in union `int | str | list[Unknown]`

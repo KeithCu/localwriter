@@ -1,0 +1,54 @@
+# Tunnel Module Analysis
+
+The "tunnel" code in [plugin/modules/tunnel](file:///home/keithcu/Desktop/Python/writeragent/plugin/modules/tunnel) is a robust and modular system designed to expose the local WriterAgent HTTP server (on port 8766 by default) to the internet. This is primarily used to provide external access to MCP endpoints.
+
+## 🚀 What It Does
+
+The module provides a `tunnel_manager` service that handles the lifecycle of external tunnel processes. It supports four different providers:
+
+| Provider | Description | Core Binary |
+| :--- | :--- | :--- |
+| **Bore** | A simple CLI tunnel tool using [bore.pub](https://bore.pub). | `bore` |
+| **Cloudflare** | Supports both "Quick Tunnels" (temporary URLs) and "Named Tunnels" (persistent domains). | `cloudflared` |
+| **Ngrok** | Uses structured JSON logging for reliable URL parsing and error detection (e.g., missing auth tokens). | `ngrok` |
+| **Tailscale** | Uses [Tailscale Funnel](https://tailscale.com/kb/1223/funnel/) to expose ports on the Tailscale network. | `tailscale` |
+
+## 🏗️ Architecture
+
+- **[TunnelManager](file:///home/keithcu/Desktop/Python/writeragent/plugin/modules/tunnel/__init__.py#46-286)**: Manages the subprocess lifecycle, parses output for public URLs, and emits events (`tunnel:started`, `tunnel:stopped`).
+- **`TunnelProvider` Protocol**: Each provider ([bore.py](file:///home/keithcu/Desktop/Python/writeragent/plugin/modules/tunnel/providers/bore.py), [cloudflare.py](file:///home/keithcu/Desktop/Python/writeragent/plugin/modules/tunnel/providers/cloudflare.py), etc.) implements a standardized interface for building commands and parsing output.
+- **Integration**:
+  - **Config**: Integrated with the system config for auto-start and provider settings.
+  - **Dynamic UI**: The [module.yaml](file:///home/keithcu/Desktop/Python/writeragent/plugin/modules/tunnel/module.yaml) defines a configuration UI with a select menu populated dynamically from registered providers.
+  - **Lifecycle**: Automatically restarts if configuration changes and shuts down gracefully with the application.
+
+## 🛠️ Does It Work?
+
+The code is **feature-complete and well-architected**. It follows the project's plugin patterns and handle various edge cases (like hiding console windows on Windows and handling auth errors).
+- Added negative advice to prompts to strictly discourage Markdown usage.
+- Emphasized HTML's richness and backward compatibility (pre-Feb 2026).
+
+## Test Runner Refactoring
+
+- **Generic Runner**: Consolidated redundant `run_*_tests` logic into `plugin.testing_runner.run_module_suite`.
+- **Fixed Calc/Draw**: Manual test triggers for Calc and Draw now work correctly via the generic helper.
+- **Improved Diagnostics**: Updated `main.py`'s dispatch handler to log exceptions and display error boxes, preventing silent failures in the UNO environment.
+
+## Bug Fixes
+
+- **Import Error**: Resolved a `cannot import name '_doc_text_length'` error in `format_tests.py` (switched to `get_document_length` from `document.py`).
+- **Logging Signature**: Fixed an incorrect `debug_log` call in `format_tests.py`.
+
+## Verification Results
+
+- **Command Line**: `python -m plugin.testing_runner` passes all suites.
+- **LibreOffice Menu**: "Run Format Tests", "Run Calc Tests", and "Run Draw Tests" successfully execute and show results.
+- **Sidebar**: Chat functionality verified to use HTML and respect formatting rules.
+### Verification
+- **Code Quality**: High. It uses daemon threads, proper locking, and clean abstraction.
+- **Dependencies**: To use it, you must have the corresponding binary (`bore`, `cloudflared`, etc.) installed and available in your `PATH`.
+- **Manual Check**: I checked for these binaries on the current environment and they were not found, so you'll need to install the one you want to use.
+
+## 📝 Recommendations
+- If you plan on using this for remote MCP access, **Cloudflare Tunnels** are recommended for stability, or **Ngrok** for ease of use.
+- The module is ready for use once the binaries are installed.

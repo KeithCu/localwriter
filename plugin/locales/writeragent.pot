@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-03-26 15:19-0400\n"
+"POT-Creation-Date: 2026-03-27 20:33-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -247,7 +247,7 @@ msgid "Copy URL"
 msgstr ""
 
 #: plugin/framework/dialogs.py:484 plugin/framework/dialogs.py:512
-#: plugin/main.py:316
+#: plugin/main.py:362
 msgid "About WriterAgent"
 msgstr ""
 
@@ -274,7 +274,7 @@ msgstr ""
 msgid "{resource_type} not found: {identifier}"
 msgstr ""
 
-#: plugin/framework/legacy_ui.py:294 plugin/main.py:307
+#: plugin/framework/legacy_ui.py:294 plugin/main.py:353
 #: plugin/xdl_strings.py:45
 msgid "Settings"
 msgstr ""
@@ -282,7 +282,7 @@ msgstr ""
 #: plugin/framework/legacy_ui.py:346 plugin/modules/chatbot/panel.py:736
 #: plugin/modules/chatbot/send_handlers.py:300
 #: plugin/modules/chatbot/send_handlers.py:310
-#: plugin/modules/chatbot/send_handlers.py:319 plugin/main.py:212
+#: plugin/modules/chatbot/send_handlers.py:319 plugin/main.py:258
 msgid "Error"
 msgstr ""
 
@@ -345,7 +345,7 @@ msgstr ""
 msgid "Server error ({0}). The AI provider is having issues."
 msgstr ""
 
-#: plugin/modules/http/errors.py:27 plugin/modules/http/errors.py:48
+#: plugin/modules/http/errors.py:27
 #, python-brace-format
 msgid "HTTP Error {0}: {1}"
 msgstr ""
@@ -370,6 +370,11 @@ msgstr ""
 
 #: plugin/modules/http/errors.py:41
 msgid "The AI provider reported an error. Try again."
+msgstr ""
+
+#: plugin/modules/http/errors.py:48
+#, python-brace-format
+msgid "HTTP Error {0} from AI Provider: {1}"
 msgstr ""
 
 #: plugin/modules/http/errors.py:69
@@ -638,7 +643,7 @@ msgstr ""
 msgid "[Research error: {0}]"
 msgstr ""
 
-#: plugin/modules/chatbot/librarian.py:72
+#: plugin/modules/chatbot/librarian.py:73
 msgid "Switching to document mode..."
 msgstr ""
 
@@ -666,53 +671,53 @@ msgstr ""
 msgid "Backend"
 msgstr ""
 
-#: plugin/main.py:229
+#: plugin/main.py:275
 #, python-brace-format
 msgid "{0}: {1} passed, {2} failed."
 msgstr ""
 
-#: plugin/main.py:232
+#: plugin/main.py:278
 #, python-brace-format
 msgid "Tests failed to run: {0}"
 msgstr ""
 
-#: plugin/main.py:305
+#: plugin/main.py:351
 msgid "Extend Selection"
 msgstr ""
 
-#: plugin/main.py:306
+#: plugin/main.py:352
 msgid "Edit Selection"
 msgstr ""
 
-#: plugin/main.py:308
+#: plugin/main.py:354
 msgid "Toggle MCP Server"
 msgstr ""
 
-#: plugin/main.py:309
+#: plugin/main.py:355
 msgid "MCP Server Status"
 msgstr ""
 
-#: plugin/main.py:311
+#: plugin/main.py:357
 msgid "Run format tests"
 msgstr ""
 
-#: plugin/main.py:312
+#: plugin/main.py:358
 msgid "Run calc tests"
 msgstr ""
 
-#: plugin/main.py:313
+#: plugin/main.py:359
 msgid "Run Calc API integration tests"
 msgstr ""
 
-#: plugin/main.py:314
+#: plugin/main.py:360
 msgid "Run draw tests"
 msgstr ""
 
-#: plugin/main.py:315
+#: plugin/main.py:361
 msgid "Evaluation Dashboard"
 msgstr ""
 
-#: plugin/main.py:665
+#: plugin/main.py:719
 msgid "Dispatch Error"
 msgstr ""
 

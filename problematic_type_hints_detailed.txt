@@ -1,0 +1,768 @@
+# Found 653 type hints in files with errors
+# Files with errors: 132
+
+
+## plugin/contrib/aihordeclient/__init__.py
+plugin/contrib/aihordeclient/__init__.py:29: from typing import Any, Dict, List, Union
+plugin/contrib/aihordeclient/__init__.py:166: def __init__(self, message: str = "A custom error occurred", url: str = ""):
+plugin/contrib/aihordeclient/__init__.py:167: self.message: str = message
+plugin/contrib/aihordeclient/__init__.py:168: self.url: str = url
+plugin/contrib/aihordeclient/__init__.py:217: client_version: str,
+plugin/contrib/aihordeclient/__init__.py:218: url_version_update: str,
+plugin/contrib/aihordeclient/__init__.py:219: client_help_url: str,
+plugin/contrib/aihordeclient/__init__.py:220: client_download_url: str,
+plugin/contrib/aihordeclient/__init__.py:221: settings: Any = None,
+plugin/contrib/aihordeclient/__init__.py:222: client_name: str = __HORDE_CLIENT_NAME__,
+plugin/contrib/aihordeclient/__init__.py:235: self.settings: Any = settings
+plugin/contrib/aihordeclient/__init__.py:240: self.client_version: str = client_version
+plugin/contrib/aihordeclient/__init__.py:244: self.status_url: str = ""
+plugin/contrib/aihordeclient/__init__.py:245: self.wait_time: int = 1000
+plugin/contrib/aihordeclient/__init__.py:247: self.url_version_update: str = url_version_update
+plugin/contrib/aihordeclient/__init__.py:248: self.client_help_url: str = client_help_url
+plugin/contrib/aihordeclient/__init__.py:249: self.client_download_url: str = client_download_url
+plugin/contrib/aihordeclient/__init__.py:251: self.api_key: str = self.settings.get("aihorde_api_key") or self.settings.get("api_key", ANONYMOUS_KEY)
+plugin/contrib/aihordeclient/__init__.py:252: self.client_name: str = client_name
+plugin/contrib/aihordeclient/__init__.py:253: self.headers: Any = {
+plugin/contrib/aihordeclient/__init__.py:262: self.progress_text: str = _("Starting...")
+plugin/contrib/aihordeclient/__init__.py:263: self.warnings: List[Dict[str, Any]] = []
+plugin/contrib/aihordeclient/__init__.py:266: self.finished_task: bool = True
+plugin/contrib/aihordeclient/__init__.py:267: self.censored: bool = False
+plugin/contrib/aihordeclient/__init__.py:283: url: Union[str, Request],
+plugin/contrib/aihordeclient/__init__.py:415: def __get_model_requirements__(self, model: str) -> Any:
+plugin/contrib/aihordeclient/__init__.py:466: def __get_model_restrictions__(self, model: str) -> Any:
+plugin/contrib/aihordeclient/__init__.py:640: def _raise_horde_http_error(self, ex: HTTPError, from_status_check: bool = False):
+plugin/contrib/aihordeclient/__init__.py:684: def generate_image(self, options: Any) -> [str]:
+plugin/contrib/aihordeclient/__init__.py:708: self.wait_time: int = 1000
+plugin/contrib/aihordeclient/__init__.py:1049: def __get_images_filenames__(self, images: List[Dict[str, Any]]) -> List[str]:
+plugin/contrib/aihordeclient/__init__.py:1161: def set_settings(self, settings: Any):
+
+## plugin/contrib/smolagents/_function_type_hints_utils.py
+plugin/contrib/smolagents/_function_type_hints_utils.py:31: from typing import (
+plugin/contrib/smolagents/_function_type_hints_utils.py:46: def get_package_name(import_name: str) -> str:
+plugin/contrib/smolagents/_function_type_hints_utils.py:59: def get_imports(code: str) -> list[str]:
+plugin/contrib/smolagents/_function_type_hints_utils.py:177: >>> def drink_beverage(beverage: str):
+plugin/contrib/smolagents/_function_type_hints_utils.py:257: docstring: str,
+plugin/contrib/smolagents/_function_type_hints_utils.py:291: def _convert_type_hints_to_json_schema(func: Callable, error_on_missing_type_hints: bool = True) -> dict:
+
+## plugin/contrib/smolagents/agent_types.py
+plugin/contrib/smolagents/agent_types.py:21: from typing import Any
+plugin/contrib/smolagents/agent_types.py:41: - They can be stringified: str(object) in order to return a string defining the object
+plugin/contrib/smolagents/agent_types.py:186: def save(self, output_bytes, format: str = None, **params):
+plugin/contrib/smolagents/agent_types.py:297: def handle_agent_output_types(output: Any, output_type: str | None = None) -> Any:
+
+## plugin/contrib/smolagents/agents.py
+plugin/contrib/smolagents/agents.py:33: from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
+plugin/contrib/smolagents/agents.py:126: template_str: str,
+plugin/contrib/smolagents/agents.py:127: tools: dict,
+plugin/contrib/smolagents/agents.py:128: managed_agents: dict,
+plugin/contrib/smolagents/agents.py:129: custom_instructions: str,
+plugin/contrib/smolagents/agents.py:154: def populate_template(template: str, variables: dict[str, Any]) -> str:
+plugin/contrib/smolagents/agents.py:174: output: Any
+plugin/contrib/smolagents/agents.py:175: is_final_answer: bool
+plugin/contrib/smolagents/agents.py:180: id: str
+plugin/contrib/smolagents/agents.py:181: output: Any
+plugin/contrib/smolagents/agents.py:182: is_final_answer: bool
+plugin/contrib/smolagents/agents.py:183: observation: str
+plugin/contrib/smolagents/agents.py:197: initial_plan: str
+plugin/contrib/smolagents/agents.py:198: update_plan_pre_messages: str
+plugin/contrib/smolagents/agents.py:199: update_plan_post_messages: str
+plugin/contrib/smolagents/agents.py:211: task: str
+plugin/contrib/smolagents/agents.py:212: report: str
+plugin/contrib/smolagents/agents.py:224: pre_messages: str
+plugin/contrib/smolagents/agents.py:225: post_messages: str
+plugin/contrib/smolagents/agents.py:239: system_prompt: str
+plugin/contrib/smolagents/agents.py:273: output: Any | None
+plugin/contrib/smolagents/agents.py:275: steps: list[dict]
+plugin/contrib/smolagents/agents.py:358: tools: list[Tool],
+plugin/contrib/smolagents/agents.py:361: instructions: str | None = None,
+plugin/contrib/smolagents/agents.py:362: max_steps: int = 20,
+plugin/contrib/smolagents/agents.py:363: add_base_tools: bool = False,
+plugin/contrib/smolagents/agents.py:365: managed_agents: list | None = None,
+plugin/contrib/smolagents/agents.py:366: step_callbacks: list[Callable] | dict[Type[MemoryStep], Callable | list[Callable]] | None = None,
+plugin/contrib/smolagents/agents.py:367: planning_interval: int | None = None,
+plugin/contrib/smolagents/agents.py:368: name: str | None = None,
+plugin/contrib/smolagents/agents.py:369: description: str | None = None,
+plugin/contrib/smolagents/agents.py:370: provide_run_summary: bool = False,
+plugin/contrib/smolagents/agents.py:371: final_answer_checks: list[Callable] | None = None,
+plugin/contrib/smolagents/agents.py:372: return_full_result: bool = False,
+plugin/contrib/smolagents/agents.py:393: self.state: dict[str, Any] = {}
+plugin/contrib/smolagents/agents.py:404: self.task: str | None = None
+plugin/contrib/smolagents/agents.py:421: def system_prompt(self, value: str):
+plugin/contrib/smolagents/agents.py:426: def _validate_name(self, name: str | None) -> str | None:
+plugin/contrib/smolagents/agents.py:431: def _setup_managed_agents(self, managed_agents: list | None = None) -> None:
+plugin/contrib/smolagents/agents.py:505: task: str,
+plugin/contrib/smolagents/agents.py:506: stream: bool = False,
+plugin/contrib/smolagents/agents.py:507: reset: bool = True,
+plugin/contrib/smolagents/agents.py:508: images: list["PIL.Image.Image"] | None = None,
+plugin/contrib/smolagents/agents.py:509: additional_args: dict | None = None,
+plugin/contrib/smolagents/agents.py:510: max_steps: int | None = None,
+plugin/contrib/smolagents/agents.py:511: return_full_result: bool | None = None,
+plugin/contrib/smolagents/agents.py:608: self, task: str, max_steps: int, images: list["PIL.Image.Image"] | None = None
+plugin/contrib/smolagents/agents.py:683: def _validate_final_answer(self, final_answer: Any):
+plugin/contrib/smolagents/agents.py:695: def _handle_max_steps_reached(self, task: str) -> Any:
+plugin/contrib/smolagents/agents.py:710: self, task, is_first_step: bool, step: int
+plugin/contrib/smolagents/agents.py:826: summary_mode: bool = False,
+plugin/contrib/smolagents/agents.py:855: def extract_action(self, model_output: str, split_token: str) -> tuple[str, str]:
+plugin/contrib/smolagents/agents.py:876: def provide_final_answer(self, task: str) -> ChatMessage:
+plugin/contrib/smolagents/agents.py:925: def replay(self, detailed: bool = False):
+plugin/contrib/smolagents/agents.py:934: def __call__(self, task: str, **kwargs):
+plugin/contrib/smolagents/agents.py:958: def save(self, output_dir: str | Path, relative_path: str | None = None):
+plugin/contrib/smolagents/agents.py:1077: def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "MultiStepAgent":
+plugin/contrib/smolagents/agents.py:1133: repo_id: str,
+plugin/contrib/smolagents/agents.py:1134: token: str | None = None,
+plugin/contrib/smolagents/agents.py:1135: trust_remote_code: bool = False,
+plugin/contrib/smolagents/agents.py:1185: def from_folder(cls, folder: str | Path, **kwargs):
+plugin/contrib/smolagents/agents.py:1228: repo_id: str,
+plugin/contrib/smolagents/agents.py:1229: commit_message: str = "Upload agent",
+plugin/contrib/smolagents/agents.py:1230: private: bool | None = None,
+plugin/contrib/smolagents/agents.py:1231: token: bool | str | None = None,
+plugin/contrib/smolagents/agents.py:1232: create_pr: bool = False,
+plugin/contrib/smolagents/agents.py:1299: tools: list[Tool],
+plugin/contrib/smolagents/agents.py:1302: planning_interval: int | None = None,
+plugin/contrib/smolagents/agents.py:1303: stream_outputs: bool = False,
+plugin/contrib/smolagents/agents.py:1304: max_tool_threads: int | None = None,
+plugin/contrib/smolagents/agents.py:1305: final_answer_tool_name: str = "final_answer",
+plugin/contrib/smolagents/agents.py:1369: chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
+plugin/contrib/smolagents/agents.py:1457: parallel_calls: dict[str, ToolCall] = {}
+plugin/contrib/smolagents/agents.py:1535: def _substitute_state_variables(self, arguments: dict[str, str] | str) -> dict[str, Any] | str:
+plugin/contrib/smolagents/agents.py:1544: def execute_tool_call(self, tool_name: str, arguments: dict[str, str] | str) -> Any:
+plugin/contrib/smolagents/agents.py:1620: tools: list[Tool],
+plugin/contrib/smolagents/agents.py:1623: additional_authorized_imports: list[str] | None = None,
+plugin/contrib/smolagents/agents.py:1624: planning_interval: int | None = None,
+plugin/contrib/smolagents/agents.py:1627: executor_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/agents.py:1628: max_print_outputs_length: int | None = None,
+plugin/contrib/smolagents/agents.py:1629: stream_outputs: bool = False,
+plugin/contrib/smolagents/agents.py:1630: use_structured_outputs_internally: bool = False,
+plugin/contrib/smolagents/agents.py:1631: code_block_tags: str | tuple[str, str] | None = None,
+plugin/contrib/smolagents/agents.py:1680: self.executor_kwargs: dict[str, Any] = executor_kwargs or {}
+plugin/contrib/smolagents/agents.py:1753: additional_args: dict[str, Any] = {}
+plugin/contrib/smolagents/agents.py:1762: chat_message_stream_deltas: list[ChatMessageStreamDelta] = []
+plugin/contrib/smolagents/agents.py:1869: def from_dict(cls, agent_dict: dict[str, Any], **kwargs) -> "CodeAgent":
+
+## plugin/contrib/smolagents/default_tools.py
+plugin/contrib/smolagents/default_tools.py:8: from typing import Any
+plugin/contrib/smolagents/default_tools.py:46: def _get_user_agent_for_url(url: str | None = None) -> str:
+plugin/contrib/smolagents/default_tools.py:64: def _is_garbage_text(s: str) -> bool:
+plugin/contrib/smolagents/default_tools.py:75: def _web_cache_ensure_schema(conn: Any) -> None:
+plugin/contrib/smolagents/default_tools.py:83: def _web_cache_with_connection(db_path: str, fn):
+plugin/contrib/smolagents/default_tools.py:103: def _web_cache_get(db_path: str, kind: str, key: str, max_age_days: int = 7) -> str | None:
+plugin/contrib/smolagents/default_tools.py:132: def _web_cache_set(db_path: str, kind: str, key: str, value: str, max_size_bytes: int) -> None:
+plugin/contrib/smolagents/default_tools.py:161: name: str
+plugin/contrib/smolagents/default_tools.py:162: inputs: dict[str, str]
+plugin/contrib/smolagents/default_tools.py:164: task: str
+plugin/contrib/smolagents/default_tools.py:165: description: str
+plugin/contrib/smolagents/default_tools.py:166: repo_id: str
+plugin/contrib/smolagents/default_tools.py:199: def forward(self, code: str) -> str:
+plugin/contrib/smolagents/default_tools.py:219: def forward(self, answer: Any) -> Any:
+plugin/contrib/smolagents/default_tools.py:240: def __init__(self, max_results: int = 10, cache_path: str | None = None, cache_max_mb: int = 50, cache_max_age_days: int = 7, **kwargs):
+plugin/contrib/smolagents/default_tools.py:247: def forward(self, query: str) -> str:
+plugin/contrib/smolagents/default_tools.py:340: def __init__(self, max_output_length: int = 40000, cache_path: str | None = None, cache_max_mb: int = 50, cache_max_age_days: int = 7, **kwargs):
+plugin/contrib/smolagents/default_tools.py:347: def _truncate_content(self, content: str, max_length: int) -> str:
+plugin/contrib/smolagents/default_tools.py:352: def _return_error(self, key: str, message: str) -> str:
+plugin/contrib/smolagents/default_tools.py:364: def forward(self, url: str) -> str:
+
+## plugin/contrib/smolagents/memory.py
+plugin/contrib/smolagents/memory.py:4: from typing import TYPE_CHECKING, Any, Callable, Type
+plugin/contrib/smolagents/memory.py:26: name: str
+plugin/contrib/smolagents/memory.py:27: arguments: Any
+plugin/contrib/smolagents/memory.py:28: id: str
+plugin/contrib/smolagents/memory.py:46: def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
+plugin/contrib/smolagents/memory.py:52: step_number: int
+plugin/contrib/smolagents/memory.py:54: model_input_messages: list[ChatMessage] | None = None
+plugin/contrib/smolagents/memory.py:55: tool_calls: list[ToolCall] | None = None
+plugin/contrib/smolagents/memory.py:58: model_output: str | list[dict[str, Any]] | None = None
+plugin/contrib/smolagents/memory.py:59: code_action: str | None = None
+plugin/contrib/smolagents/memory.py:60: observations: str | None = None
+plugin/contrib/smolagents/memory.py:61: observations_images: list["PIL.Image.Image"] | None = None
+plugin/contrib/smolagents/memory.py:62: action_output: Any = None
+plugin/contrib/smolagents/memory.py:64: is_final_answer: bool = False
+plugin/contrib/smolagents/memory.py:92: def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
+plugin/contrib/smolagents/memory.py:155: model_input_messages: list[ChatMessage]
+plugin/contrib/smolagents/memory.py:157: plan: str
+plugin/contrib/smolagents/memory.py:174: def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
+plugin/contrib/smolagents/memory.py:188: task: str
+plugin/contrib/smolagents/memory.py:189: task_images: list["PIL.Image.Image"] | None = None
+plugin/contrib/smolagents/memory.py:191: def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
+plugin/contrib/smolagents/memory.py:201: system_prompt: str
+plugin/contrib/smolagents/memory.py:203: def to_messages(self, summary_mode: bool = False) -> list[ChatMessage]:
+plugin/contrib/smolagents/memory.py:211: output: Any
+plugin/contrib/smolagents/memory.py:228: def __init__(self, system_prompt: str):
+plugin/contrib/smolagents/memory.py:230: self.steps: list[TaskStep | ActionStep | PlanningStep] = []
+plugin/contrib/smolagents/memory.py:248: def replay(self, logger: AgentLogger, detailed: bool = False):
+plugin/contrib/smolagents/memory.py:287: self._callbacks: dict[Type[MemoryStep], list[Callable]] = {}
+
+## plugin/contrib/smolagents/models.py
+plugin/contrib/smolagents/models.py:25: from typing import TYPE_CHECKING, Any
+plugin/contrib/smolagents/models.py:79: def remove_content_after_stop_sequences(content: str | None, stop_sequences: list[str] | None) -> str | None:
+plugin/contrib/smolagents/models.py:96: arguments: Any
+plugin/contrib/smolagents/models.py:97: name: str
+plugin/contrib/smolagents/models.py:98: description: str | None = None
+plugin/contrib/smolagents/models.py:104: id: str
+plugin/contrib/smolagents/models.py:105: type: str
+plugin/contrib/smolagents/models.py:126: content: str | list[dict[str, Any]] | None = None
+plugin/contrib/smolagents/models.py:127: tool_calls: list[ChatMessageToolCall] | None = None
+plugin/contrib/smolagents/models.py:128: raw: Any | None = None  # Stores the raw output from the API
+plugin/contrib/smolagents/models.py:140: def from_dict(cls, data: dict, raw: Any | None = None, token_usage: TokenUsage | None = None) -> "ChatMessage":
+plugin/contrib/smolagents/models.py:172: def _coerce_tool_call(tool_call: Any) -> ChatMessageToolCall:
+plugin/contrib/smolagents/models.py:193: def parse_json_if_needed(arguments: str | dict) -> str | dict:
+plugin/contrib/smolagents/models.py:207: index: int | None = None
+plugin/contrib/smolagents/models.py:208: id: str | None = None
+plugin/contrib/smolagents/models.py:209: type: str | None = None
+plugin/contrib/smolagents/models.py:215: content: str | None = None
+plugin/contrib/smolagents/models.py:216: tool_calls: list[ChatMessageToolCallStreamDelta] | None = None
+plugin/contrib/smolagents/models.py:221: stream_deltas: list[ChatMessageStreamDelta], role: MessageRole = MessageRole.ASSISTANT
+plugin/contrib/smolagents/models.py:226: accumulated_tool_calls: dict[int, ChatMessageToolCallStreamDelta] = {}
+plugin/contrib/smolagents/models.py:333: message_list: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:334: role_conversions: dict[MessageRole, MessageRole] | dict[str, str] = {},
+plugin/contrib/smolagents/models.py:335: convert_images_to_image_urls: bool = False,
+plugin/contrib/smolagents/models.py:336: flatten_messages_as_text: bool = False,
+plugin/contrib/smolagents/models.py:348: output_message_list: list[dict[str, Any]] = []
+plugin/contrib/smolagents/models.py:400: def get_tool_call_from_text(text: str, tool_name_key: str, tool_arguments_key: str) -> ChatMessageToolCall:
+plugin/contrib/smolagents/models.py:418: def supports_stop_parameter(model_id: str) -> bool:
+plugin/contrib/smolagents/models.py:486: flatten_messages_as_text: bool = False,
+plugin/contrib/smolagents/models.py:487: tool_name_key: str = "name",
+plugin/contrib/smolagents/models.py:488: tool_arguments_key: str = "arguments",
+plugin/contrib/smolagents/models.py:489: model_id: str | None = None,
+plugin/contrib/smolagents/models.py:496: self.model_id: str | None = model_id
+plugin/contrib/smolagents/models.py:504: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:505: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:506: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:507: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:508: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:509: convert_images_to_image_urls: bool = False,
+plugin/contrib/smolagents/models.py:510: tool_choice: str | dict | None = "required",  # Configurable tool_choice parameter
+plugin/contrib/smolagents/models.py:555: messages: list[ChatMessage],
+plugin/contrib/smolagents/models.py:556: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:557: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:558: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:629: def from_dict(cls, model_dictionary: dict[str, Any]) -> "Model":
+plugin/contrib/smolagents/models.py:651: model_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:652: apply_chat_template_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:689: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:690: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:691: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:692: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:793: model_id: str,
+plugin/contrib/smolagents/models.py:794: trust_remote_code: bool = False,
+plugin/contrib/smolagents/models.py:795: load_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:796: apply_chat_template_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:818: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:819: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:820: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:821: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:908: model_id: str | None = None,
+plugin/contrib/smolagents/models.py:909: device_map: str | None = None,
+plugin/contrib/smolagents/models.py:910: torch_dtype: str | None = None,
+plugin/contrib/smolagents/models.py:911: trust_remote_code: bool = False,
+plugin/contrib/smolagents/models.py:912: model_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:913: max_new_tokens: int = 4096,
+plugin/contrib/smolagents/models.py:914: max_tokens: int | None = None,
+plugin/contrib/smolagents/models.py:915: apply_chat_template_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:980: def make_stopping_criteria(self, stop_sequences: list[str], tokenizer) -> "StoppingCriteriaList":
+plugin/contrib/smolagents/models.py:984: def __init__(self, stop_strings: list[str], tokenizer):
+plugin/contrib/smolagents/models.py:1003: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1004: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1005: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1054: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1055: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1056: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1057: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1095: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1096: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1097: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1098: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1163: model_id: str,
+plugin/contrib/smolagents/models.py:1164: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1165: client: Any | None = None,
+plugin/contrib/smolagents/models.py:1167: retry: bool = True,
+plugin/contrib/smolagents/models.py:1226: model_id: str | None = None,
+plugin/contrib/smolagents/models.py:1227: api_base: str | None = None,
+plugin/contrib/smolagents/models.py:1228: api_key: str | None = None,
+plugin/contrib/smolagents/models.py:1229: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1230: flatten_messages_as_text: bool | None = None,
+plugin/contrib/smolagents/models.py:1268: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1269: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1270: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1271: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1311: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1312: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1313: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1314: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1428: model_id: str,
+plugin/contrib/smolagents/models.py:1429: model_list: list[dict[str, Any]],
+plugin/contrib/smolagents/models.py:1430: client_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:1431: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1432: flatten_messages_as_text: bool | None = None,
+plugin/contrib/smolagents/models.py:1516: model_id: str = "Qwen/Qwen3-Next-80B-A3B-Thinking",
+plugin/contrib/smolagents/models.py:1517: provider: str | None = None,
+plugin/contrib/smolagents/models.py:1518: token: str | None = None,
+plugin/contrib/smolagents/models.py:1519: timeout: int = 120,
+plugin/contrib/smolagents/models.py:1520: client_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:1521: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1522: api_key: str | None = None,
+plugin/contrib/smolagents/models.py:1523: bill_to: str | None = None,
+plugin/contrib/smolagents/models.py:1524: base_url: str | None = None,
+plugin/contrib/smolagents/models.py:1555: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1556: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1557: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1558: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1593: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1594: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1595: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1596: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1673: model_id: str,
+plugin/contrib/smolagents/models.py:1674: api_base: str | None = None,
+plugin/contrib/smolagents/models.py:1675: api_key: str | None = None,
+plugin/contrib/smolagents/models.py:1676: organization: str | None = None,
+plugin/contrib/smolagents/models.py:1677: project: str | None = None,
+plugin/contrib/smolagents/models.py:1678: client_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:1679: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1680: flatten_messages_as_text: bool = False,
+plugin/contrib/smolagents/models.py:1709: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1710: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1711: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1712: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1763: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1764: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1765: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1766: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1822: model_id: str,
+plugin/contrib/smolagents/models.py:1823: azure_endpoint: str | None = None,
+plugin/contrib/smolagents/models.py:1824: api_key: str | None = None,
+plugin/contrib/smolagents/models.py:1825: api_version: str | None = None,
+plugin/contrib/smolagents/models.py:1826: client_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:1827: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1942: model_id: str,
+plugin/contrib/smolagents/models.py:1944: client_kwargs: dict[str, Any] | None = None,
+plugin/contrib/smolagents/models.py:1945: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1970: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:1971: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:1972: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1973: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:1974: custom_role_conversions: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:1975: convert_images_to_image_urls: bool = False,
+plugin/contrib/smolagents/models.py:1976: tool_choice: str | dict[Any, Any] | None = None,
+plugin/contrib/smolagents/models.py:2022: messages: list[ChatMessage | dict],
+plugin/contrib/smolagents/models.py:2023: stop_sequences: list[str] | None = None,
+plugin/contrib/smolagents/models.py:2024: response_format: dict[str, str] | None = None,
+plugin/contrib/smolagents/models.py:2025: tools_to_call_from: list[Tool] | None = None,
+plugin/contrib/smolagents/models.py:2030: completion_kwargs: dict = self._prepare_completion_kwargs(
+
+## plugin/contrib/smolagents/monitoring.py
+plugin/contrib/smolagents/monitoring.py:103: input_tokens: int
+plugin/contrib/smolagents/monitoring.py:104: output_tokens: int
+plugin/contrib/smolagents/monitoring.py:105: total_tokens: int = field(init=False)
+plugin/contrib/smolagents/monitoring.py:199: def log(self, *args, level: int | str | LogLevel = LogLevel.INFO, **kwargs) -> None:
+plugin/contrib/smolagents/monitoring.py:210: def log_error(self, error_message: str) -> None:
+plugin/contrib/smolagents/monitoring.py:213: def log_markdown(self, content: str, title: str | None = None, level=LogLevel.INFO, style=YELLOW_HEX) -> None:
+plugin/contrib/smolagents/monitoring.py:235: def log_code(self, title: str, content: str, level: int = LogLevel.INFO) -> None:
+plugin/contrib/smolagents/monitoring.py:251: def log_rule(self, title: str, level: int = LogLevel.INFO) -> None:
+plugin/contrib/smolagents/monitoring.py:261: def log_task(self, content: str, subtitle: str, title: str | None = None, level: LogLevel = LogLevel.INFO) -> None:
+plugin/contrib/smolagents/monitoring.py:273: def log_messages(self, messages: list[dict], level: LogLevel = LogLevel.DEBUG) -> None:
+plugin/contrib/smolagents/monitoring.py:301: def get_agent_headline(agent, name: str | None = None):
+
+## plugin/contrib/smolagents/tools.py
+plugin/contrib/smolagents/tools.py:33: from typing import TYPE_CHECKING, Any
+plugin/contrib/smolagents/tools.py:104: name: str
+plugin/contrib/smolagents/tools.py:136: name: str
+plugin/contrib/smolagents/tools.py:137: description: str
+plugin/contrib/smolagents/tools.py:138: inputs: dict[str, dict[str, str | type | bool]]
+plugin/contrib/smolagents/tools.py:139: output_type: str
+plugin/contrib/smolagents/tools.py:140: output_schema: dict[str, Any] | None = None
+plugin/contrib/smolagents/tools.py:236: def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+plugin/contrib/smolagents/tools.py:316: from typing import Any, Optional
+plugin/contrib/smolagents/tools.py:331: def add_self_argument(source_code: str) -> str:
+plugin/contrib/smolagents/tools.py:360: tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
+plugin/contrib/smolagents/tools.py:373: def from_dict(cls, tool_dict: dict[str, Any], **kwargs) -> "Tool":
+plugin/contrib/smolagents/tools.py:395: def save(self, output_dir: str | Path, tool_file_name: str = "tool", make_gradio_app: bool = True):
+plugin/contrib/smolagents/tools.py:422: def _write_file(self, file_path: Path, content: str) -> None:
+plugin/contrib/smolagents/tools.py:428: repo_id: str,
+plugin/contrib/smolagents/tools.py:429: commit_message: str = "Upload tool",
+plugin/contrib/smolagents/tools.py:430: private: bool | None = None,
+plugin/contrib/smolagents/tools.py:431: token: bool | str | None = None,
+plugin/contrib/smolagents/tools.py:432: create_pr: bool = False,
+plugin/contrib/smolagents/tools.py:466: def _initialize_hub_repo(repo_id: str, token: bool | str | None, private: bool | None) -> str:
+plugin/contrib/smolagents/tools.py:504: def _get_gradio_app_code(self, tool_module_name: str = "tool") -> str:
+plugin/contrib/smolagents/tools.py:524: repo_id: str,
+plugin/contrib/smolagents/tools.py:525: token: str | None = None,
+plugin/contrib/smolagents/tools.py:526: trust_remote_code: bool = False,
+plugin/contrib/smolagents/tools.py:577: def from_code(cls, tool_code: str, **kwargs):
+plugin/contrib/smolagents/tools.py:606: space_id: str,
+plugin/contrib/smolagents/tools.py:607: name: str,
+plugin/contrib/smolagents/tools.py:608: description: str = "",
+plugin/contrib/smolagents/tools.py:609: api_name: str | None = None,
+plugin/contrib/smolagents/tools.py:610: token: str | None = None,
+plugin/contrib/smolagents/tools.py:655: space_id: str,
+plugin/contrib/smolagents/tools.py:656: name: str,
+plugin/contrib/smolagents/tools.py:657: description: str = "",
+plugin/contrib/smolagents/tools.py:658: api_name: str | None = None,
+plugin/contrib/smolagents/tools.py:659: token: str | None = None,
+plugin/contrib/smolagents/tools.py:847: model_repo_id: str | None = None,
+plugin/contrib/smolagents/tools.py:848: token: str | None = None,
+plugin/contrib/smolagents/tools.py:849: trust_remote_code: bool = False,
+plugin/contrib/smolagents/tools.py:911: def __init__(self, tools: list[Tool]):
+plugin/contrib/smolagents/tools.py:917: collection_slug: str,
+plugin/contrib/smolagents/tools.py:918: token: str | None = None,
+plugin/contrib/smolagents/tools.py:919: trust_remote_code: bool = False,
+plugin/contrib/smolagents/tools.py:959: trust_remote_code: bool = False,
+plugin/contrib/smolagents/tools.py:960: structured_output: bool | None = None,
+plugin/contrib/smolagents/tools.py:1156: name: str = "{tool_json_schema["name"]}"
+plugin/contrib/smolagents/tools.py:1157: description: str = {json.dumps(textwrap.dedent(tool_json_schema["description"]).strip())}
+plugin/contrib/smolagents/tools.py:1158: inputs: dict[str, dict[str, str]] = {tool_json_schema["parameters"]["properties"]}
+plugin/contrib/smolagents/tools.py:1159: output_type: str = "{tool_json_schema["return"]["type"]}"
+plugin/contrib/smolagents/tools.py:1317: def __call__(self, *args, sanitize_inputs_outputs: bool = False, **kwargs):
+plugin/contrib/smolagents/tools.py:1340: def get_tools_definition_code(tools: dict[str, Tool]) -> str:
+plugin/contrib/smolagents/tools.py:1352: from typing import Any
+plugin/contrib/smolagents/tools.py:1366: def validate_tool_arguments(tool: Tool, arguments: Any) -> None:
+
+## plugin/contrib/smolagents/utils.py
+plugin/contrib/smolagents/utils.py:32: from typing import TYPE_CHECKING, Any, Callable
+plugin/contrib/smolagents/utils.py:43: def _is_package_available(package_name: str) -> bool:
+plugin/contrib/smolagents/utils.py:62: def escape_code_brackets(text: str) -> str:
+plugin/contrib/smolagents/utils.py:123: def make_json_serializable(obj: Any) -> Any:
+plugin/contrib/smolagents/utils.py:149: def parse_json_blob(json_blob: str) -> tuple[dict[str, str], str]:
+plugin/contrib/smolagents/utils.py:189: def extract_code_from_text(text: str, code_block_tags: tuple[str, str]) -> str | None:
+plugin/contrib/smolagents/utils.py:198: def parse_code_blobs(text: str, code_block_tags: tuple[str, str]) -> str:
+plugin/contrib/smolagents/utils.py:257: def truncate_content(content: str, max_length: int = MAX_LENGTH_TRUNCATE_CONTENT) -> str:
+plugin/contrib/smolagents/utils.py:440: def make_init_file(folder: str | Path):
+plugin/contrib/smolagents/utils.py:447: def is_valid_name(name: str) -> bool:
+plugin/contrib/smolagents/utils.py:547: max_attempts: int = 1,
+plugin/contrib/smolagents/utils.py:550: jitter: bool = True,
+plugin/contrib/smolagents/utils.py:551: retry_predicate: Callable[[BaseException], bool] | None = None,
+plugin/contrib/smolagents/utils.py:552: reraise: bool = False,
+plugin/contrib/smolagents/utils.py:565: def __call__(self, fn, *args: Any, **kwargs: Any) -> Any:
+
+## plugin/contrib/tool_call_parsers/deepseek_v3_1_parser.py
+plugin/contrib/tool_call_parsers/deepseek_v3_1_parser.py:14: from typing import List
+plugin/contrib/tool_call_parsers/deepseek_v3_1_parser.py:39: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/deepseek_v3_1_parser.py:48: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/contrib/tool_call_parsers/deepseek_v3_parser.py
+plugin/contrib/tool_call_parsers/deepseek_v3_parser.py:18: from typing import List
+plugin/contrib/tool_call_parsers/deepseek_v3_parser.py:42: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/deepseek_v3_parser.py:51: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/contrib/tool_call_parsers/glm45_parser.py
+plugin/contrib/tool_call_parsers/glm45_parser.py:18: from typing import Any, Dict, List
+plugin/contrib/tool_call_parsers/glm45_parser.py:26: def _deserialize_value(value: str) -> Any:
+plugin/contrib/tool_call_parsers/glm45_parser.py:52: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/glm45_parser.py:61: tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/glm45_parser.py:73: arg_dict: Dict[str, Any] = {}
+
+## plugin/contrib/tool_call_parsers/hermes_parser.py
+plugin/contrib/tool_call_parsers/hermes_parser.py:11: from typing import List
+plugin/contrib/tool_call_parsers/hermes_parser.py:33: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/hermes_parser.py:42: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/contrib/tool_call_parsers/kimi_k2_parser.py
+plugin/contrib/tool_call_parsers/kimi_k2_parser.py:15: from typing import List
+plugin/contrib/tool_call_parsers/kimi_k2_parser.py:46: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/kimi_k2_parser.py:57: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/contrib/tool_call_parsers/llama_parser.py
+plugin/contrib/tool_call_parsers/llama_parser.py:14: from typing import List
+plugin/contrib/tool_call_parsers/llama_parser.py:37: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/llama_parser.py:44: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/contrib/tool_call_parsers/longcat_parser.py
+plugin/contrib/tool_call_parsers/longcat_parser.py:11: from typing import List
+plugin/contrib/tool_call_parsers/longcat_parser.py:31: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/longcat_parser.py:40: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/contrib/tool_call_parsers/mistral_parser.py
+plugin/contrib/tool_call_parsers/mistral_parser.py:14: from typing import List
+plugin/contrib/tool_call_parsers/mistral_parser.py:45: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/mistral_parser.py:58: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/contrib/tool_call_parsers/qwen3_coder_parser.py
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:21: from typing import Any, Dict, List, Optional
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:29: def _try_convert_value(value: str) -> Any:
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:71: def _parse_function_call(self, function_str: str) -> Optional[ChatCompletionMessageToolCall]:
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:80: param_dict: Dict[str, Any] = {}
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:107: def parse(self, text: str) -> ParseResult:
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:121: function_strs: List[str] = []
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:130: tool_calls: List[ChatCompletionMessageToolCall] = []
+
+## plugin/framework/dialogs.py
+plugin/framework/dialogs.py:386: copy_url_fn: Optional callable() -> str returning a URL to copy.
+
+## plugin/framework/document.py
+plugin/framework/document.py:140: def normalize_linebreaks(text: str) -> str:
+plugin/framework/document.py:725: def resolve_locator(model, locator: str):
+
+## plugin/framework/module_base.py
+plugin/framework/module_base.py:36: name: str = None
+
+## plugin/framework/queue_executor.py
+plugin/framework/queue_executor.py:19: from typing import Callable, Any
+
+## plugin/framework/service_base.py
+plugin/framework/service_base.py:32: name: str = None
+
+## plugin/framework/state.py
+plugin/framework/state.py:30: from typing import Any, Generic, List, Protocol, Tuple, TypeVar, Union, cast
+plugin/framework/state.py:57: effects: List[Any]
+plugin/framework/state.py:61: t: Union[FsmTransition[StateT], Tuple[StateT, List[Any]]],
+
+## plugin/framework/streaming_deltas.py
+plugin/framework/streaming_deltas.py:34: acc: dict[object, object], delta: dict[object, object]
+
+## plugin/framework/tool_base.py
+plugin/framework/tool_base.py:48: name: str = None
+plugin/framework/tool_base.py:49: description: str = ""
+plugin/framework/tool_base.py:50: parameters: dict = None
+plugin/framework/tool_base.py:51: uno_services: list = None
+plugin/framework/tool_base.py:52: tier: str = "extended"
+plugin/framework/tool_base.py:53: intent: str = None
+plugin/framework/tool_base.py:54: is_mutation: bool = None
+plugin/framework/tool_base.py:55: long_running: bool = False
+plugin/framework/tool_base.py:71: **details: Optional context like tool_name, doc_type, etc.
+plugin/framework/tool_base.py:82: (ok: bool, error_message: str | None)
+plugin/framework/tool_base.py:174: name: str | None = None
+
+## plugin/framework/tool_registry.py
+plugin/framework/tool_registry.py:147: doc: Optional document model instance to check against uno_services.
+plugin/framework/tool_registry.py:148: doc_type: Optional string indicating compatibility (deprecated, use doc). If None, only universal tools are returned (unless filter_doc_type=False).
+plugin/framework/tool_registry.py:149: tier: Optional string (e.g. "core", "extended").
+plugin/framework/tool_registry.py:150: intent: Optional string filtering by tool intent.
+plugin/framework/tool_registry.py:151: names: Optional list of specific tool names to include.
+plugin/framework/tool_registry.py:231: active_domain: Optional active specialized domain.
+
+## plugin/framework/worker_pool.py
+plugin/framework/worker_pool.py:25: from typing import Optional, Callable
+plugin/framework/worker_pool.py:39: :param name: Optional thread name.
+plugin/framework/worker_pool.py:40: :param error_callback: Optional callable(Exception) to run if func raises.
+plugin/framework/worker_pool.py:95: def __init__(self, args, stdout_cb: Optional[Callable[[str], None]] = None,
+plugin/framework/worker_pool.py:96: stderr_cb: Optional[Callable[[str], None]] = None,
+plugin/framework/worker_pool.py:97: on_exit_cb: Optional[Callable[[int], None]] = None,
+plugin/framework/worker_pool.py:103: self.process: Optional[subprocess.Popen] = None
+
+## plugin/main.py
+plugin/main.py:227: def _show_tests_unavailable(test_name: str) -> None:
+
+## plugin/modules/agent_backend/acp_backend.py
+plugin/modules/agent_backend/acp_backend.py:28: from typing import Optional, Dict, Any, List
+plugin/modules/agent_backend/acp_backend.py:198: user_message: str,
+plugin/modules/agent_backend/acp_backend.py:199: document_context: Optional[str] = None,
+plugin/modules/agent_backend/acp_backend.py:200: system_prompt: Optional[str] = None,
+plugin/modules/agent_backend/acp_backend.py:201: selection_text: Optional[str] = None,
+plugin/modules/agent_backend/acp_backend.py:202: document_url: Optional[str] = None
+
+## plugin/modules/agent_backend/vibe_simple.py
+plugin/modules/agent_backend/vibe_simple.py:21: from typing import Dict
+
+## plugin/modules/calc/analyzer.py
+plugin/modules/calc/analyzer.py:51: sheet_name: Optional name of the sheet to analyse.
+
+## plugin/modules/calc/cells.py
+plugin/modules/calc/cells.py:232: def _parse_or_error(color_key: str):
+
+## plugin/modules/calc/charts.py
+plugin/modules/calc/charts.py:18: """Calc chart management tools: list, info, create, edit, delete."""
+
+## plugin/modules/calc/error_detector.py
+plugin/modules/calc/error_detector.py:185: def detect_errors(self, range_str: str = None) -> list:
+plugin/modules/calc/error_detector.py:245: def explain_error(self, address: str) -> dict:
+plugin/modules/calc/error_detector.py:301: def detect_and_explain(self, range_str: str = None) -> dict:
+plugin/modules/calc/error_detector.py:336: def _generate_suggestion(error_info: dict, precedents: list) -> str:
+
+## plugin/modules/calc/inspector.py
+plugin/modules/calc/inspector.py:73: def _get_cell(self, address: str):
+plugin/modules/calc/inspector.py:81: def read_cell(self, address: str) -> dict:
+plugin/modules/calc/inspector.py:117: def get_cell_details(self, address: str) -> dict:
+plugin/modules/calc/inspector.py:163: def read_range(self, range_name: str) -> list[list[dict]]:
+plugin/modules/calc/inspector.py:225: def get_all_formulas(self, sheet_name: str = None) -> list[dict]:
+
+## plugin/modules/calc/manipulator.py
+plugin/modules/calc/manipulator.py:39: def _parse_formula_or_values_string(s: str):
+plugin/modules/calc/manipulator.py:139: def _is_valid_cell_address(self, address: str) -> bool:
+plugin/modules/calc/manipulator.py:146: def _get_error_name(self, error_code: int) -> str:
+plugin/modules/calc/manipulator.py:208: def _get_cell(self, address: str):
+plugin/modules/calc/manipulator.py:264: def _apply_borders(self, obj, color: int):
+plugin/modules/calc/manipulator.py:373: def write_formula(self, address: str, formula: str) -> str:
+plugin/modules/calc/manipulator.py:412: address_or_range: str,
+plugin/modules/calc/manipulator.py:413: bold: bool = None,
+plugin/modules/calc/manipulator.py:414: italic: bool = None,
+plugin/modules/calc/manipulator.py:415: bg_color: int = None,
+plugin/modules/calc/manipulator.py:416: font_color: int = None,
+plugin/modules/calc/manipulator.py:418: h_align: str = None,
+plugin/modules/calc/manipulator.py:419: v_align: str = None,
+plugin/modules/calc/manipulator.py:420: wrap_text: bool = None,
+plugin/modules/calc/manipulator.py:421: border_color: int = None,
+plugin/modules/calc/manipulator.py:422: number_format: str = None,
+plugin/modules/calc/manipulator.py:478: def _set_range_number_format(self, range_str: str, format_str: str):
+plugin/modules/calc/manipulator.py:489: def _set_number_format(self, address: str, format_str: str):
+plugin/modules/calc/manipulator.py:501: def clear_range(self, range_str: str):
+plugin/modules/calc/manipulator.py:517: def merge_cells(self, range_str: str, center: bool = True):
+plugin/modules/calc/manipulator.py:541: range_str: str,
+plugin/modules/calc/manipulator.py:542: sort_column: int = 0,
+plugin/modules/calc/manipulator.py:543: ascending: bool = True,
+plugin/modules/calc/manipulator.py:544: has_header: bool = True,
+plugin/modules/calc/manipulator.py:589: def write_formula_range(self, range_str: str, formula_or_values):
+plugin/modules/calc/manipulator.py:730: def delete_rows(self, row_num: int, count: int = 1):
+plugin/modules/calc/manipulator.py:742: def delete_columns(self, col_letter: str, count: int = 1):
+plugin/modules/calc/manipulator.py:758: def delete_structure(self, structure_type: str, start, count: int = 1):
+
+## plugin/modules/chatbot/audio_recorder_state.py
+plugin/modules/chatbot/audio_recorder_state.py:2: from typing import List, Optional
+plugin/modules/chatbot/audio_recorder_state.py:22: status: str  # 'idle', 'initializing', 'recording', 'stopping', 'error'
+plugin/modules/chatbot/audio_recorder_state.py:23: error_message: Optional[str] = None
+plugin/modules/chatbot/audio_recorder_state.py:38: error_message: str
+plugin/modules/chatbot/audio_recorder_state.py:55: error_message: str
+plugin/modules/chatbot/audio_recorder_state.py:68: effects: List[AudioRecorderEffect] = []
+
+## plugin/modules/chatbot/panel_resize.py
+plugin/modules/chatbot/panel_resize.py:294: # Second pass: stretch response area to fill remaining vertical gap
+
+## plugin/modules/chatbot/sidebar_state.py
+plugin/modules/chatbot/sidebar_state.py:17: from typing import Any, cast
+plugin/modules/chatbot/sidebar_state.py:42: payload: Any
+plugin/modules/chatbot/sidebar_state.py:49: message: str
+plugin/modules/chatbot/sidebar_state.py:55: tool_loop: Optional[ToolLoopState]
+
+## plugin/modules/chatbot/skills.py
+plugin/modules/chatbot/skills.py:12: def _parse_frontmatter(content: str):
+plugin/modules/chatbot/skills.py:32: def _resolve_skill_dir(self, name: str) -> Path:
+plugin/modules/chatbot/skills.py:58: def read_skill(self, name: str):
+plugin/modules/chatbot/skills.py:65: def write_skill(self, name: str, content: str):
+plugin/modules/chatbot/skills.py:71: def delete_skill(self, name: str):
+plugin/modules/chatbot/skills.py:78: def write_file(self, name: str, file_path: str, content: str):
+plugin/modules/chatbot/skills.py:83: def remove_file(self, name: str, file_path: str):
+
+## plugin/modules/chatbot/state_machine.py
+plugin/modules/chatbot/state_machine.py:6: from typing import List, Any, Dict, Optional, NamedTuple
+plugin/modules/chatbot/state_machine.py:27: handler_type: str # 'audio', 'image', 'agent', 'web'
+plugin/modules/chatbot/state_machine.py:28: status: str       # 'ready', 'starting', 'running', 'done', 'error', 'stopped'
+plugin/modules/chatbot/state_machine.py:29: query_text: str = ""
+plugin/modules/chatbot/state_machine.py:30: model: Any = None
+plugin/modules/chatbot/state_machine.py:31: doc_type_str: str = ""
+plugin/modules/chatbot/state_machine.py:32: round_num: int = 0
+plugin/modules/chatbot/state_machine.py:34: max_rounds: int = 10
+plugin/modules/chatbot/state_machine.py:38: last_error: Optional[str] = None
+plugin/modules/chatbot/state_machine.py:39: error_time: Optional[float] = None
+plugin/modules/chatbot/state_machine.py:45: query_text: str
+plugin/modules/chatbot/state_machine.py:46: model: Any
+plugin/modules/chatbot/state_machine.py:47: doc_type_str: str
+plugin/modules/chatbot/state_machine.py:48: wav_path: Optional[str] = None
+plugin/modules/chatbot/state_machine.py:49: stt_model: Optional[str] = None
+plugin/modules/chatbot/state_machine.py:52: chunk_text: str
+plugin/modules/chatbot/state_machine.py:53: is_thinking: bool = False
+plugin/modules/chatbot/state_machine.py:56: response: Any = None
+plugin/modules/chatbot/state_machine.py:60: context: str = "state_machine"
+plugin/modules/chatbot/state_machine.py:61: error_time: Optional[float] = None
+plugin/modules/chatbot/state_machine.py:67: tool_id: str
+plugin/modules/chatbot/state_machine.py:68: result: dict
+plugin/modules/chatbot/state_machine.py:75: wav_path: str
+plugin/modules/chatbot/state_machine.py:76: stt_model: str
+plugin/modules/chatbot/state_machine.py:77: model: Any
+plugin/modules/chatbot/state_machine.py:78: query_text: str
+plugin/modules/chatbot/state_machine.py:81: query_text: str
+plugin/modules/chatbot/state_machine.py:82: model: Any
+plugin/modules/chatbot/state_machine.py:85: query_text: str
+plugin/modules/chatbot/state_machine.py:86: model: Any
+plugin/modules/chatbot/state_machine.py:87: doc_type_str: str
+plugin/modules/chatbot/state_machine.py:90: query_text: str
+plugin/modules/chatbot/state_machine.py:91: model: Any
+plugin/modules/chatbot/state_machine.py:94: kind: str  # "append" or "status"
+plugin/modules/chatbot/state_machine.py:95: text: str
+plugin/modules/chatbot/state_machine.py:96: is_thinking: bool = False
+plugin/modules/chatbot/state_machine.py:99: combined_text: str
+plugin/modules/chatbot/state_machine.py:100: model: Any
+plugin/modules/chatbot/state_machine.py:101: doc_type_str: str
+plugin/modules/chatbot/state_machine.py:104: terminal_status: str
+plugin/modules/chatbot/state_machine.py:146: effects: List[SendHandlerEffect] = []
+plugin/modules/chatbot/state_machine.py:187: effects: List[SendHandlerEffect] = []
+
+## plugin/modules/chatbot/web_research.py
+plugin/modules/chatbot/web_research.py:37: def _apply_web_search_query_override(step, query_override: str) -> bool:
+plugin/modules/chatbot/web_research.py:56: def _norm_research_query(s: str) -> str:
+
+## plugin/modules/http/client.py
+plugin/modules/http/client.py:29: # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
+plugin/modules/http/client.py:490: # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
+plugin/modules/http/client.py:531: # LiteLLM: streaming_handler.py ~L736 "finish_reason: error, no content string given"
+plugin/modules/http/client.py:540: # LiteLLM: streaming_handler.py ~L198 safety_checker(), issue #5158
+
+## plugin/modules/http/mcp_state.py
+plugin/modules/http/mcp_state.py:3: from typing import Any, Dict, List, Optional
+plugin/modules/http/mcp_state.py:19: tool_name: Optional[str] = None
+plugin/modules/http/mcp_state.py:20: arguments: Dict[str, Any] = dataclasses.field(default_factory=dict)
+plugin/modules/http/mcp_state.py:21: document_url: Optional[str] = None
+plugin/modules/http/mcp_state.py:22: doc_type: Optional[str] = None
+plugin/modules/http/mcp_state.py:23: doc_context: Any = None  # The resolved document UNO context, if any
+plugin/modules/http/mcp_state.py:24: uno_ctx: Any = None      # The UNO component context, if any
+plugin/modules/http/mcp_state.py:25: result: Any = None       # The final result payload
+plugin/modules/http/mcp_state.py:26: error_message: Optional[str] = None
+plugin/modules/http/mcp_state.py:27: error_code: Optional[str] = None
+plugin/modules/http/mcp_state.py:28: is_long_running: bool = False
+plugin/modules/http/mcp_state.py:29: is_error: bool = False
+plugin/modules/http/mcp_state.py:42: data: Dict[str, Any] = dataclasses.field(default_factory=dict)
+plugin/modules/http/mcp_state.py:52: document_url: Optional[str]
+plugin/modules/http/mcp_state.py:53: is_long_running: bool
+plugin/modules/http/mcp_state.py:57: tool_name: str
+plugin/modules/http/mcp_state.py:58: arguments: Dict[str, Any]
+plugin/modules/http/mcp_state.py:59: doc_context: Any
+plugin/modules/http/mcp_state.py:60: doc_type: str
+plugin/modules/http/mcp_state.py:61: uno_ctx: Any
+plugin/modules/http/mcp_state.py:62: is_long_running: bool
+plugin/modules/http/mcp_state.py:63: document_url: Optional[str] = None
+plugin/modules/http/mcp_state.py:67: result: Any
+plugin/modules/http/mcp_state.py:68: is_error: bool
+plugin/modules/http/mcp_state.py:72: message: str
+plugin/modules/http/mcp_state.py:73: code: str
+plugin/modules/http/mcp_state.py:79: effects: List[Any] = []
+
+## plugin/modules/writer/images.py
+plugin/modules/writer/images.py:22: action: list | info | set_properties | download | insert | delete | replace
+
+## plugin/testing_runner.py
+plugin/testing_runner.py:16: from typing import Any, Dict, List
+plugin/testing_runner.py:42: ctx: Any,
+plugin/testing_runner.py:43: suites: List[Dict[str, Any]],
+plugin/testing_runner.py:44: name: str,
+plugin/testing_runner.py:180: def run_all_tests(ctx: Any) -> str:
+plugin/testing_runner.py:202: suites: List[Dict[str, Any]] = []
+plugin/testing_runner.py:323: summary: Dict[str, Any] = {
+
+## plugin/tests/test_csv_import_logic.py
+plugin/tests/test_csv_import_logic.py:7: from types import ModuleType
+
+## plugin/tests/test_main_thread.py
+plugin/tests/test_main_thread.py:302: # Failure case 1: Any fails, retry without
+
+## plugin/tests/test_search_web.py
+plugin/tests/test_search_web.py:26: from typing import Any
+plugin/tests/test_search_web.py:72: api_key: str,
+plugin/tests/test_search_web.py:73: model_id: str,
+plugin/tests/test_search_web.py:74: max_tokens: int = 1024,
+plugin/tests/test_search_web.py:75: endpoint: str = "https://openrouter.ai/api/v1/chat/completions",
+plugin/tests/test_search_web.py:76: **kwargs: Any,
+plugin/tests/test_search_web.py:84: def _to_openai_messages(self, messages: list[ChatMessage]) -> list[dict[str, Any]]:
+plugin/tests/test_search_web.py:86: result: list[dict[str, Any]] = []
+plugin/tests/test_search_web.py:98: def _to_openai_tools(self, tools: dict[str, Any] | None) -> list[dict[str, Any]] | None:
+plugin/tests/test_search_web.py:117: messages: list[ChatMessage],
+plugin/tests/test_search_web.py:118: stop_sequences: list[str] | None = None,
+plugin/tests/test_search_web.py:120: **kwargs: Any,
+plugin/tests/test_search_web.py:135: payload: dict[str, Any] = {
+plugin/tests/test_search_web.py:167: tool_calls: list[ChatMessageToolCall] = []
+plugin/tests/test_search_web.py:206: def main(argv: list[str] | None = None) -> int:
+
+## plugin/tests/test_state_framework.py
+plugin/tests/test_state_framework.py:16: n: int = 0
+plugin/tests/test_state_framework.py:19: def _trivial_next(state: _TrivialState, increment: bool) -> FsmTransition[_TrivialState]:
+
+## plugin/tests/test_streaming.py
+plugin/tests/test_streaming.py:86: LiteLLM: streaming_handler.py ~L1280 _strip_sse_data_from_chunk (Sagemaker format).
+plugin/tests/test_streaming.py:138: """finish_reason='error' should raise. LiteLLM: streaming_handler.py ~L736."""
+plugin/tests/test_streaming.py:162: """Repeated identical content chunks raise (infinite loop). LiteLLM: streaming_handler.py ~L198, issue #5158."""
+plugin/tests/test_streaming.py:187: LiteLLM: streaming_handler.py ~L847 (role), ~L853 (type), ~L820 (arguments).
+plugin/tests/test_streaming.py:280: """finish_reason='stop' with tool_calls present -> 'tool_calls'. LiteLLM: streaming_handler.py ~L970."""
+
+## plugin/tests/uno/test_writer.py
+plugin/tests/uno/test_writer.py:1: from types import SimpleNamespace
+
+## plugin/tests/uno/test_writer_bookmarks.py
+plugin/tests/uno/test_writer_bookmarks.py:8: from types import SimpleNamespace
+
+## plugin/tests/uno/test_writer_navigation.py
+plugin/tests/uno/test_writer_navigation.py:145: from types import SimpleNamespace

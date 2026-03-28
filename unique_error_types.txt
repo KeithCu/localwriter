@@ -1,0 +1,352 @@
+error[call-non-callable]: Object of type `None` is not callable
+error[call-non-callable]: Object of type `object` is not callable
+error[invalid-argument-type]: Argument is incorrect
+error[invalid-argument-type]: Argument to bound method `delete_skill` is incorrect
+error[invalid-argument-type]: Argument to bound method `detect_and_explain` is incorrect
+error[invalid-argument-type]: Argument to bound method `extend` is incorrect
+error[invalid-argument-type]: Argument to bound method `__init__` is incorrect
+error[invalid-argument-type]: Argument to bound method `log_markdown` is incorrect
+error[invalid-argument-type]: Argument to bound method `log_messages` is incorrect
+error[invalid-argument-type]: Argument to bound method `_prepare_completion_kwargs` is incorrect
+error[invalid-argument-type]: Argument to bound method `read_skill` is incorrect
+error[invalid-argument-type]: Argument to bound method `remove_file` is incorrect
+error[invalid-argument-type]: Argument to bound method `_resolve_skill_dir` is incorrect
+error[invalid-argument-type]: Argument to bound method `run` is incorrect
+error[invalid-argument-type]: Argument to bound method `set_cell_style` is incorrect
+error[invalid-argument-type]: Argument to bound method `write_file` is incorrect
+error[invalid-argument-type]: Argument to bound method `write_skill` is incorrect
+error[invalid-argument-type]: Argument to function `accumulate_delta` is incorrect
+error[invalid-argument-type]: Argument to function `get_tool_call_from_text` is incorrect
+error[invalid-argument-type]: Argument to function `handle_agent_output_types` is incorrect
+error[invalid-argument-type]: Argument to function `len` is incorrect
+error[invalid-argument-type]: Argument to function `loads` is incorrect
+error[invalid-argument-type]: Argument to function `metadata_update` is incorrect
+error[invalid-argument-type]: Argument to function `__new__` is incorrect
+error[invalid-argument-type]: Argument to function `normalize_linebreaks` is incorrect
+error[invalid-argument-type]: Argument to function `parse_code_blobs` is incorrect
+error[invalid-argument-type]: Argument to function `_parse_union_type` is incorrect
+error[invalid-argument-type]: Argument to function `remove` is incorrect
+error[invalid-argument-type]: Method `__getitem__` of type `bound method dict[<class 'int'> | <class 'float'> | <class 'str'> | ... omitted 5 union elements, dict[str, str]].__getitem__(key: <class 'int'> | <class 'float'> | <class 'str'> | ... omitted 5 union elements, /) -> dict[str, str]` cannot be called with key of type `type` on object of type `dict[<class 'int'> | <class 'float'> | <class 'str'> | ... omitted 5 union elements, dict[str, str]]`
+error[invalid-argument-type]: Method `__getitem__` of type `bound method dict[str, Unknown].__getitem__(key: str, /) -> Unknown` cannot be called with key of type `bool` on object of type `dict[str, Unknown]`
+error[invalid-argument-type]: Method `__getitem__` of type `bound method dict[str, Unknown].__getitem__(key: str, /) -> Unknown` cannot be called with key of type `type` on object of type `dict[str, Unknown]`
+error[invalid-argument-type]: Method `__getitem__` of type `Overload[(key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> LiteralString, (key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> str]` cannot be called with key of type `Literal["enum"]` on object of type `str`
+error[invalid-argument-type]: Method `__getitem__` of type `Overload[(key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> LiteralString, (key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> str]` cannot be called with key of type `Literal["schema"]` on object of type `str`
+error[invalid-argument-type]: Method `__getitem__` of type `Overload[(key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> LiteralString, (key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> str]` cannot be called with key of type `Literal["text"]` on object of type `str`
+error[invalid-argument-type]: Method `__getitem__` of type `Overload[(key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> LiteralString, (key: SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None], /) -> str]` cannot be called with key of type `Literal["type"]` on object of type `str`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["additionalProperties"]` and value of type `dict[Unknown, Unknown]` on object of type `dict[str, str]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["com.sun.star.awt"]` and value of type `AwtMock` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["content"]` and value of type `None` on object of type `dict[str, str]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["max_wait_minutes"]` and value of type `Literal[1]` on object of type `dict[str, str]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["nullable"]` and value of type `Literal[True]` on object of type `dict[str, list[dict[Unknown, Unknown]]]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["nullable"]` and value of type `Literal[True]` on object of type `dict[str, list[Unknown]]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["options"]` and value of type `Unknown | str | int | list[dict[str, str]]` on object of type `dict[str, str]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["plugin.main"]` and value of type `MockMain` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["required"]` and value of type `list[Unknown] & ~AlwaysFalsy` on object of type `dict[str, str | dict[Unknown, Unknown]]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["response_format"]` and value of type `dict[str, str]` on object of type `dict[str, list[dict[str, Any]]]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["stop"]` and value of type `list[str]` on object of type `dict[str, list[dict[str, Any]]]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["tool_choice"]` and value of type `str | dict[Unknown, Unknown]` on object of type `dict[str, list[dict[str, Any]]]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["type"]` and value of type `list[Unknown] | Unknown` on object of type `dict[str, str | type | bool]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["type"]` and value of type `(Unknown & ~Literal["boolean"]) | (str & ~Literal["boolean"]) | int | list[dict[str, str]]` on object of type `dict[str, str]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["uno"]` and value of type `MockModule` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["uno"]` and value of type `MockUno` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["unohelper"]` and value of type `MockModule` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["unohelper"]` and value of type `MockUno` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `Literal["unohelper.Base"]` and value of type `<class 'MockBase'>` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Invalid subscript assignment with key of type `str` and value of type `object` on object of type `dict[str, ModuleType]`
+error[invalid-assignment]: Object of type `(_ctx) -> Unknown` is not assignable to attribute `user_config_dir` of type `def user_config_dir(ctx) -> Unknown`
+error[invalid-assignment]: Object of type `def fake_import(name, globals=None, locals=None, fromlist=..., level=0) -> Unknown` is not assignable to attribute `__import__` of type `def __import__(name: str, globals: Mapping[str, object] | None = None, locals: Mapping[str, object] | None = None, fromlist: Sequence[str] | None = ..., level: int = 0) -> ModuleType`
+error[invalid-assignment]: Object of type `def mocked_wait(...) -> Unknown` is not assignable to attribute `wait` on type `Popen[Unknown] | None`
+error[invalid-assignment]: Object of type `dict[str, list[dict[str, str]]]` is not assignable to attribute `return_value` on type `Unknown | (bound method LlmClient.request_with_tools(messages, max_tokens=512, tools=None, append_callback=None, append_thinking_callback=None, stop_checker=None, body_override=None, model=None, stream=False) -> Unknown)`
+error[invalid-assignment]: Object of type `(dict[str, str] & ~AlwaysFalsy) | dict[MessageRole, MessageRole]` is not assignable to `dict[str, str] | None`
+error[invalid-assignment]: Object of type `dict[str, str | list[dict[str, dict[str, str]]]]` is not assignable to attribute `return_value` on type `Unknown | (bound method LlmClient.request_with_tools(messages, max_tokens=512, tools=None, append_callback=None, append_thinking_callback=None, stop_checker=None, body_override=None, model=None, stream=False) -> Unknown)`
+error[invalid-assignment]: Object of type `dict[str, str | list[Unknown]]` is not assignable to attribute `return_value` on type `Unknown | (bound method LlmClient.request_with_tools(messages, max_tokens=512, tools=None, append_callback=None, append_thinking_callback=None, stop_checker=None, body_override=None, model=None, stream=False) -> Unknown)`
+error[invalid-assignment]: Object of type `(f) -> Unknown` is not assignable to `def native_test(func) -> Unknown`
+error[invalid-assignment]: Object of type `(f) -> Unknown` is not assignable to `def setup(func) -> Unknown`
+error[invalid-assignment]: Object of type `(f) -> Unknown` is not assignable to `def teardown(func) -> Unknown`
+error[invalid-assignment]: Object of type `Literal[False]` is not assignable to attribute `USE_SUB_AGENT` of type `Literal[True]`
+error[invalid-assignment]: Object of type `Literal["?"]` is not assignable to `Literal["0.7.1-beta"]`
+error[invalid-assignment]: Object of type `MagicMock` is not assignable to attribute `_do_send` on type `Unknown | SendButtonListener`
+error[invalid-assignment]: Object of type `MagicMock` is not assignable to attribute `_ensure_connection` of type `def _ensure_connection(self) -> Unknown`
+error[invalid-assignment]: Object of type `MagicMock` is not assignable to attribute `execute` of type `def execute(self, ctx, **kwargs) -> Unknown`
+error[invalid-assignment]: Object of type `MagicMock` is not assignable to attribute `return_value` on type `Unknown | (bound method LlmClient._get_connection() -> Unknown)`
+error[invalid-assignment]: Object of type `Mock` is not assignable to attribute `_spawn_final_stream` of type `def _spawn_final_stream(self, q, client, max_tokens) -> Unknown`
+error[invalid-assignment]: Object of type `Mock` is not assignable to attribute `_spawn_llm_worker` of type `def _spawn_llm_worker(self, q, client, max_tokens, tools, round_num, query_text=None) -> Unknown`
+error[invalid-assignment]: Object of type `None` is not assignable to `bool`
+error[invalid-assignment]: Object of type `None` is not assignable to `bound method HfApi.create_repo(repo_id: str, *, token: str | bool | None = None, private: bool | None = None, repo_type: str | None = None, exist_ok: bool = False, resource_group_id: str | None = None, space_sdk: str | None = None, space_hardware: SpaceHardware | None = None, space_storage: SpaceStorage | None = None, space_sleep_time: int | None = None, space_secrets: list[dict[str, str]] | None = None, space_variables: list[dict[str, str]] | None = None) -> RepoUrl`
+error[invalid-assignment]: Object of type `None` is not assignable to `bound method HfApi.get_collection(collection_slug: str, *, token: bool | str | None = None) -> Collection`
+error[invalid-assignment]: Object of type `None` is not assignable to `<class 'AudioRecorder'>`
+error[invalid-assignment]: Object of type `None` is not assignable to `<class 'CommitOperationAdd'>`
+error[invalid-assignment]: Object of type `None` is not assignable to `def metadata_update(repo_id: str, metadata: dict[Unknown, Unknown], *, repo_type: str | None = None, overwrite: bool = False, token: str | None = None, commit_message: str | None = None, commit_description: str | None = None, revision: str | None = None, create_pr: bool = False, parent_commit: str | None = None) -> str`
+error[invalid-assignment]: Object of type `None` is not assignable to `dict[Unknown, Unknown]`
+error[invalid-assignment]: Object of type `None` is not assignable to `list[Unknown]`
+error[invalid-assignment]: Object of type `None` is not assignable to `<module 'PIL.Image'>`
+error[invalid-assignment]: Object of type `None` is not assignable to `<module 'sqlite3'>`
+error[invalid-assignment]: Object of type `None` is not assignable to `<module 'yaml'>`
+error[invalid-assignment]: Object of type `None` is not assignable to `Overload[(repo_id: str, filename: str, *, subfolder: str | None = None, repo_type: str | None = None, revision: str | None = None, library_name: str | None = None, library_version: str | None = None, cache_dir: str | Path | None = None, local_dir: str | Path | None = None, user_agent: dict[Unknown, Unknown] | str | None = None, force_download: bool = False, etag_timeout: int | float = 10, token: bool | str | None = None, local_files_only: bool = False, headers: dict[str, str] | None = None, endpoint: str | None = None, tqdm_class: type[tqdm_asyncio] | None = None, dry_run: Literal[False] = False) -> str, (repo_id: str, filename: str, *, subfolder: str | None = None, repo_type: str | None = None, revision: str | None = None, library_name: str | None = None, library_version: str | None = None, cache_dir: str | Path | None = None, local_dir: str | Path | None = None, user_agent: dict[Unknown, Unknown] | str | None = None, force_download: bool = False, etag_timeout: int | float = 10, token: bool | str | None = None, local_files_only: bool = False, headers: dict[str, str] | None = None, endpoint: str | None = None, tqdm_class: type[tqdm_asyncio] | None = None, dry_run: Literal[True] = True) -> DryRunFileInfo, (repo_id: str, filename: str, *, subfolder: str | None = None, repo_type: str | None = None, revision: str | None = None, library_name: str | None = None, library_version: str | None = None, cache_dir: str | Path | None = None, local_dir: str | Path | None = None, user_agent: dict[Unknown, Unknown] | str | None = None, force_download: bool = False, etag_timeout: int | float = 10, token: bool | str | None = None, local_files_only: bool = False, headers: dict[str, str] | None = None, endpoint: str | None = None, tqdm_class: type[tqdm_asyncio] | None = None, dry_run: bool = False) -> str | DryRunFileInfo]`
+error[invalid-assignment]: Object of type `None` is not assignable to `Overload[(*, repo_id: str, folder_path: str | Path, path_in_repo: str | None = None, commit_message: str | None = None, commit_description: str | None = None, token: str | bool | None = None, repo_type: str | None = None, revision: str | None = None, create_pr: bool | None = None, parent_commit: str | None = None, allow_patterns: list[str] | str | None = None, ignore_patterns: list[str] | str | None = None, delete_patterns: list[str] | str | None = None, run_as_future: Literal[False] = ...) -> CommitInfo, (*, repo_id: str, folder_path: str | Path, path_in_repo: str | None = None, commit_message: str | None = None, commit_description: str | None = None, token: str | bool | None = None, repo_type: str | None = None, revision: str | None = None, create_pr: bool | None = None, parent_commit: str | None = None, allow_patterns: list[str] | str | None = None, ignore_patterns: list[str] | str | None = None, delete_patterns: list[str] | str | None = None, run_as_future: Literal[True] = ...) -> Future[CommitInfo]]`
+error[invalid-assignment]: Object of type `None` is not assignable to `Overload[(repo_id: str, operations: Iterable[CommitOperationAdd | CommitOperationCopy | CommitOperationDelete], *, commit_message: str, commit_description: str | None = None, token: str | bool | None = None, repo_type: str | None = None, revision: str | None = None, create_pr: bool | None = None, num_threads: int = 5, parent_commit: str | None = None, run_as_future: Literal[False] = ..., _hot_reload: bool | None = None) -> CommitInfo, (repo_id: str, operations: Iterable[CommitOperationAdd | CommitOperationCopy | CommitOperationDelete], *, commit_message: str, commit_description: str | None = None, token: str | bool | None = None, repo_type: str | None = None, revision: str | None = None, create_pr: bool | None = None, num_threads: int = 5, parent_commit: str | None = None, run_as_future: Literal[True] = ..., _hot_reload: bool | None = None) -> Future[CommitInfo]]`
+error[invalid-assignment]: Object of type `None` is not assignable to `Overload[(repo_id: str, *, repo_type: str | None = None, revision: str | None = None, cache_dir: str | Path | None = None, local_dir: str | Path | None = None, library_name: str | None = None, library_version: str | None = None, user_agent: dict[Unknown, Unknown] | str | None = None, etag_timeout: int | float = 10, force_download: bool = False, token: bool | str | None = None, local_files_only: bool = False, allow_patterns: list[str] | str | None = None, ignore_patterns: list[str] | str | None = None, max_workers: int = 8, tqdm_class: type[tqdm_asyncio] | None = None, headers: dict[str, str] | None = None, endpoint: str | None = None, dry_run: Literal[False] = False) -> str, (repo_id: str, *, repo_type: str | None = None, revision: str | None = None, cache_dir: str | Path | None = None, local_dir: str | Path | None = None, library_name: str | None = None, library_version: str | None = None, user_agent: dict[Unknown, Unknown] | str | None = None, etag_timeout: int | float = 10, force_download: bool = False, token: bool | str | None = None, local_files_only: bool = False, allow_patterns: list[str] | str | None = None, ignore_patterns: list[str] | str | None = None, max_workers: int = 8, tqdm_class: type[tqdm_asyncio] | None = None, headers: dict[str, str] | None = None, endpoint: str | None = None, dry_run: Literal[True] = True) -> list[DryRunFileInfo], (repo_id: str, *, repo_type: str | None = None, revision: str | None = None, cache_dir: str | Path | None = None, local_dir: str | Path | None = None, library_name: str | None = None, library_version: str | None = None, user_agent: dict[Unknown, Unknown] | str | None = None, etag_timeout: int | float = 10, force_download: bool = False, token: bool | str | None = None, local_files_only: bool = False, allow_patterns: list[str] | str | None = None, ignore_patterns: list[str] | str | None = None, max_workers: int = 8, tqdm_class: type[tqdm_asyncio] | None = None, headers: dict[str, str] | None = None, endpoint: str | None = None, dry_run: bool = False) -> str | list[DryRunFileInfo]]`
+error[invalid-assignment]: Object of type `None` is not assignable to `str`
+error[invalid-assignment]: Object of type `NullTranslations` is not assignable to attribute `_translation` of type `None`
+error[invalid-assignment]: Object of type `staticmethod[(...), Unknown]` is not assignable to attribute `forward` of type `def forward(self, *args, **kwargs) -> Unknown`
+error[invalid-assignment]: Object of type `str & ~AlwaysFalsy` is not assignable to attribute `name` on type `ChatMessageToolCallFunction | None`
+error[invalid-assignment]: Object of type `(TokenUsage & ~AlwaysFalsy) | (DummyTokenUsage & ~AlwaysFalsy)` is not assignable to attribute `token_usage` of type `TokenUsage | None`
+error[invalid-assignment]: Object of type `tuple[Literal["POST"], Literal["/chat"], Literal["{}"], dict[Unknown, Unknown]]` is not assignable to attribute `return_value` on type `Unknown | (bound method LlmClient.make_chat_request(messages, max_tokens=512, tools=None, stream=False, model=None) -> Unknown)`
+error[invalid-assignment]: Object of type `tuple[Literal["POST"], Literal["/images"], Literal["{}"], dict[Unknown, Unknown]]` is not assignable to attribute `return_value` on type `Unknown | (bound method LlmClient.make_image_request(prompt, model=None, width=1024, height=1024, steps=None, source_image=None, image_url=None) -> Unknown)`
+error[invalid-assignment]: Object of type `Unknown` is not assignable to attribute `active_specialized_domain` on type `~AlwaysFalsy`
+error[invalid-assignment]: Object of type `() -> Unknown` is not assignable to attribute `_get_connection` of type `def _get_connection(self) -> Unknown`
+error[invalid-assignment]: Object of type `Unknown | None` is not assignable to attribute `state` of type `Literal["success", "max_steps_error"]`
+error[invalid-assignment]: Object of type `Unknown | None` is not assignable to attribute `steps` of type `list[dict[Unknown, Unknown]]`
+error[invalid-assignment]: Object of type `Unknown | None` is not assignable to attribute `timing` of type `Timing`
+error[invalid-assignment]: Object of type `(x) -> Unknown` is not assignable to attribute `fileUrlToSystemPath` of type `def fileUrlToSystemPath(url) -> Unknown`
+error[invalid-assignment]: Object of type `(x, y) -> Unknown` is not assignable to attribute `get_config` of type `def get_config(ctx, key) -> Unknown`
+error[invalid-assignment]: Property `n` defined in `_TrivialState` is read-only
+error[invalid-assignment]: Property `state` defined in `FsmTransition[_TrivialState]` is read-only
+error[invalid-key]: TypedDict `PromptTemplates` can only be subscripted with a string literal key, got key of type `str`
+error[invalid-method-override]: Invalid override of method `begin_inline_web_approval`
+error[invalid-method-override]: Invalid override of method `disposing`
+error[invalid-method-override]: Invalid override of method `execute`
+error[invalid-method-override]: Invalid override of method `generate`
+error[invalid-method-override]: Invalid override of method `log_message`
+error[invalid-method-override]: Invalid override of method `on_action_performed`
+error[invalid-method-override]: Invalid override of method `on_window_resized`
+error[invalid-method-override]: Invalid override of method `send`
+error[invalid-parameter-default]: Default value of type `None` is not assignable to annotated parameter type `bool`
+error[invalid-parameter-default]: Default value of type `None` is not assignable to annotated parameter type `int`
+error[invalid-parameter-default]: Default value of type `None` is not assignable to annotated parameter type `int | float`
+error[invalid-parameter-default]: Default value of type `None` is not assignable to annotated parameter type `PythonExecutor`
+error[invalid-parameter-default]: Default value of type `None` is not assignable to annotated parameter type `str`
+error[invalid-return-type]: Return type does not match returned value
+error[invalid-type-form]: List literals are not allowed in this context in a type expression
+error[invalid-yield]: Yield expression type does not match annotation
+error[missing-argument]: No argument provided for required parameter `ctx` of bound method `__init__`
+error[missing-typed-dict-key]: Missing required key 'final_answer' in TypedDict `PromptTemplates` constructor
+error[missing-typed-dict-key]: Missing required key 'managed_agent' in TypedDict `PromptTemplates` constructor
+error[missing-typed-dict-key]: Missing required key 'planning' in TypedDict `PromptTemplates` constructor
+error[missing-typed-dict-key]: Missing required key 'system_prompt' in TypedDict `PromptTemplates` constructor
+error[no-matching-overload]: No overload of bound method `__init__` matches arguments
+error[no-matching-overload]: No overload of bound method `write` matches arguments
+error[no-matching-overload]: No overload of function `contextmanager` matches arguments
+error[no-matching-overload]: No overload of function `hf_hub_download` matches arguments
+error[no-matching-overload]: No overload of function `snapshot_download` matches arguments
+error[not-iterable]: Object of type `Any | RunResult` may not be iterable
+error[not-iterable]: Object of type `~None` is not iterable
+error[not-iterable]: Object of type `object` is not iterable
+error[not-iterable]: Object of type `str | type | bool` may not be iterable
+error[not-iterable]: Object of type `(Unknown & ~AlwaysFalsy) | (str & ~AlwaysFalsy) | (int & ~AlwaysFalsy) | (list[dict[str, str]] & ~AlwaysFalsy) | (list[Unknown] & ~AlwaysFalsy)` may not be iterable
+error[not-subscriptable]: Cannot subscript object of type `int` with no `__getitem__` method
+error[not-subscriptable]: Cannot subscript object of type `None` with no `__getitem__` method
+error[not-subscriptable]: Cannot subscript object of type `object` with no `__getitem__` method
+error[too-many-positional-arguments]: Too many positional arguments to bound method `__init__`: expected 1, got 2
+error[unknown-argument]: Argument `document_url` does not match any known parameter of bound method `_mcp_initialize`
+error[unknown-argument]: Argument `document_url` does not match any known parameter of bound method `_mcp_ping`
+error[unknown-argument]: Argument `document_url` does not match any known parameter of bound method `_mcp_prompts_list`
+error[unknown-argument]: Argument `document_url` does not match any known parameter of bound method `_mcp_resources_list`
+error[unresolved-attribute]: Attribute `append` is not defined on `int`, `str` in union `int | str | list[Unknown]`
+error[unresolved-attribute]: Attribute `arguments` is not defined on `None` in union `ChatMessageToolCallFunction | None`
+error[unresolved-attribute]: Attribute `close` is not defined on `None` in union `Unknown | IO[bytes] | None`
+error[unresolved-attribute]: Attribute `content` is not defined on `None` in union `(Any & AddMessageEffect) | None`
+error[unresolved-attribute]: Attribute `emit` is not defined on `None` in union `Unknown | None`
+error[unresolved-attribute]: Attribute `flush` is not defined on `None` in union `Unknown | IO[bytes] | None`
+error[unresolved-attribute]: Attribute `from_pretrained` is not defined on `None` in union `Unknown | None`
+error[unresolved-attribute]: Attribute `generate_stream` is not defined on `Model` in union `Unknown | Model`
+error[unresolved-attribute]: Attribute `get` is not defined on `None` in union `None | Any`
+error[unresolved-attribute]: Attribute `get` is not defined on `None` in union `Unknown | None`
+error[unresolved-attribute]: Attribute `get` is not defined on `str` in union `Unknown | str | dict[str, str]`
+error[unresolved-attribute]: Attribute `getServiceManager` is not defined on `MockContext` in union `Unknown | MockContext`
+error[unresolved-attribute]: Attribute `is_final_answer` is not defined on `_ExecutionResult` in union `Unknown | _ExecutionResult`
+error[unresolved-attribute]: Attribute `is_set` is not defined on `None` in union `Unknown | Event | None`
+error[unresolved-attribute]: Attribute `items` is not defined on `None` in union `Unknown | None`
+error[unresolved-attribute]: Attribute `items` is not defined on `str`, `list[Unknown]`, `None`, `list[str]` in union `str | list[Unknown] | dict[Unknown, Unknown] | ... omitted 7 union elements`
+error[unresolved-attribute]: Attribute `join` is not defined on `None` in union `Unknown | None`
+error[unresolved-attribute]: Attribute `log` is not defined on `Console` in union `Unknown | Console`
+error[unresolved-attribute]: Attribute `lower` is not defined on `int` in union `int | Unknown`
+error[unresolved-attribute]: Attribute `__name__` is not defined on `(...) -> Unknown` in union `Unknown | ((...) -> Unknown)`
+error[unresolved-attribute]: Attribute `output` is not defined on `_ExecutionResult` in union `Unknown | _ExecutionResult`
+error[unresolved-attribute]: Attribute `readline` is not defined on `None` in union `Unknown | IO[bytes] | None`
+error[unresolved-attribute]: Attribute `replace` is not defined on `list[Unknown]`, `dict[Unknown, Unknown]`, `list[str]`, `dict[str, dict[str, str | bool | list[dict[str, str]]]]`, `dict[str, dict[str, str | bool] | dict[str, str | int]]`, `dict[str, dict[str, str | int]]`, `dict[str, dict[str, str | int] | dict[str, str | list[dict[str, str]]] | dict[str, str | bool]]`, `dict[str, dict[str, str | list[dict[str, str]]] | dict[str, str]]` in union `(None & Unknown) | str | list[Unknown] | ... omitted 7 union elements`
+error[unresolved-attribute]: Attribute `replace` is not defined on `None`, `list[Unknown]`, `dict[Unknown, Unknown]`, `list[str]`, `dict[str, dict[str, str | bool | list[dict[str, str]]]]`, `dict[str, dict[str, str | bool] | dict[str, str | int]]`, `dict[str, dict[str, str | int]]`, `dict[str, dict[str, str | int] | dict[str, str | list[dict[str, str]]] | dict[str, str | bool]]`, `dict[str, dict[str, str | list[dict[str, str]]] | dict[str, str]]` in union `None | str | list[Unknown] | ... omitted 7 union elements`
+error[unresolved-attribute]: Attribute `rsplit` is not defined on `list[Unknown]`, `dict[Unknown, Unknown]`, `None`, `list[str]`, `dict[str, dict[str, str | bool | list[dict[str, str]]]]`, `dict[str, dict[str, str | bool] | dict[str, str | int]]`, `dict[str, dict[str, str | int]]`, `dict[str, dict[str, str | int] | dict[str, str | list[dict[str, str]]] | dict[str, str | bool]]`, `dict[str, dict[str, str | list[dict[str, str]]] | dict[str, str]]` in union `str | list[Unknown] | dict[Unknown, Unknown] | ... omitted 7 union elements`
+error[unresolved-attribute]: Attribute `send_request` is not defined on `None` in union `Unknown | None | ACPConnection`
+error[unresolved-attribute]: Attribute `serve_forever` is not defined on `None` in union `Unknown | None | _ThreadedHTTPServer`
+error[unresolved-attribute]: Attribute `set_notification_callback` is not defined on `None` in union `Unknown | None | ACPConnection`
+error[unresolved-attribute]: Attribute `stdin` is not defined on `None` in union `Unknown | None | Popen[bytes]`
+error[unresolved-attribute]: Attribute `strip` is not defined on `list[dict[str, Any]] & ~AlwaysFalsy` in union `(str & ~AlwaysFalsy) | (list[dict[str, Any]] & ~AlwaysFalsy) | (Unknown & ~AlwaysFalsy)`
+error[unresolved-attribute]: Attribute `strip` is not defined on `list[dict[str, Any]] & ~AlwaysFalsy` in union `(str & ~AlwaysFalsy) | (list[dict[str, Any]] & ~AlwaysFalsy) | (Unknown & ~AlwaysFalsy) | Literal[""]`
+error[unresolved-attribute]: Attribute `strip` is not defined on `list[dict[str, Any]]` in union `str | list[dict[str, Any]]`
+error[unresolved-attribute]: Attribute `tool_calls` is not defined on `None` in union `(Any & AddMessageEffect) | None`
+error[unresolved-attribute]: Attribute `wait` is not defined on `None` in union `Popen[Unknown] | None`
+error[unresolved-attribute]: Attribute `write` is not defined on `None` in union `Unknown | IO[bytes] | None`
+error[unresolved-attribute]: Module `sys` has no member `_localwriter_event_bus`
+error[unresolved-attribute]: Object of type `bound method MemoryTool.execute(ctx, **kwargs) -> Unknown` has no attribute `assert_called_once`
+error[unresolved-attribute]: Object of type `bound method MemoryTool.execute(ctx, **kwargs) -> Unknown` has no attribute `call_args`
+error[unresolved-attribute]: Object of type `dict[Unknown, Unknown]` has no attribute `dict`
+error[unresolved-attribute]: Object of type `Event` has no attribute `approved`
+error[unresolved-attribute]: Object of type `None` has no attribute `createSearchDescriptor`
+error[unresolved-attribute]: Object of type `None` has no attribute `empty`
+error[unresolved-attribute]: Object of type `~None` has no attribute `extend`
+error[unresolved-attribute]: Object of type `None` has no attribute `findFirst`
+error[unresolved-attribute]: Object of type `None` has no attribute `get`
+error[unresolved-attribute]: Object of type `None` has no attribute `getBookmarks`
+error[unresolved-attribute]: Object of type `None` has no attribute `getCurrentController`
+error[unresolved-attribute]: Object of type `None` has no attribute `getDrawPages`
+error[unresolved-attribute]: Object of type `None` has no attribute `getSheets`
+error[unresolved-attribute]: Object of type `None` has no attribute `getText`
+error[unresolved-attribute]: Object of type `~None` has no attribute `insert`
+error[unresolved-attribute]: Object of type `object` has no attribute `name`
+error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `image_model_selector`
+error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `model_selector`
+error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_do_send_chat_with_tools` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_do_send_via_agent_backend` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_execute_agent_backend_effect` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `aspect_ratio_selector`
+error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `base_size_input`
+error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `_get_doc_type_str`
+error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `image_model_selector`
+error[unresolved-attribute]: Object of type `Self@_execute_direct_image_effect` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `image_model_selector`
+error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_execute_effect` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `begin_inline_web_approval`
+error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `response_control`
+error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_execute_web_research_effect` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_get_mcp_url` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_handle_stream_completion` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_handle_stream_error` has no attribute `_transcribe_audio`
+error[unresolved-attribute]: Object of type `Self@run` has no attribute `python_executor`
+error[unresolved-attribute]: Object of type `Self@_run_librarian` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_run_unified_worker_drain_loop` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_run_web_research` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_spawn_final_stream` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_spawn_llm_worker` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_spawn_llm_worker` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_spawn_llm_worker` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `session`
+error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_start_simple_stream_async` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `Self@_start_tool_calling_async` has no attribute `stop_requested`
+error[unresolved-attribute]: Object of type `Self@test_doc_type_leakage` has no attribute `get_control_text`
+error[unresolved-attribute]: Object of type `Self@test_doc_type_leakage` has no attribute `set_control_text`
+error[unresolved-attribute]: Object of type `Self@_transcribe_audio` has no attribute `_append_response`
+error[unresolved-attribute]: Object of type `Self@_transcribe_audio` has no attribute `ctx`
+error[unresolved-attribute]: Object of type `Self@_transcribe_audio` has no attribute `_set_status`
+error[unresolved-attribute]: Object of type `SmolToolAdapter` has no attribute `forward`
+error[unresolved-attribute]: Object of type `SmolToolAdapter` has no attribute `inputs`
+error[unresolved-attribute]: Object of type `(...) -> Unknown` has no attribute `__name__`
+error[unresolved-attribute]: Unresolved attribute `AbstractTool` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `AnotherTool` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `approved` on type `Event`
+error[unresolved-attribute]: Unresolved attribute `AS_CHARACTER` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `AT_FRAME` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `Base` on type `MockModule`
+error[unresolved-attribute]: Unresolved attribute `Base` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `DummyTool` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `getServiceManager` on type `MockContext`
+error[unresolved-attribute]: Unresolved attribute `GoodTool` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `ImportedTool` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `_localwriter_event_bus` on type `<module 'sys'>`.
+error[unresolved-attribute]: Unresolved attribute `NotATool` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `parse_address` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `Point` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `PropertyValue` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `query_override` on type `Event`
+error[unresolved-attribute]: Unresolved attribute `response_control` on type `DummyChatbotPanel`
+error[unresolved-attribute]: Unresolved attribute `session` on type `DummyChatbotPanel`
+error[unresolved-attribute]: Unresolved attribute `__signature__` on type `def forward(self, *args, **kwargs) -> Unknown`
+error[unresolved-attribute]: Unresolved attribute `__signature__` on type `def tool_forward(...) -> Unknown`
+error[unresolved-attribute]: Unresolved attribute `Size` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `__source__` on type `<class 'SimpleTool'>`.
+error[unresolved-attribute]: Unresolved attribute `__source__` on type `def forward(self, *args, **kwargs) -> Unknown`
+error[unresolved-attribute]: Unresolved attribute `TestModule` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `XActionListener` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `XCallback` on type `ModuleType`
+error[unresolved-attribute]: Unresolved attribute `XClipboardListener` on type `ModuleType`
+error[unresolved-import]: Cannot resolve imported module `accelerate`
+error[unresolved-import]: Cannot resolve imported module `accelerate.utils`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.awt`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.awt.FontSlant`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.awt.FontWeight`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.beans`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.beans.PropertyAttribute`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.container`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.datatransfer`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.drawing`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.frame`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.lang`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.presentation.AnimationSpeed`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.presentation.FadeEffect`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.sheet.ConditionOperator`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.sheet.FormulaResult`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.table`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.table.CellContentType`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.table.CellHoriJustify`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.table.CellVertJustify`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.task`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.text.ControlCharacter`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.text.TextContentAnchorType`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.ui`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.ui.UIElementType`
+error[unresolved-import]: Cannot resolve imported module `com.sun.star.uno`
+error[unresolved-import]: Cannot resolve imported module `deal`
+error[unresolved-import]: Cannot resolve imported module `gradio`
+error[unresolved-import]: Cannot resolve imported module `gradio_client`
+error[unresolved-import]: Cannot resolve imported module `gradio_client.utils`
+error[unresolved-import]: Cannot resolve imported module `IPython`
+error[unresolved-import]: Cannot resolve imported module `IPython.display`
+error[unresolved-import]: Cannot resolve imported module `main`
+error[unresolved-import]: Cannot resolve imported module `mcp`
+error[unresolved-import]: Cannot resolve imported module `mcpadapt.core`
+error[unresolved-import]: Cannot resolve imported module `mcpadapt.smolagents_adapter`
+error[unresolved-import]: Cannot resolve imported module `mlx_lm`
+error[unresolved-import]: Cannot resolve imported module `org.extension.writeragent.PromptFunction`
+error[unresolved-import]: Cannot resolve imported module `plugin.modules.http.ssl_certs`
+error[unresolved-import]: Cannot resolve imported module `.remote_executors`
+error[unresolved-import]: Cannot resolve imported module `snowballstemmer`
+error[unresolved-import]: Cannot resolve imported module `soundfile`
+error[unresolved-import]: Cannot resolve imported module `torch`
+error[unresolved-import]: Cannot resolve imported module `transformers`
+error[unresolved-import]: Module `plugin.framework.settings_dialog` has no member `show_settings`
+error[unresolved-reference]: Name `ast` used when not defined
+error[unresolved-reference]: Name `get_control_text` used when not defined
+error[unresolved-reference]: Name `listener` used when not defined
+error[unresolved-reference]: Name `logger` used when not defined
+error[unresolved-reference]: Name `Optional` used when not defined
+error[unresolved-reference]: Name `stop_index` used when not defined
+error[unresolved-reference]: Name `XSCRIPTCONTEXT` used when not defined
+error[unsupported-operator]: Unsupported `in` operation
+error[unsupported-operator]: Unsupported `not in` operation
+error[unsupported-operator]: Unsupported `+=` operation
+error[unsupported-operator]: Unsupported `+` operation
+error[unsupported-operator]: Unsupported `-` operation
+error[unsupported-operator]: Unsupported `/` operation
+error[unsupported-operator]: Unsupported `<` operation
+error[unsupported-operator]: Unsupported `>=` operation
+error[unsupported-operator]: Unsupported `>` operation

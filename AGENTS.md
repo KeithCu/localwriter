@@ -255,9 +255,12 @@ The project uses `ty` for static type checking.
 
 - **Dependencies**: Requires `types-unopy` (in `dev` group) for LibreOffice API stubs.
 - **UNO Resolution**: Because the `uno` module is typically provided by the system (not PyPI), you MUST run `make fix-uno` to symlink the system UNO paths into your `.venv`. Otherwise, `ty` will fail to resolve `import uno` or `com.sun.star` types.
+- **Python Version & Syntax**: Use modern 3.11+ syntax: `list[str]`, `dict[str, Any]`, and `str | None` instead of `List`, `Dict`, or `Optional`.
+- **Annotation Patterns**:
+    - **Protocols for Mixins**: When a mixin accesses attributes/methods from its host class, define a `Protocol` (e.g., `ToolLoopHost`) and annotate the mixin methods with `self: ToolLoopHost`.
+    - **TYPE_CHECKING**: Wrap UNO and other complex imports in `if TYPE_CHECKING:` blocks to avoid runtime issues while still providing context to `ty`.
+    - **Dynamic Attributes**: For objects with dynamic attributes (like attaching results to a `threading.Event`), use `setattr(obj, "name", val)` and `getattr(obj, "name")` to satisfy the static analyzer's "unresolved-attribute" rules.
 - **Interface Signatures**: When overriding UNO interfaces (e.g., `XActionListener`, `XEventListener`), you must match the argument names in the `.pyi` stubs exactly (e.g., `actionPerformed(self, rEvent)`, `disposing(self, Source)`). Mismatched names will trigger `invalid-method-override` errors.
-- **Base Classes**: Base classes like `ModuleBase` and `ToolBase` use `str | None = None` for attributes that are set dynamically at load time to satisfy type assignment rules.
-- **Casting**: Use `typing.cast` and `isinstance` checks to assist the checker in complex dynamic scenarios (like `streaming_deltas.py` or UNO property maps).
 
 ---
 

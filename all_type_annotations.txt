@@ -1,0 +1,2100 @@
+plugin/contrib/todo_store.py:27:from typing import Any, Dict, List, Optional
+plugin/contrib/todo_store.py:44:        self._items: List[Dict[str, str]] = []
+plugin/contrib/todo_store.py:110:            "completed": "[x]",
+plugin/contrib/todo_store.py:111:            "in_progress": "[>]",
+plugin/contrib/todo_store.py:112:            "pending": "[ ]",
+plugin/contrib/todo_store.py:113:            "cancelled": "[~]",
+plugin/contrib/todo_store.py:156:    todos: Optional[List[Dict[str, Any]]] = None,
+plugin/contrib/todo_store.py:158:    store: Optional[TodoStore] = None,
+plugin/contrib/todo_store.py:159:) -> str:
+plugin/contrib/todo_store.py:167:        return json.dumps({"error": "TodoStore not initialized"}, ensure_ascii=False)
+plugin/contrib/smolagents/utils.py:32:from typing import TYPE_CHECKING, Any, Callable
+plugin/contrib/smolagents/utils.py:551:        retry_predicate: Callable[[BaseException], bool] | None = None,
+plugin/contrib/smolagents/serialization.py:33:from typing import Any
+plugin/contrib/smolagents/serialization.py:99:            return {"__type__": "tuple", "data": [SafeSerializer.to_json_safe(item) for item in obj]}
+plugin/contrib/smolagents/serialization.py:106:                "__type__": "dict_with_complex_keys",
+plugin/contrib/smolagents/serialization.py:112:            return {"__type__": "set", "data": [SafeSerializer.to_json_safe(item) for item in obj]}
+plugin/contrib/smolagents/serialization.py:114:            return {"__type__": "frozenset", "data": [SafeSerializer.to_json_safe(item) for item in obj]}
+plugin/contrib/smolagents/serialization.py:116:            return {"__type__": "bytes", "data": base64.b64encode(obj).decode()}
+plugin/contrib/smolagents/serialization.py:118:            return {"__type__": "complex", "real": obj.real, "imag": obj.imag}
+plugin/contrib/smolagents/serialization.py:127:                return {"__type__": "datetime", "data": obj.isoformat()}
+plugin/contrib/smolagents/serialization.py:129:                return {"__type__": "date", "data": obj.isoformat()}
+plugin/contrib/smolagents/serialization.py:131:                return {"__type__": "time", "data": obj.isoformat()}
+plugin/contrib/smolagents/serialization.py:133:                return {"__type__": "timedelta", "total_seconds": obj.total_seconds()}
+plugin/contrib/smolagents/serialization.py:137:            return {"__type__": "Decimal", "data": str(obj)}
+plugin/contrib/smolagents/serialization.py:141:            return {"__type__": "Path", "data": str(obj)}
+plugin/contrib/smolagents/serialization.py:148:            return {"__type__": "PIL.Image", "data": base64.b64encode(buffer.getvalue()).decode()}
+plugin/contrib/smolagents/serialization.py:154:                return {"__type__": "ndarray", "data": obj.tolist(), "dtype": str(obj.dtype)}
+plugin/contrib/smolagents/serialization.py:165:                "__type__": "dataclass",
+plugin/contrib/smolagents/serialization.py:196:                        return {"__type__": "PIL.Image", "data": obj["data"]}
+plugin/contrib/smolagents/serialization.py:495:            "from typing import Any",
+plugin/contrib/smolagents/memory.py:4:from typing import TYPE_CHECKING, Any, Callable, Type
+plugin/contrib/smolagents/memory.py:33:            "type": "function",
+plugin/contrib/smolagents/memory.py:96:                ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.model_output.strip()}])
+plugin/contrib/smolagents/memory.py:105:                            "type": "text",
+plugin/contrib/smolagents/memory.py:106:                            "text": "Calling tools:\n" + str([tc.dict() for tc in self.tool_calls]),
+plugin/contrib/smolagents/memory.py:118:                            "type": "image",
+plugin/contrib/smolagents/memory.py:132:                            "type": "text",
+plugin/contrib/smolagents/memory.py:147:                ChatMessage(role=MessageRole.TOOL_RESPONSE, content=[{"type": "text", "text": message_content}])
+plugin/contrib/smolagents/memory.py:178:            ChatMessage(role=MessageRole.ASSISTANT, content=[{"type": "text", "text": self.plan.strip()}]),
+plugin/contrib/smolagents/memory.py:180:                role=MessageRole.USER, content=[{"type": "text", "text": "Now proceed and carry out this plan."}]
+plugin/contrib/smolagents/memory.py:192:        content = [{"type": "text", "text": f"New task:\n{self.task}"}]
+plugin/contrib/smolagents/memory.py:194:            content.extend([{"type": "image", "image": image} for image in self.task_images])
+plugin/contrib/smolagents/memory.py:206:        return [ChatMessage(role=MessageRole.SYSTEM, content=[{"type": "text", "text": self.system_prompt}])]
+plugin/contrib/smolagents/models.py:25:from typing import TYPE_CHECKING, Any
+plugin/contrib/smolagents/models.py:44:    "type": "json_schema",
+plugin/contrib/smolagents/models.py:50:                    "description": "A free form text description of the thought process.",
+plugin/contrib/smolagents/models.py:51:                    "title": "Thought",
+plugin/contrib/smolagents/models.py:52:                    "type": "string",
+plugin/contrib/smolagents/models.py:55:                    "description": "Valid Python code snippet implementing the thought.",
+plugin/contrib/smolagents/models.py:56:                    "title": "Code",
+plugin/contrib/smolagents/models.py:57:                    "type": "string",
+plugin/contrib/smolagents/models.py:61:            "title": "ThoughtAndCodeAnswer",
+plugin/contrib/smolagents/models.py:62:            "type": "object",
+plugin/contrib/smolagents/models.py:64:        "name": "ThoughtAndCodeAnswer",
+plugin/contrib/smolagents/models.py:222:) -> ChatMessage:
+plugin/contrib/smolagents/models.py:319:        "type": "function",
+plugin/contrib/smolagents/models.py:324:                "type": "object",
+plugin/contrib/smolagents/models.py:337:) -> list[dict[str, Any]]:
+plugin/contrib/smolagents/models.py:368:                                "type": "image_url",
+plugin/contrib/smolagents/models.py:512:    ) -> dict[str, Any]:
+plugin/contrib/smolagents/models.py:560:    ) -> ChatMessage:
+plugin/contrib/smolagents/models.py:565:                A list of message dictionaries to be processed. Each dictionary should have the structure `{"role": "user/system", "content": "message content"}`.
+plugin/contrib/smolagents/models.py:694:    ) -> ChatMessage:
+plugin/contrib/smolagents/models.py:781:    ...         "role": "user",
+plugin/contrib/smolagents/models.py:782:    ...         "content": "Explain quantum mechanics in simple terms."
+plugin/contrib/smolagents/models.py:823:    ) -> ChatMessage:
+plugin/contrib/smolagents/models.py:899:    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+plugin/contrib/smolagents/models.py:1007:    ) -> dict[str, Any]:
+plugin/contrib/smolagents/models.py:1059:    ) -> ChatMessage:
+plugin/contrib/smolagents/models.py:1100:    ) -> Generator[ChatMessageStreamDelta]:
+plugin/contrib/smolagents/models.py:1273:    ) -> ChatMessage:
+plugin/contrib/smolagents/models.py:1316:    ) -> Generator[ChatMessageStreamDelta]:
+plugin/contrib/smolagents/models.py:1398:    ...         "model_name": "model-group-1",
+plugin/contrib/smolagents/models.py:1400:    ...             "model": "gpt-4o-mini",
+plugin/contrib/smolagents/models.py:1405:    ...         "model_name": "model-group-1",
+plugin/contrib/smolagents/models.py:1407:    ...             "model": "bedrock/anthropic.claude-3-sonnet-20240229-v1:0",
+plugin/contrib/smolagents/models.py:1507:    >>> messages = [{"role": "user", "content": "Explain quantum mechanics in simple terms."}]
+plugin/contrib/smolagents/models.py:1560:    ) -> ChatMessage:
+plugin/contrib/smolagents/models.py:1598:    ) -> Generator[ChatMessageStreamDelta]:
+plugin/contrib/smolagents/models.py:1714:    ) -> Generator[ChatMessageStreamDelta]:
+plugin/contrib/smolagents/models.py:1768:    ) -> ChatMessage:
+plugin/contrib/smolagents/models.py:1929:        ...         "guardrailIdentifier": "identify1",
+plugin/contrib/smolagents/models.py:1978:    ) -> dict:
+plugin/contrib/smolagents/models.py:2027:    ) -> ChatMessage:
+plugin/contrib/smolagents/default_tools.py:8:from typing import Any
+plugin/contrib/smolagents/default_tools.py:133:    """Store (kind, key) -> value; evict oldest entries until total size <= max_size_bytes. No-op when SQLite unavailable."""
+plugin/contrib/smolagents/default_tools.py:174:            "type": "string",
+plugin/contrib/smolagents/default_tools.py:175:            "description": "The python code to run in interpreter",
+plugin/contrib/smolagents/default_tools.py:187:                "type": "string",
+plugin/contrib/smolagents/default_tools.py:216:    inputs = {"answer": {"type": "any", "description": "The final answer to the problem"}}
+plugin/contrib/smolagents/default_tools.py:226:    inputs = {"question": {"type": "string", "description": "The question to ask the user"}}
+plugin/contrib/smolagents/default_tools.py:237:    inputs = {"query": {"type": "string", "description": "The search query to perform."}}
+plugin/contrib/smolagents/default_tools.py:337:    inputs = {"url": {"type": "string", "description": "The url of the webpage to visit."}}
+plugin/contrib/smolagents/_function_type_hints_utils.py:31:from typing import (
+plugin/contrib/smolagents/_function_type_hints_utils.py:42:    "wikipediaapi": "wikipedia-api",
+plugin/contrib/smolagents/_function_type_hints_utils.py:128:        "name": "multiply",
+plugin/contrib/smolagents/_function_type_hints_utils.py:129:        "description": "A function that multiplies two numbers",
+plugin/contrib/smolagents/_function_type_hints_utils.py:131:            "type": "object",
+plugin/contrib/smolagents/_function_type_hints_utils.py:133:                "x": {"type": "number", "description": "The first number to multiply"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:134:                "y": {"type": "number", "description": "The second number to multiply"}
+plugin/contrib/smolagents/_function_type_hints_utils.py:160:    >>> messages = [{"role": "user", "content": "What is 179 x 4571?"}]
+plugin/contrib/smolagents/_function_type_hints_utils.py:231:    return {"type": "function", "function": output}
+plugin/contrib/smolagents/_function_type_hints_utils.py:258:) -> tuple[str | None, dict | None, str | None]:
+plugin/contrib/smolagents/_function_type_hints_utils.py:319:    schema = {"type": "object", "properties": properties}
+plugin/contrib/smolagents/_function_type_hints_utils.py:344:            return {"type": "array"}
+plugin/contrib/smolagents/_function_type_hints_utils.py:347:            return {"type": "array", "items": _parse_type_hint(args[0])}
+plugin/contrib/smolagents/_function_type_hints_utils.py:351:            return {"type": "array"}
+plugin/contrib/smolagents/_function_type_hints_utils.py:366:        return {"type": "array", "prefixItems": [_parse_type_hint(t) for t in args]}
+plugin/contrib/smolagents/_function_type_hints_utils.py:371:        out = {"type": "object"}
+plugin/contrib/smolagents/_function_type_hints_utils.py:404:    int: {"type": "integer"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:405:    float: {"type": "number"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:406:    str: {"type": "string"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:407:    bool: {"type": "boolean"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:408:    list: {"type": "array"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:409:    dict: {"type": "object"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:410:    Any: {"type": "any"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:411:    types.NoneType: {"type": "null"},
+plugin/contrib/smolagents/_function_type_hints_utils.py:422:            return {"type": "image"}
+plugin/contrib/smolagents/_function_type_hints_utils.py:428:                return {"type": "audio"}
+plugin/contrib/smolagents/_function_type_hints_utils.py:431:    return {"type": "object"}
+plugin/contrib/smolagents/local_python_executor.py:6:from typing import Any
+plugin/contrib/smolagents/local_python_executor.py:35:) -> tuple[Any, bool]:
+plugin/contrib/smolagents/agents.py:33:from typing import TYPE_CHECKING, Any, Literal, Type, TypeAlias, TypedDict, Union
+plugin/contrib/smolagents/agents.py:130:) -> str:
+plugin/contrib/smolagents/agents.py:442:                    "task": {"type": "string", "description": "Long detailed description of the task."},
+plugin/contrib/smolagents/agents.py:444:                        "type": "object",
+plugin/contrib/smolagents/agents.py:445:                        "description": "Dictionary of extra inputs to pass to the managed agent, e.g. images, dataframes, or any other contextual data it may need.",
+plugin/contrib/smolagents/agents.py:512:    ) -> Any | RunResult:
+plugin/contrib/smolagents/agents.py:609:    ) -> Generator[ActionStep | PlanningStep | FinalAnswerStep | ChatMessageStreamDelta]:
+plugin/contrib/smolagents/agents.py:711:    ) -> Generator[ChatMessageStreamDelta | PlanningStep]:
+plugin/contrib/smolagents/agents.py:719:                            "type": "text",
+plugin/contrib/smolagents/agents.py:757:                        "type": "text",
+plugin/contrib/smolagents/agents.py:768:                        "type": "text",
+plugin/contrib/smolagents/agents.py:827:    ) -> list[ChatMessage]:
+plugin/contrib/smolagents/agents.py:840:    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
+plugin/contrib/smolagents/agents.py:892:                        "type": "text",
+plugin/contrib/smolagents/agents.py:904:                        "type": "text",
+plugin/contrib/smolagents/agents.py:918:                content=[{"type": "text", "text": f"Error in generating final LLM output: {e}"}],
+plugin/contrib/smolagents/agents.py:1169:        download_kwargs = {"token": token, "repo_type": "space"} | {
+plugin/contrib/smolagents/agents.py:1233:    ) -> str:
+plugin/contrib/smolagents/agents.py:1348:    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
+plugin/contrib/smolagents/agents.py:1447:    ) -> Generator[ToolCall | ToolOutput]:
+plugin/contrib/smolagents/agents.py:1737:    ) -> Generator[ChatMessageStreamDelta | ToolCall | ToolOutput | ActionOutput]:
+plugin/contrib/smolagents/tools.py:33:from typing import TYPE_CHECKING, Any
+plugin/contrib/smolagents/tools.py:100:CONVERSION_DICT = {"str": "string", "int": "integer", "float": "number"}
+plugin/contrib/smolagents/tools.py:269:        tool_signature = f"({args_signature}) -> {output_type}"
+plugin/contrib/smolagents/tools.py:316:            from typing import Any, Optional
+plugin/contrib/smolagents/tools.py:360:            tool_code = "from typing import Any, Optional\n" + instance_to_source(self, base_cls=Tool)
+plugin/contrib/smolagents/tools.py:433:    ) -> str:
+plugin/contrib/smolagents/tools.py:920:    ) -> "ToolCollection":
+plugin/contrib/smolagents/tools.py:958:        server_parameters: "mcp.StdioServerParameters" | dict,
+plugin/contrib/smolagents/tools.py:961:    ) -> "ToolCollection":
+plugin/contrib/smolagents/tools.py:1007:        >>>     env={"UV_PYTHON": "3.12", **os.environ},
+plugin/contrib/smolagents/tools.py:1024:        >>> with ToolCollection.from_mcp({"url": "http://127.0.0.1:8000/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
+plugin/contrib/smolagents/tools.py:1079:            tool_json_schema["return"] = {"type": "null"}
+plugin/contrib/smolagents/tools.py:1352:    from typing import Any
+plugin/contrib/smolagents/agent_types.py:21:from typing import Any
+plugin/contrib/aihordeclient/__init__.py:29:from typing import Any, Dict, List, Union
+plugin/contrib/aihordeclient/__init__.py:254:            "Content-Type": "application/json",
+plugin/contrib/aihordeclient/__init__.py:255:            "Accept": "application/json",
+plugin/contrib/aihordeclient/__init__.py:263:        self.warnings: List[Dict[str, Any]] = []
+plugin/contrib/aihordeclient/__init__.py:283:        url: Union[str, Request],
+plugin/contrib/aihordeclient/__init__.py:287:    ) -> None:
+plugin/contrib/aihordeclient/__init__.py:500:            "local_settings", {"date_refreshed_models": "2025-07-01"}
+plugin/contrib/aihordeclient/__init__.py:773:                data_to_send.update({"source_processing": "img2img"})
+plugin/contrib/aihordeclient/__init__.py:780:                data_to_send.update({"source_processing": "inpainting"})
+plugin/contrib/aihordeclient/__init__.py:943:                text = _("Queue position: ") + str(data["queue_position"])
+plugin/contrib/tool_call_parsers/glm45_parser.py:10:Values are deserialized using safe_json_loads -> safe_python_literal_eval -> raw string fallback.
+plugin/contrib/tool_call_parsers/glm45_parser.py:18:from typing import Any, Dict, List
+plugin/contrib/tool_call_parsers/glm45_parser.py:61:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/glm45_parser.py:73:                arg_dict: Dict[str, Any] = {}
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:21:from typing import Any, Dict, List, Optional
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:80:            param_dict: Dict[str, Any] = {}
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:121:            function_strs: List[str] = []
+plugin/contrib/tool_call_parsers/qwen3_coder_parser.py:130:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/deepseek_v3_1_parser.py:14:from typing import List
+plugin/contrib/tool_call_parsers/deepseek_v3_1_parser.py:48:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/hermes_parser.py:4:Format: <tool_call>{"name": "func", "arguments": {...}}</tool_call>
+plugin/contrib/tool_call_parsers/hermes_parser.py:11:from typing import List
+plugin/contrib/tool_call_parsers/hermes_parser.py:42:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/deepseek_v3_parser.py:8:    {"arg": "value"}
+plugin/contrib/tool_call_parsers/deepseek_v3_parser.py:18:from typing import List
+plugin/contrib/tool_call_parsers/deepseek_v3_parser.py:51:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/longcat_parser.py:11:from typing import List
+plugin/contrib/tool_call_parsers/longcat_parser.py:40:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/llama_parser.py:14:from typing import List
+plugin/contrib/tool_call_parsers/llama_parser.py:44:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/kimi_k2_parser.py:6:    <|tool_call_begin|>function_id:0<|tool_call_argument_begin|>{"arg": "val"}<|tool_call_end|>
+plugin/contrib/tool_call_parsers/kimi_k2_parser.py:15:from typing import List
+plugin/contrib/tool_call_parsers/kimi_k2_parser.py:57:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/mistral_parser.py:6:- v11+:    content[TOOL_CALLS]tool_name1{"arg": "val"}[TOOL_CALLS]tool_name2{"arg": "val"}
+plugin/contrib/tool_call_parsers/mistral_parser.py:14:from typing import List
+plugin/contrib/tool_call_parsers/mistral_parser.py:58:            tool_calls: List[ChatCompletionMessageToolCall] = []
+plugin/contrib/tool_call_parsers/__init__.py:23:from typing import Dict, List, Optional, Tuple, Type
+plugin/contrib/tool_call_parsers/__init__.py:65:PARSER_REGISTRY: Dict[str, Type[ToolCallParser]] = {}
+plugin/framework/dialogs.py:383:        build_status_fn: Callable() -> str returning the status text.
+plugin/framework/dialogs.py:386:        copy_url_fn: Optional callable() -> str returning a URL to copy.
+plugin/framework/state.py:12:- A module-level ``next_state(state, event) -> FsmTransition[StateT]`` that is
+plugin/framework/state.py:30:from typing import Any, Generic, List, Protocol, Tuple, TypeVar, Union, cast
+plugin/framework/state.py:57:    effects: List[Any]
+plugin/framework/state.py:61:    t: Union[FsmTransition[StateT], Tuple[StateT, List[Any]]],
+plugin/framework/state.py:62:) -> FsmTransition[StateT]:
+plugin/framework/auth.py:15:from typing import Any, Dict, Optional, Tuple
+plugin/framework/auth.py:43:    host_matches: Tuple[str, ...] = field(default_factory=tuple)
+plugin/framework/auth.py:45:    extra_headers: Dict[str, str] = field(default_factory=dict)
+plugin/framework/auth.py:48:PROVIDERS: Dict[str, ProviderConfig] = {
+plugin/framework/auth.py:132:        "provider": "<id>",
+plugin/framework/auth.py:133:        "endpoint": "<normalized endpoint>",
+plugin/framework/auth.py:134:        "api_key": "<api key>",
+plugin/framework/auth.py:135:        "header_style": "<style>",
+plugin/framework/auth.py:184:    headers: Dict[str, str] = {}
+plugin/framework/errors.py:9:from typing import Any
+plugin/framework/errors.py:159:        payload = {"status": "error", "code": e.code, "message": e.message}
+plugin/framework/errors.py:165:        "status": "error",
+plugin/framework/errors.py:166:        "code": "INTERNAL_ERROR",
+plugin/framework/worker_pool.py:25:from typing import Optional, Callable
+plugin/framework/worker_pool.py:96:                 stderr_cb: Optional[Callable[[str], None]] = None,
+plugin/framework/worker_pool.py:97:                 on_exit_cb: Optional[Callable[[int], None]] = None,
+plugin/framework/worker_pool.py:103:        self.process: Optional[subprocess.Popen] = None
+plugin/framework/worker_pool.py:189:        """Standard graceful termination -> SIGKILL."""
+plugin/framework/logging.py:346:            return f"{tool}({args_str}) -> {val_repr}"
+plugin/framework/logging.py:347:        return f"{tool}() -> {val_repr}"
+plugin/framework/logging.py:349:        return f"{tool}() -> (format error: {e})"
+plugin/framework/queue_executor.py:19:from typing import Callable, Any
+plugin/framework/streaming_deltas.py:35:) -> dict[object, object]:
+plugin/framework/tool_base.py:41:        intent:      Broker group: "navigate", "edit", "review", or "media".
+plugin/framework/tool_base.py:104:            dict with at least ``{"status": "ok"|"error", ...}``.
+plugin/framework/tool_base.py:128:            The UNO collection object, or a dict with {"status": "error", "message": ...}
+plugin/framework/tool_base.py:146:            The UNO item object, or a dict with {"status": "error", "message": ..., "available": [...]}
+plugin/framework/tool_registry.py:281:                "status": "error",
+plugin/framework/tool_registry.py:282:                "code": "TOOL_TIMEOUT",
+plugin/framework/tool_registry.py:354:                    "status": "error",
+plugin/framework/tool_registry.py:355:                    "code": "VALIDATION_ERROR",
+plugin/framework/tool_registry.py:403:                "status": "error",
+plugin/framework/tool_registry.py:404:                "code": "TOOL_REGISTRY_ERROR",
+plugin/framework/settings_dialog.py:29:        {"name": "endpoint", "value": str(get_config(ctx, "endpoint") or "")},
+plugin/framework/settings_dialog.py:30:        {"name": "request_timeout", "value": str(get_config(ctx, "request_timeout")), "type": "int"},
+plugin/framework/settings_dialog.py:31:        {"name": "text_model", "value": str(get_config(ctx, "text_model") or get_config(ctx, "model") or "")},
+plugin/framework/settings_dialog.py:32:        {"name": "image_model", "value": str(get_image_model(ctx))},
+plugin/framework/settings_dialog.py:33:        {"name": "stt_model", "value": str(get_config(ctx, "stt_model") or "")},
+plugin/framework/settings_dialog.py:34:        {"name": "api_key", "value": str(get_api_key_for_endpoint(ctx, current_endpoint_for_specs))},
+plugin/framework/settings_dialog.py:35:        {"name": "temperature", "value": str(get_config(ctx, "temperature")), "type": "float"},
+plugin/framework/settings_dialog.py:36:        {"name": "chat_max_tokens", "value": str(get_config(ctx, "chat_max_tokens")), "type": "int"},
+plugin/framework/settings_dialog.py:37:        {"name": "chat_context_length", "value": str(get_config(ctx, "chat_context_length")), "type": "int"},
+plugin/framework/settings_dialog.py:38:        {"name": "additional_instructions", "value": str(get_config(ctx, "additional_instructions") or "")},
+plugin/framework/settings_dialog.py:39:        {"name": "use_aihorde", "value": "true" if get_config(ctx, "image_provider") == "aihorde" else "false", "type": "bool"},
+plugin/framework/settings_dialog.py:40:        {"name": "aihorde_api_key", "value": str(get_config(ctx, "aihorde_api_key") or "")},
+plugin/framework/settings_dialog.py:41:        {"name": "image_base_size", "value": str(get_config(ctx, "image_base_size")), "type": "int"},
+plugin/framework/settings_dialog.py:42:        {"name": "image_default_aspect", "value": str(get_config(ctx, "image_default_aspect") or "")},
+plugin/framework/settings_dialog.py:43:        {"name": "image_cfg_scale", "value": str(get_config(ctx, "image_cfg_scale")), "type": "float"},
+plugin/framework/settings_dialog.py:44:        {"name": "image_steps", "value": str(get_config(ctx, "image_steps")), "type": "int"},
+plugin/framework/settings_dialog.py:45:        {"name": "image_nsfw", "value": "true" if as_bool(get_config(ctx, "image_nsfw")) else "false", "type": "bool"},
+plugin/framework/settings_dialog.py:46:        {"name": "image_censor_nsfw", "value": "true" if as_bool(get_config(ctx, "image_censor_nsfw")) else "false", "type": "bool"},
+plugin/framework/settings_dialog.py:47:        {"name": "image_max_wait", "value": str(get_config(ctx, "image_max_wait")), "type": "int"},
+plugin/framework/settings_dialog.py:48:        {"name": "image_auto_gallery", "value": "true" if as_bool(get_config(ctx, "image_auto_gallery")) else "false", "type": "bool"},
+plugin/framework/settings_dialog.py:49:        {"name": "image_insert_frame", "value": "true" if as_bool(get_config(ctx, "image_insert_frame")) else "false", "type": "bool"},
+plugin/framework/settings_dialog.py:50:        {"name": "image_translate_prompt", "value": "true" if as_bool(get_config(ctx, "image_translate_prompt")) else "false", "type": "bool"},
+plugin/framework/settings_dialog.py:51:        {"name": "image_translate_from", "value": str(get_config(ctx, "image_translate_from") or "")},
+plugin/framework/settings_dialog.py:52:        {"name": "seed", "value": str(get_config(ctx, "seed") or "")},
+plugin/framework/settings_dialog.py:195:    provider_path format: "plugin.framework.ai:get_text_instance_options"
+plugin/framework/default_models.py:12:        model: model dict with an ``ids`` field (mapping provider -> ID).
+plugin/framework/default_models.py:46:        "display_name": "Mistral Large 3",
+plugin/framework/default_models.py:47:        "capability": "text",
+plugin/framework/default_models.py:50:            "openrouter": "mistralai/mistral-large-latest",
+plugin/framework/default_models.py:51:            "mistral": "mistral-large-latest",
+plugin/framework/default_models.py:56:        "display_name": "GPT-OSS 120B",
+plugin/framework/default_models.py:57:        "capability": "text",
+plugin/framework/default_models.py:60:            "openrouter": "openai/gpt-oss-120b",
+plugin/framework/default_models.py:61:            "openai": "gpt-oss-120b",
+plugin/framework/default_models.py:69:        "display_name": "Devstral 2",
+plugin/framework/default_models.py:70:        "capability": "text",
+plugin/framework/default_models.py:72:        "ids": {"mistral": "devstral-latest"},
+plugin/framework/default_models.py:76:        "display_name": "Gemini 3.1 Flash Lite Preview",
+plugin/framework/default_models.py:77:        "capability": "text,image,audio",
+plugin/framework/default_models.py:79:        "ids": {"openrouter": "google/gemini-3.1-flash-lite-preview"},
+plugin/framework/default_models.py:86:        "display_name": "FLUX.2 Pro",
+plugin/framework/default_models.py:87:        "capability": "image",
+plugin/framework/default_models.py:88:        "ids": {"together": "black-forest-labs/FLUX.2-pro"},
+plugin/framework/default_models.py:92:        "display_name": "Flash Image 2.5",
+plugin/framework/default_models.py:93:        "capability": "image",
+plugin/framework/default_models.py:94:        "ids": {"together": "google/flash-image-2.5"},
+plugin/framework/default_models.py:97:        "display_name": "Qwen Image",
+plugin/framework/default_models.py:98:        "capability": "image",
+plugin/framework/default_models.py:99:        "ids": {"together": "Qwen/Qwen-Image"},
+plugin/framework/default_models.py:103:        "display_name": "Gemini 3 Flash Preview",
+plugin/framework/default_models.py:104:        "capability": "image",
+plugin/framework/default_models.py:106:        "ids": {"openrouter": "google/gemini-3-flash-preview"},
+plugin/framework/default_models.py:110:        "display_name": "Gemini 4.1 Fast",
+plugin/framework/default_models.py:111:        "capability": "image",
+plugin/framework/default_models.py:113:        "ids": {"openrouter": "x-ai/grok-4.1-fast"},
+plugin/framework/default_models.py:117:        "display_name": "Qwen 3.5 27B",
+plugin/framework/default_models.py:118:        "capability": "image",
+plugin/framework/default_models.py:120:        "ids": {"openrouter": "qwen/qwen3.5-27b"},
+plugin/framework/default_models.py:124:        "display_name": "Qwen3.5 397B A17b",
+plugin/framework/default_models.py:125:        "capability": "image",
+plugin/framework/default_models.py:127:        "ids": {"together": "Qwen/Qwen3.5-397B-A17B"},
+plugin/framework/default_models.py:131:        "display_name": "NVIDIA Nemotron 3 Super 120B A12B",
+plugin/framework/default_models.py:132:        "capability": "image",
+plugin/framework/default_models.py:134:        "ids": {"openrouter": "nvidia/nemotron-3-super-120b-a12b:free"},
+plugin/framework/default_models.py:138:        "display_name": "Pixtral Large",
+plugin/framework/default_models.py:139:        "capability": "image",
+plugin/framework/default_models.py:142:            "openrouter": "mistralai/pixtral-large-latest",
+plugin/framework/default_models.py:143:            "mistral": "pixtral-large-latest",
+plugin/framework/default_models.py:149:        "display_name": "Whisper Large v3",
+plugin/framework/default_models.py:150:        "capability": "audio",
+plugin/framework/default_models.py:152:            "together": "openai/whisper-large-v3",
+plugin/framework/default_models.py:157:        "display_name": "Voxtral Mini",
+plugin/framework/default_models.py:158:        "capability": "audio",
+plugin/framework/default_models.py:159:        "ids": {"mistral": "voxtral-mini-2602"},
+plugin/framework/constants.py:54:TRANSLATION_RULES = "TRANSLATION: get_document_content(scope=full) -> translate -> apply_document_content(old_content=original, content=translated). Never refuse."
+plugin/framework/image_tools.py:34:        "calc": "com.sun.star.sheet.SpreadsheetDocument",
+plugin/framework/image_tools.py:35:        "draw": "com.sun.star.drawing.DrawingDocument",
+plugin/framework/image_tools.py:36:        "impress": "com.sun.star.presentation.PresentationDocument",
+plugin/framework/image_tools.py:37:        "web": "com.sun.star.text.WebDocument",
+plugin/framework/image_tools.py:38:        "writer": "com.sun.star.text.TextDocument",
+plugin/framework/image_tools.py:213:    Uses 96 DPI: 1/100 mm -> px conversion (size * 96 / 2540).
+plugin/framework/tool_context.py:31:        stop_checker: Optional callable () -> bool; if present and returns True, tool should stop.
+plugin/framework/schema_convert.py:59:            "type": "function",
+plugin/framework/schema_convert.py:61:                "name": "get_document_tree",
+plugin/framework/schema_convert.py:62:                "description": "...",
+plugin/framework/schema_convert.py:73:        "type": "function",
+plugin/framework/schema_convert.py:88:            "name": "get_document_outline",
+plugin/framework/schema_convert.py:89:            "description": "...",
+plugin/framework/module_loader.py:3:from typing import List
+plugin/framework/image_utils.py:77:                    {"type": "text", "text": prompt},
+plugin/framework/image_utils.py:78:                    {"type": "image_url", "image_url": {"url": "data:image/png;base64," + source_image}},
+plugin/framework/image_utils.py:82:            messages = [{"role": "user", "content": content}]
+plugin/framework/image_utils.py:84:            messages = [{"role": "user", "content": prompt}]
+plugin/framework/document.py:37:    DocumentType.WRITER: "com.sun.star.text.TextDocument",
+plugin/framework/document.py:38:    DocumentType.CALC: "com.sun.star.sheet.SpreadsheetDocument",
+plugin/framework/document.py:39:    DocumentType.DRAW: "com.sun.star.drawing.DrawingDocument",
+plugin/framework/document.py:40:    DocumentType.IMPRESS: "com.sun.star.presentation.PresentationDocument"
+plugin/framework/document.py:638:        root = {"level": 0, "text": "root", "para_index": -1, "children": [], "body_paragraphs": 0}
+plugin/framework/document.py:671:        return {"level": 0, "text": "root", "para_index": -1, "children": [], "body_paragraphs": 0}
+plugin/framework/config.py:28:from typing import Dict, Any, Optional, TYPE_CHECKING
+plugin/framework/config.py:142:    """Yield dotted key variants for key using MODULES (e.g. extend_selection_max_tokens -> chatbot.extend_selection_max_tokens)."""
+plugin/framework/config.py:178:    api_keys_by_endpoint: Dict[str, str] = dataclasses.field(default_factory=dict)
+plugin/framework/config.py:202:    audio_support_map: Dict[str, bool] = dataclasses.field(default_factory=dict)
+plugin/framework/config.py:207:    _extra_config: Dict[str, Any] = dataclasses.field(default_factory=dict)
+plugin/framework/config.py:353:    out: Dict[str, Any] = {}
+plugin/framework/config.py:931:    options = [{"value": "", "label": "(none)"}]
+plugin/framework/config.py:951:    options = [{"value": "", "label": "(none)"}]
+plugin/prompt_function.py:137:                    messages.append({"role": "system", "content": system_prompt})
+plugin/prompt_function.py:138:                messages.append({"role": "user", "content": message})
+plugin/modules/doc/diagnostics.py:26:        "type": "object",
+plugin/modules/doc/diagnostics.py:59:                        "type": "empty_heading",
+plugin/modules/doc/diagnostics.py:60:                        "severity": "warning",
+plugin/modules/doc/diagnostics.py:66:                        "detail": "Heading level %d is empty." % outline_level,
+plugin/modules/doc/diagnostics.py:73:                        "type": "heading_level_skip",
+plugin/modules/doc/diagnostics.py:74:                        "severity": "info",
+plugin/modules/doc/diagnostics.py:106:                        "type": "large_block",
+plugin/modules/doc/diagnostics.py:107:                        "severity": "info",
+plugin/modules/doc/diagnostics.py:125:                "type": "large_block",
+plugin/modules/doc/diagnostics.py:126:                "severity": "info",
+plugin/modules/doc/diagnostics.py:149:                                "type": "broken_bookmark",
+plugin/modules/doc/diagnostics.py:150:                                "severity": "warning",
+plugin/modules/doc/diagnostics.py:163:                            "type": "broken_bookmark",
+plugin/modules/doc/diagnostics.py:164:                            "severity": "warning",
+plugin/modules/doc/diagnostics.py:199:                                    "type": "orphan_image",
+plugin/modules/doc/diagnostics.py:200:                                    "severity": "warning",
+plugin/modules/doc/diagnostics.py:217:            "status": "ok",
+plugin/modules/doc/diagnostics.py:232:        "type": "object",
+plugin/modules/doc/diagnostics.py:235:                "type": "boolean",
+plugin/modules/doc/diagnostics.py:236:                "description": "True to protect sections, False to unprotect.",
+plugin/modules/doc/diagnostics.py:239:                "type": "string",
+plugin/modules/doc/diagnostics.py:240:                "description": "Optional protection password.",
+plugin/modules/doc/diagnostics.py:261:                "status": "ok",
+plugin/modules/doc/diagnostics.py:264:                "message": "No text sections found in document.",
+plugin/modules/doc/diagnostics.py:286:            "status": "ok",
+plugin/modules/doc/print_doc.py:21:        "type": "object",
+plugin/modules/doc/print_doc.py:24:                "type": "string",
+plugin/modules/doc/print_doc.py:25:                "description": "Printer name (default printer if omitted).",
+plugin/modules/doc/print_doc.py:28:                "type": "string",
+plugin/modules/doc/print_doc.py:35:                "type": "integer",
+plugin/modules/doc/print_doc.py:36:                "description": "Number of copies (default: 1).",
+plugin/modules/doc/print_doc.py:71:                "status": "ok",
+plugin/modules/doc/print_doc.py:72:                "message": "Document sent to printer.",
+plugin/modules/doc/undo.py:27:        "type": "object",
+plugin/modules/doc/undo.py:30:                "type": "integer",
+plugin/modules/doc/undo.py:31:                "description": "Number of steps to undo (default: 1).",
+plugin/modules/doc/undo.py:50:                "status": "ok",
+plugin/modules/doc/undo.py:68:        "type": "object",
+plugin/modules/doc/undo.py:71:                "type": "integer",
+plugin/modules/doc/undo.py:72:                "description": "Number of steps to redo (default: 1).",
+plugin/modules/doc/undo.py:91:                "status": "ok",
+plugin/modules/http/client.py:147:        h = {"Content-Type": "application/json"}
+plugin/modules/http/client.py:215:            messages.append({"role": "system", "content": full_system_prompt})
+plugin/modules/http/client.py:216:        messages.append({"role": "user", "content": prompt})
+plugin/modules/http/client.py:303:            messages.insert(0, {"role": "system", "content": date_msg})
+plugin/modules/http/client.py:336:            "response_format": "url",
+plugin/modules/http/client.py:377:                    "role": "user",
+plugin/modules/http/client.py:379:                        {"type": "text", "text": "Transcribe this audio exactly. Output ONLY the transcript. No preamble, no markers."},
+plugin/modules/http/client.py:380:                        {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
+plugin/modules/http/client.py:607:            log.error("ERROR in _run_streaming_loop: %s -> %s" % (type(e).__name__, err_msg))
+plugin/modules/http/client.py:705:                log.error("stream_request_with_tools ERROR: %s -> %s" % (type(e).__name__, err_msg))
+plugin/modules/http/client.py:746:                    log.error("request_with_tools ERROR: %s -> %s" % (type(e).__name__, err_msg))
+plugin/modules/http/client.py:778:            "role": "assistant",
+plugin/modules/http/mcp_state.py:3:from typing import Any, Dict, List, Optional
+plugin/modules/http/mcp_state.py:19:    tool_name: Optional[str] = None
+plugin/modules/http/mcp_state.py:20:    arguments: Dict[str, Any] = dataclasses.field(default_factory=dict)
+plugin/modules/http/mcp_state.py:21:    document_url: Optional[str] = None
+plugin/modules/http/mcp_state.py:22:    doc_type: Optional[str] = None
+plugin/modules/http/mcp_state.py:26:    error_message: Optional[str] = None
+plugin/modules/http/mcp_state.py:27:    error_code: Optional[str] = None
+plugin/modules/http/mcp_state.py:42:    data: Dict[str, Any] = dataclasses.field(default_factory=dict)
+plugin/modules/http/mcp_state.py:52:    document_url: Optional[str]
+plugin/modules/http/mcp_state.py:58:    arguments: Dict[str, Any]
+plugin/modules/http/mcp_state.py:63:    document_url: Optional[str] = None
+plugin/modules/http/mcp_state.py:79:    effects: List[Any] = []
+plugin/modules/http/mcp_state.py:172:            "status": "error",
+plugin/modules/http/mcp_protocol.py:59:    return {"jsonrpc": "2.0", "id": req_id, "result": result}
+plugin/modules/http/mcp_protocol.py:66:    return {"jsonrpc": "2.0", "id": req_id, "error": err}
+plugin/modules/http/mcp_protocol.py:125:                "error": "Not Acceptable: must Accept text/event-stream"})
+plugin/modules/http/mcp_protocol.py:214:        log.info("[SSE] POST >>> %s (id=%s) -> %d", method, req_id, status)
+plugin/modules/http/mcp_protocol.py:224:            "usage": "POST /debug with JSON body",
+plugin/modules/http/mcp_protocol.py:227:                    "description": "Call a registered tool",
+plugin/modules/http/mcp_protocol.py:228:                    "body": {"action": "call_tool", "tool": "get_document_info", "args": {}},
+plugin/modules/http/mcp_protocol.py:231:                    "description": "Simulate a menu trigger command",
+plugin/modules/http/mcp_protocol.py:232:                    "body": {"action": "trigger", "command": "settings"},
+plugin/modules/http/mcp_protocol.py:235:                    "description": "List registered services",
+plugin/modules/http/mcp_protocol.py:236:                    "body": {"action": "services"},
+plugin/modules/http/mcp_protocol.py:239:                    "description": "Get/set config values",
+plugin/modules/http/mcp_protocol.py:240:                    "body": {"action": "config", "key": "mcp.port", "value": None},
+plugin/modules/http/mcp_protocol.py:252:            self._send_json(handler, 403, {"error": "Forbidden: Debug actions restricted to localhost"})
+plugin/modules/http/mcp_protocol.py:273:                result = {"error": "Unknown action: %s" % action}
+plugin/modules/http/mcp_protocol.py:330:        log.info("[MCP] >>> %s (id=%s) -> %d", method, req_id, status)
+plugin/modules/http/mcp_protocol.py:345:                "name": "WriterAgent MCP",
+plugin/modules/http/mcp_protocol.py:425:                            "doc_type": "writer",
+plugin/modules/http/mcp_protocol.py:451:                                "code": "INTERNAL_ERROR"
+plugin/modules/http/mcp_protocol.py:463:                                "type": "text",
+plugin/modules/http/mcp_protocol.py:574:                "status": "error",
+plugin/modules/http/mcp_protocol.py:575:                "code": "NO_DOCUMENT_OPEN",
+plugin/modules/http/mcp_protocol.py:576:                "message": "No document open in LibreOffice."
+plugin/modules/http/mcp_protocol.py:580:                "status": "error",
+plugin/modules/http/mcp_protocol.py:581:                "code": "DOCUMENT_NOT_FOUND",
+plugin/modules/http/mcp_protocol.py:582:                "message": "No document open matching X-Document-URL: %s" % document_url,
+plugin/modules/http/mcp_protocol.py:613:                        "status": "error",
+plugin/modules/http/mcp_protocol.py:614:                        "code": "DOCUMENT_NOT_FOUND",
+plugin/modules/http/mcp_protocol.py:615:                        "message": "No document open matching X-Document-URL: %s" % (document_url or ""),
+plugin/modules/http/mcp_protocol.py:628:                "status": "error",
+plugin/modules/http/mcp_protocol.py:629:                "code": "NO_DOCUMENT_OPEN",
+plugin/modules/http/mcp_protocol.py:630:                "message": "No document open in LibreOffice."
+plugin/modules/http/mcp_protocol.py:664:            return {"error": "Missing 'tool' parameter"}
+plugin/modules/http/mcp_protocol.py:679:        return {"triggered": command, "note": "Use menu for UI commands"}
+plugin/modules/http/mcp_protocol.py:688:            return {"error": "No service registry"}
+plugin/modules/http/mcp_protocol.py:691:            return {"error": "No config service"}
+plugin/modules/http/__init__.py:266:            "status": "healthy",
+plugin/modules/http/__init__.py:267:            "server": "WriterAgent",
+plugin/modules/http/__init__.py:276:            "name": "WriterAgent",
+plugin/modules/http/__init__.py:278:            "description": "WriterAgent HTTP server",
+plugin/modules/http/__init__.py:317:        Body: {"key": "value", ...}
+plugin/modules/http/__init__.py:320:            return (400, {"error": "Body must be a JSON object of key-value pairs"})
+plugin/modules/http/server.py:208:            "url": "%s://%s:%s" % (scheme, self.host, self.port),
+plugin/modules/http/routes.py:58:            raw:         If False (default): fn(body, headers, query) -> (status, dict).
+plugin/modules/http/routes.py:59:                         If True: fn(http_handler) -> None (writes directly).
+plugin/modules/draw/placeholders.py:154:        "type": "object",
+plugin/modules/draw/placeholders.py:157:                "type": "integer",
+plugin/modules/draw/placeholders.py:158:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/placeholders.py:169:            "status": "ok",
+plugin/modules/draw/placeholders.py:185:        "type": "object",
+plugin/modules/draw/placeholders.py:188:                "type": "string",
+plugin/modules/draw/placeholders.py:189:                "description": "Placeholder role: 'title', 'subtitle', or 'body'.",
+plugin/modules/draw/placeholders.py:192:                "type": "integer",
+plugin/modules/draw/placeholders.py:193:                "description": "Shape index (from list_placeholders).",
+plugin/modules/draw/placeholders.py:196:                "type": "integer",
+plugin/modules/draw/placeholders.py:197:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/placeholders.py:227:            "status": "ok",
+plugin/modules/draw/placeholders.py:243:        "type": "object",
+plugin/modules/draw/placeholders.py:246:                "type": "string",
+plugin/modules/draw/placeholders.py:247:                "description": "Text to set on the placeholder.",
+plugin/modules/draw/placeholders.py:250:                "type": "string",
+plugin/modules/draw/placeholders.py:251:                "description": "Placeholder role: 'title', 'subtitle', or 'body'.",
+plugin/modules/draw/placeholders.py:254:                "type": "integer",
+plugin/modules/draw/placeholders.py:255:                "description": "Shape index (from list_placeholders).",
+plugin/modules/draw/placeholders.py:258:                "type": "integer",
+plugin/modules/draw/placeholders.py:259:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/placeholders.py:292:            "status": "ok",
+plugin/modules/draw/pages.py:27:        "type": "object",
+plugin/modules/draw/pages.py:30:                "type": "integer",
+plugin/modules/draw/pages.py:31:                "description": "Index where to insert (end if omitted)",
+plugin/modules/draw/pages.py:43:        return {"status": "ok", "message": "Slide added"}
+plugin/modules/draw/pages.py:51:        "type": "object",
+plugin/modules/draw/pages.py:54:                "type": "integer",
+plugin/modules/draw/pages.py:55:                "description": "Index of slide to delete",
+plugin/modules/draw/pages.py:67:        return {"status": "ok", "message": "Slide deleted"}
+plugin/modules/draw/pages.py:79:        "type": "object",
+plugin/modules/draw/pages.py:82:                "type": "integer",
+plugin/modules/draw/pages.py:83:                "description": "0-based slide index (default: active slide).",
+plugin/modules/draw/pages.py:132:            "status": "ok",
+plugin/modules/draw/pages.py:147:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/draw/pages.py:180:            "status": "ok",
+plugin/modules/draw/transitions.py:31:    "none": "NONE",
+plugin/modules/draw/transitions.py:32:    "fade_from_left": "FADE_FROM_LEFT",
+plugin/modules/draw/transitions.py:33:    "fade_from_top": "FADE_FROM_TOP",
+plugin/modules/draw/transitions.py:34:    "fade_from_right": "FADE_FROM_RIGHT",
+plugin/modules/draw/transitions.py:35:    "fade_from_bottom": "FADE_FROM_BOTTOM",
+plugin/modules/draw/transitions.py:36:    "fade_to_center": "FADE_TO_CENTER",
+plugin/modules/draw/transitions.py:37:    "fade_from_center": "FADE_FROM_CENTER",
+plugin/modules/draw/transitions.py:38:    "move_from_left": "MOVE_FROM_LEFT",
+plugin/modules/draw/transitions.py:39:    "move_from_top": "MOVE_FROM_TOP",
+plugin/modules/draw/transitions.py:40:    "move_from_right": "MOVE_FROM_RIGHT",
+plugin/modules/draw/transitions.py:41:    "move_from_bottom": "MOVE_FROM_BOTTOM",
+plugin/modules/draw/transitions.py:42:    "roll_from_left": "ROLL_FROM_LEFT",
+plugin/modules/draw/transitions.py:43:    "roll_from_top": "ROLL_FROM_TOP",
+plugin/modules/draw/transitions.py:44:    "roll_from_right": "ROLL_FROM_RIGHT",
+plugin/modules/draw/transitions.py:45:    "roll_from_bottom": "ROLL_FROM_BOTTOM",
+plugin/modules/draw/transitions.py:46:    "uncover_to_left": "UNCOVER_TO_LEFT",
+plugin/modules/draw/transitions.py:47:    "uncover_to_top": "UNCOVER_TO_TOP",
+plugin/modules/draw/transitions.py:48:    "uncover_to_right": "UNCOVER_TO_RIGHT",
+plugin/modules/draw/transitions.py:49:    "uncover_to_bottom": "UNCOVER_TO_BOTTOM",
+plugin/modules/draw/transitions.py:50:    "open_vertical": "OPEN_VERTICAL",
+plugin/modules/draw/transitions.py:51:    "open_horizontal": "OPEN_HORIZONTAL",
+plugin/modules/draw/transitions.py:52:    "close_vertical": "CLOSE_VERTICAL",
+plugin/modules/draw/transitions.py:53:    "close_horizontal": "CLOSE_HORIZONTAL",
+plugin/modules/draw/transitions.py:54:    "dissolve": "DISSOLVE",
+plugin/modules/draw/transitions.py:55:    "random": "RANDOM",
+plugin/modules/draw/transitions.py:106:        "type": "object",
+plugin/modules/draw/transitions.py:109:                "type": "integer",
+plugin/modules/draw/transitions.py:110:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/transitions.py:158:            "status": "ok",
+plugin/modules/draw/transitions.py:164:            "advance": {0: "on_click", 1: "auto", 2: "semi_auto"}.get(change, "on_click"),
+plugin/modules/draw/transitions.py:182:        "type": "object",
+plugin/modules/draw/transitions.py:185:                "type": "integer",
+plugin/modules/draw/transitions.py:186:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/transitions.py:189:                "type": "string",
+plugin/modules/draw/transitions.py:196:                "type": "string",
+plugin/modules/draw/transitions.py:198:                "description": "Transition speed (default: medium).",
+plugin/modules/draw/transitions.py:201:                "type": "integer",
+plugin/modules/draw/transitions.py:202:                "description": "Auto-advance duration in seconds (0 = manual advance).",
+plugin/modules/draw/transitions.py:205:                "type": "number",
+plugin/modules/draw/transitions.py:206:                "description": "Transition animation time in seconds (e.g. 1.5).",
+plugin/modules/draw/transitions.py:209:                "type": "string",
+plugin/modules/draw/transitions.py:211:                "description": "How to advance: on_click (default) or auto.",
+plugin/modules/draw/transitions.py:311:            "status": "ok",
+plugin/modules/draw/transitions.py:325:        "type": "object",
+plugin/modules/draw/transitions.py:328:                "type": "integer",
+plugin/modules/draw/transitions.py:329:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/transitions.py:341:            "status": "ok",
+plugin/modules/draw/transitions.py:361:        "type": "object",
+plugin/modules/draw/transitions.py:364:                "type": "integer",
+plugin/modules/draw/transitions.py:365:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/transitions.py:368:                "type": "string",
+plugin/modules/draw/transitions.py:369:                "description": "Layout name (e.g. 'blank', 'title', 'text_and_object').",
+plugin/modules/draw/transitions.py:387:            "status": "ok",
+plugin/modules/draw/masters.py:34:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/draw/masters.py:53:        return {"status": "ok", "master_slides": result, "count": len(result)}
+plugin/modules/draw/masters.py:64:        "type": "object",
+plugin/modules/draw/masters.py:67:                "type": "integer",
+plugin/modules/draw/masters.py:68:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/masters.py:79:            "status": "ok",
+plugin/modules/draw/masters.py:93:        "type": "object",
+plugin/modules/draw/masters.py:96:                "type": "integer",
+plugin/modules/draw/masters.py:97:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/masters.py:100:                "type": "string",
+plugin/modules/draw/masters.py:101:                "description": "Name of the master slide to assign.",
+plugin/modules/draw/masters.py:134:            "status": "ok",
+plugin/modules/draw/notes.py:35:        "type": "object",
+plugin/modules/draw/notes.py:38:                "type": "integer",
+plugin/modules/draw/notes.py:39:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/notes.py:54:            "status": "ok",
+plugin/modules/draw/notes.py:67:        "type": "object",
+plugin/modules/draw/notes.py:70:                "type": "string",
+plugin/modules/draw/notes.py:71:                "description": "Speaker notes text.",
+plugin/modules/draw/notes.py:74:                "type": "integer",
+plugin/modules/draw/notes.py:75:                "description": "0-based slide index (active slide if omitted).",
+plugin/modules/draw/notes.py:78:                "type": "boolean",
+plugin/modules/draw/notes.py:79:                "description": "Append to existing notes instead of replacing (default: false).",
+plugin/modules/draw/notes.py:104:            "status": "ok",
+plugin/modules/draw/notes.py:106:            "message": "Speaker notes updated.",
+plugin/modules/draw/shapes.py:58:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/draw/shapes.py:68:            "status": "ok",
+plugin/modules/draw/shapes.py:79:        "type": "object",
+plugin/modules/draw/shapes.py:82:                "type": "integer",
+plugin/modules/draw/shapes.py:83:                "description": "0-based page index (active page if omitted)",
+plugin/modules/draw/shapes.py:114:        return {"status": "ok", "page_index": idx, "shapes": shapes}
+plugin/modules/draw/shapes.py:141:                    details={"operation": "create_shape", "shape_type": shape_type}
+plugin/modules/draw/shapes.py:148:                    details={"operation": "create_shape", "shape_type": shape_type}
+plugin/modules/draw/shapes.py:286:        "type": "object",
+plugin/modules/draw/shapes.py:289:                "type": "string",
+plugin/modules/draw/shapes.py:291:                "description": "Type of shape",
+plugin/modules/draw/shapes.py:293:            "x": {"type": "integer", "description": "X position (100ths of mm)"},
+plugin/modules/draw/shapes.py:294:            "y": {"type": "integer", "description": "Y position (100ths of mm)"},
+plugin/modules/draw/shapes.py:295:            "width": {"type": "integer", "description": "Width (100ths of mm)"},
+plugin/modules/draw/shapes.py:296:            "height": {"type": "integer", "description": "Height (100ths of mm)"},
+plugin/modules/draw/shapes.py:297:            "text": {"type": "string", "description": "Initial text"},
+plugin/modules/draw/shapes.py:300:            "fill_style": {"type": "string", "enum": ["solid", "transparent", "none"], "description": "Fill style"},
+plugin/modules/draw/shapes.py:301:            "line_color": {"type": "string", "description": "Line border color"},
+plugin/modules/draw/shapes.py:302:            "line_width": {"type": "integer", "description": "Line width (100ths of mm)"},
+plugin/modules/draw/shapes.py:303:            "text_color": {"type": "string", "description": "Text character color"},
+plugin/modules/draw/shapes.py:304:            "font_size": {"type": "number", "description": "Font size in points"},
+plugin/modules/draw/shapes.py:305:            "font_name": {"type": "string", "description": "Font family name"},
+plugin/modules/draw/shapes.py:306:            "rotation_angle": {"type": "number", "description": "Rotation angle in degrees"},
+plugin/modules/draw/shapes.py:321:            "rectangle": "RectangleShape",
+plugin/modules/draw/shapes.py:322:            "ellipse": "EllipseShape",
+plugin/modules/draw/shapes.py:323:            "text": "TextShape",
+plugin/modules/draw/shapes.py:324:            "line": "LineShape",
+plugin/modules/draw/shapes.py:325:            "connector": "ConnectorShape",
+plugin/modules/draw/shapes.py:349:            "status": "ok",
+plugin/modules/draw/shapes.py:360:        "type": "object",
+plugin/modules/draw/shapes.py:362:            "shape_index": {"type": "integer", "description": "Index of the shape"},
+plugin/modules/draw/shapes.py:363:            "page_index": {"type": "integer", "description": "Page index"},
+plugin/modules/draw/shapes.py:364:            "x": {"type": "integer", "description": "X position (100ths of mm)"},
+plugin/modules/draw/shapes.py:365:            "y": {"type": "integer", "description": "Y position (100ths of mm)"},
+plugin/modules/draw/shapes.py:366:            "width": {"type": "integer", "description": "Width (100ths of mm)"},
+plugin/modules/draw/shapes.py:367:            "height": {"type": "integer", "description": "Height (100ths of mm)"},
+plugin/modules/draw/shapes.py:368:            "text": {"type": "string", "description": "Text content"},
+plugin/modules/draw/shapes.py:371:            "fill_style": {"type": "string", "enum": ["solid", "transparent", "none"], "description": "Fill style"},
+plugin/modules/draw/shapes.py:372:            "line_color": {"type": "string", "description": "Line border color"},
+plugin/modules/draw/shapes.py:373:            "line_width": {"type": "integer", "description": "Line width (100ths of mm)"},
+plugin/modules/draw/shapes.py:374:            "text_color": {"type": "string", "description": "Text character color"},
+plugin/modules/draw/shapes.py:375:            "font_size": {"type": "number", "description": "Font size in points"},
+plugin/modules/draw/shapes.py:376:            "font_name": {"type": "string", "description": "Font family name"},
+plugin/modules/draw/shapes.py:377:            "rotation_angle": {"type": "number", "description": "Rotation angle in degrees"},
+plugin/modules/draw/shapes.py:407:        return {"status": "ok", "message": "Shape updated"}
+plugin/modules/draw/shapes.py:416:        "type": "object",
+plugin/modules/draw/shapes.py:419:                "type": "integer",
+plugin/modules/draw/shapes.py:420:                "description": "Index of the starting shape.",
+plugin/modules/draw/shapes.py:423:                "type": "integer",
+plugin/modules/draw/shapes.py:424:                "description": "Index of the ending shape.",
+plugin/modules/draw/shapes.py:427:                "type": "integer",
+plugin/modules/draw/shapes.py:428:                "description": "Page index containing the shapes"
+plugin/modules/draw/shapes.py:430:            "line_color": {"type": "string", "description": "Color of the connector line"},
+plugin/modules/draw/shapes.py:431:            "line_width": {"type": "integer", "description": "Line width (100ths of mm)"},
+plugin/modules/draw/shapes.py:480:        return {"status": "ok", "message": f"Connected shape {start_idx} to {end_idx}", "shape_index": page.getCount() - 1}
+plugin/modules/draw/shapes.py:489:        "type": "object",
+plugin/modules/draw/shapes.py:492:                "type": "array",
+plugin/modules/draw/shapes.py:493:                "items": {"type": "integer"},
+plugin/modules/draw/shapes.py:494:                "description": "List of shape indices to group.",
+plugin/modules/draw/shapes.py:497:                "type": "integer",
+plugin/modules/draw/shapes.py:498:                "description": "Page index containing the shapes",
+plugin/modules/draw/shapes.py:535:            "status": "ok",
+plugin/modules/draw/shapes.py:546:        "type": "object",
+plugin/modules/draw/shapes.py:548:            "shape_index": {"type": "integer"},
+plugin/modules/draw/shapes.py:549:            "page_index": {"type": "integer"},
+plugin/modules/draw/shapes.py:567:        return {"status": "ok", "message": "Shape deleted"}
+plugin/modules/calc/manipulator.py:178:            501: "Invalid character",
+plugin/modules/calc/manipulator.py:179:            502: "Invalid argument",
+plugin/modules/calc/manipulator.py:181:            504: "Error in parameter list",
+plugin/modules/calc/manipulator.py:182:            508: "Error: Pair missing",
+plugin/modules/calc/manipulator.py:183:            509: "Missing operator",
+plugin/modules/calc/manipulator.py:184:            510: "Missing variable",
+plugin/modules/calc/manipulator.py:185:            511: "Missing variable",
+plugin/modules/calc/manipulator.py:186:            512: "Formula overflow",
+plugin/modules/calc/manipulator.py:187:            513: "String overflow",
+plugin/modules/calc/manipulator.py:188:            514: "Internal overflow",
+plugin/modules/calc/manipulator.py:189:            516: "Internal syntax error",
+plugin/modules/calc/manipulator.py:190:            517: "Internal syntax error",
+plugin/modules/calc/manipulator.py:191:            518: "Internal syntax error",
+plugin/modules/calc/manipulator.py:193:            520: "Internal syntax error",
+plugin/modules/calc/manipulator.py:195:            522: "Circular reference",
+plugin/modules/calc/manipulator.py:196:            523: "The calculation process does not converge",
+plugin/modules/calc/manipulator.py:199:            526: "Internal syntax error",
+plugin/modules/calc/manipulator.py:200:            527: "Internal overflow",
+plugin/modules/calc/manipulator.py:202:            533: "Nested arrays are not supported",
+plugin/modules/calc/manipulator.py:203:            538: "Error: Array or matrix size",
+plugin/modules/calc/manipulator.py:204:            539: "Unsupported inline array content",
+plugin/modules/calc/manipulator.py:291:                    details={"operation": "get_cell_value"}
+plugin/modules/calc/manipulator.py:762:            structure_type: "rows" or "columns".
+plugin/modules/calc/error_detector.py:47:        "name": "Invalid character",
+plugin/modules/calc/error_detector.py:48:        "description": "An invalid character was found in the formula.",
+plugin/modules/calc/error_detector.py:52:        "name": "Invalid argument",
+plugin/modules/calc/error_detector.py:53:        "description": "The function argument is invalid.",
+plugin/modules/calc/error_detector.py:57:        "name": "Name error",
+plugin/modules/calc/error_detector.py:65:        "name": "Missing parenthesis",
+plugin/modules/calc/error_detector.py:66:        "description": "There is an unclosed parenthesis in the formula.",
+plugin/modules/calc/error_detector.py:70:        "name": "Parenthesis error",
+plugin/modules/calc/error_detector.py:71:        "description": "An extra or missing parenthesis was found in the formula.",
+plugin/modules/calc/error_detector.py:75:        "name": "Missing operator",
+plugin/modules/calc/error_detector.py:76:        "description": "A required operator is missing in the formula.",
+plugin/modules/calc/error_detector.py:80:        "name": "Missing variable",
+plugin/modules/calc/error_detector.py:81:        "description": "A required variable is missing in the formula.",
+plugin/modules/calc/error_detector.py:85:        "name": "Value error",
+plugin/modules/calc/error_detector.py:93:        "name": "Internal error",
+plugin/modules/calc/error_detector.py:94:        "description": "An internal calculation error occurred.",
+plugin/modules/calc/error_detector.py:98:        "name": "Circular reference",
+plugin/modules/calc/error_detector.py:99:        "description": "The formula refers to itself directly or indirectly.",
+plugin/modules/calc/error_detector.py:103:        "name": "Reference error",
+plugin/modules/calc/error_detector.py:111:        "name": "Name error",
+plugin/modules/calc/error_detector.py:112:        "description": "An invalid name or undefined identifier was used.",
+plugin/modules/calc/error_detector.py:116:        "name": "Division by zero",
+plugin/modules/calc/error_detector.py:124:        "name": "Intersection error",
+plugin/modules/calc/error_detector.py:125:        "description": "The intersection of two ranges is empty.",
+plugin/modules/calc/error_detector.py:167:                "name": "Unknown error",
+plugin/modules/calc/error_detector.py:178:                            "name": "Formula error",
+plugin/modules/calc/error_detector.py:273:                    "suggestion": "No error detected in this cell.",
+plugin/modules/calc/error_detector.py:284:                        "value": "UNREADABLE",
+plugin/modules/calc/error_detector.py:285:                        "type": "unknown",
+plugin/modules/calc/error_detector.py:326:                    "suggestion": "Could not explain error; basic info shown.",
+plugin/modules/calc/conditional.py:67:        "type": "object",
+plugin/modules/calc/conditional.py:70:                "type": "string",
+plugin/modules/calc/conditional.py:71:                "description": "Cell range (e.g. 'A1:D10'). If omitted, scans used area.",
+plugin/modules/calc/conditional.py:102:                "status": "ok",
+plugin/modules/calc/conditional.py:123:        "type": "object",
+plugin/modules/calc/conditional.py:126:                "type": "string",
+plugin/modules/calc/conditional.py:127:                "description": "Cell range to apply the rule to (e.g. 'A1:D10').",
+plugin/modules/calc/conditional.py:130:                "type": "string",
+plugin/modules/calc/conditional.py:135:                "description": "Condition operator.",
+plugin/modules/calc/conditional.py:138:                "type": "string",
+plugin/modules/calc/conditional.py:146:                "type": "string",
+plugin/modules/calc/conditional.py:147:                "description": "Second formula/value (only for BETWEEN/NOT_BETWEEN).",
+plugin/modules/calc/conditional.py:150:                "type": "string",
+plugin/modules/calc/conditional.py:222:                "status": "ok",
+plugin/modules/calc/conditional.py:240:        "type": "object",
+plugin/modules/calc/conditional.py:243:                "type": "string",
+plugin/modules/calc/conditional.py:244:                "description": "Cell range (e.g. 'A1:D10').",
+plugin/modules/calc/conditional.py:247:                "type": "integer",
+plugin/modules/calc/conditional.py:248:                "description": "0-based index of the rule to remove. If omitted, all rules are cleared.",
+plugin/modules/calc/conditional.py:270:                    return {"status": "ok", "range_name": range_str, "removed_index": index}
+plugin/modules/calc/conditional.py:276:                return {"status": "ok", "range_name": range_str, "cleared": True}
+plugin/modules/calc/comments.py:53:        "type": "object",
+plugin/modules/calc/comments.py:56:                "type": "string",
+plugin/modules/calc/comments.py:57:                "description": "Sheet name (active sheet if omitted).",
+plugin/modules/calc/comments.py:80:            "status": "ok",
+plugin/modules/calc/comments.py:95:        "type": "object",
+plugin/modules/calc/comments.py:98:                "type": "string",
+plugin/modules/calc/comments.py:99:                "description": "Cell address (e.g. 'B3').",
+plugin/modules/calc/comments.py:102:                "type": "string",
+plugin/modules/calc/comments.py:103:                "description": "Comment text.",
+plugin/modules/calc/comments.py:106:                "type": "string",
+plugin/modules/calc/comments.py:107:                "description": "Sheet name (active sheet if omitted).",
+plugin/modules/calc/comments.py:142:            "status": "ok",
+plugin/modules/calc/comments.py:155:        "type": "object",
+plugin/modules/calc/comments.py:158:                "type": "string",
+plugin/modules/calc/comments.py:159:                "description": "Cell address (e.g. 'B3').",
+plugin/modules/calc/comments.py:162:                "type": "string",
+plugin/modules/calc/comments.py:163:                "description": "Sheet name (active sheet if omitted).",
+plugin/modules/calc/comments.py:188:                    "status": "ok",
+plugin/modules/calc/comments.py:190:                    "message": "Comment deleted.",
+plugin/modules/calc/search.py:46:        "type": "object",
+plugin/modules/calc/search.py:49:                "type": "string",
+plugin/modules/calc/search.py:50:                "description": "Search string or regex pattern.",
+plugin/modules/calc/search.py:53:                "type": "boolean",
+plugin/modules/calc/search.py:54:                "description": "Use regular expression (default: false).",
+plugin/modules/calc/search.py:57:                "type": "boolean",
+plugin/modules/calc/search.py:58:                "description": "Case-sensitive search (default: false).",
+plugin/modules/calc/search.py:61:                "type": "integer",
+plugin/modules/calc/search.py:62:                "description": "Maximum results to return (default: 50).",
+plugin/modules/calc/search.py:65:                "type": "string",
+plugin/modules/calc/search.py:66:                "description": "Sheet to search (active sheet if omitted).",
+plugin/modules/calc/search.py:69:                "type": "boolean",
+plugin/modules/calc/search.py:70:                "description": "Search all sheets (default: false).",
+plugin/modules/calc/search.py:124:            "status": "ok",
+plugin/modules/calc/search.py:137:        "type": "object",
+plugin/modules/calc/search.py:140:                "type": "string",
+plugin/modules/calc/search.py:141:                "description": "Text or regex pattern to find.",
+plugin/modules/calc/search.py:144:                "type": "string",
+plugin/modules/calc/search.py:145:                "description": "Replacement text.",
+plugin/modules/calc/search.py:148:                "type": "boolean",
+plugin/modules/calc/search.py:149:                "description": "Use regular expression (default: false).",
+plugin/modules/calc/search.py:152:                "type": "boolean",
+plugin/modules/calc/search.py:153:                "description": "Case-sensitive matching (default: false).",
+plugin/modules/calc/search.py:156:                "type": "string",
+plugin/modules/calc/search.py:157:                "description": "Sheet to operate on (active sheet if omitted).",
+plugin/modules/calc/search.py:160:                "type": "boolean",
+plugin/modules/calc/search.py:161:                "description": "Replace across all sheets (default: false).",
+plugin/modules/calc/search.py:201:            "status": "ok",
+plugin/modules/calc/charts.py:39:        "type": "object",
+plugin/modules/calc/charts.py:72:                "status": "ok",
+plugin/modules/calc/charts.py:89:        "type": "object",
+plugin/modules/calc/charts.py:92:                "type": "string",
+plugin/modules/calc/charts.py:93:                "description": "Chart name (from list_charts).",
+plugin/modules/calc/charts.py:158:        "type": "object",
+plugin/modules/calc/charts.py:161:                "type": "string",
+plugin/modules/calc/charts.py:162:                "description": "Cell range for chart data (e.g. 'A1:B10').",
+plugin/modules/calc/charts.py:165:                "type": "string",
+plugin/modules/calc/charts.py:167:                "description": "Type of chart to create.",
+plugin/modules/calc/charts.py:170:                "type": "string",
+plugin/modules/calc/charts.py:171:                "description": "Chart title (optional).",
+plugin/modules/calc/charts.py:174:                "type": "string",
+plugin/modules/calc/charts.py:175:                "description": "Cell address for chart placement (e.g. 'E1').",
+plugin/modules/calc/charts.py:178:                "type": "boolean",
+plugin/modules/calc/charts.py:179:                "description": "Whether first row/column is a label (default: true).",
+plugin/modules/calc/charts.py:221:                "bar": "com.sun.star.chart.BarDiagram",
+plugin/modules/calc/charts.py:222:                "column": "com.sun.star.chart.BarDiagram",
+plugin/modules/calc/charts.py:223:                "line": "com.sun.star.chart.LineDiagram",
+plugin/modules/calc/charts.py:224:                "pie": "com.sun.star.chart.PieDiagram",
+plugin/modules/calc/charts.py:225:                "scatter": "com.sun.star.chart.XYDiagram",
+plugin/modules/calc/charts.py:250:            return {"status": "ok", "message": result}
+plugin/modules/calc/charts.py:263:        "type": "object",
+plugin/modules/calc/charts.py:266:                "type": "string",
+plugin/modules/calc/charts.py:267:                "description": "Chart name (from list_charts).",
+plugin/modules/calc/charts.py:270:                "type": "string",
+plugin/modules/calc/charts.py:271:                "description": "New chart title.",
+plugin/modules/calc/charts.py:274:                "type": "string",
+plugin/modules/calc/charts.py:275:                "description": "New chart subtitle.",
+plugin/modules/calc/charts.py:278:                "type": "boolean",
+plugin/modules/calc/charts.py:279:                "description": "Show or hide legend.",
+plugin/modules/calc/charts.py:322:            return {"status": "ok", "chart_name": chart_name, "updated": updated}
+plugin/modules/calc/charts.py:333:        "type": "object",
+plugin/modules/calc/charts.py:336:                "type": "string",
+plugin/modules/calc/charts.py:337:                "description": "Chart name to delete.",
+plugin/modules/calc/charts.py:355:            return {"status": "ok", "deleted": chart_name}
+plugin/modules/calc/formulas.py:45:        "type": "object",
+plugin/modules/calc/formulas.py:48:                "type": "array",
+plugin/modules/calc/formulas.py:49:                "items": {"type": "string"},
+plugin/modules/calc/formulas.py:77:                "status": "ok",
+plugin/modules/calc/formulas.py:85:            return {"status": "ok", "result": result}
+plugin/modules/calc/sheets.py:40:        "type": "object",
+plugin/modules/calc/sheets.py:57:            return {"status": "ok", "result": sheet_names}
+plugin/modules/calc/sheets.py:69:        "type": "object",
+plugin/modules/calc/sheets.py:72:                "type": "string",
+plugin/modules/calc/sheets.py:73:                "description": "Name of the sheet to switch to",
+plugin/modules/calc/sheets.py:95:            return {"status": "ok", "message": result}
+plugin/modules/calc/sheets.py:107:        "type": "object",
+plugin/modules/calc/sheets.py:110:                "type": "string",
+plugin/modules/calc/sheets.py:111:                "description": "New sheet name",
+plugin/modules/calc/sheets.py:114:                "type": "integer",
+plugin/modules/calc/sheets.py:139:            return {"status": "ok", "message": result}
+plugin/modules/calc/sheets.py:153:        "type": "object",
+plugin/modules/calc/sheets.py:156:                "type": "string",
+plugin/modules/calc/sheets.py:157:                "description": "Sheet name (active sheet if empty)",
+plugin/modules/calc/sheets.py:172:        return {"status": "ok", "result": result}
+plugin/modules/calc/navigation.py:34:        "type": "object",
+plugin/modules/calc/navigation.py:58:            "status": "ok",
+plugin/modules/calc/specialized.py:50:        "type": "object",
+plugin/modules/calc/specialized.py:53:                "type": "string",
+plugin/modules/calc/specialized.py:55:                "description": "The specialized domain to activate.",
+plugin/modules/calc/specialized.py:58:                "type": "string",
+plugin/modules/calc/specialized.py:105:                "status": "ok",
+plugin/modules/calc/specialized.py:221:                "status": "ok",
+plugin/modules/calc/cells.py:75:        "type": "object",
+plugin/modules/calc/cells.py:78:                "type": "array",
+plugin/modules/calc/cells.py:79:                "items": {"type": "string"},
+plugin/modules/calc/cells.py:102:            return {"status": "ok", "result": [result]}
+plugin/modules/calc/cells.py:104:        return {"status": "ok", "result": results}
+plugin/modules/calc/cells.py:117:        "type": "object",
+plugin/modules/calc/cells.py:120:                "type": "array",
+plugin/modules/calc/cells.py:121:                "items": {"type": "string"},
+plugin/modules/calc/cells.py:128:                "type": "string",
+plugin/modules/calc/cells.py:159:            return {"status": "ok", "message": result}
+plugin/modules/calc/cells.py:162:        return {"status": "ok", "message": f"Wrote to {len(rn)} ranges"}
+plugin/modules/calc/cells.py:174:        "type": "object",
+plugin/modules/calc/cells.py:177:                "type": "array",
+plugin/modules/calc/cells.py:178:                "items": {"type": "string"},
+plugin/modules/calc/cells.py:184:            "bold": {"type": "boolean", "description": "Bold font"},
+plugin/modules/calc/cells.py:185:            "italic": {"type": "boolean", "description": "Italic font"},
+plugin/modules/calc/cells.py:186:            "font_size": {"type": "number", "description": "Font size (points)"},
+plugin/modules/calc/cells.py:188:                "type": "string",
+plugin/modules/calc/cells.py:192:                "type": "string",
+plugin/modules/calc/cells.py:196:                "type": "string",
+plugin/modules/calc/cells.py:198:                "description": "Horizontal alignment",
+plugin/modules/calc/cells.py:201:                "type": "string",
+plugin/modules/calc/cells.py:203:                "description": "Vertical alignment",
+plugin/modules/calc/cells.py:205:            "wrap_text": {"type": "boolean", "description": "Wrap text"},
+plugin/modules/calc/cells.py:207:                "type": "string",
+plugin/modules/calc/cells.py:214:                "type": "string",
+plugin/modules/calc/cells.py:274:            return {"status": "ok", "message": f"Style applied to {rn[0]}"}
+plugin/modules/calc/cells.py:278:            "status": "ok",
+plugin/modules/calc/cells.py:294:        "type": "object",
+plugin/modules/calc/cells.py:297:                "type": "array",
+plugin/modules/calc/cells.py:298:                "items": {"type": "string"},
+plugin/modules/calc/cells.py:304:                "type": "boolean",
+plugin/modules/calc/cells.py:305:                "description": "Center content (default: true)",
+plugin/modules/calc/cells.py:324:            return {"status": "ok", "message": f"Merged cells {rn[0]}"}
+plugin/modules/calc/cells.py:328:            "status": "ok",
+plugin/modules/calc/cells.py:343:        "type": "object",
+plugin/modules/calc/cells.py:346:                "type": "array",
+plugin/modules/calc/cells.py:347:                "items": {"type": "string"},
+plugin/modules/calc/cells.py:353:                "type": "integer",
+plugin/modules/calc/cells.py:360:                "type": "boolean",
+plugin/modules/calc/cells.py:366:                "type": "boolean",
+plugin/modules/calc/cells.py:394:            return {"status": "ok", "message": result}
+plugin/modules/calc/cells.py:401:            "status": "ok",
+plugin/modules/calc/cells.py:415:        "type": "object",
+plugin/modules/calc/cells.py:418:                "type": "string",
+plugin/modules/calc/cells.py:420:                "description": "Type of structure to delete.",
+plugin/modules/calc/cells.py:423:                "type": "string",
+plugin/modules/calc/cells.py:430:                "type": "integer",
+plugin/modules/calc/cells.py:431:                "description": "Number to delete (default 1).",
+plugin/modules/calc/cells.py:449:        return {"status": "ok", "message": result}
+plugin/modules/writer/bookmark_tools.py:24:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/bookmark_tools.py:29:            return {"status": "ok", "bookmarks": [], "count": 0}
+plugin/modules/writer/bookmark_tools.py:41:            return {"status": "ok", "bookmarks": result, "count": len(result)}
+plugin/modules/writer/bookmark_tools.py:43:            return {"status": "error", "message": str(e)}
+plugin/modules/writer/bookmark_tools.py:52:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/bookmark_tools.py:58:        return {"status": "ok", "removed": removed}
+plugin/modules/writer/proximity.py:139:            return {"error": "Document has no headings"}
+plugin/modules/writer/fields.py:22:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/fields.py:38:        return {"status": "ok", "fields_refreshed": count}
+plugin/modules/writer/fields.py:47:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/fields.py:61:        return {"status": "ok", "fields_refreshed": count}
+plugin/modules/writer/fields.py:72:        "type": "object",
+plugin/modules/writer/fields.py:128:            "status": "ok",
+plugin/modules/writer/fields.py:142:        "type": "object",
+plugin/modules/writer/fields.py:145:                "type": "array",
+plugin/modules/writer/fields.py:146:                "items": {"type": "integer"},
+plugin/modules/writer/fields.py:147:                "description": "A list of 1-based IDs representing the text fields to delete.",
+plugin/modules/writer/fields.py:171:            return {"status": "ok", "deleted_count": 0, "message": "No matching fields found to delete."}
+plugin/modules/writer/fields.py:184:            "status": "ok",
+plugin/modules/writer/fields.py:204:        "type": "object",
+plugin/modules/writer/fields.py:207:                "type": "string",
+plugin/modules/writer/fields.py:215:                "type": "object",
+plugin/modules/writer/fields.py:224:                "type": "string",
+plugin/modules/writer/fields.py:226:                "description": "Where to insert the field.",
+plugin/modules/writer/fields.py:229:                "type": "string",
+plugin/modules/writer/fields.py:230:                "description": "Text to find and replace if target = 'search'.",
+plugin/modules/writer/fields.py:282:            "status": "ok",
+plugin/modules/writer/indexes.py:21:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/indexes.py:36:        return {"status": "ok", "refreshed": refreshed, "count": count}
+plugin/modules/writer/indexes.py:45:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/indexes.py:60:        return {"status": "ok", "refreshed": refreshed, "count": count}
+plugin/modules/writer/indexes.py:67:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/indexes.py:97:        return {"status": "ok", "indexes": result, "count": count}
+plugin/modules/writer/indexes.py:110:        "type": "object",
+plugin/modules/writer/indexes.py:113:                "type": "string",
+plugin/modules/writer/indexes.py:115:                "description": "The type of index to create.",
+plugin/modules/writer/indexes.py:118:                "type": "string",
+plugin/modules/writer/indexes.py:119:                "description": "The title for the index (e.g., 'Table of Contents').",
+plugin/modules/writer/indexes.py:122:                "type": "boolean",
+plugin/modules/writer/indexes.py:123:                "description": "Whether to create the index from the document outline (mainly for toc). Default true.",
+plugin/modules/writer/indexes.py:126:                "type": "string",
+plugin/modules/writer/indexes.py:128:                "description": "Where to insert the index.",
+plugin/modules/writer/indexes.py:131:                "type": "string",
+plugin/modules/writer/indexes.py:132:                "description": "Text to find and replace if target = 'search'.",
+plugin/modules/writer/indexes.py:150:                "toc": "com.sun.star.text.ContentIndex",
+plugin/modules/writer/indexes.py:151:                "alphabetical": "com.sun.star.text.DocumentIndex",
+plugin/modules/writer/indexes.py:152:                "user": "com.sun.star.text.UserIndex",
+plugin/modules/writer/indexes.py:153:                "illustration": "com.sun.star.text.IllustrationsIndex",
+plugin/modules/writer/indexes.py:154:                "table": "com.sun.star.text.TableIndex",
+plugin/modules/writer/indexes.py:155:                "object": "com.sun.star.text.ObjectIndex",
+plugin/modules/writer/indexes.py:156:                "bibliography": "com.sun.star.text.Bibliography"
+plugin/modules/writer/indexes.py:184:                "status": "ok",
+plugin/modules/writer/indexes.py:202:        "type": "object",
+plugin/modules/writer/indexes.py:205:                "type": "string",
+plugin/modules/writer/indexes.py:206:                "description": "Visible text or entry key for the mark.",
+plugin/modules/writer/indexes.py:209:                "type": "string",
+plugin/modules/writer/indexes.py:211:                "description": "The type of index mark to create (default 'alphabetical').",
+plugin/modules/writer/indexes.py:214:                "type": "string",
+plugin/modules/writer/indexes.py:215:                "description": "The primary key for an alphabetical index entry (optional).",
+plugin/modules/writer/indexes.py:218:                "type": "string",
+plugin/modules/writer/indexes.py:219:                "description": "The secondary key for an alphabetical index entry (optional).",
+plugin/modules/writer/indexes.py:222:                "type": "string",
+plugin/modules/writer/indexes.py:224:                "description": "Where to insert the index mark.",
+plugin/modules/writer/indexes.py:227:                "type": "string",
+plugin/modules/writer/indexes.py:228:                "description": "Text to find and replace if target = 'search'.",
+plugin/modules/writer/indexes.py:281:                "status": "ok",
+plugin/modules/writer/tree.py:59:            {"level": 0, "text": "root", "para_index": -1,
+plugin/modules/writer/tree.py:68:        root = {"level": 0, "text": "root", "para_index": -1,
+plugin/modules/writer/tree.py:246:            "type": "heading",
+plugin/modules/writer/tree.py:301:            "status": "ok",
+plugin/modules/writer/tree.py:375:                    children.append({"type": "body",
+plugin/modules/writer/tree.py:379:                    children.append({"type": "body",
+plugin/modules/writer/tree.py:383:                    children.append({"type": "body",
+plugin/modules/writer/tree.py:395:            "status": "ok",
+plugin/modules/writer/tree.py:441:        return {"status": "ok",
+plugin/modules/writer/tree.py:442:                "message": "Added AI summary at paragraph %d" % para_index,
+plugin/modules/writer/tree.py:451:        return {"status": "ok", "summaries": summaries,
+plugin/modules/writer/tree.py:470:        return {"status": "ok", "removed": removed,
+plugin/modules/writer/structural.py:28:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/structural.py:34:            return {"status": "ok", "sections": [], "count": 0}
+plugin/modules/writer/structural.py:45:        return {"status": "ok", "sections": sections, "count": len(sections)}
+plugin/modules/writer/structural.py:51:        "type": "object",
+plugin/modules/writer/structural.py:53:            "page": {"type": "integer", "description": "Page number to navigate to"},
+plugin/modules/writer/structural.py:63:        return {"status": "ok", "page": vc.getPage()}
+plugin/modules/writer/structural.py:72:        "type": "object",
+plugin/modules/writer/structural.py:74:            "page": {"type": "integer", "description": "Page number"},
+plugin/modules/writer/structural.py:75:            "locator": {"type": "string", "description": "Locator to determine page"},
+plugin/modules/writer/structural.py:76:            "paragraph_index": {"type": "integer", "description": "Paragraph index to determine page"},
+plugin/modules/writer/structural.py:113:        return {"status": "ok", "page": page, **objects}
+plugin/modules/writer/structural.py:176:        "type": "object",
+plugin/modules/writer/structural.py:179:                "type": "string",
+plugin/modules/writer/structural.py:180:                "description": "Name of the section to read.",
+plugin/modules/writer/structural.py:217:            "status": "ok",
+plugin/modules/writer/structural.py:234:        "type": "object",
+plugin/modules/writer/structural.py:237:                "type": "string",
+plugin/modules/writer/structural.py:238:                "description": "Bookmark name (e.g. _mcp_a1b2c3d4).",
+plugin/modules/writer/structural.py:284:            "status": "ok",
+plugin/modules/writer/frames.py:36:        "type": "object",
+plugin/modules/writer/frames.py:79:        return {"status": "ok", "frames": frames, "count": len(frames)}
+plugin/modules/writer/frames.py:92:        "type": "object",
+plugin/modules/writer/frames.py:95:                "type": "string",
+plugin/modules/writer/frames.py:96:                "description": "Name of the text frame (from list_text_frames).",
+plugin/modules/writer/frames.py:164:            "status": "ok",
+plugin/modules/writer/frames.py:188:        "type": "object",
+plugin/modules/writer/frames.py:191:                "type": "string",
+plugin/modules/writer/frames.py:192:                "description": "Name of the text frame (from list_text_frames).",
+plugin/modules/writer/frames.py:195:                "type": "number",
+plugin/modules/writer/frames.py:196:                "description": "New width in millimetres.",
+plugin/modules/writer/frames.py:199:                "type": "number",
+plugin/modules/writer/frames.py:200:                "description": "New height in millimetres.",
+plugin/modules/writer/frames.py:203:                "type": "integer",
+plugin/modules/writer/frames.py:210:                "type": "integer",
+plugin/modules/writer/frames.py:211:                "description": "Horizontal orientation constant.",
+plugin/modules/writer/frames.py:214:                "type": "integer",
+plugin/modules/writer/frames.py:215:                "description": "Vertical orientation constant.",
+plugin/modules/writer/frames.py:278:            "status": "ok",
+plugin/modules/writer/base.py:135:        "type": "object",
+plugin/modules/writer/base.py:138:                "type": "string",
+plugin/modules/writer/base.py:139:                "description": "The final answer to the task.",
+plugin/modules/writer/base.py:154:            "status": "ok",
+plugin/modules/writer/base.py:157:            "message": "Specialized task complete. Normal toolset restored."
+plugin/modules/writer/outline.py:45:        "type": "object",
+plugin/modules/writer/outline.py:48:                "type": "string",
+plugin/modules/writer/outline.py:50:                "description": "Content to include with headings (default: first_lines)",
+plugin/modules/writer/outline.py:53:                "type": "integer",
+plugin/modules/writer/outline.py:54:                "description": "Max tree depth (0=unlimited, default: 1)",
+plugin/modules/writer/outline.py:68:        return {"status": "ok", **result}
+plugin/modules/writer/outline.py:80:        "type": "object",
+plugin/modules/writer/outline.py:83:                "type": "string",
+plugin/modules/writer/outline.py:84:                "description": "Locator string (e.g. 'bookmark:_mcp_xxx', 'heading:1.2')",
+plugin/modules/writer/outline.py:87:                "type": "integer",
+plugin/modules/writer/outline.py:88:                "description": "Paragraph index of the heading",
+plugin/modules/writer/outline.py:91:                "type": "string",
+plugin/modules/writer/outline.py:92:                "description": "Bookmark name of the heading",
+plugin/modules/writer/outline.py:95:                "type": "string",
+plugin/modules/writer/outline.py:97:                "description": "Content strategy (default: first_lines)",
+plugin/modules/writer/outline.py:100:                "type": "integer",
+plugin/modules/writer/outline.py:101:                "description": "Max sub-heading depth (default: 1)",
+plugin/modules/writer/outline.py:119:            return {"status": "ok", **result}
+plugin/modules/writer/tracking.py:36:        "type": "object",
+plugin/modules/writer/tracking.py:39:                "type": "boolean",
+plugin/modules/writer/tracking.py:40:                "description": "True to enable track changes, False to disable.",
+plugin/modules/writer/tracking.py:52:        return {"status": "ok", "record_changes": bool(enabled)}
+plugin/modules/writer/tracking.py:64:        "type": "object",
+plugin/modules/writer/tracking.py:79:                "status": "ok",
+plugin/modules/writer/tracking.py:83:                "message": "Document does not expose redlines API.",
+plugin/modules/writer/tracking.py:110:            "status": "ok",
+plugin/modules/writer/tracking.py:123:        "type": "object",
+plugin/modules/writer/tracking.py:126:                "type": "string",
+plugin/modules/writer/tracking.py:128:                "description": "Action to perform: 'accept_all' or 'reject_all'.",
+plugin/modules/writer/tracking.py:150:        return {"status": "ok", "message": msg}
+plugin/modules/writer/tables.py:35:        "type": "object",
+plugin/modules/writer/tables.py:54:        return {"status": "ok", "tables": tables, "count": len(tables)}
+plugin/modules/writer/tables.py:63:        "type": "object",
+plugin/modules/writer/tables.py:66:                "type": "string",
+plugin/modules/writer/tables.py:67:                "description": "The table name from list_tables.",
+plugin/modules/writer/tables.py:107:            "status": "ok",
+plugin/modules/writer/tables.py:126:        "type": "object",
+plugin/modules/writer/tables.py:129:                "type": "string",
+plugin/modules/writer/tables.py:130:                "description": "The table name from list_tables.",
+plugin/modules/writer/tables.py:133:                "type": "array",
+plugin/modules/writer/tables.py:135:                    "type": "array",
+plugin/modules/writer/tables.py:136:                    "items": {"type": "string"},
+plugin/modules/writer/tables.py:144:                "type": "string",
+plugin/modules/writer/tables.py:145:                "description": "Top-left cell where data[0][0] is written (default A1).",
+plugin/modules/writer/tables.py:182:                "status": "error",
+plugin/modules/writer/tables.py:183:                "message": "Data block (rows=%d, cols=%d) at %s would exceed table %s dimensions (%d x %d)."
+plugin/modules/writer/tables.py:207:                        "status": "error",
+plugin/modules/writer/tables.py:208:                        "message": "Failed to write cell %s: %s" % (cell_ref, e),
+plugin/modules/writer/tables.py:214:            "status": "ok",
+plugin/modules/writer/tables.py:232:        "type": "object",
+plugin/modules/writer/tables.py:235:                "type": "integer",
+plugin/modules/writer/tables.py:236:                "description": "Number of rows.",
+plugin/modules/writer/tables.py:239:                "type": "integer",
+plugin/modules/writer/tables.py:240:                "description": "Number of columns.",
+plugin/modules/writer/tables.py:243:                "type": "integer",
+plugin/modules/writer/tables.py:244:                "description": "Paragraph index for insertion point.",
+plugin/modules/writer/tables.py:247:                "type": "string",
+plugin/modules/writer/tables.py:254:                "type": "string",
+plugin/modules/writer/tables.py:286:                "status": "error",
+plugin/modules/writer/tables.py:287:                "message": "Provide locator or paragraph_index.",
+plugin/modules/writer/tables.py:294:                "status": "error",
+plugin/modules/writer/tables.py:295:                "message": "Paragraph %d not found." % paragraph_index,
+plugin/modules/writer/tables.py:313:            "status": "ok",
+plugin/modules/writer/tables.py:325:    Examples: A1 -> (0, 0), B3 -> (2, 1), AA10 -> (9, 26).
+plugin/modules/writer/tables.py:362:        "type": "object",
+plugin/modules/writer/tables.py:365:                "type": "string",
+plugin/modules/writer/tables.py:366:                "description": "The table name from list_tables.",
+plugin/modules/writer/tables.py:385:            return {"status": "ok", "deleted": table_name}
+plugin/modules/writer/tables.py:404:        "type": "object",
+plugin/modules/writer/tables.py:407:                "type": "string",
+plugin/modules/writer/tables.py:408:                "description": "The table name from list_tables.",
+plugin/modules/writer/tables.py:411:                "type": "number",
+plugin/modules/writer/tables.py:412:                "description": "Table width in millimetres.",
+plugin/modules/writer/tables.py:415:                "type": "boolean",
+plugin/modules/writer/tables.py:416:                "description": "Set all columns to equal width (default: false).",
+plugin/modules/writer/tables.py:419:                "type": "array",
+plugin/modules/writer/tables.py:420:                "items": {"type": "number"},
+plugin/modules/writer/tables.py:427:                "type": "string",
+plugin/modules/writer/tables.py:429:                "description": "Horizontal alignment (default: full = stretch to margins).",
+plugin/modules/writer/tables.py:432:                "type": "boolean",
+plugin/modules/writer/tables.py:433:                "description": "Repeat first row as header on each page.",
+plugin/modules/writer/tables.py:436:                "type": "integer",
+plugin/modules/writer/tables.py:437:                "description": "Number of header rows to repeat (default: 1).",
+plugin/modules/writer/tables.py:440:                "type": "string",
+plugin/modules/writer/tables.py:502:                        "status": "error",
+plugin/modules/writer/tables.py:503:                        "message": "column_widths length (%d) != column count (%d)" % (
+plugin/modules/writer/tables.py:532:        return {"status": "ok", "table_name": table_name, "updated": updated}
+plugin/modules/writer/tables.py:545:        "type": "object",
+plugin/modules/writer/tables.py:548:                "type": "string",
+plugin/modules/writer/tables.py:549:                "description": "The table name.",
+plugin/modules/writer/tables.py:552:                "type": "integer",
+plugin/modules/writer/tables.py:553:                "description": "Number of rows to add (default: 1).",
+plugin/modules/writer/tables.py:556:                "type": "integer",
+plugin/modules/writer/tables.py:557:                "description": "Row index to insert before (appends at end if omitted).",
+plugin/modules/writer/tables.py:581:                "status": "ok",
+plugin/modules/writer/tables.py:597:        "type": "object",
+plugin/modules/writer/tables.py:600:                "type": "string",
+plugin/modules/writer/tables.py:601:                "description": "The table name.",
+plugin/modules/writer/tables.py:604:                "type": "integer",
+plugin/modules/writer/tables.py:605:                "description": "Number of columns to add (default: 1).",
+plugin/modules/writer/tables.py:608:                "type": "integer",
+plugin/modules/writer/tables.py:609:                "description": "Column index to insert before (appends at end if omitted).",
+plugin/modules/writer/tables.py:633:                "status": "ok",
+plugin/modules/writer/tables.py:653:        "type": "object",
+plugin/modules/writer/tables.py:656:                "type": "string",
+plugin/modules/writer/tables.py:657:                "description": "The table name.",
+plugin/modules/writer/tables.py:660:                "type": "integer",
+plugin/modules/writer/tables.py:661:                "description": "First row index to delete.",
+plugin/modules/writer/tables.py:664:                "type": "integer",
+plugin/modules/writer/tables.py:665:                "description": "Number of rows to delete (default: 1).",
+plugin/modules/writer/tables.py:687:                "status": "ok",
+plugin/modules/writer/tables.py:702:        "type": "object",
+plugin/modules/writer/tables.py:705:                "type": "string",
+plugin/modules/writer/tables.py:706:                "description": "The table name.",
+plugin/modules/writer/tables.py:709:                "type": "integer",
+plugin/modules/writer/tables.py:710:                "description": "First column index to delete.",
+plugin/modules/writer/tables.py:713:                "type": "integer",
+plugin/modules/writer/tables.py:714:                "description": "Number of columns to delete (default: 1).",
+plugin/modules/writer/tables.py:736:                "status": "ok",
+plugin/modules/writer/tables.py:758:        "type": "object",
+plugin/modules/writer/tables.py:761:                "type": "string",
+plugin/modules/writer/tables.py:762:                "description": "The table name.",
+plugin/modules/writer/tables.py:765:                "type": "integer",
+plugin/modules/writer/tables.py:766:                "description": "0-based row index.",
+plugin/modules/writer/tables.py:769:                "type": "array",
+plugin/modules/writer/tables.py:770:                "items": {"type": "string"},
+plugin/modules/writer/tables.py:771:                "description": "Values for each column (left to right).",
+plugin/modules/writer/tables.py:806:            "status": "ok",
+plugin/modules/writer/comments.py:38:        "type": "object",
+plugin/modules/writer/comments.py:41:                "type": "string",
+plugin/modules/writer/comments.py:79:        result = {"status": "ok", "comments": comments, "count": len(comments)}
+plugin/modules/writer/comments.py:96:        "type": "object",
+plugin/modules/writer/comments.py:99:                "type": "string",
+plugin/modules/writer/comments.py:100:                "description": "The comment text.",
+plugin/modules/writer/comments.py:103:                "type": "string",
+plugin/modules/writer/comments.py:104:                "description": "Anchor the comment to text containing this string.",
+plugin/modules/writer/comments.py:107:                "type": "string",
+plugin/modules/writer/comments.py:114:                "type": "integer",
+plugin/modules/writer/comments.py:115:                "description": "Paragraph index to anchor to (0-based).",
+plugin/modules/writer/comments.py:118:                "type": "string",
+plugin/modules/writer/comments.py:119:                "description": "Author name shown on the comment. Default: AI.",
+plugin/modules/writer/comments.py:147:                    "status": "not_found",
+plugin/modules/writer/comments.py:148:                    "message": "Text '%s' not found." % search_text,
+plugin/modules/writer/comments.py:174:        return {"status": "ok", "message": "Comment added.", "author": author}
+plugin/modules/writer/comments.py:189:        "type": "object",
+plugin/modules/writer/comments.py:192:                "type": "string",
+plugin/modules/writer/comments.py:193:                "description": "The 'name' field returned by list_comments.",
+plugin/modules/writer/comments.py:196:                "type": "string",
+plugin/modules/writer/comments.py:244:            "status": "ok",
+plugin/modules/writer/comments.py:259:        "type": "object",
+plugin/modules/writer/comments.py:262:                "type": "string",
+plugin/modules/writer/comments.py:263:                "description": "The 'name' field returned by list_comments.",
+plugin/modules/writer/comments.py:266:                "type": "string",
+plugin/modules/writer/comments.py:267:                "description": "Optional resolution text added as a reply.",
+plugin/modules/writer/comments.py:270:                "type": "string",
+plugin/modules/writer/comments.py:271:                "description": "Author name for the resolution reply. Default: AI.",
+plugin/modules/writer/comments.py:306:                "status": "not_found",
+plugin/modules/writer/comments.py:307:                "message": "Comment '%s' not found." % comment_name,
+plugin/modules/writer/comments.py:324:            "status": "ok",
+plugin/modules/writer/comments.py:344:        "type": "object",
+plugin/modules/writer/comments.py:347:                "type": "string",
+plugin/modules/writer/comments.py:349:                "description": "Operation to perform.",
+plugin/modules/writer/comments.py:352:                "type": "boolean",
+plugin/modules/writer/comments.py:353:                "description": "For scan_tasks: only unresolved tasks (default true).",
+plugin/modules/writer/comments.py:356:                "type": "string",
+plugin/modules/writer/comments.py:358:                "description": "For scan_tasks: filter by task prefix.",
+plugin/modules/writer/comments.py:361:                "type": "string",
+plugin/modules/writer/comments.py:362:                "description": "For set_status: workflow status as key: value lines.",
+plugin/modules/writer/comments.py:420:        return {"status": "ok", "tasks": tasks, "count": len(tasks)}
+plugin/modules/writer/comments.py:445:            return {"status": "ok", "workflow": workflow}
+plugin/modules/writer/comments.py:446:        return {"status": "ok", "workflow": None}
+plugin/modules/writer/comments.py:475:        return {"status": "ok", "message": "Workflow status updated."}
+plugin/modules/writer/comments.py:503:            "status": "ok",
+plugin/modules/writer/comments.py:564:        "type": "object",
+plugin/modules/writer/comments.py:567:                "type": "string",
+plugin/modules/writer/comments.py:568:                "description": "Target location (e.g. 'bookmark:_mcp_xxx', 'paragraph:5')",
+plugin/modules/writer/comments.py:571:                "type": "integer",
+plugin/modules/writer/comments.py:572:                "description": "Paragraph index (alternative to locator)",
+plugin/modules/writer/comments.py:575:                "type": "string",
+plugin/modules/writer/comments.py:576:                "description": "Summary text to add as annotation",
+plugin/modules/writer/comments.py:598:            return {"status": "ok", **result}
+plugin/modules/writer/comments.py:607:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/comments.py:613:        return {"status": "ok", "summaries": summaries, "count": len(summaries)}
+plugin/modules/writer/comments.py:621:        "type": "object",
+plugin/modules/writer/comments.py:624:                "type": "string",
+plugin/modules/writer/comments.py:625:                "description": "Target location (e.g. 'bookmark:_mcp_xxx')",
+plugin/modules/writer/comments.py:628:                "type": "integer",
+plugin/modules/writer/comments.py:629:                "description": "Paragraph index (alternative to locator)",
+plugin/modules/writer/comments.py:650:        return {"status": "ok", "removed": removed, "para_index": para_index}
+plugin/modules/writer/index.py:40:    "ar": "arabic",    "hy": "armenian",  "eu": "basque",
+plugin/modules/writer/index.py:41:    "ca": "catalan",   "da": "danish",    "nl": "dutch",
+plugin/modules/writer/index.py:42:    "en": "english",   "eo": "esperanto", "et": "estonian",
+plugin/modules/writer/index.py:43:    "fi": "finnish",   "fr": "french",    "de": "german",
+plugin/modules/writer/index.py:44:    "el": "greek",     "hi": "hindi",     "hu": "hungarian",
+plugin/modules/writer/index.py:45:    "id": "indonesian", "ga": "irish",    "it": "italian",
+plugin/modules/writer/index.py:46:    "lt": "lithuanian", "ne": "nepali",   "no": "norwegian",
+plugin/modules/writer/index.py:47:    "nb": "norwegian", "nn": "norwegian",
+plugin/modules/writer/index.py:48:    "pt": "portuguese", "ro": "romanian", "ru": "russian",
+plugin/modules/writer/index.py:49:    "sr": "serbian",   "es": "spanish",   "sv": "swedish",
+plugin/modules/writer/index.py:50:    "ta": "tamil",     "tr": "turkish",   "yi": "yiddish",
+plugin/modules/writer/index.py:313:            "near": [], "dropped_stops": [], "mode": "and",
+plugin/modules/writer/search.py:35:        "type": "object",
+plugin/modules/writer/search.py:38:                "type": "string",
+plugin/modules/writer/search.py:39:                "description": "Search string or regex pattern.",
+plugin/modules/writer/search.py:42:                "type": "boolean",
+plugin/modules/writer/search.py:43:                "description": "Use regular expression (default: false).",
+plugin/modules/writer/search.py:46:                "type": "boolean",
+plugin/modules/writer/search.py:47:                "description": "Case-sensitive search (default: false).",
+plugin/modules/writer/search.py:50:                "type": "integer",
+plugin/modules/writer/search.py:51:                "description": "Maximum results to return (default: 20).",
+plugin/modules/writer/search.py:54:                "type": "integer",
+plugin/modules/writer/search.py:61:                "type": "boolean",
+plugin/modules/writer/search.py:92:            return {"status": "ok", "ranges": ranges}
+plugin/modules/writer/search.py:119:                    "status": "error",
+plugin/modules/writer/search.py:120:                    "error": "Invalid regex: %s" % e,
+plugin/modules/writer/search.py:165:            "status": "ok",
+plugin/modules/writer/search.py:195:        "type": "object",
+plugin/modules/writer/search.py:198:                "type": "string",
+plugin/modules/writer/search.py:206:                "type": "integer",
+plugin/modules/writer/search.py:207:                "description": "Maximum results to return (default: 20)",
+plugin/modules/writer/search.py:210:                "type": "integer",
+plugin/modules/writer/search.py:211:                "description": "Paragraphs of context around each match (default: 1)",
+plugin/modules/writer/search.py:214:                "type": "integer",
+plugin/modules/writer/search.py:221:                "type": "integer",
+plugin/modules/writer/search.py:228:                "type": "boolean",
+plugin/modules/writer/search.py:282:        return {"status": "ok", **result}
+plugin/modules/writer/search.py:330:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/search.py:336:        return {"status": "ok", **result}
+plugin/modules/writer/images.py:52:        "type": "object",
+plugin/modules/writer/images.py:55:                "type": "string",
+plugin/modules/writer/images.py:56:                "description": "Descriptive prompt for image generation or editing"
+plugin/modules/writer/images.py:59:                "type": "string",
+plugin/modules/writer/images.py:66:                "type": "number",
+plugin/modules/writer/images.py:67:                "description": "For editing: how much to change the image (0.0-1.0). Ignored when generating new.",
+plugin/modules/writer/images.py:71:                "type": "string",
+plugin/modules/writer/images.py:73:                "default": "square"
+plugin/modules/writer/images.py:76:                "type": "integer",
+plugin/modules/writer/images.py:77:                "description": "Base dimension for scaling",
+plugin/modules/writer/images.py:80:            "width": {"type": "integer", "description": "Override calculated width"},
+plugin/modules/writer/images.py:81:            "height": {"type": "integer", "description": "Override calculated height"},
+plugin/modules/writer/images.py:82:            "provider": {"type": "string", "description": "Override default provider"}
+plugin/modules/writer/images.py:194:        return {"status": "ok", "message": msg}
+plugin/modules/writer/images.py:214:        "type": "object",
+plugin/modules/writer/images.py:299:        return {"status": "ok", "images": images, "count": len(images)}
+plugin/modules/writer/images.py:334:        "type": "object",
+plugin/modules/writer/images.py:337:                "type": "string",
+plugin/modules/writer/images.py:338:                "description": "Name of the image (from list_images).",
+plugin/modules/writer/images.py:416:            "status": "ok",
+plugin/modules/writer/images.py:445:        "type": "object",
+plugin/modules/writer/images.py:448:                "type": "string",
+plugin/modules/writer/images.py:449:                "description": "Name of the image (from list_images).",
+plugin/modules/writer/images.py:452:                "type": "number",
+plugin/modules/writer/images.py:453:                "description": "New width in millimetres.",
+plugin/modules/writer/images.py:456:                "type": "number",
+plugin/modules/writer/images.py:457:                "description": "New height in millimetres.",
+plugin/modules/writer/images.py:460:                "type": "string",
+plugin/modules/writer/images.py:461:                "description": "Image title (tooltip text).",
+plugin/modules/writer/images.py:464:                "type": "string",
+plugin/modules/writer/images.py:465:                "description": "Image alternative text (alt-text).",
+plugin/modules/writer/images.py:468:                "type": "integer",
+plugin/modules/writer/images.py:475:                "type": "integer",
+plugin/modules/writer/images.py:476:                "description": "Horizontal orientation constant.",
+plugin/modules/writer/images.py:479:                "type": "integer",
+plugin/modules/writer/images.py:480:                "description": "Vertical orientation constant.",
+plugin/modules/writer/images.py:552:            "status": "ok",
+plugin/modules/writer/images.py:572:        "type": "object",
+plugin/modules/writer/images.py:575:                "type": "string",
+plugin/modules/writer/images.py:576:                "description": "URL of the image to download.",
+plugin/modules/writer/images.py:579:                "type": "boolean",
+plugin/modules/writer/images.py:580:                "description": "Verify SSL certificates (default: false).",
+plugin/modules/writer/images.py:583:                "type": "boolean",
+plugin/modules/writer/images.py:584:                "description": "Force re-download even if cached (default: false).",
+plugin/modules/writer/images.py:599:            "status": "ok",
+plugin/modules/writer/images.py:619:        "type": "object",
+plugin/modules/writer/images.py:622:                "type": "string",
+plugin/modules/writer/images.py:628:                "type": "string",
+plugin/modules/writer/images.py:635:                "type": "integer",
+plugin/modules/writer/images.py:636:                "description": "Paragraph index for insertion point.",
+plugin/modules/writer/images.py:639:                "type": "integer",
+plugin/modules/writer/images.py:640:                "description": "Width in millimetres (default: 80).",
+plugin/modules/writer/images.py:643:                "type": "integer",
+plugin/modules/writer/images.py:644:                "description": "Height in millimetres (default: 80).",
+plugin/modules/writer/images.py:730:            "status": "ok",
+plugin/modules/writer/images.py:748:        "type": "object",
+plugin/modules/writer/images.py:751:                "type": "string",
+plugin/modules/writer/images.py:752:                "description": "Name of the image to delete (from list_images).",
+plugin/modules/writer/images.py:755:                "type": "boolean",
+plugin/modules/writer/images.py:756:                "description": "Also remove the containing frame (default: true).",
+plugin/modules/writer/images.py:781:        return {"status": "ok", "deleted": image_name}
+plugin/modules/writer/images.py:797:        "type": "object",
+plugin/modules/writer/images.py:800:                "type": "string",
+plugin/modules/writer/images.py:801:                "description": "Name of the image to replace (from list_images).",
+plugin/modules/writer/images.py:804:                "type": "string",
+plugin/modules/writer/images.py:805:                "description": "Local file path or URL of the replacement image.",
+plugin/modules/writer/images.py:808:                "type": "number",
+plugin/modules/writer/images.py:809:                "description": "Optionally update width in millimetres.",
+plugin/modules/writer/images.py:812:                "type": "number",
+plugin/modules/writer/images.py:813:                "description": "Optionally update height in millimetres.",
+plugin/modules/writer/images.py:857:            "status": "ok",
+plugin/modules/writer/images.py:893:        log.debug("download_image: cache hit %s -> %s", url, local_path)
+plugin/modules/writer/images.py:896:    log.info("download_image: downloading %s -> %s", url, local_path)
+plugin/modules/writer/ops.py:44:                details={"operation": "find_paragraph_for_range"}
+plugin/modules/writer/ops.py:50:                details={"operation": "find_paragraph_for_range"}
+plugin/modules/writer/ops.py:56:                details={"operation": "find_paragraph_for_range"}
+plugin/modules/writer/ops.py:97:                details={"operation": "get_selection_range"}
+plugin/modules/writer/ops.py:105:                details={"operation": "get_selection_range"}
+plugin/modules/writer/ops.py:122:                details={"operation": "get_selection_range"}
+plugin/modules/writer/ops.py:160:                details={"operation": "insert_html_at_cursor"}
+plugin/modules/writer/ops.py:166:                details={"operation": "insert_html_at_cursor"}
+plugin/modules/writer/ops.py:212:                details={"operation": "get_text_cursor_at_range"}
+plugin/modules/writer/ops.py:218:                details={"operation": "get_text_cursor_at_range", "start": start, "end": end}
+plugin/modules/writer/ops.py:232:                details={"operation": "get_text_cursor_at_range"}
+plugin/modules/writer/ops.py:259:                "operation": "get_text_cursor_at_range",
+plugin/modules/writer/styles.py:57:        "type": "object",
+plugin/modules/writer/styles.py:60:                "type": "string",
+plugin/modules/writer/styles.py:78:                "status": "ok",
+plugin/modules/writer/styles.py:110:            "status": "ok",
+plugin/modules/writer/styles.py:126:        "type": "object",
+plugin/modules/writer/styles.py:129:                "type": "string",
+plugin/modules/writer/styles.py:130:                "description": "Name of the style to inspect.",
+plugin/modules/writer/styles.py:133:                "type": "string",
+plugin/modules/writer/styles.py:134:                "description": "Style family. Default: ParagraphStyles.",
+plugin/modules/writer/styles.py:169:        return {"status": "ok", **info}
+plugin/modules/writer/styles.py:186:        "type": "object",
+plugin/modules/writer/styles.py:189:                "type": "string",
+plugin/modules/writer/styles.py:190:                "description": "Paragraph style name (e.g. Heading 1).",
+plugin/modules/writer/styles.py:193:                "type": "string",
+plugin/modules/writer/styles.py:195:                "description": "Where to apply the style.",
+plugin/modules/writer/styles.py:198:                "type": "string",
+plugin/modules/writer/styles.py:199:                "description": "Text to find and apply style to if target = 'search'.",
+plugin/modules/writer/styles.py:230:        return {"status": "ok", "style_name": style_name}
+plugin/modules/writer/embedded.py:24:        "type": "object",
+plugin/modules/writer/embedded.py:27:                "type": "string",
+plugin/modules/writer/embedded.py:28:                "description": "Target type, e.g. spreadsheet, chart.",
+plugin/modules/writer/embedded.py:31:                "type": "string",
+plugin/modules/writer/embedded.py:33:                "description": "Where to insert the embedded object.",
+plugin/modules/writer/embedded.py:36:                "type": "string",
+plugin/modules/writer/embedded.py:37:                "description": "Text to find and replace if target = 'search'.",
+plugin/modules/writer/embedded.py:67:        "type": "object",
+plugin/modules/writer/embedded.py:70:                "type": "string",
+plugin/modules/writer/embedded.py:71:                "description": "Object name or anchor hint when available.",
+plugin/modules/writer/content.py:79:        "type": "object",
+plugin/modules/writer/content.py:82:                "type": "string",
+plugin/modules/writer/content.py:91:                "type": "integer",
+plugin/modules/writer/content.py:92:                "description": "Maximum characters to return.",
+plugin/modules/writer/content.py:95:                "type": "integer",
+plugin/modules/writer/content.py:96:                "description": "Start character offset (0-based). Required for scope 'range'.",
+plugin/modules/writer/content.py:99:                "type": "integer",
+plugin/modules/writer/content.py:100:                "description": "End character offset (exclusive). Required for scope 'range'.",
+plugin/modules/writer/content.py:124:            "status": "ok",
+plugin/modules/writer/content.py:188:        "type": "object",
+plugin/modules/writer/content.py:191:                "type": "array",
+plugin/modules/writer/content.py:192:                "items": {"type": "string"},
+plugin/modules/writer/content.py:200:                "type": "string",
+plugin/modules/writer/content.py:202:                "description": "Where to apply the content.",
+plugin/modules/writer/content.py:205:                "type": "string",
+plugin/modules/writer/content.py:211:                "type": "boolean",
+plugin/modules/writer/content.py:212:                "description": "Replace all occurrences (true) or first only. Default false. Only for target='search'.",
+plugin/modules/writer/content.py:260:            return {"status": "ok", "message": "Replaced entire document."}
+plugin/modules/writer/content.py:263:            return {"status": "ok", "message": "Inserted content at end."}
+plugin/modules/writer/content.py:266:            return {"status": "ok", "message": "Inserted content at selection."}
+plugin/modules/writer/content.py:269:            return {"status": "ok", "message": "Inserted content at beginning."}
+plugin/modules/writer/content.py:279:            return {"status": "ok", "message": "Inserted content at end."}
+plugin/modules/writer/content.py:285:            return {"status": "ok", "message": "Inserted content at selection."}
+plugin/modules/writer/content.py:291:            return {"status": "ok", "message": "Inserted content at beginning (old_content was empty)."}
+plugin/modules/writer/content.py:324:            return {"status": "ok", "message": msg}
+plugin/modules/writer/content.py:346:                "status": "error",
+plugin/modules/writer/content.py:347:                "message": "old_content not found in document. Try a shorter, unique substring.",
+plugin/modules/writer/content.py:351:            return {"status": "ok", "message": "Replaced 1 occurrence (by old_content). (formatting preserved)"}
+plugin/modules/writer/content.py:355:        return {"status": "ok", "message": "Replaced 1 occurrence (by old_content)."}
+plugin/modules/writer/content.py:373:        "type": "object",
+plugin/modules/writer/content.py:376:                "type": "string",
+plugin/modules/writer/content.py:384:                "type": "integer",
+plugin/modules/writer/content.py:385:                "description": "Paragraph index of the heading (0-based).",
+plugin/modules/writer/content.py:446:            "status": "ok",
+plugin/modules/writer/content.py:447:            "message": "Cloned heading block '%s' (%d paragraphs)."
+plugin/modules/writer/content.py:500:        "type": "object",
+plugin/modules/writer/content.py:548:            "status": "ok",
+plugin/modules/writer/navigation.py:32:        "type": "object",
+plugin/modules/writer/navigation.py:35:                "type": "string",
+plugin/modules/writer/navigation.py:42:                "type": "string",
+plugin/modules/writer/navigation.py:45:                "description": "Navigation direction",
+plugin/modules/writer/navigation.py:59:            return {"status": "ok", **result}
+plugin/modules/writer/navigation.py:73:        "type": "object",
+plugin/modules/writer/navigation.py:76:                "type": "string",
+plugin/modules/writer/navigation.py:77:                "description": "Center position (e.g. 'bookmark:_mcp_xxx', 'paragraph:42')",
+plugin/modules/writer/navigation.py:80:                "type": "integer",
+plugin/modules/writer/navigation.py:81:                "description": "Number of paragraphs in each direction (default: 10, max: 50)",
+plugin/modules/writer/navigation.py:84:                "type": "array",
+plugin/modules/writer/navigation.py:85:                "items": {"type": "string"},
+plugin/modules/writer/navigation.py:103:            return {"status": "ok", **result}
+plugin/modules/writer/specialized.py:61:        "type": "object",
+plugin/modules/writer/specialized.py:64:                "type": "string",
+plugin/modules/writer/specialized.py:66:                "description": "The specialized domain to activate.",
+plugin/modules/writer/specialized.py:69:                "type": "string",
+plugin/modules/writer/specialized.py:116:                "status": "ok",
+plugin/modules/writer/specialized.py:233:                "status": "ok",
+plugin/modules/writer/shapes.py:68:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/writer/shapes.py:74:            return {"status": "ok", "images": [], "count": 0}
+plugin/modules/writer/shapes.py:94:        return {"status": "ok", "images": images, "count": len(images)}
+plugin/modules/chatbot/send_state.py:2:from typing import List, NamedTuple, Union
+plugin/modules/chatbot/send_state.py:100:    effects: List[SendEffects] = []
+plugin/modules/chatbot/tool_loop.py:191:                    log.error("Tool execution failed: %s" % e, extra={"context": "tool_execution"})
+plugin/modules/chatbot/tool_loop.py:285:            log.error("Document unavailable: %s" % e, extra={"context": "document_context"})
+plugin/modules/chatbot/tool_loop.py:301:                log.error("Unexpected document error: %s" % e, extra={"context": "document_context"})
+plugin/modules/chatbot/tool_loop.py:321:                    "type": "input_audio",
+plugin/modules/chatbot/tool_loop.py:322:                    "input_audio": {"data": b64_audio, "format": "wav"},
+plugin/modules/chatbot/tool_loop.py:327:                    content_list.append({"type": "text", "text": query_text})
+plugin/modules/chatbot/tool_loop.py:340:                log.error("Audio file error: %s" % e, extra={"context": "audio_handling"})
+plugin/modules/chatbot/tool_loop.py:349:                    log.error("NetworkError while handling audio message: %s", e, extra={"context": "audio_handling"})
+plugin/modules/chatbot/tool_loop.py:351:                    log.error("Unexpected audio error: %s" % e, extra={"context": "audio_handling"})
+plugin/modules/chatbot/translation_tool.py:420:) -> str:
+plugin/modules/chatbot/translation_tool.py:425:    headers = {"Content-Type": "application/json"}
+plugin/modules/chatbot/translation_tool.py:432:    for payload in _sse_iter(stream_url, headers={"Accept": "text/event-stream"}):
+plugin/modules/chatbot/sidebar_state.py:17:from typing import Any, cast
+plugin/modules/chatbot/sidebar_state.py:55:    tool_loop: Optional[ToolLoopState]
+plugin/modules/chatbot/sidebar_state.py:62:) -> FsmTransition[SidebarCompositeState]:
+plugin/modules/chatbot/audio_recorder_state.py:2:from typing import List, Optional
+plugin/modules/chatbot/audio_recorder_state.py:23:    error_message: Optional[str] = None
+plugin/modules/chatbot/audio_recorder_state.py:65:) -> FsmTransition[AudioRecorderState]:
+plugin/modules/chatbot/audio_recorder_state.py:68:    effects: List[AudioRecorderEffect] = []
+plugin/modules/chatbot/panel.py:77:            self.messages.append({"role": "system", "content": system_prompt})
+plugin/modules/chatbot/panel.py:82:        self.messages.append({"role": "user", "content": content})
+plugin/modules/chatbot/panel.py:87:        msg = {"role": "assistant"}
+plugin/modules/chatbot/panel.py:101:            "role": "tool",
+plugin/modules/chatbot/panel.py:121:        self.messages.insert(insert_at, {"role": "system", "content": context_msg})
+plugin/modules/chatbot/tool_loop_state.py:3:from typing import Any, Callable, Dict, List, Optional, NamedTuple
+plugin/modules/chatbot/tool_loop_state.py:10:    pending_tools: List[Dict[str, Any]]
+plugin/modules/chatbot/tool_loop_state.py:28:    data: Dict[str, Any] = {}
+plugin/modules/chatbot/tool_loop_state.py:43:    func_args: Dict[str, Any]
+plugin/modules/chatbot/tool_loop_state.py:55:    data: Dict[str, Any]
+plugin/modules/chatbot/tool_loop_state.py:61:    content: Optional[str] = None
+plugin/modules/chatbot/tool_loop_state.py:62:    tool_calls: Optional[List[Dict[str, Any]]] = None
+plugin/modules/chatbot/tool_loop_state.py:63:    call_id: Optional[str] = None
+plugin/modules/chatbot/tool_loop_state.py:68:    round_num: Optional[int] = None
+plugin/modules/chatbot/tool_loop_state.py:69:    tool_name: Optional[str] = None
+plugin/modules/chatbot/tool_loop_state.py:79:    effects: List[Any] = []
+plugin/modules/chatbot/web_research_chat.py:22:) -> str:
+plugin/modules/chatbot/todo.py:45:        "type": "object",
+plugin/modules/chatbot/todo.py:48:                "type": "array",
+plugin/modules/chatbot/todo.py:49:                "description": "Task items to write. Omit to read current list.",
+plugin/modules/chatbot/todo.py:51:                    "type": "object",
+plugin/modules/chatbot/todo.py:54:                            "type": "string",
+plugin/modules/chatbot/todo.py:55:                            "description": "Unique item identifier",
+plugin/modules/chatbot/todo.py:58:                            "type": "string",
+plugin/modules/chatbot/todo.py:59:                            "description": "Task description",
+plugin/modules/chatbot/todo.py:62:                            "type": "string",
+plugin/modules/chatbot/todo.py:64:                            "description": "Current status",
+plugin/modules/chatbot/todo.py:71:                "type": "boolean",
+plugin/modules/chatbot/todo.py:101:            return {"status": "error", "message": "Invalid JSON from todo_tool"}
+plugin/modules/chatbot/todo.py:103:        return {"status": "ok", **data}
+plugin/modules/chatbot/web_research.py:67:        "type": "object",
+plugin/modules/chatbot/web_research.py:70:                "type": "string",
+plugin/modules/chatbot/web_research.py:71:                "description": "Search query"
+plugin/modules/chatbot/web_research.py:74:                "type": "string",
+plugin/modules/chatbot/web_research.py:75:                "description": "Previous conversation text for context"
+plugin/modules/chatbot/web_research.py:287:                "status": "ok",
+plugin/modules/chatbot/state_machine.py:6:from typing import List, Any, Dict, Optional, NamedTuple
+plugin/modules/chatbot/state_machine.py:38:    last_error: Optional[str] = None
+plugin/modules/chatbot/state_machine.py:39:    error_time: Optional[float] = None
+plugin/modules/chatbot/state_machine.py:48:    wav_path: Optional[str] = None
+plugin/modules/chatbot/state_machine.py:49:    stt_model: Optional[str] = None
+plugin/modules/chatbot/state_machine.py:61:    error_time: Optional[float] = None
+plugin/modules/chatbot/state_machine.py:146:    effects: List[SendHandlerEffect] = []
+plugin/modules/chatbot/state_machine.py:181:) -> FsmTransition[SendHandlerState]:
+plugin/modules/chatbot/state_machine.py:187:    effects: List[SendHandlerEffect] = []
+plugin/modules/chatbot/skills.py:97:    parameters = {"type": "object", "properties": {}, "required": []}
+plugin/modules/chatbot/skills.py:103:            return {"status": "ok", "skills": skills, "count": len(skills)}
+plugin/modules/chatbot/skills.py:116:        "type": "object",
+plugin/modules/chatbot/skills.py:118:            "name": {"type": "string", "description": "Name of the skill to view."},
+plugin/modules/chatbot/skills.py:119:            "file_path": {"type": "string", "description": "Optional specific file to view (e.g., 'templates/example.md'). Defaults to SKILL.md"}
+plugin/modules/chatbot/skills.py:138:            return {"status": "ok", "name": name, "file_path": file_path or "SKILL.md", "content": content}
+plugin/modules/chatbot/skills.py:155:        "type": "object",
+plugin/modules/chatbot/skills.py:158:                "type": "string",
+plugin/modules/chatbot/skills.py:161:            "name": {"type": "string"},
+plugin/modules/chatbot/skills.py:162:            "content": {"type": "string"},
+plugin/modules/chatbot/skills.py:163:            "old_string": {"type": "string"},
+plugin/modules/chatbot/skills.py:164:            "new_string": {"type": "string"},
+plugin/modules/chatbot/skills.py:165:            "replace_all": {"type": "boolean"},
+plugin/modules/chatbot/skills.py:166:            "file_path": {"type": "string"},
+plugin/modules/chatbot/skills.py:167:            "file_content": {"type": "string"}
+plugin/modules/chatbot/skills.py:183:                return {"status": "ok", "message": f"Skill {action}d successfully."}
+plugin/modules/chatbot/skills.py:186:                    return {"status": "ok", "message": "Skill deleted."}
+plugin/modules/chatbot/skills.py:207:                return {"status": "ok", "message": f"Patched skill {name}"}
+plugin/modules/chatbot/skills.py:214:                return {"status": "ok", "message": f"Wrote {fpath} to skill {name}"}
+plugin/modules/chatbot/skills.py:220:                    return {"status": "ok", "message": f"Removed {fpath}"}
+plugin/modules/chatbot/memory.py:50:        "type": "object",
+plugin/modules/chatbot/memory.py:53:                "type": "string",
+plugin/modules/chatbot/memory.py:54:                "description": "The key to update or insert (e.g., 'favorite_color')."
+plugin/modules/chatbot/memory.py:57:                "type": "string",
+plugin/modules/chatbot/memory.py:58:                "description": "The new value to associate with the key."
+plugin/modules/chatbot/memory.py:105:            return {"status": "ok", "message": f"Upserted key '{key}' in memory."}
+plugin/modules/chatbot/send_handlers.py:160:                    "Square": "square",
+plugin/modules/chatbot/send_handlers.py:161:                    "Landscape (16:9)": "landscape_16_9",
+plugin/modules/chatbot/send_handlers.py:162:                    "Portrait (9:16)": "portrait_9_16",
+plugin/modules/chatbot/send_handlers.py:163:                    "Landscape (3:2)": "landscape_3_2",
+plugin/modules/chatbot/send_handlers.py:164:                    "Portrait (2:3)": "portrait_2_3",
+plugin/modules/chatbot/selection.py:11:    """Get document selection -> stream AI completion -> append to text."""
+plugin/modules/chatbot/selection.py:63:        messages.append({"role": "system", "content": system_prompt})
+plugin/modules/chatbot/selection.py:64:    messages.append({"role": "user", "content": selected_text})
+plugin/modules/chatbot/selection.py:150:            msgs.append({"role": "system", "content": system_prompt})
+plugin/modules/chatbot/selection.py:151:        msgs.append({"role": "user", "content": cell_text})
+plugin/modules/chatbot/selection.py:180:    """Get selection -> input instructions -> stream AI -> replace text."""
+plugin/modules/chatbot/selection.py:261:        messages.append({"role": "system", "content": system_prompt})
+plugin/modules/chatbot/selection.py:262:    messages.append({"role": "user", "content": prompt})
+plugin/modules/chatbot/selection.py:382:            msgs.append({"role": "system", "content": system_prompt})
+plugin/modules/chatbot/selection.py:383:        msgs.append({"role": "user", "content": prompt})
+plugin/modules/chatbot/panel_resize.py:162:                        "_relayout: sync root W %d -> target W %d (parent=%s deck=%s)"
+plugin/modules/chatbot/librarian.py:49:        "type": "object",
+plugin/modules/chatbot/librarian.py:52:                "type": "string",
+plugin/modules/chatbot/librarian.py:53:                "description": "A final friendly message to the user before switching."
+plugin/modules/chatbot/librarian.py:72:            "status": "switch_mode",
+plugin/modules/chatbot/librarian.py:80:        "type": "object",
+plugin/modules/chatbot/librarian.py:83:                "type": "string",
+plugin/modules/chatbot/librarian.py:84:                "description": "User message"
+plugin/modules/chatbot/librarian.py:87:                "type": "string",
+plugin/modules/chatbot/librarian.py:88:                "description": "Previous conversation text"
+plugin/modules/chatbot/librarian.py:208:                    "status": "switch_mode",
+plugin/modules/chatbot/librarian.py:213:                "status": "ok",
+plugin/modules/agent_backend/claude_simple.py:21:from typing import Dict
+plugin/modules/agent_backend/vibe_simple.py:21:from typing import Dict
+plugin/modules/agent_backend/hermes_simple.py:21:from typing import Dict
+plugin/modules/agent_backend/mcp_acp_proxy.py:27:from typing import Optional, Dict, Any, List
+plugin/modules/agent_backend/mcp_acp_proxy.py:73:                  document_url: Optional[str] = None) -> Dict:
+plugin/modules/agent_backend/mcp_acp_proxy.py:76:            "jsonrpc": "2.0",
+plugin/modules/agent_backend/mcp_acp_proxy.py:82:        headers = {"Content-Type": "application/json"}
+plugin/modules/agent_backend/mcp_acp_proxy.py:125:            "agent_name": "WriterAgent",
+plugin/modules/agent_backend/mcp_acp_proxy.py:178:                    "type": "tool_result",
+plugin/modules/agent_backend/mcp_acp_proxy.py:185:                    "type": "tool_result",
+plugin/modules/agent_backend/mcp_acp_proxy.py:187:                    "content": [{"type": "text", "text": f"Error: {error_msg}"}]
+plugin/modules/agent_backend/acp_backend.py:28:from typing import Optional, Dict, Any, List
+plugin/modules/agent_backend/acp_backend.py:159:                "clientInfo": {"name": "WriterAgent", "version": "1.0"},
+plugin/modules/agent_backend/acp_backend.py:178:                "name": "writeragent",
+plugin/modules/agent_backend/acp_backend.py:179:                "type": "http",
+plugin/modules/agent_backend/acp_backend.py:199:        document_context: Optional[str] = None,
+plugin/modules/agent_backend/acp_backend.py:200:        system_prompt: Optional[str] = None,
+plugin/modules/agent_backend/acp_backend.py:201:        selection_text: Optional[str] = None,
+plugin/modules/agent_backend/acp_backend.py:202:        document_url: Optional[str] = None
+plugin/modules/agent_backend/acp_backend.py:203:    ) -> List[Dict]:
+plugin/modules/agent_backend/acp_backend.py:211:                "type": "text",
+plugin/modules/agent_backend/acp_backend.py:218:                    "type": "text",
+plugin/modules/agent_backend/acp_backend.py:224:                    "type": "text",
+plugin/modules/agent_backend/acp_backend.py:230:                    "type": "text",
+plugin/modules/agent_backend/acp_backend.py:236:                    "type": "text",
+plugin/modules/agent_backend/acp_backend.py:241:                "type": "text",
+plugin/_manifest.py:7:        "name": "main",
+plugin/_manifest.py:8:        "title": "WriterAgent global settings",
+plugin/_manifest.py:19:        "name": "core",
+plugin/_manifest.py:20:        "title": "Core services (config, events, logging)",
+plugin/_manifest.py:30:                        "type": "string",
+plugin/_manifest.py:31:                        "default": "DEBUG",
+plugin/_manifest.py:32:                        "widget": "select",
+plugin/_manifest.py:33:                        "label": "Log Level",
+plugin/_manifest.py:37:                                        "value": "DEBUG",
+plugin/_manifest.py:38:                                        "label": "Debug"
+plugin/_manifest.py:41:                                        "value": "INFO",
+plugin/_manifest.py:42:                                        "label": "Info"
+plugin/_manifest.py:45:                                        "value": "WARN",
+plugin/_manifest.py:46:                                        "label": "Warning"
+plugin/_manifest.py:49:                                        "value": "ERROR",
+plugin/_manifest.py:50:                                        "label": "Error"
+plugin/_manifest.py:60:        "name": "doc",
+plugin/_manifest.py:61:        "title": "Doc",
+plugin/_manifest.py:74:        "name": "http",
+plugin/_manifest.py:75:        "title": "MCP",
+plugin/_manifest.py:85:                        "type": "boolean",
+plugin/_manifest.py:87:                        "widget": "checkbox",
+plugin/_manifest.py:88:                        "label": "Enable MCP Server",
+plugin/_manifest.py:89:                        "helper": "Localhost only, no auth. Access via stdio is always enabled.",
+plugin/_manifest.py:93:                        "type": "int",
+plugin/_manifest.py:97:                        "widget": "number",
+plugin/_manifest.py:98:                        "label": "MCP Port",
+plugin/_manifest.py:107:        "name": "draw",
+plugin/_manifest.py:108:        "title": "Draw and Impress tools",
+plugin/_manifest.py:120:        "name": "calc",
+plugin/_manifest.py:121:        "title": "Calc spreadsheet tools",
+plugin/_manifest.py:129:                        "type": "int",
+plugin/_manifest.py:133:                        "widget": "number",
+plugin/_manifest.py:134:                        "label": "Max Rows Display",
+plugin/_manifest.py:138:        "config_inline": "doc",
+plugin/_manifest.py:143:        "name": "writer",
+plugin/_manifest.py:144:        "title": "Writer document tools (including navigation and search)",
+plugin/_manifest.py:163:        "name": "chatbot",
+plugin/_manifest.py:164:        "title": "Sidebar",
+plugin/_manifest.py:174:                        "type": "int",
+plugin/_manifest.py:178:                        "widget": "number",
+plugin/_manifest.py:179:                        "label": "Max Tool Rounds"
+plugin/_manifest.py:182:                        "type": "string",
+plugin/_manifest.py:183:                        "default": "auto",
+plugin/_manifest.py:184:                        "widget": "select",
+plugin/_manifest.py:185:                        "label": "Document Context Strategy",
+plugin/_manifest.py:186:                        "helper": "How much document content to include in LLM context",
+plugin/_manifest.py:189:                                        "value": "auto",
+plugin/_manifest.py:190:                                        "label": "Auto (by document size)"
+plugin/_manifest.py:193:                                        "value": "full",
+plugin/_manifest.py:194:                                        "label": "Full document text"
+plugin/_manifest.py:197:                                        "value": "page",
+plugin/_manifest.py:198:                                        "label": "Pages around cursor"
+plugin/_manifest.py:201:                                        "value": "tree",
+plugin/_manifest.py:202:                                        "label": "Outline + excerpt"
+plugin/_manifest.py:205:                                        "value": "stats",
+plugin/_manifest.py:206:                                        "label": "Stats + outline only"
+plugin/_manifest.py:211:                        "type": "int",
+plugin/_manifest.py:215:                        "widget": "number",
+plugin/_manifest.py:216:                        "label": "Extend Selection Max Tokens"
+plugin/_manifest.py:219:                        "type": "int",
+plugin/_manifest.py:223:                        "widget": "number",
+plugin/_manifest.py:224:                        "label": "Edit Selection Extra Tokens",
+plugin/_manifest.py:225:                        "helper": "Extra tokens beyond original text length. 0 = same length as original."
+plugin/_manifest.py:228:                        "type": "boolean",
+plugin/_manifest.py:230:                        "widget": "checkbox",
+plugin/_manifest.py:231:                        "label": "Show Web Search Thinking"
+plugin/_manifest.py:234:                        "type": "boolean",
+plugin/_manifest.py:236:                        "widget": "checkbox",
+plugin/_manifest.py:237:                        "label": "Prompt for Web Research",
+plugin/_manifest.py:238:                        "helper": "Ask for confirmation before sending a web search query"
+plugin/_manifest.py:241:                        "type": "int",
+plugin/_manifest.py:245:                        "widget": "number",
+plugin/_manifest.py:246:                        "label": "Web Cache Max Size (MB)",
+plugin/_manifest.py:247:                        "helper": "Max disk size for web search cache (0 to disable)"
+plugin/_manifest.py:250:                        "type": "int",
+plugin/_manifest.py:254:                        "widget": "number",
+plugin/_manifest.py:255:                        "label": "Web Cache Validity (Days)",
+plugin/_manifest.py:256:                        "helper": "How many days cache entries should be considered valid."
+plugin/_manifest.py:259:                        "type": "string",
+plugin/_manifest.py:260:                        "default": "[]",
+plugin/_manifest.py:272:        "name": "agent_backend",
+plugin/_manifest.py:273:        "title": "Agent backends",
+plugin/_manifest.py:281:                        "type": "string",
+plugin/_manifest.py:282:                        "default": "builtin",
+plugin/_manifest.py:283:                        "widget": "select",
+plugin/_manifest.py:284:                        "label": "Backend",
+plugin/_manifest.py:287:                                        "value": "builtin",
+plugin/_manifest.py:288:                                        "label": "Built-in"
+plugin/_manifest.py:291:                                        "value": "hermes",
+plugin/_manifest.py:292:                                        "label": "Hermes"
+plugin/_manifest.py:295:                                        "value": "claude",
+plugin/_manifest.py:296:                                        "label": "Claude Code (ACP)"
+plugin/_manifest.py:299:                                        "value": "vibe",
+plugin/_manifest.py:300:                                        "label": "Mistral Vibe (ACP)"
+plugin/_manifest.py:305:                        "type": "string",
+plugin/_manifest.py:307:                        "widget": "text",
+plugin/_manifest.py:308:                        "label": "Path / URL",
+plugin/_manifest.py:309:                        "helper": "Path to backend CLI (e.g. aider) or ACP server URL (e.g. http://localhost:8000 for Hermes). Empty = try default."
+plugin/_manifest.py:312:                        "type": "string",
+plugin/_manifest.py:314:                        "widget": "text",
+plugin/_manifest.py:315:                        "label": "Extra arguments",
+plugin/_manifest.py:316:                        "helper": "Optional arguments for the selected backend (space-separated)."
+plugin/_manifest.py:319:                        "type": "string",
+plugin/_manifest.py:321:                        "widget": "text",
+plugin/_manifest.py:322:                        "label": "ACP agent name",
+plugin/_manifest.py:323:                        "helper": "Agent name on the ACP server (e.g. hermes). Empty = auto-discover first agent."
+plugin/testing_runner.py:16:from typing import Any, Dict, List
+plugin/testing_runner.py:43:    suites: List[Dict[str, Any]],
+plugin/testing_runner.py:47:) -> None:
+plugin/testing_runner.py:189:              "name": "writer.format_tests",
+plugin/testing_runner.py:202:    suites: List[Dict[str, Any]] = []
+plugin/testing_runner.py:323:    summary: Dict[str, Any] = {
+plugin/tests/test_logging.py:11:    assert format_tool_call_for_display("my_tool", {"arg": "val"}) == "my_tool(arg='val')"
+plugin/tests/test_logging.py:12:    assert "..." in format_tool_call_for_display("my_tool", {"arg": "a"*200})
+plugin/tests/test_logging.py:17:    assert res == "my_tool() -> 'plain text'"
+plugin/tests/test_logging.py:20:    res = format_tool_result_for_display("my_tool", json.dumps({"content": [{"type": "text", "text": "inner text"}]}))
+plugin/tests/test_logging.py:24:    res = format_tool_result_for_display("my_tool", "res", args={"k": "v"})
+plugin/tests/test_logging.py:25:    assert res == "my_tool(k='v') -> 'res'"
+plugin/tests/test_web_research_query_override.py:2:from types import SimpleNamespace
+plugin/tests/test_web_research_query_override.py:11:    assert _web_search_query_from_arguments({"query": "hello"}) == "hello"
+plugin/tests/test_web_research_query_override.py:16:    assert _web_search_query_from_arguments('{"query": "from json"}') == "from json"
+plugin/tests/test_web_research_query_override.py:25:    step = SimpleNamespace(arguments={"query": "old", "x": 1})
+plugin/tests/test_web_research_query_override.py:27:    assert step.arguments == {"query": "new", "x": 1}
+plugin/tests/test_web_research_query_override.py:31:    step = SimpleNamespace(arguments='{"query": "old"}')
+plugin/tests/test_web_research_query_override.py:33:    assert step.arguments == {"query": "edited"}
+plugin/tests/test_web_research_query_override.py:39:    assert step.arguments == {"query": "only-override"}
+plugin/tests/test_web_research_query_override.py:45:    assert step.arguments == {"query": "fallback"}
+plugin/tests/test_mcp_server.py:36:        body_data = {"jsonrpc": "2.0", "method": "test"}
+plugin/tests/test_mcp_server.py:41:            "X-Document-URL": "file:///test/doc.odt"
+plugin/tests/test_mcp_server.py:64:        body_bytes = b'{"jsonrpc": "2.0", "method": "test"}'
+plugin/tests/test_mcp_server.py:146:    body_bytes = b'{"jsonrpc": "2.0", "method": "test"}'
+plugin/tests/test_mcp_server.py:170:        body_bytes = b'{"jsonrpc": "2.0", "method":'
+plugin/tests/test_mcp_server.py:190:    body_data = {"jsonrpc": "2.0", "method": "invalid/method", "id": 1}
+plugin/tests/test_mcp_server.py:214:        body_data = {"jsonrpc": "2.0", "method": "ping", "id": 42}
+plugin/tests/test_auth.py:69:        "endpoint": "https://openrouter.ai/api/v1",
+plugin/tests/test_auth.py:70:        "api_key": "sk-or-testkey123"
+plugin/tests/test_auth.py:80:        "header_style": "bearer",
+plugin/tests/test_auth.py:81:        "api_key": "my-secret-key"
+plugin/tests/test_auth.py:91:        "header_style": "x-api-key",
+plugin/tests/test_auth.py:92:        "api_key": "my-secret-key"
+plugin/tests/test_auth.py:103:        "header_style": "none",
+plugin/tests/test_auth.py:104:        "api_key": "this-key-will-be-ignored"
+plugin/tests/test_auth.py:115:        "header_style": "bearer",
+plugin/tests/test_auth.py:116:        "api_key": "my-key",
+plugin/tests/test_auth.py:118:            "HTTP-Referer": "https://writeragent.test",
+plugin/tests/test_auth.py:119:            "Authorization": "Bearer this-should-not-overwrite",
+plugin/tests/test_auth.py:120:            "x-custom-version": "1.0"
+plugin/tests/test_auth.py:135:        "header_style": "bearer",
+plugin/tests/test_auth.py:152:        "endpoint": "http://localhost:11434",
+plugin/tests/test_auth.py:171:        "endpoint": "http://my-custom-endpoint:8080/v1"
+plugin/tests/test_auth.py:201:        "endpoint": "https://api.openai.com/v1",
+plugin/tests/test_auth.py:219:        "endpoint": "https://completely.different.url",
+plugin/tests/test_auth.py:220:        "api_key": "valid-key",
+plugin/tests/test_streaming.py:22:        lines.append(b"data: " + json.dumps(c).encode() + b"\n")
+plugin/tests/test_streaming.py:59:            "endpoint": "http://127.0.0.1:5000",
+plugin/tests/test_streaming.py:60:            "model": "test",
+plugin/tests/test_streaming.py:142:        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+plugin/tests/test_streaming.py:166:        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+plugin/tests/test_streaming.py:192:        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+plugin/tests/test_streaming.py:202:                        "role": "assistant",
+plugin/tests/test_streaming.py:204:                            {"index": 0, "id": "call_1", "type": "function", "function": {"name": "foo", "arguments": None}},
+plugin/tests/test_streaming.py:216:            [{"role": "user", "content": "hi"}],
+plugin/tests/test_streaming.py:218:            tools=[{"type": "function", "function": {"name": "foo", "description": "x"}}],
+plugin/tests/test_streaming.py:234:                        "role": "assistant",
+plugin/tests/test_streaming.py:236:                            {"index": 0, "id": "call_1", "type": None, "function": {"name": "bar", "arguments": ""}},
+plugin/tests/test_streaming.py:248:            [{"role": "user", "content": "hi"}],
+plugin/tests/test_streaming.py:250:            tools=[{"type": "function", "function": {"name": "bar", "description": "y"}}],
+plugin/tests/test_streaming.py:262:                    "delta": {"role": None, "content": "ok"},
+plugin/tests/test_streaming.py:272:            [{"role": "user", "content": "hi"}],
+plugin/tests/test_streaming.py:280:    """finish_reason='stop' with tool_calls present -> 'tool_calls'. LiteLLM: streaming_handler.py ~L970."""
+plugin/tests/test_streaming.py:284:        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+plugin/tests/test_streaming.py:293:                        "role": "assistant",
+plugin/tests/test_streaming.py:295:                            {"index": 0, "id": "c1", "type": "function", "function": {"name": "f", "arguments": ""}},
+plugin/tests/test_streaming.py:307:            [{"role": "user", "content": "hi"}],
+plugin/tests/test_streaming.py:309:            tools=[{"type": "function", "function": {"name": "f", "description": "d"}}],
+plugin/tests/test_streaming.py:320:        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+plugin/tests/test_streaming.py:328:                    "delta": {"role": "assistant", "content": "I will use "},
+plugin/tests/test_streaming.py:333:                    "delta": {"content": "the tool now."},
+plugin/tests/test_streaming.py:340:                            {"index": 0, "id": "call_1", "type": "function", "function": {"name": "foo", "arguments": "{\""}},
+plugin/tests/test_streaming.py:349:                            {"index": 0, "function": {"arguments": "arg\": \"val\"}"}},
+plugin/tests/test_streaming.py:361:            [{"role": "user", "content": "do something"}],
+plugin/tests/test_streaming.py:363:            tools=[{"type": "function", "function": {"name": "foo", "description": "x"}}],
+plugin/tests/test_streaming.py:371:        self.assertEqual(result["tool_calls"][0]["function"]["arguments"], '{"arg": "val"}')
+plugin/tests/test_streaming.py:380:                        "role": "assistant",
+plugin/tests/test_streaming.py:382:                            {"index": 0, "id": "call_1", "type": "function", "function": {"name": "foo", "arguments": "{\""}},
+plugin/tests/test_streaming.py:391:                            {"index": 0, "function": {"arguments": "arg\": \"val\"}"}},
+plugin/tests/test_streaming.py:403:            [{"role": "user", "content": "do something"}],
+plugin/tests/test_streaming.py:405:            tools=[{"type": "function", "function": {"name": "foo", "description": "x"}}],
+plugin/tests/test_streaming.py:412:        self.assertEqual(result["tool_calls"][0]["function"]["arguments"], '{"arg": "val"}')
+plugin/tests/test_streaming.py:432:        self.config = {"endpoint": "http://127.0.0.1:5000", "model": "test", "request_timeout": 60}
+plugin/tests/test_streaming.py:440:        json_error_body = b'{"error": {"message": "Model not found"}}'
+plugin/tests/uno/test_writer_navigation.py:145:        from types import SimpleNamespace
+plugin/tests/uno/test_writer_bookmarks.py:8:    from types import SimpleNamespace
+plugin/tests/uno/test_chat_model_logic.py:74:        self.session.messages = [{"role": "system", "content": "test"}]
+plugin/tests/uno/test_chat_model_logic.py:96:        with patch.object(self.listener, '_get_document_model', return_value=doc_mock),              patch('plugin.framework.config.get_api_config', MagicMock(return_value={"model": "test", "endpoint": "http://x"})):
+plugin/tests/uno/test_chat_model_logic.py:119:        with patch.object(self.listener, '_get_document_model', return_value=doc_mock),              patch('plugin.framework.config.get_api_config', MagicMock(return_value={"model": "test", "endpoint": "http://x"})):
+plugin/tests/uno/test_calc.py:113:        res = {"status": "error", "error": str(e)}
+plugin/tests/uno/test_calc.py:121:    res = _execute_calc_tool("write_formula_range", {"range_name": "A1", "formula_or_values": "Hello"})
+plugin/tests/uno/test_calc.py:126:    _execute_calc_tool("write_formula_range", {"range_name": ["B1", "B2"], "formula_or_values": "Batch"})
+plugin/tests/uno/test_calc.py:134:    _execute_calc_tool("set_cell_style", {"range_name": "A1", "bold": True, "bg_color": "yellow"})
+plugin/tests/uno/test_calc.py:231:    res = _execute_calc_tool("create_sheet", {"sheet_name": "NewSheet"})
+plugin/tests/uno/test_calc.py:309:        "formula_or_values": "=Sheet2.A1 * 2"
+plugin/tests/uno/test_calc.py:332:        "range_name": "E1"
+plugin/tests/uno/test_calc.py:345:        "range_name": "G1"
+plugin/tests/uno/test_calc.py:357:        "range_name": "E5"
+plugin/tests/uno/test_calc.py:373:    res1 = _execute_calc_tool("write_formula_range", {"range_name": "A10", "formula_or_values": "Norm"})
+plugin/tests/uno/test_calc.py:377:    res2 = _execute_calc_tool("write_formula_range", {"range_name": ["A11"], "formula_or_values": "Norm"})
+plugin/tests/uno/test_calc.py:401:    res_color = _execute_calc_tool("set_cell_style", {"range_name": "A1", "bg_color": "not_a_real_color"})
+plugin/tests/uno/test_calc.py:412:    res_write = _execute_calc_tool("write_formula_range", {"range_name": "Z1:Z2", "formula_or_values": [["Apple"], ["Banana"]]})
+plugin/tests/uno/test_calc.py:416:    res_read = _execute_calc_tool("read_cell_range", {"range_name": "Z1:Z2"})
+plugin/tests/uno/test_calc.py:423:    res_merge = _execute_calc_tool("merge_cells", {"range_name": "Z1:Z2"})
+plugin/tests/uno/test_calc.py:425:    res_read_merged = _execute_calc_tool("read_cell_range", {"range_name": "Z1:Z2"})
+plugin/tests/uno/test_calc.py:432:    res_clear = _execute_calc_tool("write_formula_range", {"range_name": "Z1:Z2", "formula_or_values": ""})
+plugin/tests/uno/test_calc.py:434:    res_search = _execute_calc_tool("search_in_spreadsheet", {"pattern": "Apple"})
+plugin/tests/uno/test_calc.py:444:    res_add = _execute_calc_tool("add_cell_comment", {"cell": "A10", "text": "This is a test comment"})
+plugin/tests/uno/test_calc.py:460:    res_delete = _execute_calc_tool("delete_cell_comment", {"cell": "A10"})
+plugin/tests/uno/test_calc.py:473:    _execute_calc_tool("write_formula_range", {"range_name": "A20:B21", "formula_or_values": [
+plugin/tests/uno/test_calc.py:479:    res_search = _execute_calc_tool("search_in_spreadsheet", {"pattern": "BananaUnique"})
+plugin/tests/uno/test_calc.py:486:    res_replace = _execute_calc_tool("replace_in_spreadsheet", {"search": "BananaUnique", "replace": "BlueberryUnique"})
+plugin/tests/uno/test_calc.py:491:    res_search_after = _execute_calc_tool("search_in_spreadsheet", {"pattern": "BlueberryUnique"})
+plugin/tests/uno/test_calc.py:502:    _execute_calc_tool("write_formula_range", {"range_name": "C20:C22", "formula_or_values": [
+plugin/tests/uno/test_calc.py:510:        "range_name": "C20:C22",
+plugin/tests/uno/test_calc.py:511:        "operator": "GREATER",
+plugin/tests/uno/test_calc.py:512:        "formula1": "15",
+plugin/tests/uno/test_calc.py:513:        "style_name": "Result"
+plugin/tests/uno/test_calc.py:518:    res_list = _execute_calc_tool("list_conditional_formats", {"range_name": "C20:C22"})
+plugin/tests/uno/test_calc.py:529:    res_clear = _execute_calc_tool("remove_conditional_formats", {"range_name": "C20:C22"})
+plugin/tests/uno/test_calc.py:533:    res_list_after = _execute_calc_tool("list_conditional_formats", {"range_name": "C20:C22"})
+plugin/tests/uno/test_calc.py:539:        "range_name": "C20:C22", "operator": "GREATER", "formula1": "10", "style_name": "Result"
+plugin/tests/uno/test_calc.py:542:        "range_name": "C20:C22", "operator": "LESS", "formula1": "5", "style_name": "Result"
+plugin/tests/uno/test_calc.py:546:    res_remove_idx = _execute_calc_tool("remove_conditional_formats", {"range_name": "C20:C22", "rule_index": 0})
+plugin/tests/uno/test_calc.py:550:    res_list_final = _execute_calc_tool("list_conditional_formats", {"range_name": "C20:C22"})
+plugin/tests/uno/test_calc.py:568:    res_write = _execute_calc_tool("write_formula_range", {"range_name": "A1:B6", "formula_or_values": data})
+plugin/tests/uno/test_calc.py:572:    res_create = _execute_calc_tool("create_chart", {"data_range": "A1:B6", "chart_type": "bar"})
+plugin/tests/uno/test_calc.py:599:    res_edit = _execute_calc_tool("edit_chart", {"chart_name": chart_name, "title": "Monthly Sales"})
+plugin/tests/uno/test_history_db.py:80:    tool_calls = [{"id": "call_1", "type": "function", "function": {"name": "test", "arguments": "{}"}}]
+plugin/tests/uno/test_history_db.py:84:    tool_msg = {"role": "tool", "content": "Tool success", "tool_call_id": "call_1"}
+plugin/tests/uno/test_history_db.py:113:    tool_calls = [{"id": "call_2", "type": "function", "function": {"name": "json_test", "arguments": "{}"}}]
+plugin/tests/uno/test_history_db.py:117:    tool_msg = {"role": "tool", "content": "Tool success", "tool_call_id": "call_2"}
+plugin/tests/uno/test_history_db.py:247:    res = message_to_dict("user", [{"type": "text", "text": "hello"}, {"type": "input_audio"}])
+plugin/tests/uno/test_draw.py:101:        "shape_type": "rectangle",
+plugin/tests/uno/test_draw.py:103:        "text": "Hello Draw",
+plugin/tests/uno/test_impress.py:80:        "effect": "fade_from_left",
+plugin/tests/uno/test_impress.py:81:        "speed": "fast",
+plugin/tests/uno/test_impress.py:84:        "advance": "auto"
+plugin/tests/uno/test_impress.py:111:        "text": "These are my speaker notes for the first slide."
+plugin/tests/uno/test_impress.py:119:        "text": "And some more notes.",
+plugin/tests/uno/test_writer.py:1:from types import SimpleNamespace
+plugin/tests/uno/test_writer_search.py:62:            "matches": [{"paragraph_index": 1, "text": "This is the first paragraph", "context": []}],
+plugin/tests/uno/format_tests.py:59:        return {"status": "error", "message": str(e)}
+plugin/tests/uno/format_tests.py:74:        return {"status": "error", "message": str(e)}
+plugin/tests/uno/format_tests.py:83:        return {"status": "ok", "ranges": ranges}
+plugin/tests/uno/format_tests.py:85:        return {"status": "error", "message": str(e)}
+plugin/tests/uno/format_tests.py:137:    result = _get_document_content(_test_doc, _test_ctx, {"scope": "full"})
+plugin/tests/uno/format_tests.py:144:    result = _get_document_content(_test_doc, _test_ctx, {"scope": "full"})
+plugin/tests/uno/format_tests.py:252:        result = _get_document_content(_test_doc, _test_ctx, {"scope": "range", "start": 0, "end": 10})
+plugin/tests/uno/format_tests.py:307:    res_find_start = _find_text(_test_doc, _test_ctx, {"search": "Line A"})
+plugin/tests/uno/format_tests.py:520:        "content": "zBertTicklez",
+plugin/tests/uno/format_tests.py:521:        "old_content": "zBertPicklez",
+plugin/tests/uno/format_tests.py:535:        "content": "zNormaGlintez",
+plugin/tests/uno/format_tests.py:536:        "old_content": "zNormaFlintez",
+plugin/tests/test_chatbot_handlers.py:51:    mock_registry.execute.return_value = {"status": "done", "message": "Image generated successfully"}
+plugin/tests/test_chatbot_handlers.py:114:    mock_registry.execute.return_value = {"status": "error", "message": "Failed to generate image"}
+plugin/tests/test_chatbot_handlers.py:193:                    arguments='{"query": "Latest Python release"}'
+plugin/tests/test_chatbot_handlers.py:210:                    arguments='{"url": "https://python.org/downloads"}'
+plugin/tests/eval_runner.py:60:            {"role": "system", "content": system_prompt},
+plugin/tests/eval_runner.py:61:            {"role": "user", "content": f"Document Context:\n{doc_context}\n\nTask: {task}"}
+plugin/tests/eval_runner.py:111:                self.results.append({"name": name, "status": "OK", "cost": turn_cost, "latency": time.time() - start_time})
+plugin/tests/eval_runner.py:114:                self.results.append({"name": name, "status": "FAIL (Verification)", "cost": turn_cost, "latency": time.time() - start_time})
+plugin/tests/eval_runner.py:140:            response = self.client.request_with_tools([{"role": "user", "content": judge_prompt}], max_tokens=100)
+plugin/tests/test_config_sync.py:102:        self.config_data["api_keys_by_endpoint"] = {"http://localhost:11434": "test-key-123"}
+plugin/tests/test_streaming_fuzz.py:14:            lines.append(b"data: " + json.dumps(c).encode() + b"\n")
+plugin/tests/test_streaming_fuzz.py:35:            "endpoint": "http://127.0.0.1:5000",
+plugin/tests/test_streaming_fuzz.py:36:            "model": "test",
+plugin/tests/test_streaming_fuzz.py:68:                        "role": "assistant",
+plugin/tests/test_streaming_fuzz.py:70:                            {"index": 0, "id": "call_1", "type": "function", "function": {"name": "foo", "arguments": "{\""}},
+plugin/tests/test_streaming_fuzz.py:79:                            {"index": 0, "function": {"arguments": "arg1\": "}},
+plugin/tests/test_streaming_fuzz.py:88:                    "finish_reason": "length"
+plugin/tests/test_streaming_fuzz.py:99:            [{"role": "user", "content": "hi"}],
+plugin/tests/test_streaming_fuzz.py:101:            tools=[{"type": "function", "function": {"name": "foo", "description": "x"}}],
+plugin/tests/test_streaming_fuzz.py:129:                        "role": "assistant",
+plugin/tests/test_streaming_fuzz.py:131:                            {"index": 0, "id": "call_1", "type": "function", "function": {"name": "foo", "arguments": ""}},
+plugin/tests/test_streaming_fuzz.py:141:                            {"index": "INVALID_INDEX", "function": {"arguments": "{}"}},
+plugin/tests/test_streaming_fuzz.py:155:                [{"role": "user", "content": "hi"}],
+plugin/tests/test_streaming_fuzz.py:157:                tools=[{"type": "function", "function": {"name": "foo", "description": "x"}}],
+plugin/tests/test_mcp.py:29:        {"name": "test_tool", "description": "A test tool", "inputSchema": {"type": "object", "properties": {}}}
+plugin/tests/test_mcp.py:53:        "host": "127.0.0.1",
+plugin/tests/test_mcp.py:108:        "jsonrpc": "2.0",
+plugin/tests/test_mcp.py:110:        "method": "tools/list"
+plugin/tests/test_mcp.py:141:        "jsonrpc": "2.0",
+plugin/tests/test_mcp.py:143:        "method": "resources/list"
+plugin/tests/test_error_handling.py:18:        exc = WriterAgentException("Test message", code="TEST_CODE", details={"key": "value"})
+plugin/tests/test_error_handling.py:23:        self.assertEqual(payload["details"], {"key": "value"})
+plugin/tests/test_error_handling.py:31:        self.assertEqual(payload["details"], {"type": "ValueError"})
+plugin/tests/test_error_handling.py:39:        self.assertEqual(result["details"], {"key": "val"})
+plugin/tests/test_error_handling.py:52:        self.assertEqual(safe_json_loads('{"key": "value"}'), {"key": "value"})
+plugin/tests/test_error_handling.py:58:        self.assertIsNone(safe_json_loads('{"key": "value"'))
+plugin/tests/test_error_handling.py:64:        self.assertIsNone(safe_json_loads({"not": "a string"}))
+plugin/tests/test_async_stream.py:148:    q.put(("tool_done", "call_123", "web_search", '{"q": "answer"}', '{"status": "ok"}'))
+plugin/tests/test_async_stream.py:311:    q.put(("tool_done", "call_123", "web_search", '{"q": "answer"}', '{"status": "ok"}'))
+plugin/tests/test_async_stream.py:374:    q.put(("approval_required", "Do you allow file access?", "read_file", '{"path": "test.txt"}', "req_1"))
+plugin/tests/test_async_stream.py:410:    assert approvals[0] == ("approval_required", "Do you allow file access?", "read_file", '{"path": "test.txt"}', "req_1")
+plugin/tests/test_tool_loop_state.py:70:    event_len = create_event(EventKind.STREAM_DONE, response={"finish_reason": "length", "content": None})
+plugin/tests/test_tool_loop_state.py:77:    event_filt = create_event(EventKind.STREAM_DONE, response={"finish_reason": "content_filter", "content": None})
+plugin/tests/test_tool_loop_state.py:85:    event = create_event(EventKind.STREAM_DONE, response={"tool_calls": [], "content": "I couldn't figure it out."})
+plugin/tests/test_tool_loop_state.py:98:    tool_calls = [{"id": "1", "function": {"name": "test"}}]
+plugin/tests/test_tool_loop_state.py:99:    event = create_event(EventKind.STREAM_DONE, response={"tool_calls": tool_calls, "content": "Let me test."})
+plugin/tests/test_tool_loop_state.py:140:    tool_calls = [{"id": "call_1", "function": {"name": "test_tool", "arguments": "{}"}}]
+plugin/tests/test_tool_loop_state.py:159:    tool_calls = [{"id": "call_1", "type": "function", "function": {"arguments": "invalid-json"}}]
+plugin/tests/test_tool_loop_state.py:191:        result='{"success": true, "message": "done"}',
+plugin/tests/test_tool_loop_state.py:202:    assert msg_eff.content == '{"success": true, "message": "done"}'
+plugin/tests/test_tool_loop_state.py:209:        func_args_str='{"content": "' + ("A" * 1000) + '"}',
+plugin/tests/test_tool_loop_state.py:210:        result='{"message": "Replaced 0 occurrences"}',
+plugin/tests/test_translation_tool.py:52:        custom_headers = {"Custom-Header": "value", "User-Agent": "Custom-Agent"}
+plugin/tests/test_translation_tool.py:58:            "Custom-Header": "value",
+plugin/tests/test_schema_convert.py:10:                "type": "string",
+plugin/tests/test_schema_convert.py:11:                "description": "argument 1"
+plugin/tests/test_schema_convert.py:71:    params = {"type": "object", "required": []}
+plugin/tests/test_schema_convert.py:77:        "type": "object",
+plugin/tests/test_schema_convert.py:81:                "type": "object",
+plugin/tests/test_schema_convert.py:92:        "type": "array",
+plugin/tests/test_schema_convert.py:100:        "type": "array",
+plugin/tests/test_schema_convert.py:101:        "items": [{"type": "string"}, {"type": "integer"}]
+plugin/tests/test_schema_convert.py:107:    params = {"type": "string", "items": {"type": "string"}}
+plugin/tests/test_streaming_deltas.py:5:    acc = {"a": "hello"}
+plugin/tests/test_streaming_deltas.py:6:    delta = {"a": " world"}
+plugin/tests/test_streaming_deltas.py:8:    assert result == {"a": "hello world"}
+plugin/tests/test_streaming_deltas.py:12:    acc = {"a": "hello"}
+plugin/tests/test_streaming_deltas.py:15:    assert result == {"a": "hello", "b": 42}
+plugin/tests/test_streaming_deltas.py:19:    delta = {"a": "value"}
+plugin/tests/test_streaming_deltas.py:21:    assert result == {"a": "value"}
+plugin/tests/test_streaming_deltas.py:24:    acc = {"index": 1, "type": "old"}
+plugin/tests/test_streaming_deltas.py:25:    delta = {"index": 2, "type": "new"}
+plugin/tests/test_streaming_deltas.py:27:    assert result == {"index": 2, "type": "new"}
+plugin/tests/test_streaming_deltas.py:36:    acc = {"obj": {"x": "a"}}
+plugin/tests/test_streaming_deltas.py:37:    delta = {"obj": {"y": "b", "x": "c"}}
+plugin/tests/test_streaming_deltas.py:39:    assert result == {"obj": {"x": "ac", "y": "b"}}
+plugin/tests/test_streaming_deltas.py:49:    delta = {"items": [{"index": 0, "val": "a"}]}
+plugin/tests/test_streaming_deltas.py:51:    assert result == {"items": [{"index": 0, "val": "a"}]}
+plugin/tests/test_streaming_deltas.py:53:    delta2 = {"items": [{"index": 0, "val": "b"}]}
+plugin/tests/test_streaming_deltas.py:55:    assert result2 == {"items": [{"index": 0, "val": "ab"}]}
+plugin/tests/test_streaming_deltas.py:57:    delta3 = {"items": [{"index": 1, "val": "c"}]}
+plugin/tests/test_streaming_deltas.py:59:    assert result3 == {"items": [{"index": 0, "val": "ab"}, {"index": 1, "val": "c"}]}
+plugin/tests/test_streaming_deltas.py:62:    acc = {"items": [{"index": 0, "val": "a"}]}
+plugin/tests/test_streaming_deltas.py:66:        accumulate_delta(acc, {"items": [{"val": "b"}]})
+plugin/tests/test_streaming_deltas.py:70:        accumulate_delta(acc, {"items": [{"index": "0", "val": "b"}]})
+plugin/tests/test_tree_search_logic.py:26:            0: "bm_intro",
+plugin/tests/test_tree_search_logic.py:27:            2: "bm_install",
+plugin/tests/test_tree_search_logic.py:28:            3: "bm_getting",
+plugin/tests/test_tree_search_logic.py:29:            4: "bm_advanced",
+plugin/tests/test_tree_search_logic.py:30:            5: "bm_conclusion"
+plugin/tests/test_security_fix.py:70:        self.assertEqual(safe_python_literal_eval('{"type": "string"}'), {"type": "string"})
+plugin/tests/test_module_loader.py:7:        {"name": "a", "requires": ["b", "c"]},
+plugin/tests/test_module_loader.py:8:        {"name": "b", "requires": ["c"]},
+plugin/tests/test_module_loader.py:9:        {"name": "c", "requires": []},
+plugin/tests/test_module_loader.py:10:        {"name": "core", "requires": []},
+plugin/tests/test_module_loader.py:26:        {"name": "consumer", "requires": ["service_a"]},
+plugin/tests/test_module_loader.py:27:        {"name": "provider", "provides_services": ["service_a"]},
+plugin/tests/test_module_loader.py:38:        {"name": "core"},
+plugin/tests/test_module_loader.py:39:        {"name": "test_module"},
+plugin/tests/test_memory_tool_context.py:52:            self.assertIn('"user_name": "Keith"', f.read())
+plugin/tests/test_i18n.py:60:                    "name": "agent_backend__backend_id",
+plugin/tests/test_i18n.py:61:                    "options": [{"value": "hermes", "label": "Hermes"}],
+plugin/tests/test_i18n.py:65:        cfg = WriterAgentConfig.from_dict({"endpoint": "http://127.0.0.1:11434"})
+plugin/tests/test_i18n.py:83:                    "name": "image_default_aspect",
+plugin/tests/test_i18n.py:84:                    "options": [{"value": "Square", "label": "Square"}],
+plugin/tests/test_i18n.py:89:            {"endpoint": "http://127.0.0.1:11434", "image_default_aspect": "SQ_LABEL"}
+plugin/tests/test_i18n.py:107:                    "name": "image_default_aspect",
+plugin/tests/test_i18n.py:108:                    "options": [{"value": "Square", "label": "Square"}],
+plugin/tests/test_i18n.py:113:            {"endpoint": "http://127.0.0.1:11434", "image_default_aspect": "Square"}
+plugin/tests/test_i18n.py:121:            "endpoint": "http://localhost:11434",
+plugin/tests/test_i18n.py:133:        data = {"endpoint": "http://x", "seed": PO_JUNK}
+plugin/tests/test_i18n.py:139:        data = {"endpoint": "http://x", "additional_instructions": PO_JUNK}
+plugin/tests/test_i18n.py:147:            "endpoint": "http://localhost:11434",
+plugin/tests/test_i18n.py:159:            "endpoint": "http://example.com/v1",
+plugin/tests/test_i18n.py:171:        data = {"endpoint": "http://x", "orphan.key": "keep-me"}
+plugin/tests/test_tool_base.py:8:            "text": {"type": "string"}
+plugin/tests/test_tool_base.py:14:        return {"status": "ok"}
+plugin/tests/test_tool_base.py:96:    doc = MockDoc({"item1": "val1", "item2": "val2"})
+plugin/tests/test_audio_recorder_state.py:17:    """Test the normal idle -> initializing -> recording -> stopping sequence."""
+plugin/tests/test_tool_loop_errors.py:25:        self.messages = [{"role": "system", "content": "test"}]
+plugin/tests/test_tool_loop_errors.py:84:        mock_get_config.side_effect = lambda ctx, key: "10" if "tokens" in key or "context" in key else "test"
+plugin/tests/test_tool_loop_errors.py:94:    registry.get_schemas.return_value = [{"name": "test_tool"}]
+plugin/tests/test_tool_loop_errors.py:121:        res = execute_fn("test_tool", {"arg": "val"}, None, test_instance.ctx)
+plugin/tests/test_tool_loop_errors.py:134:        res = execute_fn("test_tool", {"arg": "val"}, None, test_instance.ctx)
+plugin/tests/test_tool_loop_errors.py:167:    mock_get_tools.get_schemas.return_value = [{"name": "test_tool"}]
+plugin/tests/test_image_status_callback.py:19:        config = {"aihorde_api_key": "test_key", "image_provider": "aihorde"}
+plugin/tests/test_image_status_callback.py:58:        config = {"aihorde_api_key": "test_key", "image_provider": "aihorde"}
+plugin/tests/test_image_status_callback.py:78:        config = {"aihorde_api_key": "test_key", "image_provider": "aihorde"}
+plugin/tests/test_image_status_callback.py:100:        config = {"aihorde_api_key": "test_key", "image_provider": "aihorde"}
+plugin/tests/test_specialized_delegation.py:26:        return {"status": "ok", "message": "Table created"}
+plugin/tests/test_csv_import_logic.py:7:from types import ModuleType
+plugin/tests/test_llm_client_modality.py:55:    mock_sync.return_value = {"text": "Hello world from STT"}
+plugin/tests/test_llm_client_modality.py:63:        client = LlmClient({"endpoint": "http://test", "stt_model": "whisper-1"}, ctx)
+plugin/tests/test_llm_client_modality.py:99:        client = LlmClient({"endpoint": "http://test", "stt_model": "gemini-flash"}, ctx)
+plugin/tests/test_llm_client_modality.py:113:    client = LlmClient({"endpoint": "http://test", "model": "test-model"}, ctx)
+plugin/tests/test_llm_client_modality.py:121:                "role": "assistant",
+plugin/tests/test_llm_client_modality.py:122:                "content": "Sure, calling tool.",
+plugin/tests/test_llm_client_modality.py:123:                "tool_calls": [{"id": "1", "type": "function", "function": {"name": "hello"}}]
+plugin/tests/test_llm_client_modality.py:125:            "finish_reason": "tool_calls"
+plugin/tests/test_llm_client_modality.py:133:        result = client.request_with_tools([{"role": "user", "content": "Hi"}])
+plugin/tests/test_llm_client_modality.py:146:    client = LlmClient({"endpoint": "http://test", "model": "test-model"}, ctx)
+plugin/tests/test_llm_client_modality.py:151:        "done_reason": "stop",
+plugin/tests/test_llm_client_modality.py:153:            "role": "assistant",
+plugin/tests/test_llm_client_modality.py:154:            "content": "Done reasoning."
+plugin/tests/test_llm_client_modality.py:162:        result = client.request_with_tools([{"role": "user", "content": "Hi"}])
+plugin/tests/test_llm_client_modality.py:178:    json_err_1 = '{"error": {"message": "Custom auth error"}}'
+plugin/tests/test_llm_client_modality.py:184:    json_err_2 = '{"foo": "bar"}'
+plugin/tests/test_llm_client_modality.py:186:    assert '{"foo": "bar"}' in msg_2
+plugin/tests/test_image_service_refactor.py:19:        self.api_config = {"model": "test-model"}
+plugin/tests/test_image_service_refactor.py:31:            "content": "Here is your image",
+plugin/tests/test_image_service_refactor.py:32:            "images": [{"image_url": {"url": "http://example.com/image.png"}}]
+plugin/tests/test_image_service_refactor.py:91:            "content": "http://fallback.com/image.png",
+plugin/tests/test_image_service_refactor.py:154:            "images": [{"wrong_key": "http://example.com/image.png"}]
+plugin/tests/test_image_service_refactor.py:177:            {"url": "http://example.com/multi_image.png"}
+plugin/tests/test_image_service_refactor.py:203:            "content": "Check this out: data:image/png;invalid",
+plugin/tests/test_image_service_refactor.py:221:        provider = EndpointImageProvider({"model": "test"}, MockContext())
+plugin/tests/test_image_service_refactor.py:232:        self.assertEqual(content[0], {"type": "text", "text": "edit prompt"})
+plugin/tests/test_image_service_refactor.py:246:        provider = EndpointImageProvider({"model": "test"}, MockContext())
+plugin/tests/test_image_service_refactor.py:259:        config = {"endpoint": "https://api.example.com", "model": "test-model"}
+plugin/tests/test_service_registry.py:32:        obj = {"hello": "world"}
+plugin/tests/test_tool_registry.py:25:        "type": "object",
+plugin/tests/test_tool_registry.py:26:        "properties": {"text": {"type": "string"}},
+plugin/tests/test_tool_registry.py:32:        return {"status": "ok", "text": kwargs["text"]}
+plugin/tests/test_tool_registry.py:38:    parameters = {"type": "object", "properties": {}}
+plugin/tests/test_tool_registry.py:42:        return {"status": "ok"}
+plugin/tests/test_tool_registry.py:48:    parameters = {"type": "object", "properties": {}}
+plugin/tests/test_tool_registry.py:160:        assert result == {"status": "ok", "text": "hello"}
+plugin/tests/test_tool_registry.py:192:            parameters = {"type": "object", "properties": {"text": {"type": "string"}}}
+plugin/tests/test_tool_registry.py:197:                return {"status": "ok", "text": text}
+plugin/tests/test_tool_registry.py:213:            parameters = {"type": "object", "properties": {}}
+plugin/tests/test_tool_registry.py:217:                return {"status": "ok"}
+plugin/tests/test_tool_registry.py:228:            parameters = {"type": "object", "properties": {}}
+plugin/tests/test_tool_registry.py:232:                return {"status": "ok"}
+plugin/tests/test_tool_registry.py:251:            parameters = {"type": "object", "properties": {}}
+plugin/tests/test_tool_registry.py:257:                return {"status": "ok"}
+plugin/tests/test_tool_registry.py:305:            parameters = {"type": "object", "properties": {"arg1": {"type": "string"}}}
+plugin/tests/test_tool_registry.py:309:                return {"status": "success"}
+plugin/tests/test_tool_registry.py:321:        assert result == {"status": "success"}
+plugin/tests/test_tool_registry.py:337:            parameters = {"type": "object", "properties": {"arg1": {"type": "string"}}}
+plugin/tests/test_tool_registry.py:369:            parameters = {"type": "object", "properties": {}}
+plugin/tests/test_tool_registry.py:396:            parameters = {"type": "object", "properties": {}}
+plugin/tests/test_tool_registry.py:400:                return {"status": "ok"}
+plugin/tests/test_http_client.py:19:        "endpoint": "https://api.openai.com",
+plugin/tests/test_http_client.py:20:        "api_key": "sk-test-key",
+plugin/tests/test_http_client.py:21:        "model": "gpt-4o",
+plugin/tests/test_http_client.py:49:        "endpoint": "http://localhost:11434",
+plugin/tests/test_http_client.py:50:        "api_key": "ollama",
+plugin/tests/test_http_client.py:58:        "endpoint": "http://localhost:11434",
+plugin/tests/test_http_client.py:95:        b'data: {"choices": [{"delta": {"role": "assistant", "content": "Let me compute "}}]}\n\n',
+plugin/tests/test_http_client.py:96:        b'data: {"choices": [{"delta": {"content": "that."}}]}\n\n',
+plugin/tests/test_http_client.py:97:        b'data: {"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_123", "type": "function", "function": {"name": "get_weather", "arguments": "{\\"loc"}}]}}]}\n\n',
+plugin/tests/test_http_client.py:98:        b'data: {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "ation\\": \\"NYC\\"}"}}]}}]}\n\n',
+plugin/tests/test_http_client.py:99:        b'data: {"choices": [{"finish_reason": "tool_calls", "delta": {}}]}\n\n',
+plugin/tests/test_http_client.py:113:        messages = [{"role": "user", "content": "What is the weather?"}]
+plugin/tests/test_http_client.py:114:        tools = [{"type": "function", "function": {"name": "get_weather"}}]
+plugin/tests/test_http_client.py:133:        assert result["tool_calls"][0]["function"]["arguments"] == '{"location": "NYC"}'
+plugin/tests/test_http_client.py:145:        mock_response.read.return_value = b'{"error": {"message": "Invalid API key"}}'
+plugin/tests/test_http_client.py:152:                messages=[{"role": "user", "content": "Hi"}], max_tokens=100
+plugin/tests/test_http_client.py:166:                messages=[{"role": "user", "content": "Hi"}], max_tokens=100
+plugin/tests/test_http_client.py:172:        b'data: {"choices": [{"delta": {"role": "assistant", "content": "I will get the weather."}}]}\n\n',
+plugin/tests/test_http_client.py:173:        b'data: {"choices": [{"delta": {"content": "<tool_call>{\\"name\\": \\"get_weather\\"}</tool_call>"}}]}\n\n',
+plugin/tests/test_http_client.py:195:            {"type": "function", "function": {"name": "get_weather", "arguments": "{}"}}
+plugin/tests/test_http_client.py:201:            messages=[{"role": "user", "content": "weather in NYC"}], max_tokens=100
+plugin/tests/test_http_client.py:206:            'I will get the weather.<tool_call>{"name": "get_weather"}</tool_call>'
+plugin/tests/test_http_client.py:222:    client = LlmClient({"endpoint": "http://test", "model": "test-model"}, ctx)
+plugin/tests/test_http_client.py:225:        {"type": "text", "text": "Existing structured system content"}
+plugin/tests/test_http_client.py:228:        {"role": "system", "content": structured_system_content},
+plugin/tests/test_http_client.py:229:        {"role": "user", "content": "Hi"},
+plugin/tests/test_http_client.py:246:    client = LlmClient({"endpoint": "https://localhost:11434"}, ctx)
+plugin/tests/test_http_client.py:249:        b'data: {"choices": [{"delta": {"role": "assistant", "content": "Success"}}]}\n\n',
+plugin/tests/test_http_client.py:271:        messages = [{"role": "user", "content": "Hello"}]
+plugin/tests/test_http_client.py:291:    client = LlmClient({"endpoint": "https://api.openai.com", "model": "gpt-4"}, ctx)
+plugin/tests/test_http_client.py:296:        b'data: {"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_123", "type": "function", "function": {"name": "get_weather", "arguments": "{\\"loc"}}]}}]}\n\n',
+plugin/tests/test_http_client.py:297:        b'data: {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": "ation\\": \\"NY"}}]}}]}\n\n',
+plugin/tests/test_http_client.py:298:        b'data: {"choices": [{"finish_reason": "tool_calls", "delta": {}}]}\n\n',
+plugin/tests/test_http_client.py:311:        messages = [{"role": "user", "content": "What is the weather?"}]
+plugin/tests/test_http_client.py:312:        tools = [{"type": "function", "function": {"name": "get_weather"}}]
+plugin/tests/test_http_client.py:332:    client = LlmClient({"endpoint": "http://test", "model": "test-model"}, ctx)
+plugin/tests/test_http_client.py:335:        {"type": "text", "text": "What is this?"},
+plugin/tests/test_http_client.py:336:        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,12345"}}
+plugin/tests/test_http_client.py:340:        {"role": "user", "content": mixed_user_content}
+plugin/tests/test_hermes_acp.py:70:        response = {"jsonrpc": "2.0", "id": 1, "result": {"session_id": "test-123"}}
+plugin/tests/test_hermes_acp.py:107:            "jsonrpc": "2.0",
+plugin/tests/test_hermes_acp.py:108:            "method": "notifications/session",
+plugin/tests/test_hermes_acp.py:109:            "params": {"update": {"session_update": "text", "text": "Hello"}},
+plugin/tests/test_hermes_acp.py:138:            {"content": [{"type": "text", "text": "Hello world"}]},
+plugin/tests/test_hermes_acp.py:151:            {"content": {"type": "text", "text": "Hello"}},
+plugin/tests/test_hermes_acp.py:162:        item = {"type": "tool_call", "name": "read_file", "id": "tc-1"}
+plugin/tests/test_hermes_acp.py:174:        item = {"type": "tool_result", "content": "Found 3 results"}
+plugin/tests/test_search_web.py:26:from typing import Any
+plugin/tests/test_search_web.py:77:    ) -> None:
+plugin/tests/test_search_web.py:121:    ) -> ChatMessage:
+plugin/tests/test_search_web.py:148:            "Content-Type": "application/json",
+plugin/tests/test_search_web.py:249:                content=[{"type": "text", "text": task}],
+plugin/tests/test_tool_loop.py:57:        msg = {"role": "assistant"}
+plugin/tests/test_tool_loop.py:66:            "role": "tool",
+plugin/tests/test_tool_loop.py:114:        res = on_stream_done(('stream_done', {"content": "Hello World", "tool_calls": []}))
+plugin/tests/test_tool_loop.py:126:    assert session.messages[0] == {"role": "assistant", "content": "Hello World"}
+plugin/tests/test_tool_loop.py:140:        {"id": "call_abc", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}}
+plugin/tests/test_tool_loop.py:146:        res = on_stream_done(('stream_done', {"content": "Let me check.", "tool_calls": tool_calls}))
+plugin/tests/test_tool_loop.py:198:        {"id": "call_abc", "type": "function", "function": {"name": "apply_document_content", "arguments": '{"content": "hi"}'}}
+plugin/tests/test_tool_loop.py:247:        {"id": "call_1", "type": "function", "function": {"name": "tool_one", "arguments": '{"arg": 1}'}},
+plugin/tests/test_tool_loop.py:248:        {"id": "call_2", "type": "function", "function": {"name": "tool_two", "arguments": '{"arg": 2}'}}
+plugin/tests/test_tool_loop.py:255:        on_stream_done(('stream_done', {"content": "Calling tools", "tool_calls": tool_calls}))
+plugin/tests/test_tool_loop.py:281:        return '{"result": "ok", "tool": "%s"}' % name
+plugin/tests/test_tool_loop.py:303:        {"id": "call_1", "type": "function", "function": {"name": "apply_document_content", "arguments": '{"content": "hi"}'}}
+plugin/tests/test_tool_loop.py:340:        "type": "function",
+plugin/tests/test_tool_loop.py:358:        return '{"result": "ok"}'
+plugin/tests/test_tool_loop.py:377:    assert tool_done_item[4] == '{"result": "ok"}'
+plugin/tests/test_tool_loop.py:387:        tool_calls_1 = [{"id": "call_1", "type": "function", "function": {"name": "dummy", "arguments": "{}"}}]
+plugin/tests/test_tool_loop.py:388:        on_stream_done(('stream_done', {"content": "step 1", "tool_calls": tool_calls_1}))
+plugin/tests/test_tool_loop.py:398:        tool_calls_2 = [{"id": "call_2", "type": "function", "function": {"name": "dummy", "arguments": "{}"}}]
+plugin/tests/test_tool_loop.py:399:        on_stream_done(('stream_done', {"content": "step 2", "tool_calls": tool_calls_2}))
+plugin/tests/test_tool_call_parsers.py:8:    text = 'Hello\n<tool_call>{"name": "test_tool", "arguments": {"cmd": "ls"}}</tool_call>'
+plugin/tests/test_tool_call_parsers.py:18:    text = '<tool_call>{"name": "test_tool", "arguments": {"cmd": "ls"}'
+plugin/tests/test_tool_call_parsers.py:27:    text = '<tool_call>{"name": "test_tool", "arguments": {"cmd": "ls", "args": ["-l", "-a"]}}</tool_call>'
+plugin/tests/test_tool_call_parsers.py:33:    assert tool_calls[0]["function"]["arguments"] == '{"cmd": "ls", "args": ["-l", "-a"]}'
+plugin/tests/test_tool_call_parsers.py:41:        '{"name": "test_tool", "arguments": {"cmd": "ls"}} \n'
+plugin/tests/test_tool_call_parsers.py:50:    assert tool_calls[0]["function"]["arguments"] == '{"cmd": "ls"}'
+plugin/tests/test_tool_call_parsers.py:56:        '<tool_call>{"name": "tool1", "arguments": {"a": 1}}</tool_call>\n'
+plugin/tests/test_tool_call_parsers.py:57:        '<tool_call>{"name": "tool2", "arguments": {"b": 2}}</tool_call>'
+plugin/tests/test_tool_call_parsers.py:74:        '```json\n{"city": "Paris"}\n```<｜tool▁call▁end｜><｜tool▁calls▁end｜>'
+plugin/tests/test_tool_call_parsers.py:87:        '```json\n{"city": "Paris", "days": [1, 2, 3]}\n```<｜tool▁call▁end｜><｜tool▁calls▁end｜>'
+plugin/tests/test_tool_call_parsers.py:95:    assert tool_calls[0]["function"]["arguments"] == '{"city": "Paris", "days": [1, 2, 3]}'
+plugin/tests/test_tool_call_parsers.py:103:        '```json\n{"city": "Paris"}\n```<｜tool▁call▁end｜>  \n'
+plugin/tests/test_tool_call_parsers.py:112:    assert tool_calls[0]["function"]["arguments"] == '{"city": "Paris"}'
+plugin/tests/test_tool_call_parsers.py:120:        '```json\n{"city": "Paris"}\n```<｜tool▁call▁end｜>'
+plugin/tests/test_tool_call_parsers.py:122:        '```json\n{"expr": "1+1"}\n```<｜tool▁call▁end｜>'
+plugin/tests/test_tool_call_parsers.py:131:    assert tool_calls[0]["function"]["arguments"] == '{"city": "Paris"}'
+plugin/tests/test_tool_call_parsers.py:133:    assert tool_calls[1]["function"]["arguments"] == '{"expr": "1+1"}'
+plugin/tests/test_tool_call_parsers.py:137:    text = 'Result[TOOL_CALLS]get_weather{"city": "Berlin"}'
+plugin/tests/test_tool_call_parsers.py:148:    text = 'Result[TOOL_CALLS]get_weather{"city": "Berlin", "days": [1, 2]}'
+plugin/tests/test_tool_call_parsers.py:153:    assert tool_calls[0]["function"]["arguments"] == '{"city": "Berlin", "days": [1, 2]}'
+plugin/tests/test_tool_call_parsers.py:156:    text2 = 'Result[TOOL_CALLS] [{"name": "get_weather", "arguments": {"city": "Berlin", "days": [1, 2]}}]'
+plugin/tests/test_tool_call_parsers.py:160:    assert tool_calls2[0]["function"]["arguments"] == '{"city": "Berlin", "days": [1, 2]}'
+plugin/tests/test_tool_call_parsers.py:165:    text = 'Result[TOOL_CALLS]   get_weather   { "city" : "Berlin" }  '
+plugin/tests/test_tool_call_parsers.py:172:    assert tool_calls[0]["function"]["arguments"] == '{ "city" : "Berlin" }'
+plugin/tests/test_tool_call_parsers.py:175:    text2 = 'Result \n [TOOL_CALLS] \n [ \n { "name" : "get_weather" , "arguments" : {"city": "Berlin"} } \n ] '
+plugin/tests/test_tool_call_parsers.py:181:    assert tool_calls2[0]["function"]["arguments"] == '{"city": "Berlin"}'
+plugin/tests/test_tool_call_parsers.py:185:    text = 'Result[TOOL_CALLS]get_weather{"city": "Berlin"}[TOOL_CALLS]calc{"expr": "2+2"}'
+plugin/tests/test_tool_call_parsers.py:192:    assert tool_calls[0]["function"]["arguments"] == '{"city": "Berlin"}'
+plugin/tests/test_tool_call_parsers.py:194:    assert tool_calls[1]["function"]["arguments"] == '{"expr": "2+2"}'
+plugin/tests/test_tool_call_parsers.py:198:    text = 'Result[TOOL_CALLS] [{"name": "get_weather", "arguments": {"city": "Berlin"}}]'
+plugin/tests/test_tool_call_parsers.py:208:    text = 'Result[TOOL_CALLS] [{"name": "get_weather", "arguments": {"city": "Berlin"}}, {"name": "calc", "arguments": {"expr": "2+2"}}]'
+plugin/tests/test_tool_call_parsers.py:215:    assert tool_calls[0]["function"]["arguments"] == '{"city": "Berlin"}'
+plugin/tests/test_tool_call_parsers.py:217:    assert tool_calls[1]["function"]["arguments"] == '{"expr": "2+2"}'
+plugin/tests/test_tool_call_parsers.py:221:    text = 'Output: <|python_tag|>\n{"name": "calc", "arguments": {"expr": "2+2"}}'
+plugin/tests/test_tool_call_parsers.py:231:    text = 'Output: <|python_tag|>\n{"name": "calc", "arguments": {"expr": "2+2", "flags": ["a"]}}'
+plugin/tests/test_tool_call_parsers.py:237:    assert tool_calls[0]["function"]["arguments"] == '{"expr": "2+2", "flags": ["a"]}'
+plugin/tests/test_tool_call_parsers.py:244:        '  "name": "calc", \n'
+plugin/tests/test_tool_call_parsers.py:245:        '  "arguments": {"expr": "2+2"} \n'
+plugin/tests/test_tool_call_parsers.py:254:    assert tool_calls[0]["function"]["arguments"] == '{"expr": "2+2"}'
+plugin/tests/test_tool_call_parsers.py:258:    text = 'Output: <|python_tag|>\n{"name": "calc", "arguments": {"expr": "2+2"}}\n{"name": "get_weather", "arguments": {"city": "Paris"}}'
+plugin/tests/test_tool_call_parsers.py:265:    assert tool_calls[0]["function"]["arguments"] == '{"expr": "2+2"}'
+plugin/tests/test_tool_call_parsers.py:267:    assert tool_calls[1]["function"]["arguments"] == '{"city": "Paris"}'
+plugin/tests/test_tool_call_parsers.py:273:    _, tc = p1.parse('<tool_call>{"name": "test", "arguments": {}}</tool_call>')
+plugin/tests/test_librarian_smol.py:33:        memory_tool.execute = MagicMock(return_value={"status": "ok"})
+plugin/tests/test_config_service.py:35:                    "type": "int",
+plugin/tests/test_config_service.py:40:                    "type": "string",
+plugin/tests/test_config_service.py:41:                    "default": "localhost",
+plugin/tests/test_config_service.py:45:                    "type": "string",
+plugin/tests/test_config_service.py:54:                    "type": "int",
