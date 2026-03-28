@@ -260,6 +260,9 @@ The project uses `ty` for static type checking.
     - **Protocols for Mixins**: When a mixin accesses attributes/methods from its host class, define a `Protocol` (e.g., `ToolLoopHost`) and annotate the mixin methods with `self: ToolLoopHost`.
     - **TYPE_CHECKING**: Wrap UNO and other complex imports in `if TYPE_CHECKING:` blocks to avoid runtime issues while still providing context to `ty`.
     - **Dynamic Attributes**: For objects with dynamic attributes (like attaching results to a `threading.Event`), use `setattr(obj, "name", val)` and `getattr(obj, "name")` to satisfy the static analyzer's "unresolved-attribute" rules.
+    - **Casting for UNO/Dynamic Types**: Use `cast(Any, ...)` for UNO constants (like `CellContentType.EMPTY`) that may lack full stubs.
+    - **Iterator Casting**: Use `cast(Iterable, agent.run(...))` for complex generators that `ty` cannot automatically infer as iterable.
+    - **None/Check Normalization**: Explicitly check for `None` before casting or converting (e.g., `int(val) if val is not None else 0`).
 - **Interface Signatures**: When overriding UNO interfaces (e.g., `XActionListener`, `XEventListener`), you must match the argument names in the `.pyi` stubs exactly (e.g., `actionPerformed(self, rEvent)`, `disposing(self, Source)`). Mismatched names will trigger `invalid-method-override` errors.
 
 ---

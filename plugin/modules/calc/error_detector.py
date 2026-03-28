@@ -31,11 +31,12 @@ CELL_REF_PATTERN = re.compile(r'\$?([A-Z]+)\$?(\d+)')
 
 try:
     from com.sun.star.table.CellContentType import EMPTY, VALUE, TEXT, FORMULA
-    from com.sun.star.sheet.FormulaResult import ERROR as RESULT_ERROR
+    from com.sun.star.sheet.FormulaResult import ERROR as RESULT_ERROR # type: ignore
     UNO_AVAILABLE = True
 except ImportError:
-    EMPTY, VALUE, TEXT, FORMULA = 0, 1, 2, 3
-    RESULT_ERROR = 4
+    from typing import Any, cast
+    EMPTY, VALUE, TEXT, FORMULA = cast(Any, 0), cast(Any, 1), cast(Any, 2), cast(Any, 3)
+    RESULT_ERROR = cast(Any, 4)
     UNO_AVAILABLE = False
 
 logger = logging.getLogger("writeragent.calc")

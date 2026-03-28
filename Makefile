@@ -95,7 +95,7 @@ endif
         lo-start lo-start-full lo-kill lo-restart \
         clean-cache nuke-cache nuke-cache-force unbundle \
         log log-tail lo-log test check-ext check-setup deploy \
-        set-config vendor docker-build compile-translations merge-translations refresh-pot preview-translations check
+        set-config vendor docker-build compile-translations merge-translations refresh-pot preview-translations check ty
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 
@@ -421,6 +421,8 @@ poc-deploy: poc-install
 	@sleep 10
 	@$(MAKE) poc-log
 
-check:
+check: ty
+
+ty:
 	@$(PYTHON) -c "import uno" 2>/dev/null || $(MAKE) fix-uno
-	-@$(PYTHON) -m ty check --exclude plugin/contrib/ || true
+	$(PYTHON) -m ty check --exclude plugin/contrib/

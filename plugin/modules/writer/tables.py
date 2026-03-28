@@ -197,7 +197,11 @@ class WriteTableCells(ToolBase):
                 try:
                     cell_obj = table.getCellByName(cell_ref)
                     try:
-                        cell_obj.setValue(float(value))
+                        from typing import SupportsFloat, SupportsIndex
+                        if isinstance(value, (str, bytes, bytearray, SupportsFloat, SupportsIndex)):
+                            cell_obj.setValue(float(value))
+                        else:
+                            cell_obj.setString(str(value))
                     except (ValueError, TypeError):
                         cell_obj.setString(str(value))
                     cells_written += 1
@@ -266,7 +270,9 @@ class CreateTable(ToolBase):
     def execute(self, ctx, **kwargs):
         rows = kwargs.get("rows")
         cols = kwargs.get("cols")
-        if rows < 1 or cols < 1:
+        rows_val = int(rows) if rows is not None else 0
+        cols_val = int(cols) if cols is not None else 0
+        if rows_val < 1 or cols_val < 1:
             return self._tool_error("rows and cols must be >= 1.")
 
         paragraph_index = kwargs.get("paragraph_index")

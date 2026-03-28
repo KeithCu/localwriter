@@ -341,7 +341,7 @@ def main() -> int:
     can still be imported inside LibreOffice without pulling them in.
     """
     try:
-        import officehelper  # type: ignore
+        import officehelper
     except ImportError:
         print("ERROR: officehelper module is not available; run with LibreOffice's Python.", flush=True)
         return 1

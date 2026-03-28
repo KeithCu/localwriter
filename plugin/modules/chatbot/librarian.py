@@ -157,11 +157,13 @@ TOOLS FOR COMPLETION:
 - Use 'switch_to_document_mode' with a friendly 'message' to END the onboarding and hand over to the document assistant.
 - NEVER explain that you lack document tools. Instead, just say "I'll switch you to document mode for that!" and call the switch tool.
 """
+            from typing import cast, Iterable
+            from plugin.contrib.smolagents.tools import Tool as SmolTool
             agent = ToolCallingAgent(
-                tools=[
+                tools=cast(list[SmolTool], [
                     SmolToolAdapter(MemoryTool(), ctx),
                     SmolToolAdapter(SwitchToDocumentModeTool(), ctx)
-                ],
+                ]),
                 model=smol_model,
                 max_steps=10,
                 instructions=instructions,
@@ -173,7 +175,8 @@ TOOLS FOR COMPLETION:
             final_ans = None
             switch_mode_requested = False
 
-            for step in agent.run(task, stream=True):
+            run_stream = cast(Iterable, agent.run(task, stream=True))
+            for step in run_stream:
                 if stop_checker and stop_checker():
                     return format_error_payload(ToolExecutionError("Librarian stopped by user.", code="USER_STOPPED"))
                 if isinstance(step, ToolCall):
