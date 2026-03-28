@@ -15,16 +15,19 @@ from unittest.mock import MagicMock, patch
 
 from plugin.framework.worker_pool import run_in_background
 
+from plugin.modules.chatbot.send_handlers import _agent_backend_label
+
 from plugin.modules.agent_backend.acp_connection import ACPConnection
+from plugin.modules.agent_backend.builtin import BuiltinBackend
 from plugin.modules.agent_backend.hermes_simple import HermesBackend
 
 
 class TestHermesBinaryDiscovery(unittest.TestCase):
     """Test binary / identity hooks used by ACPBackend._find_binary()."""
 
-    def test_binary_name_is_hermes_acp(self):
+    def test_binary_name_is_hermes(self):
         backend = HermesBackend()
-        self.assertEqual(backend.get_binary_name(), "hermes-acp")
+        self.assertEqual(backend.get_binary_name(), "hermes")
 
     def test_display_name(self):
         backend = HermesBackend()
@@ -47,16 +50,40 @@ class TestHermesBackendInit(unittest.TestCase):
 class TestIsAvailable(unittest.TestCase):
     """Test availability check."""
 
-    @patch("shutil.which", return_value="/usr/bin/hermes-acp")
-    def test_available_when_binary_in_path(self, mock_which):
+    @patch("os.path.isfile", return_value=True)
+    @patch("shutil.which", return_value="/usr/bin/hermes")
+    def test_available_when_hermes_in_path(self, mock_which, mock_isfile):
         backend = HermesBackend()
         self.assertTrue(backend.is_available(None))
+        self.assertEqual(backend._extra_args, ["acp"])
 
     @patch("shutil.which", return_value=None)
     @patch("os.path.isfile", return_value=False)
     def test_unavailable_when_no_binary(self, mock_isfile, mock_which):
         backend = HermesBackend()
         self.assertFalse(backend.is_available(None))
+
+    @patch("os.path.isfile", side_effect=lambda p: p == "/usr/bin/hermes")
+    @patch(
+        "shutil.which",
+        side_effect=lambda name: "/usr/bin/hermes" if name == "hermes" else None,
+    )
+    def test_available_when_hermes_cli_in_path(self, mock_which, mock_isfile):
+        """Official install uses `hermes` + `acp` subcommand."""
+        backend = HermesBackend()
+        self.assertTrue(backend.is_available(None))
+        self.assertEqual(backend._binary_path, "/usr/bin/hermes")
+        self.assertEqual(backend._extra_args, ["acp"])
+
+
+class TestAgentBackendDisplayLabel(unittest.TestCase):
+    """Error messages must use get_display_name(), not inherited display_name."""
+
+    def test_label_builtin(self):
+        self.assertEqual(_agent_backend_label(BuiltinBackend(), "builtin"), "Built-in")
+
+    def test_label_hermes(self):
+        self.assertEqual(_agent_backend_label(HermesBackend(), "hermes"), "Hermes")
 
 
 class TestACPConnection(unittest.TestCase):
@@ -183,11 +210,11 @@ class TestHandleSessionUpdate(unittest.TestCase):
 class TestSend(unittest.TestCase):
     """Test the send method with mocked connection."""
 
-    @patch("shutil.which", return_value="/usr/bin/hermes-acp")
+    @patch("shutil.which", return_value="/usr/bin/hermes")
     def test_send_error_when_process_fails(self, mock_which):
         """send() should queue an error if connection fails."""
         backend = HermesBackend()
-        backend._binary_path = "/nonexistent/hermes-acp"
+        backend._binary_path = "/nonexistent/hermes"
         q = queue.Queue()
 
         # Mock _ensure_connection to raise

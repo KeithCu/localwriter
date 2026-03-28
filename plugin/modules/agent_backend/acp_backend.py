@@ -41,7 +41,7 @@ class ACPBackend(AgentBackend):
     """Base class for ACP-based agent backends.
     
     Subclasses must implement:
-    - get_binary_name(): return binary name (e.g., "hermes-acp")
+    - get_binary_name(): return binary name (e.g., "hermes")
     - get_display_name(): return UI display name
     - get_agent_name(): return ACP agent name
     - get_env_vars(): return dict of environment variables to pass
@@ -93,7 +93,7 @@ class ACPBackend(AgentBackend):
         return None
 
     def get_binary_name(self) -> str:
-        """Return the binary name to search for (e.g., 'hermes-acp')."""
+        """Return the binary name to search for (e.g., 'hermes')."""
         raise NotImplementedError
 
     def get_display_name(self) -> str:

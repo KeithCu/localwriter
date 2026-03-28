@@ -80,6 +80,7 @@ class DelegateToSpecializedCalc(ToolBase):
         from plugin.framework.smol_model import WriterAgentSmolModel
         from plugin.contrib.smolagents.agents import ToolCallingAgent
         from plugin.contrib.smolagents.memory import ActionStep, FinalAnswerStep, ToolCall
+        from plugin.contrib.smolagents.toolcalling_agent_prompts import SPECIALIZED_EXAMPLES_BLOCK
 
         domain = kwargs.get("domain")
         task = kwargs.get("task")
@@ -191,6 +192,7 @@ class DelegateToSpecializedCalc(ToolBase):
                 max_steps=10,
                 instructions=instructions,
                 final_answer_tool_name="specialized_workflow_finished",
+                system_prompt_examples=SPECIALIZED_EXAMPLES_BLOCK,
             )
 
             final_ans = None

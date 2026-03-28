@@ -126,6 +126,7 @@ class LibrarianOnboardingTool(ToolBase):
             from plugin.framework.smol_model import WriterAgentSmolModel
             from plugin.contrib.smolagents.agents import ToolCallingAgent
             from plugin.contrib.smolagents.memory import ActionStep, FinalAnswerStep, ToolCall
+            from plugin.contrib.smolagents.toolcalling_agent_prompts import LIBRARIAN_EXAMPLES_BLOCK
             from plugin.modules.chatbot.memory import MemoryTool
         except (ImportError, ValueError, TypeError) as e:
             return format_error_payload(ToolExecutionError(f"Failed to load dependencies: {e}"))
@@ -156,10 +157,10 @@ LIBRARIAN PERSONALITY:
 You are the WriterAgent Librarian - a friendly, curious, and incredibly helpful assistant who wants to get to know users and help them succeed. Think of this like a first date with your AI colleague. You are happy to talk as long as the user wants!
 
 YOUR GOALS:
-1. Learn the user's preferred name and what to call them
-2. Discover their favorite color and preferences
-3. Understand how they work and what they need
-4. Make the experience enjoyable and personal
+1. Learn the user's name.
+2. Learn their favorite color to use in future documents.
+3. Learn their writing style and comfort level of LibreOffice.
+4. Make the experience enjoyable and personal. If they don't want to tell you information, don't push.
 5. IMPORTANT: Call switch_to_document_mode(message='...') when the user wants to do document work (writing, editing, etc.) or when you both agree the onboarding is complete.
 
 CONVERSATION STYLE:
@@ -186,6 +187,7 @@ TOOLS FOR COMPLETION:
                 max_steps=10,
                 instructions=instructions,
                 final_answer_tool_name="reply_to_user",
+                system_prompt_examples=LIBRARIAN_EXAMPLES_BLOCK,
             )
 
             task = f"### CONVERSATION HISTORY:\n{history_text or 'None'}\n\n### CURRENT QUERY:\n{query}"

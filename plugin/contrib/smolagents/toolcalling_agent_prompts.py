@@ -5,9 +5,74 @@ Default ToolCallingAgent prompt templates (bundled smolagents).
 Replaces the former toolcalling_agent.json for readability: real newlines in triple-quoted
 strings, same runtime strings as json.load produced. Loaded by ToolCallingAgent when
 prompt_templates is None.
+
+The system prompt shares one template; the few-shot block is swapped via __EXAMPLES_BLOCK__
+(see DEFAULT_EXAMPLES_BLOCK, LIBRARIAN_EXAMPLES_BLOCK, SPECIALIZED_EXAMPLES_BLOCK) or
+ToolCallingAgent(system_prompt_examples=...).
 """
 
-SYSTEM_PROMPT = """You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can.
+from __future__ import annotations
+
+import copy
+from typing import Any
+
+DEFAULT_EXAMPLES_BLOCK = """Task: "Which city has the highest population , Guangzhou or Shanghai?"
+
+Action:
+{
+    "name": "web_search",
+    "arguments": "Population Guangzhou"
+}
+Observation: ['Guangzhou has a population of 15 million inhabitants as of 2021.']
+
+
+Action:
+{
+    "name": "web_search",
+    "arguments": "Population Shanghai"
+}
+Observation: '26 million (2019)'
+
+Action:
+{
+  "name": "final_answer",
+  "arguments": "Shanghai"
+}
+"""
+
+LIBRARIAN_EXAMPLES_BLOCK = """Task: "Hi! I'd like to get started."
+
+Action:
+{
+  "name": "upsert_memory",
+  "arguments": {"key": "onboarding_started", "content": "true"}
+}
+Observation: {"status": "ok"}
+
+Action:
+{
+  "name": "final_answer",
+  "arguments": "Welcome! What should I call you?"
+}
+"""
+
+SPECIALIZED_EXAMPLES_BLOCK = """Task: "List the indexes in this document so we can plan edits."
+
+Action:
+{
+  "name": "list_indexes",
+  "arguments": {}
+}
+Observation: {"indexes": [{"name": "Table of Contents", "type": "com.sun.star.text.ContentIndex"}]}
+
+Action:
+{
+  "name": "final_answer",
+  "arguments": "Found one content index (Table of Contents). Say if you want to refresh or edit entries."
+}
+"""
+
+SYSTEM_PROMPT_TEMPLATE = """You are an expert assistant who can solve any task using tool calls. You will be given a task to solve as best you can.
 To do so, you have been given access to some tools.
 
 The tool call you write is an action: after the tool is executed, you will get the result of the tool call as an "observation".
@@ -35,29 +100,7 @@ Action:
 
 Here are a few examples using notional tools:
 ---
-
-Task: "Which city has the highest population , Guangzhou or Shanghai?"
-
-Action:
-{
-    "name": "web_search",
-    "arguments": "Population Guangzhou"
-}
-Observation: ['Guangzhou has a population of 15 million inhabitants as of 2021.']
-
-
-Action:
-{
-    "name": "web_search",
-    "arguments": "Population Shanghai"
-}
-Observation: '26 million (2019)'
-
-Action:
-{
-  "name": "final_answer",
-  "arguments": "Shanghai"
-}
+__EXAMPLES_BLOCK__
 
 Above example were using notional tools that might not exist for you. You only have access to these tools:
 __TOOLS_LIST__
@@ -73,6 +116,7 @@ Here are the rules you should always follow to solve your task:
 4. Never re-do a tool call that you previously did with the exact same parameters.
 
 Now Begin!"""
+
 
 PLANNING_INITIAL_PLAN = """You are a world expert at analyzing a situation to derive facts, and plan accordingly towards solving a task.
 Below I will present you a task. You will need to 1. build a survey of facts known or needed to solve the task, then 2. make a plan of action to solve the task.
@@ -195,7 +239,7 @@ FINAL_ANSWER_POST = """Based on the above, please provide an answer to the follo
 {{task}}"""
 
 TOOLCALLING_PROMPT_TEMPLATES = {
-    "system_prompt": SYSTEM_PROMPT,
+    "system_prompt": SYSTEM_PROMPT_TEMPLATE,
     "planning": {
         "initial_plan": PLANNING_INITIAL_PLAN,
         "update_plan_pre_messages": PLANNING_UPDATE_PRE,
@@ -210,3 +254,10 @@ TOOLCALLING_PROMPT_TEMPLATES = {
         "post_messages": FINAL_ANSWER_POST,
     },
 }
+
+
+def build_toolcalling_prompt_templates(examples_block: str) -> dict[str, Any]:
+    """Deep copy of TOOLCALLING_PROMPT_TEMPLATES with system_prompt examples baked in (no __EXAMPLES_BLOCK__)."""
+    out = copy.deepcopy(TOOLCALLING_PROMPT_TEMPLATES)
+    out["system_prompt"] = SYSTEM_PROMPT_TEMPLATE.replace("__EXAMPLES_BLOCK__", examples_block)
+    return out

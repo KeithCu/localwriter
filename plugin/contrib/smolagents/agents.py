@@ -127,8 +127,9 @@ def _render_toolcalling_system_prompt(
     tools: dict,
     managed_agents: dict,
     custom_instructions: str,
+    examples_block: str,
 ) -> str:
-    """Build system prompt without Jinja2. Replaces __TOOLS_LIST__, __MANAGED_AGENTS_BLOCK__, __CUSTOM_INSTRUCTIONS__."""
+    """Build system prompt without Jinja2. Replaces __EXAMPLES_BLOCK__, __TOOLS_LIST__, __MANAGED_AGENTS_BLOCK__, __CUSTOM_INSTRUCTIONS__."""
     tools_list = "\n".join("- " + (t.to_tool_calling_prompt() or "") for t in tools.values())
     managed_agents_block = ""
     if managed_agents and list(managed_agents.values()):
@@ -145,7 +146,8 @@ def _render_toolcalling_system_prompt(
         managed_agents_block = "\n".join(parts)
     custom_block = (custom_instructions or "").strip()
     return (
-        template_str.replace("__TOOLS_LIST__", tools_list)
+        template_str.replace("__EXAMPLES_BLOCK__", examples_block)
+        .replace("__TOOLS_LIST__", tools_list)
         .replace("__MANAGED_AGENTS_BLOCK__", managed_agents_block)
         .replace("__CUSTOM_INSTRUCTIONS__", custom_block)
     )
@@ -1291,6 +1293,8 @@ class ToolCallingAgent(MultiStepAgent):
         max_tool_threads (`int`, *optional*): Maximum number of threads for parallel tool calls.
             Higher values increase concurrency but resource usage as well.
             Defaults to `ThreadPoolExecutor`'s default.
+        system_prompt_examples (`str`, *optional*): Few-shot Action/Observation examples inserted at `__EXAMPLES_BLOCK__`
+            in the default system prompt. Defaults to web-search-style examples from `toolcalling_agent_prompts`.
         **kwargs: Additional keyword arguments.
     """
 
@@ -1303,9 +1307,11 @@ class ToolCallingAgent(MultiStepAgent):
         stream_outputs: bool = False,
         max_tool_threads: int | None = None,
         final_answer_tool_name: str = "final_answer",
+        system_prompt_examples: str | None = None,
         **kwargs,
     ):
         self.final_answer_tool_name = final_answer_tool_name
+        self.system_prompt_examples = system_prompt_examples
         if prompt_templates is None:
             from .toolcalling_agent_prompts import TOOLCALLING_PROMPT_TEMPLATES
 
@@ -1332,13 +1338,19 @@ class ToolCallingAgent(MultiStepAgent):
         return list(self.tools.values()) + list(self.managed_agents.values())
 
     def initialize_system_prompt(self) -> str:
+        from .toolcalling_agent_prompts import DEFAULT_EXAMPLES_BLOCK
+
         # Inject the dynamically configured final_answer tool name
         template_str = self.prompt_templates["system_prompt"].replace("final_answer", self.final_answer_tool_name)
+        examples_block = (
+            self.system_prompt_examples if self.system_prompt_examples is not None else DEFAULT_EXAMPLES_BLOCK
+        )
         return _render_toolcalling_system_prompt(
             template_str,
             tools=self.tools,
             managed_agents=self.managed_agents,
             custom_instructions=self.instructions or "",
+            examples_block=examples_block,
         )
 
     def _step_stream(

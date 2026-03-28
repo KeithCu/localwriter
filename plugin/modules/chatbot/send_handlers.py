@@ -20,6 +20,18 @@ if TYPE_CHECKING:
     from plugin.modules.chatbot.panel import ChatSession
     from plugin.modules.chatbot.state_machine import SendHandlerState, EffectInterpreter
 
+
+def _agent_backend_label(adapter: Any, backend_id: str) -> str:
+    """Human-readable backend name for errors (ACP backends implement get_display_name())."""
+    getter = getattr(adapter, "get_display_name", None)
+    if callable(getter):
+        try:
+            return getter()
+        except NotImplementedError:
+            pass
+    return getattr(adapter, "display_name", backend_id)
+
+
 class SendHandlerHost(Protocol):
     ctx: Any
     client: "LlmClient | None"
@@ -269,15 +281,28 @@ class SendHandlersMixin:
 
                 import json
 
-                res = get_tools().execute(
-                    "generate_image",
-                    tctx,
-                    **{
-                        "prompt": query_text,
-                        "aspect_ratio": mapped_aspect,
-                        "base_size": base_size_val,
-                        "image_model": image_model_text,
-                    }
+                from plugin.framework.config import get_config
+                from plugin.framework.queue_executor import execute_on_main_thread
+
+                # Worker thread must not call UNO-backed tools; execute_safe enforces main thread.
+                main_thread_timeout = float(
+                    int(get_config(self.ctx, "request_timeout") or 120)
+                )
+
+                def _run_generate_image():
+                    return get_tools().execute(
+                        "generate_image",
+                        tctx,
+                        **{
+                            "prompt": query_text,
+                            "aspect_ratio": mapped_aspect,
+                            "base_size": base_size_val,
+                            "image_model": image_model_text,
+                        },
+                    )
+
+                res = execute_on_main_thread(
+                    _run_generate_image, timeout=main_thread_timeout
                 )
                 result = json.dumps(res) if isinstance(res, dict) else str(res)
                 data = safe_json_loads(result, default={})
@@ -370,7 +395,7 @@ class SendHandlersMixin:
             from plugin.framework.i18n import _
             self._append_response(
                 "\n" + _("[Agent backend '{0}' is not available. Check Settings (path, install).]")
-                .format(getattr(adapter, "display_name", backend_id)) + "\n"
+                .format(_agent_backend_label(adapter, backend_id)) + "\n"
             )
             self._terminal_status = "Error"
             self._set_status(_("Error"))

@@ -92,8 +92,9 @@ WRITER_SPECIALIZED_DELEGATION = """SPECIALIZED WRITER (nested tools):
 The default tool list hides deep Writer features (text frames, in-document charts,
 images on the drawing layer, TOC/index refresh, field refresh, bookmarks, OLE, etc.).
 When the user needs those, call delegate_to_specialized_writer_toolset with:
-domain one of: styles, layout, embedded, shapes, charts, indexes, fields, bookmarks —
-and a clear task string. The sub-agent only sees tools for that domain."""
+domain one of: styles, layout, embedded, shapes, charts, indexes, fields, bookmarks, tracking, images —
+and a clear task string. The sub-agent only sees tools for that domain.
+For AI image generation/editing tools (generate_image, list_images, …), use domain=images."""
 
 DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
 
@@ -105,7 +106,7 @@ TOOLS:
 - get_document_content: Read document (full/selection/range) as HTML.
 - search_in_document: Find text (use return_offsets for character positions if needed for inspection).
 - styles_apply_to_selection: Apply a paragraph style to the selection (use after discovering style names if needed).
-- generate_image: Create a new image from a prompt, or edit the selected image (pass source_image='selection').
+- Images (generate, edit, list, insert): not in this default tool list. Use the chat sidebar "Use Image model" for direct image generation, or delegate_to_specialized_writer_toolset(domain=images, task=...) for image tools via the specialized sub-agent.
 
 {TRANSLATION_RULES}
 

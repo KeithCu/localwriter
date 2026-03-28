@@ -39,6 +39,7 @@ _AVAILABLE_DOMAINS = [
     "fields",
     "bookmarks",
     "tracking",
+    "images",
 ]
 
 
@@ -54,7 +55,8 @@ class DelegateToSpecializedWriter(ToolBase):
         "Delegates a specialized task to a sub-agent with a focused toolset. "
         "Use this for complex Writer operations like manipulating tables, "
         "charts, fields, styles, layout, embedded objects, shapes, indexes, "
-        "bookmarks, or track changes (tracking)."
+        "bookmarks, track changes (tracking), or in-document image work "
+        "(domain=images: generate, list, insert, replace images, etc.)."
     )
     parameters = {
         "type": "object",
@@ -90,6 +92,7 @@ class DelegateToSpecializedWriter(ToolBase):
         from plugin.framework.smol_model import WriterAgentSmolModel
         from plugin.contrib.smolagents.agents import ToolCallingAgent
         from plugin.contrib.smolagents.memory import ActionStep, FinalAnswerStep, ToolCall
+        from plugin.contrib.smolagents.toolcalling_agent_prompts import SPECIALIZED_EXAMPLES_BLOCK
 
         domain = kwargs.get("domain")
         task = kwargs.get("task")
@@ -203,6 +206,7 @@ class DelegateToSpecializedWriter(ToolBase):
                 max_steps=10,
                 instructions=instructions,
                 final_answer_tool_name="specialized_workflow_finished",
+                system_prompt_examples=SPECIALIZED_EXAMPLES_BLOCK,
             )
 
             final_ans = None

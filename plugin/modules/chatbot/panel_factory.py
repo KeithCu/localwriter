@@ -546,12 +546,14 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                             self.ctx = ctx
                             self.toggle_cb = toggle_cb
                             self.web_check = web_check
-                            def on_item_state_changed(self, rEvent):
-                                ev = rEvent
-                                is_checked = (getattr(ev, "Selected", 0) == 1)
-                                set_config(self.ctx, "chat_direct_image", is_checked)
-                                self.toggle_cb(is_checked)
-                                set_control_enabled(self.web_check, not is_checked)
+
+                        def on_item_state_changed(self, rEvent):
+                            ev = rEvent
+                            is_checked = (getattr(ev, "Selected", 0) == 1)
+                            set_config(self.ctx, "chat_direct_image", is_checked)
+                            self.toggle_cb(is_checked)
+                            set_control_enabled(self.web_check, not is_checked)
+
                     direct_image_check.addItemListener(DirectImageCheckListener(self.ctx, toggle_image_ui, web_research_check))
             except Exception as e:
                 from plugin.framework.errors import ConfigError

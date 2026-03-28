@@ -29,7 +29,7 @@ import hashlib
 import os
 import tempfile
 
-from plugin.modules.writer.base import ToolWriterShapeBase as ToolBase, ToolWriterImageBase, ToolBaseDummy
+from plugin.modules.writer.base import ToolWriterImageBase
 from plugin.modules.calc.base import ToolCalcImageBase
 from plugin.framework.image_tools import (
     insert_image, replace_image_in_place, get_selected_image_base64,
@@ -39,7 +39,7 @@ from plugin.framework.image_tools import (
 log = logging.getLogger("writeragent.writer")
 
 
-class GenerateImage(ToolBaseDummy):
+class GenerateImage(ToolWriterImageBase, ToolCalcImageBase):
     """Generate a new image from a prompt, or edit an existing image (Img2Img)."""
 
     name = "generate_image"
