@@ -76,6 +76,27 @@ _modules = []
 _init_lock = threading.Lock()
 _initialized = False
 
+_extension_update_check_scheduled = False
+_extension_update_check_lock = threading.Lock()
+
+
+def _schedule_extension_update_check_once(ctx):
+    """Run weekly update check at most once per process, after init_logging."""
+    global _extension_update_check_scheduled
+    with _extension_update_check_lock:
+        if _extension_update_check_scheduled:
+            log.info(
+                "extension update check: already queued this process, skipping duplicate schedule"
+            )
+            return
+        _extension_update_check_scheduled = True
+    from plugin.framework.worker_pool import run_in_background
+    from plugin.framework.extension_update_check import run_extension_update_check
+
+    log.info("extension update check: scheduling background worker")
+    run_in_background(run_extension_update_check, ctx, name="extension_update_check")
+
+
 def get_services():
     global _services
     if _services is None:
@@ -593,6 +614,7 @@ class MainBootstrapJob(unohelper.Base, XJobExecutor, XJob):
         """Called by the Jobs framework on OnStartApp."""
         try:
             bootstrap(self.ctx)
+            init_logging(self.ctx)
         except Exception as e:
             log.exception("MainBootstrapJob.execute failed to bootstrap: %s", e)
         return ()

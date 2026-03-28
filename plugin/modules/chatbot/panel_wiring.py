@@ -271,3 +271,13 @@ def _wireControls(self, root_window, has_recording, ensure_extension_on_path):
         if panel is not None:
             panel._refresh_controls_from_config()
     add_config_listener(on_config_changed)
+
+    # Weekly extension update check: run once per process, late (after sidebar UI is wired)
+    # so logging is initialized and AsyncCallback/msgbox are reliable.
+    try:
+        from plugin.framework.logging import init_logging
+        init_logging(self.ctx)
+        from plugin.main import _schedule_extension_update_check_once
+        _schedule_extension_update_check_once(self.ctx)
+    except Exception as e:
+        log.warning("extension update check schedule failed: %s", e)
