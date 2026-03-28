@@ -1,49 +1,76 @@
-# Localization Plan for LocalWriter
+# WriterAgent localization (i18n)
 
-This document outlines a high-level plan for adding multi-language support (localization/l10n and internationalization/i18n) to the LocalWriter extension.
+This document describes how translated UI strings are produced, loaded at runtime, and maintained. It replaces the older split between a “plan” and a short overview.
 
-## 1. Extension Metadata & Menus (`Addons.xcu`)
-The LibreOffice menu integration is defined natively in the XML configuration files (`Addons.xcu`).
-- **Approach:** LibreOffice supports localized child elements (`<value xml:lang="...">`) mapped to properties in `.xcu` files.
-- **Action:** Add `xml:lang` entries for each supported locale for every menu entry (e.g., "Chat with Document", "Edit Selection", "LocalWriter Settings"). LibreOffice will automatically show the correct one based on the user's UI language.
+## What ships today
 
-## 2. Detecting the User's Locale
-The Python backend needs to determine the current UI language of the LibreOffice instance to serve the correct translations for dialogs, errors, and system prompts.
-- **Approach:** Query the LibreOffice configuration via the UNO API.
-- **Action:** Create a utility function (e.g., in `core/config.py` or a new `core/i18n.py`) that reads the `/org.openoffice.Setup/L10N` property `ooLocale` (which returns strings like `"en-US"`, `"de"`, `"fr"`).
+- **GNU gettext** (`.pot` template, per-locale `writeragent.po`, compiled `writeragent.mo` under `plugin/locales/<lang>/LC_MESSAGES/`).
+- **Runtime loading** in [`plugin/framework/i18n.py`](../plugin/framework/i18n.py): `init_i18n()` installs a `gettext.translation` for domain `writeragent`; user code wraps strings with `_()`.
+- **Locale source**: LibreOffice’s UI locale from configuration path `/org.openoffice.Setup/L10N` → property `ooLocale` (see `get_lo_locale()`). Values like `en-US` are normalized to gettext-style `en_US`. If lookup fails, the code falls back to `en_US` so behavior stays predictable in tests or early init.
+- **Missing strings**: `fallback=True` on the translation object means untranslated or absent catalogs show the English `msgid`.
 
-## 3. Translating Python Strings and UI Elements
-Any strings surfaced to the user from Python code (error messages in `core/api.py`, sidebar panel labels like "Send" and "Stop" in `chat_panel.py`) must be wrapped in a translation function commonly named `_()`.
+There is **no separate “UI language” override in `writeragent.json`** today: displayed language follows LibreOffice’s UI locale plus whichever `.mo` files are packaged for that locale.
 
-### Option A: Simple Dictionary File (JSON)
-Load a `locales.json` file mapping keys to nested locale objects or vice versa.
-- **Pros:** Very simple to implement, zero standard library overhead, easily readable and editable by non-developers, requires no compilation. It is a very simple structure for a small number of strings.
-- **Cons:** No built-in pluralization, no standard translation tooling support. You have to write a custom string formatter if variables need to be injected into strings.
+## How strings get into the template
 
-### Option B: Python's `gettext` Module (Recommended)
-Use GNU's `gettext` format (`.po`/`.mo` files), which is Python's standard library solution (`import gettext`).
-- **Pros:** Industry standard, supports complex pluralization rules natively, and many mature open-source tools for translators (e.g., Poedit, Weblate, Crowdin) can extract strings from your source code automatically and help manage translations.
-- **Cons:** Requires a compilation step (`.po` -> `.mo`) during the `build.sh` script, slightly more complex initial setup.
+1. **Python**: User-visible literals should use `_('...')` (or the same pattern with format strings). After `init_i18n()`, `_()` delegates to gettext.
 
-**Difference & Recommendation:** A JSON dictionary is basically just a basic key-value lookup you'd implement yourself. `gettext` is a robust system designed specifically for software translation. Given that you may want community contributions for translations, `gettext` is highly recommended because you can just drop a `.pot` file onto a translation platform and the community can handle the rest.
+2. **XDL dialogs**: English strings in `.xdl` files are not read by `xgettext` directly. [`scripts/extract_xdl_strings.py`](../scripts/extract_xdl_strings.py) generates a temporary `plugin/xdl_strings.py` containing `_()` calls so those strings are picked up; that stub is removed after extraction.
 
-## 4. Dialog Localization (`.xdl` Files)
-Both `SettingsDialog` and `EditInputDialog` use XDL layouts which have hardcoded labels. While LibreOffice *does* support parallel `.default` locale files for `.xdl`, managing them programmatically is often easier for Python extensions.
-- **Approach:** Programmatically inject translated strings during dialog initialization.
-- **Action:** In the dialog creation logic (`MainJob.__init__` or similar), loop through the controls (e.g., labels, button text, frames) by their IDs and set their `Model.Label` or `Model.Text` properties using your `_()` translation function before displaying the dialog.
+3. **Module metadata**: [`scripts/merge_module_yaml_into_pot.py`](../scripts/merge_module_yaml_into_pot.py) merges translatable entries from `plugin/modules/**/module.yaml` (titles, labels, options) into the same POT, deduplicated by `msgid`. Requires `polib` and PyYAML.
 
-## 5. AI System Prompts and Output Language
-A unique aspect of an AI extension is ensuring the LLM understands its role and replies in the correct language.
-- **The Challenge:** Complex instructions (like the detailed descriptions of Calc and Writer tools) are often better understood by local or smaller LLMs if they are written in English.
-- **Action / Policy:** 
-    1. Keep the base system prompts (e.g., tool schemas, formatting instructions) in English.
-    2. Dynamically append a strong localized directive to the end of the system prompt (e.g., `"IMPORTANT: All your conversational responses to the user MUST be in {user_language}."`).
-    3. Allow users to override this behavior in the Settings. If a user natively speaks French and prefers to rewrite the system instructions fully in French within their "Additional Instructions" box, they can do so.
+4. **Dialogs at runtime**: [`translate_dialog` in `plugin/framework/dialogs.py`](../plugin/framework/dialogs.py) walks controls and applies translated text. **Do not** pass raw saved config values through `_()` in [`legacy_ui.py`](../plugin/framework/legacy_ui.py): empty strings can pick up gettext header garbage. Config validation strips bogus gettext headers; see [`plugin/tests/test_i18n.py`](../plugin/tests/test_i18n.py).
 
-## 6. Implementation Steps
-1. **Infrastructure:** Add `core/i18n.py` to get the locale from UNO, and setup the `gettext` (or JSON) loading logic. Expose the `_()` macro.
-2. **Tagging:** Go through `core/api.py`, `chat_panel.py`, `main.py` and wrap user-facing strings in the `_("Text")` function.
-3. **Translation Files:** Generate the base translation file (e.g., `messages.pot`), and perhaps create the first translation (e.g., Spanish or German) to test the pipeline. Update `build.sh` to compile `.po` to `.mo` if using `gettext`.
-4. **Dialogs:** Update the dialog initialization code to read from the translation function and overwrite the English defaults in the `.xdl` files.
-5. **Menu:** Manually update `Addons.xcu` with supported languages.
-6. **Prompts:** Inject the language directive into the `get_chat_system_prompt_for_document` logic based on the detected `ooLocale`.
+## Build and maintenance commands
+
+| Target | Role |
+|--------|------|
+| `make extract-strings` | Full pipeline: XDL stub → `xgettext` → YAML merge → **delete stub** → **`merge-translations`** on every `writeragent.po`. Use when sources change and you want POT and all POs updated. |
+| `make refresh-pot` | Regenerates `writeragent.pot` only (same extraction steps) **without** merging into `.po` files. |
+| `make preview-translations` | `refresh-pot` then `scripts/translate_missing.py --preview` (status table of completion vs POT). Used by normal `make build`. |
+| `make merge-translations` | For each `writeragent.po`: `msgmerge --update` from `writeragent.pot`, then `msgattrib --no-obsolete` so removed strings do not linger as obsolete entries. |
+| `make compile-translations` | `msgfmt` every `.po` to `.mo` (required for LibreOffice to load catalogs efficiently). |
+| `make add-language LANG=xx` | Creates `plugin/locales/xx/LC_MESSAGES/writeragent.po` from the POT and compiles an initial `.mo`. |
+
+**Note:** `make build` runs `preview-translations` (refresh POT + preview), not necessarily the full `extract-strings` + merge. Run **`make extract-strings`** when you add or change marked strings and need all locale files updated from the new template.
+
+**Release / AI assist:** `make release-build` uses `auto-translate`, which regenerates strings with `extract-strings`, previews, then (if `OPENROUTER_API_KEY` is set) runs `translate_missing.py --execute` to fill gaps. Manual runs: `make translate-missing` or `python scripts/translate_missing.py --execute`.
+
+## AI-assisted gap filling (`scripts/translate_missing.py`)
+
+Optional automation for translators:
+
+- Compares each locale’s `writeragent.po` to `writeragent.pot` and finds missing, empty, or **fuzzy** entries.
+- Prints a **completion table** (POT totals, pending, done, percentage) unless `--skip-initial-status`.
+- Sends strings to an OpenAI-compatible chat API (default model `x-ai/grok-4.1-fast`, default endpoint OpenRouter) in batches; uses project auth helpers / `writeragent.json` keys / `OPENROUTER_API_KEY` when available.
+- Preserves leading/trailing whitespace on strings by peeling it before the API call and re-applying it to results.
+
+This is a productivity aid, not a substitute for human review of tone and terminology.
+
+## Extension menus and registry (`.xcu`)
+
+LibreOffice supports localized properties with `<value xml:lang="...">`. The project’s `.xcu` files use this shape but **mostly only define `en-US` / `en` today**. Adding more languages is a matter of supplying parallel `<value xml:lang="de">` (etc.) entries for the same properties—no Python change required for those labels.
+
+## LLM prompts vs UI language
+
+A practical policy (from earlier design notes, still relevant):
+
+- Keep **system/tool instructions** in English when that improves model comprehension (especially for smaller or local models).
+- Add or keep a **clear instruction** that conversational replies to the user should match the user’s language when that differs from the prompt language.
+- Users can still override behavior with **additional instructions** in Settings.
+
+This is separate from gettext: gettext handles fixed UI strings; the model handles free-form chat language.
+
+## Future considerations (not implemented as a tracked roadmap)
+
+These are useful directions, not commitments:
+
+- **Pluralization**: Expose `ngettext` (and possibly `npgettext`) from `i18n.py` anywhere English uses “one vs many” or per-locale plural rules.
+- **Message context**: Use `pgettext` / `msgctxt` where the same English word must translate differently (e.g. “Table” in Writer vs Calc).
+- **RTL locales**: Arabic, Hebrew, etc. may need layout or UNO adjustments beyond string translation; test dialogs and sidebar with RTL UI.
+- **Automated checks**: Optional tests or lint rules that flag unwrapped user strings in high-traffic UI modules; CI jobs that run `extract-strings` and fail on accidental POT drift if desired.
+- **Translation platform**: Weblate, Crowdin, or Transifex if community scale grows; export `writeragent.pot` as the handoff artifact.
+- **String freeze**: Before a release aimed at translators, freeze `msgid` churn to reduce merge noise.
+- **Coverage reporting**: Extend or reuse the logic in `translate_missing.py`’s status output to publish a simple per-language table in docs or CI logs.
+
+For day-to-day contributor steps (extract, merge, Poedit, compile), see [`plugin/locales/README.md`](../plugin/locales/README.md).
