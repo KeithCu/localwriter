@@ -79,3 +79,4 @@ venvPath = "."
 venv = ".venv"
 include = ["plugin"]
 exclude = ["plugin/contrib", "plugin/tests"]
+reportMissingModuleSource = false
