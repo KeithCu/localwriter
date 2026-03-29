@@ -60,7 +60,7 @@ WORK HISTORY
 EDUCATION
 state university  bs computer science 2016  gpa 3.8
 
-* skills
+* technical abilities
 python  java  sql  docker  kubernetes
 """
 
@@ -68,7 +68,7 @@ REFORMAT_RESUME = {
     "document_content": PLAIN_RESUME,
     "user_question": "Reformat this plain text resume as professional. Use clear section headings and consistent formatting.",
     "task_id": "reformat_resume",
-    "expected_contains": ["John", "Work", "Skills", "Education", "Acme", "TechStart"],
+    "expected_contains": ["John", "Work", "Abilities", "Education", "Acme", "TechStart"],
     "is_non_trivial": True,
     "category": "creative",
     "rubric": "Professional resume format. Clear section headings (WORK HISTORY, EDUCATION, SKILLS). Consistent bullet points for all work experience items.",
