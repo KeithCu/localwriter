@@ -94,12 +94,18 @@ class GenerateImage(ToolWriterImageBase):
 
     def execute(self, ctx: typing.Any, **args: typing.Any) -> typing.Any:
         prompt = args.get("prompt", "")
-        from plugin.framework.config import get_config_dict, as_bool, get_text_model, get_config, update_lru_history
+        from plugin.framework.config import (
+            get_config_dict,
+            as_bool,
+            get_text_model,
+            get_config_int,
+            update_lru_history,
+        )
         from plugin.framework.queue_executor import execute_on_main_thread
 
         status_callback = getattr(ctx, "status_callback", None)
         config = get_config_dict(ctx.ctx)
-        mt_timeout = float(int(get_config(ctx.ctx, "request_timeout") or 120))
+        mt_timeout = float(get_config_int(ctx.ctx, "request_timeout", default=120))
 
         provider = args.get("provider", config.get("image_provider", "aihorde"))
         add_to_gallery = as_bool(config.get("image_auto_gallery", True))

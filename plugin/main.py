@@ -506,11 +506,13 @@ def _load_icon_graphic(module_name, icon_filename, ctx=None):
         import uno
         if ctx is None:
             ctx = uno.getComponentContext()
-        smgr = getattr(ctx, "ServiceManager", getattr(ctx, "getServiceManager", lambda: None)())
+        assert ctx is not None
+        ctx_any = cast(Any, ctx)
+        smgr = getattr(ctx_any, "ServiceManager", getattr(ctx_any, "getServiceManager", lambda: None)())
         assert smgr is not None
         gp = cast(Any, smgr).createInstanceWithContext(
-            "com.sun.star.graphic.GraphicProvider", ctx)
-        ext_url = get_extension_url(ctx)
+            "com.sun.star.graphic.GraphicProvider", ctx_any)
+        ext_url = get_extension_url(ctx_any)
         if not ext_url:
             return None
         pv = PropertyValue()

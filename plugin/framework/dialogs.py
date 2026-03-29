@@ -675,12 +675,13 @@ def _load_xdl(relative_path):
 
     ctx = get_ctx()
     assert ctx is not None
-    smgr = getattr(ctx, "ServiceManager", getattr(ctx, "getServiceManager", lambda: None)())
+    ctx_any = cast(Any, ctx)
+    smgr = getattr(ctx_any, "ServiceManager", getattr(ctx_any, "getServiceManager", lambda: None)())
     assert smgr is not None
     base = get_extension_url()
     url = base + "/" + relative_path
     dp = cast(Any, smgr).createInstanceWithContext(
-        "com.sun.star.awt.DialogProvider2", ctx)
+        "com.sun.star.awt.DialogProvider2", ctx_any)
     return dp.createDialog(url)
 
 

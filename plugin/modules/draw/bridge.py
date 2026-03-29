@@ -48,7 +48,9 @@ class DrawBridge:
         """
         if page is None:
             page = self.get_active_page()
-        
+        if page is None:
+            raise RuntimeError("No draw page available to create shape.")
+
         shape = self.doc.createInstance(shape_type)
         page.add(shape)
         
@@ -61,6 +63,8 @@ class DrawBridge:
     def get_shapes(self, page=None):
         if page is None:
             page = self.get_active_page()
+        if page is None:
+            raise RuntimeError("No draw page available to list shapes.")
         shapes = []
         for i in range(page.getCount()):
             shapes.append(page.getByIndex(i))

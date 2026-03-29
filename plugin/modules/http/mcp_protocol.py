@@ -674,7 +674,11 @@ class MCPProtocolHandler:
         from plugin.main import get_services
         if command == "settings":
             from plugin.framework.legacy_ui import settings_box
-            config_svc = get_services().config
+            registry = get_services()
+            if registry is None:
+                return {"error": "Services not initialized"}
+            if registry.get("config") is None:
+                return {"error": "No config service"}
             ctx = None
             try:
                 import uno

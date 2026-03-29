@@ -17,6 +17,7 @@
 """HTTP server module — owns the HTTP server lifecycle."""
 
 import logging
+from typing import Any, cast
 
 from plugin.framework.module_base import ModuleBase
 
@@ -231,10 +232,14 @@ class HttpModule(ModuleBase):
         msg = _("HTTP server running") + "\n" + _("Routes: {0}").format(routes)
 
         try:
-            smgr = ctx.ServiceManager
+            assert ctx is not None
+            ctx_any = cast(Any, ctx)
+            smgr = getattr(ctx_any, "ServiceManager", getattr(ctx_any, "getServiceManager", lambda: None)())
+            assert smgr is not None
+            sm_any = cast(Any, smgr)
 
-            dlg_model = smgr.createInstanceWithContext(
-                "com.sun.star.awt.UnoControlDialogModel", ctx)
+            dlg_model = sm_any.createInstanceWithContext(
+                "com.sun.star.awt.UnoControlDialogModel", ctx_any)
             dlg_model.Title = _("Server Status")
             dlg_model.Width = 230
             dlg_model.Height = 80
@@ -246,11 +251,11 @@ class HttpModule(ModuleBase):
 
             add_dialog_button(dlg_model, "OKBtn", _("OK"), 170, 58, 50, 14, push_button_type=1)
 
-            dlg = smgr.createInstanceWithContext(
-                "com.sun.star.awt.UnoControlDialog", ctx)
+            dlg = sm_any.createInstanceWithContext(
+                "com.sun.star.awt.UnoControlDialog", ctx_any)
             dlg.setModel(dlg_model)
-            toolkit = smgr.createInstanceWithContext(
-                "com.sun.star.awt.Toolkit", ctx)
+            toolkit = sm_any.createInstanceWithContext(
+                "com.sun.star.awt.Toolkit", ctx_any)
             dlg.createPeer(toolkit, None)
             dlg.execute()
             dlg.dispose()

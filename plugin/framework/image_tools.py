@@ -266,11 +266,11 @@ def get_selected_image_base64(model, ctx=None):
         
         if ctx is None:
             ctx = uno.getComponentContext()
-        # For type checking compatibility since ctx might be Any:
-        # We know ctx has ServiceManager or getServiceManager
-        sm = getattr(ctx, "ServiceManager", getattr(ctx, "getServiceManager", lambda: None)())
+        assert ctx is not None
+        ctx_any = cast(Any, ctx)
+        sm = getattr(ctx_any, "ServiceManager", getattr(ctx_any, "getServiceManager", lambda: None)())
         assert sm is not None
-        gp = cast(Any, sm).createInstanceWithContext("com.sun.star.graphic.GraphicProvider", ctx)
+        gp = cast(Any, sm).createInstanceWithContext("com.sun.star.graphic.GraphicProvider", ctx_any)
         
         with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
             tmp_url = uno.systemPathToFileUrl(tmp.name)

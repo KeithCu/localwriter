@@ -26,6 +26,7 @@ import logging
 import socketserver
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from typing import Any, cast
 from plugin.framework.utils import get_url_path, get_url_query_dict
 
 from plugin.framework.errors import safe_json_loads
@@ -82,10 +83,12 @@ class GenericRequestHandler(BaseHTTPRequestHandler):
                 query = get_url_query_dict(self.path)
                 if route.main_thread:
                     from plugin.framework.queue_executor import QueueExecutor
-                    status, data = QueueExecutor().execute(
+                    result: Any = QueueExecutor().execute(
                         route.handler, body, self.headers, query)
+                    status, data = cast(tuple[int, Any], result)
                 else:
-                    status, data = route.handler(body, self.headers, query)
+                    result = route.handler(body, self.headers, query)
+                    status, data = cast(tuple[int, Any], result)
                 self._send_json(status, data)
         except Exception as e:
             log.error("%s %s error: %s", method, path, e, exc_info=True)

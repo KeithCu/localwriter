@@ -81,7 +81,7 @@ class ModuleBase(ABC):
         """Handle an action dispatched from menu/shortcut. Override in subclass."""
         log.warning("Unhandled action '%s' on module '%s'", action, self.name)
 
-    def get_menu_text(self, action):
+    def get_menu_text(self, action) -> str | None:
         """Return dynamic menu text for an action, or None for default.
 
         Override in subclass to provide state-dependent menu labels.
@@ -89,7 +89,7 @@ class ModuleBase(ABC):
         """
         return None
 
-    def get_menu_icon(self, action):
+    def get_menu_icon(self, action) -> str | None:
         """Return dynamic icon name prefix for an action, or None for default.
 
         Override in subclass to provide state-dependent menu icons.

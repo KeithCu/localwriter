@@ -53,11 +53,12 @@ class QueueExecutor:
             try:
                 import uno
                 ctx = uno.getComponentContext()
-                # Use getattr to satisfy type checkers that may not know ctx has ServiceManager
-                smgr = getattr(ctx, "ServiceManager", getattr(ctx, "getServiceManager", lambda: None)())
+                assert ctx is not None
+                ctx_any = cast(Any, ctx)
+                smgr = getattr(ctx_any, "ServiceManager", getattr(ctx_any, "getServiceManager", lambda: None)())
                 assert smgr is not None
                 self._async_callback_service = cast(Any, smgr).createInstanceWithContext(
-                    "com.sun.star.awt.AsyncCallback", ctx)
+                    "com.sun.star.awt.AsyncCallback", ctx_any)
                 if self._async_callback_service is None:
                     raise RuntimeError("createInstance returned None")
                 self._callback_instance = self._make_callback_instance()
