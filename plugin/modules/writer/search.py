@@ -110,6 +110,7 @@ class SearchInDocument(ToolBase):
                 para_texts.append("")
 
         # Compile regex if needed
+        compiled = None
         if use_regex:
             flags = 0 if case_sensitive else re_mod.IGNORECASE
             try:
@@ -128,7 +129,7 @@ class SearchInDocument(ToolBase):
             if not ptext:
                 continue
 
-            if use_regex:
+            if use_regex and compiled is not None:
                 for m in compiled.finditer(ptext):
                     total_count += 1
                     if len(matches) < max_results:

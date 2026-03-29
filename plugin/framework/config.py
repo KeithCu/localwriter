@@ -444,7 +444,7 @@ def get_config(ctx, key):
 
     return _resolve_default(key)
 
-def get_config_int(ctx, key, default=0):
+def get_config_int(ctx, key, default: int = 0) -> int:
     """Get a config value as int. Accepts float or string (e.g. 50.0 or \"50.00\") from JSON/UI; returns int. Use for int settings like web_cache_max_mb, extend_selection_max_tokens."""
     v = get_config(ctx, key)
     try:

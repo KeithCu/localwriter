@@ -40,18 +40,18 @@ try:
     )
 except ImportError:
 
-    class _XPromptFunctionStub:
+    class _XPromptFunctionStub(unohelper.Base):
         pass
 
     _XPromptFunctionBase = _XPromptFunctionStub
 
-from plugin.framework.config import get_config, get_api_config
+from plugin.framework.config import get_config, get_api_config, get_config_int
 from plugin.modules.http.client import LlmClient
 
 import logging
 log = logging.getLogger(__name__)
 
-class PromptFunction(unohelper.Base, _XPromptFunctionBase):
+class PromptFunction(unohelper.Base, _XPromptFunctionBase):  # pyright: ignore[reportGeneralTypeIssues] — runtime IDL base from LO
     def __init__(self, ctx):
         log.debug("=== PromptFunction.__init__ called ===")
         self.ctx = ctx
@@ -136,11 +136,13 @@ class PromptFunction(unohelper.Base, _XPromptFunctionBase):
             try:
                 system_prompt = systemPrompt if systemPrompt is not None else get_config(self.ctx, "extend_selection_system_prompt")
                 model_name = model if model is not None else (get_config(self.ctx, "text_model") or get_config(self.ctx, "model") or "")
-                max_tokens = maxTokens if maxTokens is not None else get_config(self.ctx, "calc_prompt_max_tokens")
-                try:
-                    max_tokens = int(max_tokens)
-                except (TypeError, ValueError):
-                    max_tokens = 70
+                if maxTokens is not None:
+                    try:
+                        max_tokens = int(maxTokens)
+                    except (TypeError, ValueError):
+                        max_tokens = 70
+                else:
+                    max_tokens = get_config_int(self.ctx, "calc_prompt_max_tokens", 70)
 
                 messages = []
                 if system_prompt:

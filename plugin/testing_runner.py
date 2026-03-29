@@ -13,7 +13,7 @@ import logging
 import sys
 import json
 import traceback
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 log = logging.getLogger(__name__)
 
@@ -211,16 +211,22 @@ def run_all_tests(ctx: Any) -> str:
     except ImportError:
         model = None
 
+    def _doc_type_never(model: Any) -> bool:
+        return False
+
+    is_writer_fn: Callable[[Any], bool]
+    is_calc_fn: Callable[[Any], bool]
+    is_draw_fn: Callable[[Any], bool]
     try:
         from plugin.framework.document import is_writer, is_calc, is_draw
-    except ImportError:
-        def is_writer(m): return False
-        def is_calc(m): return False
-        def is_draw(m): return False
 
-    writer_doc = model if (model is not None and is_writer(model)) else None
-    calc_doc = model if (model is not None and is_calc(model)) else None
-    draw_doc = model if (model is not None and is_draw(model)) else None
+        is_writer_fn, is_calc_fn, is_draw_fn = is_writer, is_calc, is_draw
+    except ImportError:
+        is_writer_fn = is_calc_fn = is_draw_fn = _doc_type_never
+
+    writer_doc = model if (model is not None and is_writer_fn(model)) else None
+    calc_doc = model if (model is not None and is_calc_fn(model)) else None
+    draw_doc = model if (model is not None and is_draw_fn(model)) else None
 
     # Initialize the tool registry (Writer/Calc/Draw modules) before loading any
     # UNO test file. Each suite below snapshots/restores sys.modules (uno, com,
@@ -279,8 +285,8 @@ def run_all_tests(ctx: Any) -> str:
                 module_name = filename[:-3]
                 module_path = os.path.join(tests_dir, filename)
 
+                restore_snapshot: Dict[str, Any] | None = None
                 try:
-                    restore_snapshot = None
                     restore_snapshot = {
                         k: sys.modules.get(k, _MISSING) for k in _SYS_MODULE_KEYS_TO_RESTORE
                     }

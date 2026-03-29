@@ -94,7 +94,7 @@ endif
         dev-deploy dev-deploy-remove \
         lo-start lo-start-full lo-kill lo-restart \
         clean-cache nuke-cache nuke-cache-force unbundle \
-        log log-tail lo-log test check-ext check-setup deploy \
+        log log-tail lo-log test test-run typecheck check-ext check-setup deploy \
         set-config vendor docker-build compile-translations merge-translations refresh-pot preview-translations check ty mypy pyright
 
 # ── Help ─────────────────────────────────────────────────────────────────────
@@ -105,8 +105,8 @@ help:
 	@echo "================================="
 	@echo ""
 	@echo "Build:"
-	@echo "  make build                  Build .oxt with plugin/tests (compiles gettext .mo, UI test menu + make test)"
-	@echo "  make release               Run make test, then build .oxt without bundled tests (smaller; use before uploading)"
+	@echo "  make build                  Build .oxt with plugin/tests (runs ty, then gettext/UI steps)"
+	@echo "  make release                Run make test first, then build .oxt without bundled tests"
 	@echo "  make build-no-recording     Build .oxt without voice recording (no contrib/audio, no Record button)"
 	@echo "  make xcu                    Generate XCS/XCU from config schemas"
 	@echo "  make clean                  Remove build artifacts"
@@ -141,10 +141,12 @@ help:
 	@echo "  make check-setup            Verify dev stack (Python, LO, make, ...)"
 	@echo "  make check-ext              Verify extension is registered"
 	@echo "  make set-config             List all config keys"
-	@echo "  make test                   Run pytest (plugin/tests), then in-process LO tests (plugin.testing_runner)"
+	@echo "  make test                   Run ty, mypy, pyright, then pytest + in-process LO tests (types before tests)"
+	@echo "  make test-run               Pytest + LO tests only (skip typecheck; for quick reruns)"
+	@echo "  make typecheck              Run ty, then mypy, then pyright (same scope as each single target)"
+	@echo "  make check                  Quick gate: ty only (also used implicitly before fast workflows)"
 	@echo "  make fix-uno                Fix uno import in .venv (adds system UNO paths to .pth)"
-	@echo "  make mypy                   Optional: run mypy on plugin/ (not part of make check; see docs/type-checking.md)"
-	@echo "  make pyright                Optional: run Pyright on plugin/ (Pylance-aligned CLI; not part of make check)"
+	@echo "  make mypy / make pyright    Single-tool runs (see docs/type-checking.md)"
 	@echo ""
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -181,21 +183,21 @@ preview-translations: refresh-pot
 
 
 ifeq ($(USE_DOCKER),1)
-build: check preview-translations compile-translations
+build: ty preview-translations compile-translations
 	@$(MAKE) docker-build
 else
-build: check preview-translations vendor manifest compile-translations
+build: ty preview-translations vendor manifest compile-translations
 	@echo "Building $(EXTENSION_NAME).oxt (with tests)..."
 	$(PYTHON) $(SCRIPTS)/build_oxt.py --output build/$(EXTENSION_NAME).oxt $(if $(filter 1,$(NO_RECORDING)),--no-recording)
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 endif
 
-build-no-recording: preview-translations vendor manifest compile-translations
+build-no-recording: ty preview-translations vendor manifest compile-translations
 	@echo "Building $(EXTENSION_NAME).oxt (no voice recording)..."
 	$(PYTHON) $(SCRIPTS)/build_oxt.py --no-recording --output build/$(EXTENSION_NAME).oxt
 	@echo "Done: build/$(EXTENSION_NAME).oxt  (bundle in build/bundle/)"
 
-# Run tests first (sub-make so ordering holds even with make -j).
+# Sub-make so ordering holds even with make -j: full test (typecheck + pytest + LO) then release bundle.
 release:
 	@$(MAKE) test
 	@$(MAKE) release-build
@@ -378,9 +380,19 @@ check-ext:
 # For LO tests: use Python that has uno (same as "python -m plugin.testing_runner").
 # We try to detect one that has the 'uno' module available, falling back to 'python' if none found.
 LO_PYTHON ?= $(shell python3 -c "import uno" 2>/dev/null && echo python3 || (python -c "import uno" 2>/dev/null && echo python || echo python))
-test:
+
+typecheck:
+	@$(MAKE) ty
+	@$(MAKE) mypy
+	@$(MAKE) pyright
+
+test-run:
 	$(PYTHON) -m pytest plugin/tests
 	$(LO_PYTHON) -m plugin.testing_runner
+
+test:
+	@$(MAKE) typecheck
+	@$(MAKE) test-run
 
 # ── POC extension ───────────────────────────────────────────────────────────
 

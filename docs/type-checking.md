@@ -10,7 +10,7 @@ WriterAgent uses [Astral’s `ty`](https://docs.astral.sh/ty/) on the `plugin/` 
 |--------|--------|
 | Initial | On the order of **1000+** diagnostics before scoping (including vendored `plugin/contrib` and noisy test-only code). |
 | After narrowing | Excluding **`plugin/contrib`** and **`plugin/tests`** via `pyproject.toml` focused work on application code; one documented pass fixed on the order of **~141** categorized issues in that scope. |
-| Final | **`ty check`** reports **no errors** for the configured include set (`make ty` / `make check`). |
+| Final | **`ty check`** reports **no errors** for the configured include set. **`make check`** runs **`ty`** only; **`make typecheck`** runs **`ty`**, **`mypy`**, and **`pyright`** in sequence; **`make test`** runs those three, then pytest and LO tests (types before tests). **`make release`** calls **`make test`** first, then the release bundle (see **`Makefile`**). |
 
 Static checking does **not** prove LibreOffice runtime behavior: UNO remains highly dynamic. The goal is consistent annotations, usable stubs, and fewer accidental mistakes in Python code.
 
@@ -21,6 +21,68 @@ Static checking does **not** prove LibreOffice runtime behavior: UNO remains hig
 - **`pyproject.toml`** — `[tool.ty.src]`: `include = ["plugin"]`, `exclude = ["plugin/contrib", "plugin/tests"]`.
 - **`Makefile`** — `make ty`: ensures `import uno` (via `make fix-uno` if needed), then `python -m ty check --exclude plugin/contrib/`.
 - **Dev dependency**: **`types-unopy`** (LibreOffice API stubs). **`make fix-uno`** links system UNO into `.venv` so `uno` and `com.sun.star` resolve; without that, the checker cannot see extension types.
+
+### mypy (optional)
+
+- **`make mypy`** — same prelude as `ty` (`make manifest`, `import uno` → `make fix-uno`), then **`python -m mypy`** using **`[tool.mypy]`** in `pyproject.toml`.
+- **Not** part of **`make check`** or **`make build`** alone; it **is** part of **`make typecheck`** and **`make test`**. **`make release`** runs **`make test`** first, so mypy runs there too. Use standalone **`make mypy`** to compare against **`ty`**. Mypy often reports issues `ty` does not (and vice versa).
+- **Scope**: `packages = ["plugin"]` with path **`exclude`** plus **`[[tool.mypy.overrides]]`** `ignore_errors = true` for **`plugin.contrib.*`** and **`plugin.tests.*`**. Plain `exclude` alone does not stop mypy from checking vendored contrib when resolving the `plugin` package, so the overrides mirror ty’s “no contrib / no tests” intent.
+- **Stubs**: **`types-requests`**, **`types-unopy`**, and overrides for **`officehelper`** and **`sounddevice`** (no PyPI stubs: **`disable_error_code = ["import-untyped"]`** plus an inline **`# type: ignore[import-untyped]`** on the lazy import in **`audio_recorder.py`**) are configured for a usable first run; remaining diagnostics are normal application code until you tighten further.
+
+### Pyright (optional)
+
+- **`make pyright`** — same prelude as **`ty`** / **`mypy`** (`make manifest`, then **`import uno`** → **`make fix-uno`** if needed), then **`python -m pyright`** using **`[tool.pyright]`** in **`pyproject.toml`** (`include` / **`exclude`** mirror **`ty`**).
+- **Not** part of **`make check`** or **`make build`** alone; it **is** part of **`make typecheck`** and **`make test`** (and thus **`make release`**). Diagnostics overlap Pylance in the editor; use standalone **`make pyright`** for a quick CLI pass.
+- **Status (CLI)**: On the same scoped tree as **`ty`**, Pyright can be driven to **zero errors**; remaining noise is usually **`reportMissingModuleSource`** for **`com.sun.star.*`** imports (stubs exist for typing, but Pyright still warns that it cannot resolve “source” for those modules). That is typically safe to ignore if runtime UNO works.
+
+---
+
+## Pyright vs `ty` and mypy (what differed in practice)
+
+All three tools share **`types-unopy`**, **`make fix-uno`**, and the same **`plugin/`** scope (contrib and tests excluded). **`make check`** and **`make build`** run **`ty`** only (fast gate). **`make test`** runs **`ty`**, **`mypy`**, and **`pyright`**, then tests. **`make release`** runs **`make test`** (same gate) before building the release **`.oxt`**. A full Pyright pass still found **real issues and strictness gaps** that **`ty`** (and **`mypy`**) often did not report on the same codebase, or reported much less loudly.
+
+### Optional and `None` narrowing
+
+- **`reportOptionalMemberAccess`**: Pyright is aggressive about **calling methods on values that may be `None`**. Example: **`DrawBridge.get_active_page()`** can return **`None`** at runtime; without an explicit **`if page is None: ...`** early exit, uses like **`page.getCount()`** were errors under Pyright even when **`ty`** accepted the file. **Fix**: guard or assert before use (Draw shape tools in **`plugin/modules/draw/shapes.py`**).
+- **`reportPossiblyUnboundVariable`**: Assignments only on some branches (e.g. **`compiled`** only inside **`if use_regex:`**, or **`restore_snapshot`** only inside **`try`**) can be flagged when a later branch uses the name. **Fix**: initialize before the branch (**`compiled = None`**) or declare **`restore_snapshot: dict[str, Any] | None = None`** before **`try`**, then assign (**`search.py`**, **`testing_runner.py`**).
+
+### Overrides, bases, and variance
+
+- **`reportIncompatibleMethodOverride`**: Pyright checks **return types and container types** against **`types-unopy`** strictly. Examples: **`XDispatchProvider.queryDispatch`** returning **`None`** where the stub expects **`XDispatch`**, or **`queryDispatches`** returning a **list** where the stub expects a **tuple**. Runtime UNO often allows this; **fix** is either to match the stub shape or a **targeted `# pyright: ignore[reportIncompatibleMethodOverride]`** on that method (**`DispatchHandler`** in **`main.py`**).
+- **`reportGeneralTypeIssues`**: A **second base class** loaded from the Java/IDL bridge (e.g. **`XPromptFunction`** from **`org.extension.writeragent`**) is not always treated as a valid class base. **Fix**: stub base inheriting **`unohelper.Base`** for **`ImportError`** fallbacks, plus **`# pyright: ignore[reportGeneralTypeIssues]`** on the concrete class when the real IDL base is present (**`prompt_function.py`**).
+- **`reportIncompatibleVariableOverride`**: Multiple mixins declaring the **same attribute** (e.g. **`client`**) with types that Pyright considers **incompatible under invariance** (mutable **`Protocol`** fields vs concrete class). **`ty`** may not emit the same diagnostic; resolving it may require aligning annotations, widening a **`Protocol`** field, or structural refactors (**chatbot panel / mixins**).
+- **`list` invariance** (Pyright / strict typing): Passing **`list[ChatMessage]`** where an API is typed as **`list[ChatMessage | dict[...]]`** can fail in Pyright; **`ty`** may be looser. **Fix**: **`cast(...)`** or widen the target API type (**`smol_model`** paths).
+
+### Config and JSON-shaped values
+
+- **`reportArgumentType`** on **`int(...)`**: **`get_config(ctx, key)`** is effectively **JSON-shaped** (**`Any`** / wide unions). Pyright rejects **`int(get_config(...))`** when the inferred type includes non-numeric shapes. **Fix**: use **`get_config_int` / `get_config_str`** with an explicit **`-> int`** (or **`str`**) helper signature (**`config.py`**, call sites such as **`prompt_function.py`**).
+
+### `dict` payload widening
+
+- If the first assignments build a **`dict[str, str]`**, later **`payload["details"] = {...}`** can fail in Pyright. **`ty`** may not flag the same. **Fix**: annotate **`payload: dict[str, Any]`** or **`cast(dict[str, Any], ...)`** (**`format_error_payload`**, **`tool_registry`** merges).
+
+### `getattr` / UNO context chains
+
+- Nested patterns like **`getattr(ctx_any, "ServiceManager", getattr(ctx_any, "getServiceManager", lambda: None)())`** triggered **`reportAttributeAccessIssue`** / optional access on **`Any`**. **Fix**: small helper or sequential **`getattr`** + **`callable`** checks, **`assert smgr is not None`**, then **`cast(Any, smgr).createInstanceWithContext(...)`** (**`uno_context`**, **`dialogs._load_xdl`**, **`image_tools`**, **`queue_executor`**, **`main`** icon loading).
+
+### Import / branch typing quirks
+
+- **`urllib`**: Importing **`urllib.error`** (or similar) **inside** a function that also uses **`urllib.request`** / **`urllib.parse`** can make Pyright **narrow** the **`urllib`** package incorrectly. Prefer **module-level** imports for **`urllib`** submodules.
+- **`try` / `except ImportError`**: Fallback functions like **`def is_writer(model): return False`** can be inferred as **`-> Literal[False]`** while the imported symbol is **`(Any) -> bool`**, producing **`reportAssignmentType`** when both arms assign into one logical “slot”. **Fix**: explicit **`-> bool`** on the fallbacks (**`testing_runner.py`**).
+
+### Optional modules and guards
+
+- **`sqlite3`** may be typed as optional; Pyright wants **`assert sqlite3 is not None`** on paths that use it after **`HAS_SQLITE`**.
+- **`user_config_dir(ctx)`** as **`str | None`**: filesystem stores should **`raise ConfigError`** rather than joining on **`None`** (**`MemoryStore`**, **`SkillsStore`**).
+
+### smolagents and FSM helpers
+
+- **`model_output`** not always **`str`**: guard with **`isinstance`** or **`str(...)`** before **`strip()`** (several agent/chat paths).
+- **`EffectInterpreter.current_state`**: declare **`SendHandlerState | None`** where **`None`** is a real state (**`send_handlers`**).
+
+### Cross-check workflow
+
+After Pyright-driven edits, run **`make ty`** (or **`make test`**) anyway: fixes for Pyright do **not** always change **`ty`**, and occasionally one tool will disagree. **`make build`** enforces **`ty`**; **`make test`** / **`make release`** enforce all three tools.
 
 ---
 
@@ -81,9 +143,6 @@ Prefer **specific** ignore codes (`attr-defined`, `override`, `unresolved-import
 - **`cast(Iterable, …)`** for generators that `ty` does not infer as iterable (see §21).
 - **Registry / service construction**: dynamic class registration may need small ignores where instantiation is reflection-like ([`plugin/framework/service_registry.py`](../plugin/framework/service_registry.py)).
 
----
-
-## Diagnostic breakdown (one historical pass)
 ---
 
 ## Files touched (representative list from the cleanup)
@@ -158,6 +217,6 @@ def actionPerformed(self, rEvent: ActionEvent) -> None:  # type: ignore[override
 ## What developers should run
 
 1. **`make fix-uno`** when `import uno` fails in the venv.
-2. **`make ty`** or **`make check`** before substantive merges.
-3. When adding features, follow §21 in `AGENTS.md` and the UNO patterns above.
+2. **`make ty`** or **`make check`** before quick iterations; **`make test`** (or **`make release`** before shipping) for **`ty` + mypy + pyright** plus pytest and LO tests.
+3. When adding features, follow §21 in `AGENTS.md`, the UNO patterns above, and—if you use Pyright—the **Pyright vs `ty` and mypy** section for strictness that may not show up in **`make ty`**.
 

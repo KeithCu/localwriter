@@ -262,7 +262,7 @@ make deploy
 # Or for fast iteration: symlink the project into LO extensions (no rebuild needed)
 make dev-deploy
 
-# Run tests
+# Run typecheckers (ty, mypy, pyright) then tests
 make test
 
 # See all available targets

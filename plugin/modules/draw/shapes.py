@@ -467,6 +467,8 @@ class GetDrawSummary(ToolBase):
             if idx is not None
             else bridge.get_active_page()
         )
+        if page is None:
+            return self._tool_error("No draw page available or invalid page index.")
         shapes = []
         for i in range(page.getCount()):
             s = page.getByIndex(i)
@@ -777,6 +779,8 @@ class CreateShape(ToolBase):
         shape_type_raw = kwargs["shape_type"]
 
         page = bridge.get_active_page()
+        if page is None:
+            return self._tool_error("No draw page available.")
         _log_create_shape_page_context(ctx.doc, bridge, page)
         _log_writer_document_shape_context(ctx.doc)
 
@@ -923,6 +927,8 @@ class EditShape(ToolBase):
             if idx is not None
             else bridge.get_active_page()
         )
+        if page is None:
+            return self._tool_error("No draw page available or invalid page index.")
         shape = page.getByIndex(kwargs["shape_index"])
         if "x" in kwargs or "y" in kwargs:
             from com.sun.star.awt import Point
@@ -980,6 +986,8 @@ class ConnectShapes(ToolBase):
             if idx is not None
             else bridge.get_active_page()
         )
+        if page is None:
+            return self._tool_error("No draw page available or invalid page index.")
 
         start_idx = kwargs["start_shape_index"]
         end_idx = kwargs["end_shape_index"]
@@ -1047,6 +1055,8 @@ class GroupShapes(ToolBase):
             if idx is not None
             else bridge.get_active_page()
         )
+        if page is None:
+            return self._tool_error("No draw page available or invalid page index.")
 
         indices = kwargs["shape_indices"]
         if not indices or len(indices) < 2:
@@ -1095,6 +1105,8 @@ class DeleteShape(ToolBase):
             if idx is not None
             else bridge.get_active_page()
         )
+        if page is None:
+            return self._tool_error("No draw page available or invalid page index.")
         shape = page.getByIndex(kwargs["shape_index"])
         page.remove(shape)
         return {"status": "ok", "message": "Shape deleted"}
