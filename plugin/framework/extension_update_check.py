@@ -84,7 +84,7 @@ def run_extension_update_check(ctx: Any) -> None:
         raw_last = get_config(ctx, CONFIG_KEY_EXTENSION_UPDATE_CHECK_EPOCH)
         if raw_last is not None and raw_last != "":
             try:
-                last_ts = float(raw_last)
+                last_ts = float(str(raw_last))
                 age = now - last_ts
                 if age < WEEK_SECONDS:
                     log.info(

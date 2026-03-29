@@ -27,12 +27,19 @@ import dataclasses
 import time
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from plugin.framework.event_bus import global_event_bus
+_uno_mod: Any
+_unohelper_mod: Any
 try:
-    import uno
-    import unohelper
+    import uno as _uno_impl
+    import unohelper as _unohelper_impl
+
+    _uno_mod = _uno_impl
+    _unohelper_mod = _unohelper_impl
 except ImportError:
-    uno: Any = None
-    unohelper: Any = None
+    _uno_mod = None
+    _unohelper_mod = None
+uno: Any = _uno_mod
+unohelper: Any = _unohelper_mod
 from plugin.framework.service_base import ServiceBase
 from plugin.framework.uno_context import get_ctx
 from plugin.framework.default_models import DEFAULT_MODELS, resolve_model_id
@@ -630,7 +637,7 @@ def set_native_audio_support(ctx, model_id, endpoint, supported):
     set_config(ctx, "audio_support_map", cache)
 
 
-_model_fetch_cache = {}
+_model_fetch_cache: dict[str, list[str] | None] = {}
 
 def fetch_available_models(endpoint):
     """Fetch available models from endpoint/v1/models. Returns list of IDs or None on error."""

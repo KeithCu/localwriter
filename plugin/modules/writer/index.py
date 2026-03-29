@@ -90,7 +90,7 @@ _STOP_WORDS = {
     }),
 }
 
-_STOP_WORDS_FALLBACK = frozenset()
+_STOP_WORDS_FALLBACK: frozenset[str] = frozenset()
 
 # ── Tokenisation ──────────────────────────────────────────────────────
 

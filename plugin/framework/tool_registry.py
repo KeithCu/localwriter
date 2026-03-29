@@ -20,6 +20,7 @@
 import logging
 import threading
 import queue
+from typing import Any
 
 from plugin.framework.tool_base import ToolBase
 from plugin.framework.schema_convert import to_openai_schema, to_mcp_schema
@@ -389,10 +390,11 @@ class ToolRegistry:
                 result_details = result.get("details", {})
                 if isinstance(result_details, dict):
                     # merge common_details into result_details without overwriting existing keys
+                    merged: dict[str, Any] = dict(result_details)
                     for k, v in common_details.items():
-                        if k not in result_details:
-                            result_details[k] = v
-                    result["details"] = result_details
+                        if k not in merged:
+                            merged[k] = v
+                    result["details"] = merged
 
             if bus:
                 # only emit completed if result was not an error (optional, but follows general pattern)

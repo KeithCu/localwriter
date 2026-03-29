@@ -17,6 +17,7 @@
 """Base class for all tools."""
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from plugin.framework.errors import ToolExecutionError, format_error_payload
 
@@ -93,7 +94,7 @@ class ToolBase(ABC):
         return True, None
 
     @abstractmethod
-    def execute(self, ctx, **kwargs):
+    def execute(self, ctx, **kwargs) -> dict[str, Any]:
         """Execute the tool.
 
         Args:
@@ -104,11 +105,11 @@ class ToolBase(ABC):
             dict with at least ``{"status": "ok"|"error", ...}``.
         """
 
-    def is_async(self):
+    def is_async(self) -> bool:
         """Returns True if this tool should execute asynchronously in the background. Defaults to False."""
         return False
 
-    def execute_safe(self, ctx, **kwargs):
+    def execute_safe(self, ctx, **kwargs) -> dict[str, Any]:
         """Execute with simple error containment."""
         try:
             # Check thread safety: If the tool is synchronous, it must not be called from a background thread

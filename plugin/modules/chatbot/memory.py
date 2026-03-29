@@ -2,6 +2,7 @@ import os
 import logging
 from plugin.framework.tool_base import ToolBase
 from plugin.framework.config import user_config_dir
+from plugin.framework.errors import ConfigError
 
 log = logging.getLogger(__name__)
 
@@ -12,6 +13,8 @@ def _resolve_uno_ctx(ctx):
 class MemoryStore:
     def __init__(self, ctx):
         self.config_dir = user_config_dir(_resolve_uno_ctx(ctx))
+        if self.config_dir is None:
+            raise ConfigError("UNO context is required to resolve memory store path")
         self.memory_dir = os.path.join(self.config_dir, "memories")
         os.makedirs(self.memory_dir, exist_ok=True)
     

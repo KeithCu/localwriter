@@ -66,14 +66,14 @@ def sidebar_next_state(
 
     match event.kind:
         case SidebarEventKind.SEND:
-            tr = send_next_state(composite.send, cast(SendEvent, event.payload))
+            send_tr = send_next_state(composite.send, cast(SendEvent, event.payload))
             return FsmTransition(
                 SidebarCompositeState(
-                    send=tr.state,
+                    send=send_tr.state,
                     tool_loop=composite.tool_loop,
                     audio=composite.audio,
                 ),
-                list(tr.effects),
+                list(send_tr.effects),
             )
         case SidebarEventKind.TOOL_LOOP:
             if composite.tool_loop is None:
@@ -85,16 +85,16 @@ def sidebar_next_state(
                         )
                     ],
                 )
-            tr = tool_loop_next_state(
+            tool_loop_tr = tool_loop_next_state(
                 composite.tool_loop, cast(ToolLoopEvent, event.payload)
             )
             return FsmTransition(
                 SidebarCompositeState(
                     send=composite.send,
-                    tool_loop=tr.state,
+                    tool_loop=tool_loop_tr.state,
                     audio=composite.audio,
                 ),
-                list(tr.effects),
+                list(tool_loop_tr.effects),
             )
         case SidebarEventKind.AUDIO:
             # Strategy A: hardware stays in AudioRecorder; composite.audio is mirrored in the shell.

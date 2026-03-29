@@ -78,7 +78,7 @@ class AudioRecorder:
     def _execute_effect(self, effect):
         if isinstance(effect, InitializeDeviceEffect):
             try:
-                import sounddevice as sd
+                import sounddevice as sd  # type: ignore[import-untyped]
             except OSError as e:
                 self._apply_event(ErrorOccurredEvent(
                     "Audio recording requires PortAudio. On Linux, please run: sudo apt-get install libportaudio2"

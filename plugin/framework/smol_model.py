@@ -14,6 +14,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from typing import Any, cast
+
 from plugin.contrib.smolagents.models import Model, ChatMessage, MessageRole
 
 
@@ -36,7 +38,7 @@ class WriterAgentSmolModel(Model):
 
     def generate(self, messages, stop_sequences=None, response_format=None, tools_to_call_from=None, **kwargs):
         completion_kwargs = self._prepare_completion_kwargs(
-            messages=messages,
+            messages=cast(list[ChatMessage | dict[str, Any]], messages),
             stop_sequences=stop_sequences,
             tools_to_call_from=tools_to_call_from,
             **kwargs,

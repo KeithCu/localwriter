@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import List
+from typing import Any, List, cast
 
 from plugin.framework.utils import get_plugin_dir
 
@@ -11,11 +11,11 @@ class ModuleLoader:
     """
 
     @staticmethod
-    def load_manifest() -> List[dict]:
+    def load_manifest() -> List[dict[str, Any]]:
         """Loads the module manifest."""
         try:
             from plugin._manifest import MODULES
-            return MODULES
+            return cast(list[dict[str, Any]], MODULES)
         except ImportError as e:
             raise RuntimeError(
                 "plugin._manifest is missing or invalid (gitignored; run "
@@ -23,7 +23,7 @@ class ModuleLoader:
             ) from e
 
     @staticmethod
-    def topo_sort(modules: List[dict]) -> List[dict]:
+    def topo_sort(modules: List[dict[str, Any]]) -> List[dict[str, Any]]:
         """
         Sorts modules based on their required services.
         Ensures dependencies are initialized before the modules that require them.

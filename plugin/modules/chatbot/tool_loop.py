@@ -4,6 +4,8 @@ This mixin is used by SendButtonListener in panel.py and contains the
 multi-round tool-calling loop plus simple streaming fallback.
 """
 
+from __future__ import annotations
+
 import logging
 import inspect
 import dataclasses
@@ -117,6 +119,9 @@ class ToolLoopHost(Protocol):
 
 class ToolCallingMixin:
     """Tool loop state lives in ``sidebar_state.tool_loop`` when mixed with SendButtonListener."""
+
+    client: LlmClient | None
+    audio_wav_path: str | None
 
     @property
     def _sm_state(self: ToolLoopHost) -> ToolLoopState:
@@ -317,6 +322,7 @@ class ToolCallingMixin:
             self.client = LlmClient(api_config, self.ctx)
         else:
             self.client.config = api_config
+        assert self.client is not None
         client = self.client
 
         self._set_status("Reading document...")
@@ -381,7 +387,7 @@ class ToolCallingMixin:
                     "input_audio": {"data": b64_audio, "format": "wav"},
                 }
 
-                content_list = []
+                content_list: list[dict[str, Any]] = []
                 if query_text:
                     content_list.append({"type": "text", "text": query_text})
                 content_list.append(audio_msg)
@@ -869,7 +875,7 @@ class ToolCallingMixin:
         )
 
         try:
-            self._active_q = queue.Queue()
+            self._active_q: queue.Queue[Any] = queue.Queue()
             self._active_round_num = 0
             self._active_pending_tools = []
             self._active_async_tools = async_tools

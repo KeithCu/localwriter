@@ -16,6 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Base classes for specialized Calc toolsets."""
 
+from typing import ClassVar
+
 from plugin.framework.tool_base import ToolBase, ToolBaseDummy
 
 
@@ -29,7 +31,7 @@ class ToolCalcSpecialBase(ToolBase):
     """
 
     tier = "specialized"
-    specialized_domain = None
+    specialized_domain: ClassVar[str | None] = None
 
 
 # --- Domain-Specific Base Classes ---

@@ -35,16 +35,23 @@ import unohelper
 # from com.sun.star.lang import XServiceInfo
 # from com.sun.star.sheet import XAddIn
 try:
-    from org.extension.writeragent.PromptFunction import XPromptFunction  # type: ignore
+    from org.extension.writeragent.PromptFunction import (  # type: ignore
+        XPromptFunction as _XPromptFunctionBase,
+    )
 except ImportError:
-    class XPromptFunction: pass
+
+    class _XPromptFunctionStub:
+        pass
+
+    _XPromptFunctionBase = _XPromptFunctionStub
+
 from plugin.framework.config import get_config, get_api_config
 from plugin.modules.http.client import LlmClient
 
 import logging
 log = logging.getLogger(__name__)
 
-class PromptFunction(unohelper.Base, XPromptFunction):
+class PromptFunction(unohelper.Base, _XPromptFunctionBase):
     def __init__(self, ctx):
         log.debug("=== PromptFunction.__init__ called ===")
         self.ctx = ctx

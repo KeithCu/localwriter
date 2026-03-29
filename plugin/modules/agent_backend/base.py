@@ -30,7 +30,7 @@ class AgentBackend:
     backend_id = "builtin"
     display_name = "Built-in"
 
-    def is_available(self, ctx):
+    def is_available(self, ctx) -> bool:
         """Return True if this backend can be used (e.g. CLI installed, config valid)."""
         return True
 

@@ -17,7 +17,7 @@ Common touchpoints: [`plugin/main.py`](plugin/main.py) (MainJob, settings apply)
 
 **WriterAgent** is a LibreOffice extension (Python + UNO) for Writer, Calc, and Draw:
 
-- **Build & Dev**: `make build`, `make deploy`. **`plugin/_manifest.py`** is gitignored; `make ty` / `make check` depend on **`make manifest`** so type-check and builds get a generated manifest on clean checkouts. If the file is still absent, [`plugin/framework/module_loader.py`](plugin/framework/module_loader.py) `load_manifest()` raises **`RuntimeError`** (no silent empty module list). **External tools (ty, pytest)**: `make fix-uno` to link system UNO into `.venv`.
+- **Build & Dev**: `make build`, `make deploy`. **`plugin/_manifest.py`** is gitignored; `make ty` / `make check` depend on **`make manifest`** so type-check and builds get a generated manifest on clean checkouts. If the file is still absent, [`plugin/framework/module_loader.py`](plugin/framework/module_loader.py) `load_manifest()` raises **`RuntimeError`** (no silent empty module list). **External tools (ty, pytest)**: `make fix-uno` to link system UNO into `.venv`. Optional **`make mypy`** (not in `make check`): see [`docs/type-checking.md`](docs/type-checking.md).
 - **Extend Selection** (Ctrl+Q) / **Edit Selection** (Ctrl+E): model continues or rewrites the selection.
 - **Chat with Document**: sidebar (multi-turn + tool-calling), persistent history (SQLite when available, else JSON under `writeragent_history.db.d/`), menu fallback (Writer: append; Calc: "AI Response" sheet).
 - **Settings**: endpoint, models, keys, timeouts, image provider, MCP, etc. Config: `writeragent.json` in LibreOffice user config. Examples: [CONFIG_EXAMPLES.md](CONFIG_EXAMPLES.md).
@@ -261,6 +261,8 @@ Use `WriterAgentException` hierarchy and **`format_error_payload`** ([`plugin/fr
 
 The project uses `ty` for static type checking. Background on the cleanup, configuration, and workflow: [`docs/type-checking.md`](docs/type-checking.md).
 
+- **mypy**: Optional cross-check via **`make mypy`** (`mypy` in the `dev` group). Same manifest / UNO setup as `ty`; contrib and tests are silenced in config to match ty’s scope. Chat mixins declare `client` / `audio_wav_path` on **`SendHandlersMixin`** and **`ToolCallingMixin`** so mypy can type combined **`SendButtonListener`**; **`fetch_available_models`** cache is **`dict[str, list[str] | None]`** (negative cache stores `None`).
+- **Pyright**: Optional CLI via **`make pyright`** (`pyright` in the `dev` group); **`[tool.pyright]`** in **`pyproject.toml`** scopes **`plugin/`** and excludes **`plugin/contrib`** and **`plugin/tests`**. Not part of **`make check`**; overlaps Pylance but may disagree with **`ty`** / **`mypy`**. For override consistency, **`ToolBase`** declares **`execute(...) -> dict[str, Any]`**, **`is_async() -> bool`**, and **`execute_safe(...) -> dict[str, Any]`**; **`AgentBackend.is_available`** is annotated **`-> bool`** (subclasses may return False).
 - **Dependencies**: Requires `types-unopy` (in `dev` group) for LibreOffice API stubs.
 - **UNO Resolution**: Because the `uno` module is typically provided by the system (not PyPI), you MUST run `make fix-uno` to symlink the system UNO paths into your `.venv`. Otherwise, `ty` will fail to resolve `import uno` or `com.sun.star` types.
 - **Python Version & Syntax**: Use modern 3.11+ syntax: `list[str]`, `dict[str, Any]`, and `str | None` instead of `List`, `Dict`, or `Optional`.

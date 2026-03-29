@@ -95,7 +95,7 @@ endif
         lo-start lo-start-full lo-kill lo-restart \
         clean-cache nuke-cache nuke-cache-force unbundle \
         log log-tail lo-log test check-ext check-setup deploy \
-        set-config vendor docker-build compile-translations merge-translations refresh-pot preview-translations check ty
+        set-config vendor docker-build compile-translations merge-translations refresh-pot preview-translations check ty mypy pyright
 
 # ── Help ─────────────────────────────────────────────────────────────────────
 
@@ -143,6 +143,8 @@ help:
 	@echo "  make set-config             List all config keys"
 	@echo "  make test                   Run pytest (plugin/tests), then in-process LO tests (plugin.testing_runner)"
 	@echo "  make fix-uno                Fix uno import in .venv (adds system UNO paths to .pth)"
+	@echo "  make mypy                   Optional: run mypy on plugin/ (not part of make check; see docs/type-checking.md)"
+	@echo "  make pyright                Optional: run Pyright on plugin/ (Pylance-aligned CLI; not part of make check)"
 	@echo ""
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -426,3 +428,11 @@ check: ty
 ty: manifest
 	@$(PYTHON) -c "import uno" 2>/dev/null || $(MAKE) fix-uno
 	$(PYTHON) -m ty check --exclude plugin/contrib/
+
+mypy: manifest
+	@$(PYTHON) -c "import uno" 2>/dev/null || $(MAKE) fix-uno
+	$(PYTHON) -m mypy
+
+pyright: manifest
+	@$(PYTHON) -c "import uno" 2>/dev/null || $(MAKE) fix-uno
+	$(PYTHON) -m pyright

@@ -40,6 +40,8 @@ try:
 except ImportError:
     pass
 
+from typing import Any
+
 from plugin.framework.logging import init_logging
 import uno
 
@@ -233,7 +235,7 @@ def _register_core_handlers():
 
 _DISPATCH_PROTOCOL = "org.extension.writeragent:"
 
-_status_listeners = []  # [(listener, url)]
+_status_listeners: list[tuple[Any, Any]] = []  # [(listener, url)]
 _status_lock = threading.Lock()
 
 EXTENSION_ID = "org.extension.writeragent"

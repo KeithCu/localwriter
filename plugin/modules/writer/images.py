@@ -30,7 +30,6 @@ import os
 import tempfile
 
 from plugin.modules.writer.base import ToolWriterImageBase
-from plugin.modules.calc.base import ToolCalcImageBase
 from plugin.framework.image_tools import (
     insert_image, replace_image_in_place, get_selected_image_base64,
     get_selected_image_dimensions_px,
@@ -39,7 +38,7 @@ from plugin.framework.image_tools import (
 log = logging.getLogger("writeragent.writer")
 
 
-class GenerateImage(ToolWriterImageBase, ToolCalcImageBase):
+class GenerateImage(ToolWriterImageBase):
     """Generate a new image from a prompt, or edit an existing image (Img2Img)."""
 
     name = "generate_image"
@@ -230,7 +229,7 @@ _IMAGE_CACHE_DIR = os.path.join(tempfile.gettempdir(), "writeragent_images")
 # ListImages
 # ------------------------------------------------------------------
 
-class ListImages(ToolWriterImageBase, ToolCalcImageBase):
+class ListImages(ToolWriterImageBase):
     """List all images/graphic objects in the document."""
 
     name = "list_images"
@@ -350,7 +349,7 @@ def _get_graphic_object(ctx, doc, image_name):
             return graphics.getByName(image_name)
         return None
 
-class GetImageInfo(ToolWriterImageBase, ToolCalcImageBase):
+class GetImageInfo(ToolWriterImageBase):
     """Get detailed info about a specific image."""
 
     name = "get_image_info"
@@ -462,7 +461,7 @@ class GetImageInfo(ToolWriterImageBase, ToolCalcImageBase):
 # SetImageProperties
 # ------------------------------------------------------------------
 
-class SetImageProperties(ToolWriterImageBase, ToolCalcImageBase):
+class SetImageProperties(ToolWriterImageBase):
     """Resize, reposition, crop, or update caption/alt-text for an image."""
 
     name = "set_image_properties"
@@ -588,7 +587,7 @@ class SetImageProperties(ToolWriterImageBase, ToolCalcImageBase):
 # DownloadImage
 # ------------------------------------------------------------------
 
-class DownloadImage(ToolWriterImageBase, ToolCalcImageBase):
+class DownloadImage(ToolWriterImageBase):
     """Download an image from URL to local cache."""
 
     name = "download_image"
@@ -635,7 +634,7 @@ class DownloadImage(ToolWriterImageBase, ToolCalcImageBase):
 # InsertImage
 # ------------------------------------------------------------------
 
-class InsertImage(ToolWriterImageBase, ToolCalcImageBase):
+class InsertImage(ToolWriterImageBase):
     """Insert an image from local path or URL into the document."""
 
     name = "insert_image"
@@ -767,7 +766,7 @@ class InsertImage(ToolWriterImageBase, ToolCalcImageBase):
 # DeleteImage
 # ------------------------------------------------------------------
 
-class DeleteImage(ToolWriterImageBase, ToolCalcImageBase):
+class DeleteImage(ToolWriterImageBase):
     """Delete an image from the document."""
 
     name = "delete_image"
@@ -814,7 +813,7 @@ class DeleteImage(ToolWriterImageBase, ToolCalcImageBase):
 # ReplaceImage
 # ------------------------------------------------------------------
 
-class ReplaceImage(ToolWriterImageBase, ToolCalcImageBase):
+class ReplaceImage(ToolWriterImageBase):
     """Replace an image's source file keeping position and frame."""
 
     name = "replace_image"

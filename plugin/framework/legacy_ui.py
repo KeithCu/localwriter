@@ -254,11 +254,17 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                         # Populate options if provided (for select/combo widgets)
                         if "options" in field:
                             opts = field["options"]
+                            if not isinstance(opts, list):
+                                opts = []
                             # For ComboBox/ListBox, we set the items
                             try:
                                 # ComboBox/ListBox typically have StringItemList or can be added directly
                                 # In SettingsDialog.xdl, select=menulist, combo=combobox
-                                labels = tuple(o.get("label", o.get("value", "")) for o in opts)
+                                labels = tuple(
+                                    o.get("label", o.get("value", ""))
+                                    for o in opts
+                                    if isinstance(o, dict)
+                                )
                                 model = ctrl.getModel()
                                 if hasattr(model, "StringItemList"):
                                     log.debug(f"Populating {field['name']} with {len(labels)} options: {labels}")

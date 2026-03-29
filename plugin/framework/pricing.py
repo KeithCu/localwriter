@@ -46,6 +46,8 @@ def fetch_openrouter_pricing(ctx, force=False):
     try:
         data = sync_request(url, parse_json=True)
         if data and "data" in data:
+            if not cache_path:
+                return
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(data["data"], f, indent=2)
             log.info(f"Cached {len(data['data'])} models.")

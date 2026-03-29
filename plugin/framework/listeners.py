@@ -93,20 +93,20 @@ class BaseWindowListener(BaseListener, XWindowListener):
     """Base class for XWindowListener providing empty defaults and catching exceptions."""
 
     @_catch_and_log
-    def windowResized(self, rEvent):
-        self.on_window_resized(rEvent)
+    def windowResized(self, e):
+        self.on_window_resized(e)
 
     @_catch_and_log
-    def windowMoved(self, rEvent):
-        self.on_window_moved(rEvent)
+    def windowMoved(self, e):
+        self.on_window_moved(e)
 
     @_catch_and_log
-    def windowShown(self, rEvent):
-        self.on_window_shown(rEvent)
+    def windowShown(self, e):
+        self.on_window_shown(e)
 
     @_catch_and_log
-    def windowHidden(self, rEvent):
-        self.on_window_hidden(rEvent)
+    def windowHidden(self, e):
+        self.on_window_hidden(e)
 
     def on_window_resized(self, rEvent):
         pass

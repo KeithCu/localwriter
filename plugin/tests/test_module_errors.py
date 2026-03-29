@@ -17,7 +17,7 @@ sys.modules["unohelper"].Base = MockBase
 
 from plugin.framework.errors import WriterError
 from plugin.modules.calc.manipulator import CellManipulator
-from plugin.modules.calc.__init__ import CalcError
+from plugin.modules.calc import CalcError
 from plugin.modules.draw.shapes import DrawShapes, DrawError
 from plugin.modules.writer.ops import (
     find_paragraph_for_range,

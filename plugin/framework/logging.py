@@ -24,6 +24,7 @@ import threading
 import logging
 
 from plugin.framework.worker_pool import run_in_background
+from plugin.framework.errors import ConfigError
 
 # Globals set by init_logging(ctx); used by debug_log and agent_log so ctx is not passed at write time.
 _debug_log_path = None
@@ -58,7 +59,6 @@ def init_logging(ctx):
         _enable_agent_log = False
         try:
             from plugin.framework import config
-            from plugin.framework.errors import ConfigError
             udir = config.user_config_dir(ctx)
             if udir:
                 _debug_log_path = os.path.join(udir, DEBUG_LOG_FILENAME)
@@ -71,6 +71,8 @@ def init_logging(ctx):
             from plugin.framework import config
             import logging
             level_str = config.get_config(ctx, "log_level")
+            if not isinstance(level_str, str):
+                level_str = "WARNING"
             numeric_level = getattr(logging, level_str.upper(), logging.WARNING)
             global _log_level_numeric
             _log_level_numeric = numeric_level

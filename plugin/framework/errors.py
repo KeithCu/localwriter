@@ -168,10 +168,10 @@ def safe_call(fn, context_name, *args, **kwargs):
         # but catching Exception is the standard way to grab them. We immediately wrap it.
         raise UnoObjectError(f"{context_name} failed: {e}", context={"operation": context_name, "type": e_name}) from e
 
-def format_error_payload(e: Exception) -> dict:
+def format_error_payload(e: Exception) -> dict[str, Any]:
     """Format an exception into the standard JSON error payload schema."""
     if isinstance(e, WriterAgentException):
-        payload = {
+        payload: dict[str, Any] = {
             "status": "error",
             "code": e.code,
             "message": e.message,
@@ -247,7 +247,12 @@ def safe_python_literal_eval(text: Any, default: Any = None) -> Any:
 
     # 3. Handle simple single-quoted string unquoting: 'abc' -> abc
     # This avoids ast.literal_eval for basic string normalization.
-    if len(stripped) >= 2 and stripped[0] == "'" and stripped[-1] == "'":
+    if (
+        isinstance(stripped, str)
+        and len(stripped) >= 2
+        and stripped[0] == "'"
+        and stripped[-1] == "'"
+    ):
         inner = stripped[1:-1]
         # Only unquote if it's a simple string (no internal single quotes or backslashes)
         if "'" not in inner and "\\" not in inner:

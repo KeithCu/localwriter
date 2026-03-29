@@ -22,6 +22,8 @@ are wired by panel_factory. UNO UI element factory and XDL wiring
 remain in panel_factory.py.
 """
 
+from __future__ import annotations
+
 import logging
 import uno
 import unohelper
@@ -37,12 +39,15 @@ from plugin.modules.chatbot.history_db import get_chat_history
 
 # Recording available only if audio_recorder (and contrib/audio) is present
 from typing import Any
+
+_AudioRecorderCls: type[Any] | None
 try:
-    from plugin.modules.chatbot.audio_recorder import AudioRecorder  # noqa: F401
-    HAS_RECORDING = True
+    from plugin.modules.chatbot.audio_recorder import AudioRecorder as _AR
+
+    _AudioRecorderCls = _AR
 except ImportError:
-    AudioRecorder: Any = None  # type: ignore[misc, assignment]
-    HAS_RECORDING = False
+    _AudioRecorderCls = None
+HAS_RECORDING = _AudioRecorderCls is not None
 
 # Default max tool rounds when not in config (get_api_config supplies chat_max_tool_rounds)
 DEFAULT_MAX_TOOL_ROUNDS = 5
@@ -225,7 +230,11 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         self._approval_event = None
         self._approval_ui_backup = None
         self._approval_query_for_engine = None
-        self.audio_recorder = AudioRecorder() if HAS_RECORDING and AudioRecorder is not None else None
+        if HAS_RECORDING:
+            assert _AudioRecorderCls is not None
+            self.audio_recorder = _AudioRecorderCls()
+        else:
+            self.audio_recorder = None
         self.queue_executor = QueueExecutor()
 
         send_initial = SendButtonState(

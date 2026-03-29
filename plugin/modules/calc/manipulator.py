@@ -26,7 +26,7 @@ import io
 import logging
 
 from plugin.framework.errors import ToolExecutionError, UnoObjectError, safe_json_loads
-from plugin.modules.calc.__init__ import CalcError
+from plugin.modules.calc import CalcError
 from plugin.modules.calc.address_utils import parse_address
 
 logger = logging.getLogger("writeragent.calc")
@@ -672,7 +672,7 @@ class CellManipulator:
 
             cell_idx = 0
             for row in range(start[1], end[1] + 1):
-                data_row = []
+                data_row: list[str | int | float] = []
                 formula_row = []
                 for col in range(start[0], end[0] + 1):
                     value = values[cell_idx]

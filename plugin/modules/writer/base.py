@@ -16,6 +16,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Base classes for specialized Writer toolsets."""
 
+from typing import ClassVar
+
 from plugin.framework.tool_base import ToolBase
 
 
@@ -33,7 +35,7 @@ class ToolWriterSpecialBase(ToolBase):
 
     # The domain name this tool belongs to (e.g., "tables").
     # Subclasses MUST override this.
-    specialized_domain = None
+    specialized_domain: ClassVar[str | None] = None
 
 
 # --- Domain-Specific Base Classes ---

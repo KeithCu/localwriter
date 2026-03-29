@@ -283,7 +283,7 @@ class AdvancedSearch(ToolBaseDummy):
 
 
 # Page map cache (cleared on doc change)
-_page_map_cache = {}
+_page_map_cache: dict[str | int, dict[int, int]] = {}
 
 
 def _build_page_map(doc):

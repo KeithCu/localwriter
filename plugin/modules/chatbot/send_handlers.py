@@ -9,6 +9,8 @@ alternate send flows that would otherwise bloat that class:
 - Web research sub-agent
 """
 
+from __future__ import annotations
+
 import queue
 import logging
 import json
@@ -26,7 +28,7 @@ def _agent_backend_label(adapter: Any, backend_id: str) -> str:
     getter = getattr(adapter, "get_display_name", None)
     if callable(getter):
         try:
-            return getter()
+            return str(getter())
         except NotImplementedError:
             pass
     return getattr(adapter, "display_name", backend_id)
@@ -44,7 +46,6 @@ class SendHandlerHost(Protocol):
     base_size_input: Any
     frame: Any
     audio_wav_path: str | None
-    stop_requested: bool
     _terminal_status: str
     _current_agent_backend: Any
 
@@ -88,7 +89,11 @@ from plugin.modules.chatbot.state_machine import (
 
 log = logging.getLogger(__name__)
 
+
 class SendHandlersMixin:
+    client: LlmClient | None
+    audio_wav_path: str | None
+
     def _transcribe_audio(self: SendHandlerHost, wav_path: str, stt_model: str) -> str:
         """Transcribe audio synchronously using event pumping on the main thread."""
         from plugin.framework.async_stream import run_blocking_in_thread
@@ -101,12 +106,15 @@ class SendHandlersMixin:
             api_config = get_api_config(self.ctx)
             self.client = LlmClient(api_config, self.ctx)
 
+        cl = self.client
+        assert cl is not None
+
         self._set_status(_("Transcribing audio..."))
         self._append_response("\n" + _("[Transcribing audio...]") + "\n")
 
         try:
             transcript_text = run_blocking_in_thread(
-                self.ctx, self.client.transcribe_audio, wav_path, model=stt_model
+                self.ctx, cl.transcribe_audio, wav_path, model=stt_model
             )
 
             import os
@@ -213,7 +221,7 @@ class SendHandlersMixin:
         self: SendHandlerHost, query_text: str, model: Any, current_state: "SendHandlerState", interpreter: "EffectInterpreter"
     ) -> None:
         from plugin.framework.dialogs import get_control_text
-        q = queue.Queue()
+        q: queue.Queue[Any] = queue.Queue()
         job_done = [False]
 
         def run_direct_image():
@@ -390,7 +398,7 @@ class SendHandlersMixin:
             self._set_status(_("Error"))
             return
 
-        q = queue.Queue()
+        q: queue.Queue[Any] = queue.Queue()
         job_done = [False]
         self._current_agent_backend = adapter
 
@@ -533,7 +541,7 @@ class SendHandlersMixin:
         from plugin.main import get_tools
         from plugin.framework.document import is_calc, is_draw
 
-        q = queue.Queue()
+        q: queue.Queue[Any] = queue.Queue()
         job_done = [False]
         # Read show_thinking before spawning the thread so apply_chunk can use it
         try:

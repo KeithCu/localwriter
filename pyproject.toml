@@ -33,11 +33,49 @@ dev = [
     "pyyaml",
     "sounddevice",
     "dspy",
+    "mypy",
+    "types-requests",
     "types-unopy",
+    "pyright>=1.1.408",
 ]
 
+[tool.mypy]
+python_version = "3.11"
+explicit_package_bases = true
+disable_error_code = ["annotation-unchecked"]
+packages = ["plugin"]
+exclude = [
+    "plugin/contrib/",
+    "plugin/tests/",
+]
+
+[[tool.mypy.overrides]]
+module = "officehelper"
+ignore_missing_imports = true
+
+# `exclude` does not skip subpackages when using `packages = ["plugin"]`; mirror ty scope.
+[[tool.mypy.overrides]]
+module = "plugin.contrib.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "plugin.tests.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "sounddevice"
+ignore_missing_imports = true
+disable_error_code = ["import-untyped"]
 
 [tool.ty.src]
 # Optional: explicitly set what to include (defaults to common patterns)
+include = ["plugin"]
+exclude = ["plugin/contrib", "plugin/tests"]
+
+# Pyright (CLI: make pyright) — same scope as ty/mypy; uses .venv for stubs (types-unopy) and UNO via make fix-uno
+[tool.pyright]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
 include = ["plugin"]
 exclude = ["plugin/contrib", "plugin/tests"]
