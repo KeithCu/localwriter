@@ -19,9 +19,9 @@ imperative code (mixins, panels) interprets them on the main thread.
 subscribe or emit from inside ``next_state``. If a transition should trigger a
 bus notification, return a dedicated effect and emit from the interpreter.
 
-Prefer new effects as ``@dataclass(frozen=True)`` types. String tokens (e.g.
-``\"exit_loop\"``) remain valid where legacy code still uses them; they satisfy
-the empty :class:`Effect` protocol structurally.
+Prefer new effects as ``@dataclass(frozen=True)`` types. Plain string tokens may
+still appear in older domains; they satisfy the empty :class:`Effect` protocol
+structurally when used.
 """
 
 from __future__ import annotations

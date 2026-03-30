@@ -59,7 +59,10 @@ from plugin.modules.chatbot.tool_loop_state import (
     ToolLoopState, ToolLoopEvent, EventKind,
     SpawnLLMWorkerEffect, SpawnToolWorkerEffect,
     ToolLoopUIEffect, LogAgentEffect, AddMessageEffect,
-    UpdateActivityStateEffect, next_state
+    UpdateActivityStateEffect,
+    ExitLoopEffect, TriggerNextToolEffect, SpawnFinalStreamEffect,
+    UpdateDocumentContextEffect,
+    next_state,
 )
 
 log = logging.getLogger(__name__)
@@ -579,13 +582,13 @@ class ToolCallingMixin:
 
     def _execute_effect(self: ToolLoopHost, effect: Any) -> bool:
         """Execute a single pure effect returned by the state machine."""
-        if effect == "exit_loop":
+        if isinstance(effect, ExitLoopEffect):
             return True
-        elif effect == "trigger_next_tool":
+        elif isinstance(effect, TriggerNextToolEffect):
             self._active_q.put((StreamQueueKind.NEXT_TOOL,))
-        elif effect == "spawn_final_stream":
+        elif isinstance(effect, SpawnFinalStreamEffect):
             self._spawn_final_stream(self._active_q, self._active_client, self._active_max_tokens)
-        elif effect == "update_document_context":
+        elif isinstance(effect, UpdateDocumentContextEffect):
             try:
                 doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
                 if doc:

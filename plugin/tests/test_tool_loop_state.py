@@ -9,6 +9,10 @@ from plugin.modules.chatbot.tool_loop_state import (
     LogAgentEffect,
     AddMessageEffect,
     UpdateActivityStateEffect,
+    ExitLoopEffect,
+    TriggerNextToolEffect,
+    SpawnFinalStreamEffect,
+    UpdateDocumentContextEffect,
     next_state,
 )
 
@@ -37,7 +41,7 @@ def test_stop_requested():
     assert new_state.is_stopped is True
     assert new_state.status == "Stopped"
 
-    assert "exit_loop" in effects
+    assert any(isinstance(e, ExitLoopEffect) for e in effects)
     assert any(isinstance(e, AddMessageEffect) for e in effects)
     assert any(isinstance(e, ToolLoopUIEffect) and e.kind == "status" and e.text == "Stopped" for e in effects)
 
@@ -48,7 +52,7 @@ def test_final_done():
     new_state, effects = tr.state, tr.effects
 
     assert new_state.status == "Ready"
-    assert "exit_loop" in effects
+    assert any(isinstance(e, ExitLoopEffect) for e in effects)
     
     msg_effect = next(e for e in effects if isinstance(e, AddMessageEffect))
     assert msg_effect.content == "Final words"
@@ -61,7 +65,7 @@ def test_error_event():
     new_state, effects = tr.state, tr.effects
 
     assert new_state.status == "Error"
-    assert "exit_loop" in effects
+    assert any(isinstance(e, ExitLoopEffect) for e in effects)
 
 def test_stream_done_finish_reasons():
     state = create_base_state()
@@ -87,7 +91,7 @@ def test_stream_done_empty_tool_calls():
     new_state, effects = tr.state, tr.effects
 
     assert new_state.status == "Ready"
-    assert "exit_loop" in effects
+    assert any(isinstance(e, ExitLoopEffect) for e in effects)
     msg_eff = next((e for e in effects if isinstance(e, AddMessageEffect)), None)
     assert msg_eff is not None
     assert msg_eff.content == "I couldn't figure it out."
@@ -101,7 +105,7 @@ def test_stream_done_with_tool_calls():
     new_state, effects = tr.state, tr.effects
 
     assert len(new_state.pending_tools) == 1
-    assert "trigger_next_tool" in effects
+    assert any(isinstance(e, TriggerNextToolEffect) for e in effects)
     msg_eff = next((e for e in effects if isinstance(e, AddMessageEffect)), None)
     assert msg_eff.content == "Let me test."
     assert msg_eff.tool_calls == tool_calls
@@ -117,7 +121,7 @@ def test_next_tool_advances_round_and_handles_max_rounds():
     spawn_eff = next((e for e in effects if isinstance(e, SpawnLLMWorkerEffect)), None)
     assert spawn_eff is not None
     assert spawn_eff.round_num == 4
-    assert "spawn_final_stream" not in effects
+    assert not any(isinstance(e, SpawnFinalStreamEffect) for e in effects)
 
     # Exhausted advance
     state_exhausted = create_base_state(round_num=4, max_rounds=5)
@@ -125,7 +129,7 @@ def test_next_tool_advances_round_and_handles_max_rounds():
     new_state_ex, effects_ex = tr_ex.state, tr_ex.effects
     assert new_state_ex.round_num == 5
     assert not any(isinstance(e, SpawnLLMWorkerEffect) for e in effects_ex)
-    assert "spawn_final_stream" in effects_ex
+    assert any(isinstance(e, SpawnFinalStreamEffect) for e in effects_ex)
 
 def test_next_tool_invalid_max_rounds():
     # If round_num somehow exceeds max_rounds, it caps to current round_num to prevent going back
@@ -134,7 +138,7 @@ def test_next_tool_invalid_max_rounds():
     tr = next_state(state, event)
     new_state, effects = tr.state, tr.effects
     assert new_state.round_num == 5
-    assert "spawn_final_stream" in effects
+    assert any(isinstance(e, SpawnFinalStreamEffect) for e in effects)
 
 def test_next_tool_with_pending_tools_and_action_state():
     tool_calls = [{"id": "call_1", "function": {"name": "test_tool", "arguments": "{}"}}]
@@ -193,8 +197,8 @@ def test_tool_result_parsing():
     )
     tr_valid = next_state(state, event_valid)
     new_state, effects = tr_valid.state, tr_valid.effects
-    assert "trigger_next_tool" in effects
-    assert "update_document_context" in effects  # Because is_success=True and mutates=True
+    assert any(isinstance(e, TriggerNextToolEffect) for e in effects)
+    assert any(isinstance(e, UpdateDocumentContextEffect) for e in effects)  # is_success=True and mutates=True
     
     msg_eff = next(e for e in effects if isinstance(e, AddMessageEffect))
     assert msg_eff.role == "tool"
@@ -217,4 +221,4 @@ def test_tool_result_parsing():
     assert any("[Debug: params" in e.text for e in ui_effs)
     # the 1000 'A's should be truncated to 800 + "..."
     assert any("..." in e.text for e in ui_effs)
-    assert "update_document_context" not in effects_adc # Because mutates_document=False
+    assert not any(isinstance(e, UpdateDocumentContextEffect) for e in effects_adc)  # mutates_document=False

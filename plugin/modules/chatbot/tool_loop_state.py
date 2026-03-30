@@ -32,8 +32,27 @@ class ToolLoopEvent(NamedTuple):
     data: Dict[str, Any] = {}
 
 # --- Effects ---
-# We use strings for simple effects:
-# "exit_loop", "trigger_next_tool", "spawn_final_stream", "update_document_context"
+# Control-flow and UI effects use frozen dataclasses (interpreted in tool_loop._execute_effect).
+
+@dataclasses.dataclass(frozen=True)
+class ExitLoopEffect:
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class TriggerNextToolEffect:
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class SpawnFinalStreamEffect:
+    pass
+
+
+@dataclasses.dataclass(frozen=True)
+class UpdateDocumentContextEffect:
+    pass
+
 
 @dataclasses.dataclass(frozen=True)
 class SpawnLLMWorkerEffect:
@@ -88,7 +107,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> FsmTransition[Tool
             effects.append(AddMessageEffect(role="assistant", content="No response."))
             effects.append(ToolLoopUIEffect(kind="status", text="Stopped"))
             effects.append(ToolLoopUIEffect(kind="append", text="\n[Stopped by user]\n"))
-            effects.append("exit_loop")
+            effects.append(ExitLoopEffect())
             return FsmTransition(dataclasses.replace(state, is_stopped=True, status="Stopped"), effects)
 
         case EventKind.FINAL_DONE:
@@ -97,12 +116,12 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> FsmTransition[Tool
                 effects.append(AddMessageEffect(role="assistant", content=content))
                 effects.append(ToolLoopUIEffect(kind="append", text="\n"))
             effects.append(ToolLoopUIEffect(kind="status", text="Ready"))
-            effects.append("exit_loop")
+            effects.append(ExitLoopEffect())
             return FsmTransition(dataclasses.replace(state, status="Ready"), effects)
 
         case EventKind.ERROR:
             # The caller handles rendering the actual error message
-            effects.append("exit_loop")
+            effects.append(ExitLoopEffect())
             return FsmTransition(dataclasses.replace(state, status="Error"), effects)
 
         case EventKind.STREAM_DONE:
@@ -150,7 +169,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> FsmTransition[Tool
                     effects.append(ToolLoopUIEffect(kind="append", text="\n[No text from model; any tool changes were still applied.]\n"))
 
                 effects.append(ToolLoopUIEffect(kind="status", text="Ready"))
-                effects.append("exit_loop")
+                effects.append(ExitLoopEffect())
                 return FsmTransition(dataclasses.replace(state, status="Ready"), effects)
 
             else:
@@ -159,7 +178,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> FsmTransition[Tool
                     effects.append(ToolLoopUIEffect(kind="append", text="\n"))
 
                 new_pending_tools = list(state.pending_tools) + tool_calls
-                effects.append("trigger_next_tool")
+                effects.append(TriggerNextToolEffect())
                 return FsmTransition(dataclasses.replace(state, pending_tools=new_pending_tools), effects)
 
         case EventKind.NEXT_TOOL:
@@ -175,7 +194,7 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> FsmTransition[Tool
                         data={"rounds": state.max_rounds},
                         hypothesis_id="A"
                     ))
-                    effects.append("spawn_final_stream")
+                    effects.append(SpawnFinalStreamEffect())
                     capped_round_num = max(state.round_num, state.max_rounds)
                     return FsmTransition(dataclasses.replace(state, round_num=capped_round_num), effects)
                 else:
@@ -280,9 +299,9 @@ def next_state(state: ToolLoopState, event: ToolLoopEvent) -> FsmTransition[Tool
 
             is_success = result_data.get("success") is True or result_data.get("status") == "ok"
             if is_success and mutates_document:
-                effects.append("update_document_context")
+                effects.append(UpdateDocumentContextEffect())
 
-            effects.append("trigger_next_tool")
+            effects.append(TriggerNextToolEffect())
             return FsmTransition(state, effects)
 
     return FsmTransition(state, effects)
