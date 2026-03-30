@@ -8,6 +8,7 @@
 import logging
 
 from plugin.framework.tool_base import ToolBase, ToolBaseDummy
+from plugin.framework.types import ToolResult, ToolError
 
 log = logging.getLogger("nelson.common")
 

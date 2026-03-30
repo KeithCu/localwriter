@@ -21,6 +21,7 @@ import logging
 import threading
 import queue
 from typing import Any, cast
+from plugin.framework.types import ToolResult, ToolError
 
 from plugin.framework.tool_base import ToolBase
 from plugin.framework.schema_convert import to_openai_schema, to_mcp_schema
@@ -304,7 +305,7 @@ class ToolRegistry:
 
         return result
 
-    def execute(self, tool_name, ctx, **kwargs):
+    def execute(self, tool_name, ctx, **kwargs) -> dict[str, Any]:
         """Execute a tool by name.
 
         Args:
@@ -313,7 +314,7 @@ class ToolRegistry:
             **kwargs:  Tool arguments.
 
         Returns:
-            dict result from the tool.
+            dict: Result from the tool execution (typically a ToolResult).
         """
         try:
             tool = self._tools.get(tool_name)

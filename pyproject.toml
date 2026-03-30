@@ -8,6 +8,7 @@ dependencies = [
     "polib",
     "pytest-cov>=7.1.0",
     "ty",
+    "bowler",
 ]
 
 [tool.uv]

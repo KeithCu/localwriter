@@ -23,6 +23,8 @@ All custom exceptions should inherit from WriterAgentException.
 import json
 from typing import Any
 
+from plugin.framework.types import ToolResult, ToolError
+
 
 class WriterAgentException(Exception):
     """Base exception for all WriterAgent errors.
