@@ -5,7 +5,7 @@ from plugin.modules.chatbot.tool_loop_state import (
     EventKind,
     SpawnLLMWorkerEffect,
     SpawnToolWorkerEffect,
-    UIEffect,
+    ToolLoopUIEffect,
     LogAgentEffect,
     AddMessageEffect,
     UpdateActivityStateEffect,
@@ -39,7 +39,7 @@ def test_stop_requested():
 
     assert "exit_loop" in effects
     assert any(isinstance(e, AddMessageEffect) for e in effects)
-    assert any(isinstance(e, UIEffect) and e.kind == "status" and e.text == "Stopped" for e in effects)
+    assert any(isinstance(e, ToolLoopUIEffect) and e.kind == "status" and e.text == "Stopped" for e in effects)
 
 def test_final_done():
     state = create_base_state()
@@ -71,13 +71,13 @@ def test_stream_done_finish_reasons():
     tr_len = next_state(state, event_len)
     new_state_len, effects_len = tr_len.state, tr_len.effects
     assert new_state_len.status == "Ready"
-    assert any(isinstance(e, UIEffect) and "out of tokens" in e.text for e in effects_len)
+    assert any(isinstance(e, ToolLoopUIEffect) and "out of tokens" in e.text for e in effects_len)
     
     # finish_reason="content_filter"
     event_filt = create_event(EventKind.STREAM_DONE, response={"finish_reason": "content_filter", "content": None})
     tr_filt = next_state(state, event_filt)
     new_state_filt, effects_filt = tr_filt.state, tr_filt.effects
-    assert any(isinstance(e, UIEffect) and "Content filter" in e.text for e in effects_filt)
+    assert any(isinstance(e, ToolLoopUIEffect) and "Content filter" in e.text for e in effects_filt)
 
 def test_stream_done_empty_tool_calls():
     state = create_base_state()
@@ -176,7 +176,7 @@ def test_next_tool_when_stopped():
     tr = next_state(state, event)
     new_state, effects = tr.state, tr.effects
     
-    assert not any(isinstance(e, UIEffect) and e.kind == "status" for e in effects)
+    assert not any(isinstance(e, ToolLoopUIEffect) and e.kind == "status" for e in effects)
     assert any(isinstance(e, SpawnLLMWorkerEffect) for e in effects)
 
 def test_tool_result_parsing():
@@ -213,7 +213,7 @@ def test_tool_result_parsing():
     tr_adc = next_state(state, event_adc)
     new_state_adc, effects_adc = tr_adc.state, tr_adc.effects
     
-    ui_effs = [e for e in effects_adc if isinstance(e, UIEffect)]
+    ui_effs = [e for e in effects_adc if isinstance(e, ToolLoopUIEffect)]
     assert any("[Debug: params" in e.text for e in ui_effs)
     # the 1000 'A's should be truncated to 800 + "..."
     assert any("..." in e.text for e in ui_effs)

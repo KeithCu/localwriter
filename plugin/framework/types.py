@@ -49,3 +49,6 @@ SendHandlerFsmStatus = Literal[
 ]
 # CompleteJobEffect.terminal_status (UI / job completion; capitalized)
 SendHandlerCompleteStatus = Literal["Error", "Stopped", "Ready"]
+
+# Tool-loop and send-handler UI channel effects (see ToolLoopUIEffect, SendHandlerUIEffect)
+UIEffectKind = Literal["append", "status", "debug", "info"]

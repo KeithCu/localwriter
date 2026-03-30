@@ -10,6 +10,7 @@ from plugin.framework.types import (
     SendHandlerCompleteStatus,
     SendHandlerFsmStatus,
     SendHandlerKind,
+    UIEffectKind,
 )
 
 try:
@@ -95,8 +96,8 @@ class SpawnWebWorkerEffect(NamedTuple):
     query_text: str
     model: Any
 
-class UIEffect(NamedTuple):
-    kind: str  # "append" or "status"
+class SendHandlerUIEffect(NamedTuple):
+    kind: UIEffectKind
     text: str
     is_thinking: bool = False
 
@@ -108,7 +109,7 @@ class ProceedToChatEffect(NamedTuple):
 class CompleteJobEffect(NamedTuple):
     terminal_status: SendHandlerCompleteStatus
 
-SendHandlerEffect = SpawnAudioWorkerEffect | SpawnDirectImageEffect | SpawnAgentWorkerEffect | SpawnWebWorkerEffect | UIEffect | ProceedToChatEffect | CompleteJobEffect
+SendHandlerEffect = SpawnAudioWorkerEffect | SpawnDirectImageEffect | SpawnAgentWorkerEffect | SpawnWebWorkerEffect | SendHandlerUIEffect | ProceedToChatEffect | CompleteJobEffect
 
 # 5. Effect Interpreter Interface/Placeholder
 # The EffectInterpreter class executes the side effects returned by next_state.
@@ -121,11 +122,11 @@ class EffectInterpreter:
 
     def interpret(self, effect: SendHandlerEffect):
         match effect:
-            case UIEffect("append", text, is_thinking):
+            case SendHandlerUIEffect("append", text, is_thinking):
                 # The _append_response handles thinking implicitly by default args, but we match it
                 # For this handler, we just append text. Thinking is checked in the loop.
                 self.handler._append_response(text)
-            case UIEffect("status", text, _):
+            case SendHandlerUIEffect("status", text, _):
                 self.handler._set_status(text)
             case CompleteJobEffect(terminal_status=status):
                 self.handler._terminal_status = status
@@ -152,14 +153,14 @@ def handle_error(state: SendHandlerState, event: ErrorEvent) -> FsmTransition[Se
 
     # Notify user using format_error_for_display
     err_msg = format_error_for_display(event.error)
-    effects.append(UIEffect("status", "Error"))
+    effects.append(SendHandlerUIEffect("status", "Error"))
 
     if state.handler_type == 'audio':
-        effects.append(UIEffect("append", f"\n[Transcription error: {err_msg}]\n"))
+        effects.append(SendHandlerUIEffect("append", f"\n[Transcription error: {err_msg}]\n"))
     elif state.handler_type == 'web':
-        effects.append(UIEffect("append", f"\n[Research Chat error: {err_msg}]\n"))
+        effects.append(SendHandlerUIEffect("append", f"\n[Research Chat error: {err_msg}]\n"))
     else:
-        effects.append(UIEffect("append", f"\n[Operation failed: {err_msg}]\n"))
+        effects.append(SendHandlerUIEffect("append", f"\n[Operation failed: {err_msg}]\n"))
 
     effects.append(CompleteJobEffect("Error"))
 
@@ -193,9 +194,9 @@ def next_state(
 
     match event:
         case StopRequestedEvent():
-            effects.append(UIEffect("status", "Stopped"))
+            effects.append(SendHandlerUIEffect("status", "Stopped"))
             if state.handler_type == "agent":
-                effects.append(UIEffect("append", "\n[Stopped by user]\n"))
+                effects.append(SendHandlerUIEffect("append", "\n[Stopped by user]\n"))
             effects.append(CompleteJobEffect("Stopped"))
             new_state = SendHandlerState(
                 handler_type=state.handler_type,
@@ -214,7 +215,7 @@ def next_state(
             return handle_error(state, event)
 
         case StreamChunkEvent(chunk_text=text, is_thinking=thinking):
-            effects.append(UIEffect("append", text, is_thinking=thinking))
+            effects.append(SendHandlerUIEffect("append", text, is_thinking=thinking))
             new_state = SendHandlerState(
                 handler_type=state.handler_type,
                 status=state.status,
@@ -245,10 +246,10 @@ def next_state(
                 if combined_text:
                     effects.append(ProceedToChatEffect(combined_text, state.model, state.doc_type_str))
                 else:
-                    effects.append(UIEffect("status", "Ready"))
+                    effects.append(SendHandlerUIEffect("status", "Ready"))
                     effects.append(CompleteJobEffect("Ready"))
             elif state.handler_type in ('image', 'agent', 'web'):
-                effects.append(UIEffect("status", "Ready"))
+                effects.append(SendHandlerUIEffect("status", "Ready"))
                 effects.append(CompleteJobEffect("Ready"))
 
             new_state = SendHandlerState(
@@ -266,8 +267,8 @@ def next_state(
 
         case StartEvent(query_text=q_text, model=mod, doc_type_str=doc_type, wav_path=w_path, stt_model=stt_mod):
             if state.handler_type == 'audio':
-                effects.append(UIEffect("status", "Transcribing audio..."))
-                effects.append(UIEffect("append", "\n[Transcribing audio...]\n"))
+                effects.append(SendHandlerUIEffect("status", "Transcribing audio..."))
+                effects.append(SendHandlerUIEffect("append", "\n[Transcribing audio...]\n"))
                 if w_path and stt_mod:
                     effects.append(SpawnAudioWorkerEffect(
                         wav_path=w_path,
@@ -276,21 +277,21 @@ def next_state(
                         query_text=q_text
                     ))
             elif state.handler_type == 'image':
-                effects.append(UIEffect("append", f"\nYou: {q_text}\n"))
-                effects.append(UIEffect("append", "\n[Using image model (direct).]\n"))
-                effects.append(UIEffect("append", "AI: Creating image...\n"))
-                effects.append(UIEffect("status", "Creating image..."))
+                effects.append(SendHandlerUIEffect("append", f"\nYou: {q_text}\n"))
+                effects.append(SendHandlerUIEffect("append", "\n[Using image model (direct).]\n"))
+                effects.append(SendHandlerUIEffect("append", "AI: Creating image...\n"))
+                effects.append(SendHandlerUIEffect("status", "Creating image..."))
                 effects.append(SpawnDirectImageEffect(q_text, mod))
             elif state.handler_type == 'agent':
-                effects.append(UIEffect("append", f"\nYou: {q_text}\n"))
-                effects.append(UIEffect("append", "\n[Using external agent backend.]\n"))
-                effects.append(UIEffect("append", "AI: "))
-                effects.append(UIEffect("status", "Starting agent..."))
+                effects.append(SendHandlerUIEffect("append", f"\nYou: {q_text}\n"))
+                effects.append(SendHandlerUIEffect("append", "\n[Using external agent backend.]\n"))
+                effects.append(SendHandlerUIEffect("append", "AI: "))
+                effects.append(SendHandlerUIEffect("status", "Starting agent..."))
                 effects.append(SpawnAgentWorkerEffect(q_text, mod, doc_type))
             elif state.handler_type == 'web':
-                effects.append(UIEffect("append", f"\nYou: {q_text}\n"))
-                #effects.append(UIEffect("append", "\n[Using research chat.]\n"))
-                effects.append(UIEffect("status", "Starting research..."))
+                effects.append(SendHandlerUIEffect("append", f"\nYou: {q_text}\n"))
+                #effects.append(SendHandlerUIEffect("append", "\n[Using research chat.]\n"))
+                effects.append(SendHandlerUIEffect("status", "Starting research..."))
                 effects.append(SpawnWebWorkerEffect(q_text, mod))
 
             new_state = SendHandlerState(

@@ -58,7 +58,7 @@ from plugin.framework.config import as_bool
 from plugin.modules.chatbot.tool_loop_state import (
     ToolLoopState, ToolLoopEvent, EventKind,
     SpawnLLMWorkerEffect, SpawnToolWorkerEffect,
-    UIEffect, LogAgentEffect, AddMessageEffect,
+    ToolLoopUIEffect, LogAgentEffect, AddMessageEffect,
     UpdateActivityStateEffect, next_state
 )
 
@@ -601,7 +601,7 @@ class ToolCallingMixin:
             except Exception:
                 pass
 
-        elif isinstance(effect, UIEffect):
+        elif isinstance(effect, ToolLoopUIEffect):
             if effect.kind == "append":
                 self._append_response(effect.text)
             elif effect.kind == "status":

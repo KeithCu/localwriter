@@ -1,7 +1,7 @@
 import pytest
 from plugin.modules.chatbot.state_machine import (
     SendHandlerState, next_state, StartEvent, StopRequestedEvent,
-    StreamChunkEvent, StreamDoneEvent, ErrorEvent, UIEffect, CompleteJobEffect,
+    StreamChunkEvent, StreamDoneEvent, ErrorEvent, SendHandlerUIEffect, CompleteJobEffect,
     SpawnDirectImageEffect, SpawnAgentWorkerEffect, SpawnWebWorkerEffect,
 )
 
@@ -16,10 +16,10 @@ class TestSendHandlerStateMachine:
         assert new_state.status == "starting"
         assert new_state.query_text == "draw a cat"
         assert len(effects) == 5
-        assert isinstance(effects[0], UIEffect) # You
-        assert isinstance(effects[1], UIEffect) # Using image
-        assert isinstance(effects[2], UIEffect) # AI:
-        assert isinstance(effects[3], UIEffect) # SetStatusEffect replacement
+        assert isinstance(effects[0], SendHandlerUIEffect) # You
+        assert isinstance(effects[1], SendHandlerUIEffect) # Using image
+        assert isinstance(effects[2], SendHandlerUIEffect) # AI:
+        assert isinstance(effects[3], SendHandlerUIEffect) # SetStatusEffect replacement
         assert effects[3].kind == "status"
         assert isinstance(effects[4], SpawnDirectImageEffect)
 
@@ -33,9 +33,9 @@ class TestSendHandlerStateMachine:
         assert new_state.status == "starting"
         assert new_state.query_text == "search python"
         assert len(effects) == 3
-        assert isinstance(effects[0], UIEffect) # You
-#        assert isinstance(effects[1], UIEffect) # Using research
-        assert isinstance(effects[1], UIEffect) # Starting status
+        assert isinstance(effects[0], SendHandlerUIEffect) # You
+#        assert isinstance(effects[1], SendHandlerUIEffect) # Using research
+        assert isinstance(effects[1], SendHandlerUIEffect) # Starting status
         #assert effects[2].kind == "status"
         assert isinstance(effects[2], SpawnWebWorkerEffect)
 
@@ -51,10 +51,10 @@ class TestSendHandlerStateMachine:
 
         # Verify proper effects
         assert len(effects) == 3
-        assert isinstance(effects[0], UIEffect)
+        assert isinstance(effects[0], SendHandlerUIEffect)
         assert effects[0].kind == "status"
         assert effects[0].text == "Stopped"
-        assert isinstance(effects[1], UIEffect)
+        assert isinstance(effects[1], SendHandlerUIEffect)
         assert effects[1].kind == "append"
         assert effects[1].text == "\n[Stopped by user]\n"
         assert isinstance(effects[2], CompleteJobEffect)
@@ -70,9 +70,9 @@ class TestSendHandlerStateMachine:
         # Verify termination state
         assert new_state.status == "stopped"
 
-        # Verify proper effects - should NOT have the UIEffect "append" artifact for web/image
+        # Verify proper effects - should NOT have the SendHandlerUIEffect "append" artifact for web/image
         assert len(effects) == 2
-        assert isinstance(effects[0], UIEffect)
+        assert isinstance(effects[0], SendHandlerUIEffect)
         assert effects[0].kind == "status"
         assert effects[0].text == "Stopped"
         assert isinstance(effects[1], CompleteJobEffect)
@@ -88,7 +88,7 @@ class TestSendHandlerStateMachine:
         assert new_state.status == "running" # Unchanged
         assert new_state.query_text == "cat"
         assert len(effects) == 1
-        assert isinstance(effects[0], UIEffect)
+        assert isinstance(effects[0], SendHandlerUIEffect)
         assert effects[0].kind == "append"
         assert effects[0].text == "test data"
 
@@ -103,10 +103,10 @@ class TestSendHandlerStateMachine:
         assert new_state.last_error == "Network failure"
         assert new_state.error_time == 123.45
         assert len(effects) == 3
-        assert isinstance(effects[0], UIEffect)
+        assert isinstance(effects[0], SendHandlerUIEffect)
         assert effects[0].kind == "status"
         assert effects[0].text == "Error"
-        assert isinstance(effects[1], UIEffect)
+        assert isinstance(effects[1], SendHandlerUIEffect)
         assert effects[1].kind == "append"
         # The exact format might vary depending on format_error_for_display output
         assert "Research Chat error: " in effects[1].text
