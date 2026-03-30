@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from typing import List, Any, Dict, Optional, NamedTuple
 from plugin.modules.http.errors import format_error_for_display
 from plugin.framework.state import BaseState, FsmTransition
+from plugin.framework.types import (
+    SendHandlerCompleteStatus,
+    SendHandlerFsmStatus,
+    SendHandlerKind,
+)
 
 try:
     import deal  # type: ignore
@@ -24,8 +29,8 @@ except ImportError:
 
 @dataclass(frozen=True)
 class SendHandlerState(BaseState):
-    handler_type: str # 'audio', 'image', 'agent', 'web'
-    status: str       # 'ready', 'starting', 'running', 'done', 'error', 'stopped'
+    handler_type: SendHandlerKind
+    status: SendHandlerFsmStatus
     query_text: str = ""
     model: Any = None
     doc_type_str: str = ""
@@ -101,7 +106,7 @@ class ProceedToChatEffect(NamedTuple):
     doc_type_str: str
 
 class CompleteJobEffect(NamedTuple):
-    terminal_status: str
+    terminal_status: SendHandlerCompleteStatus
 
 SendHandlerEffect = SpawnAudioWorkerEffect | SpawnDirectImageEffect | SpawnAgentWorkerEffect | SpawnWebWorkerEffect | UIEffect | ProceedToChatEffect | CompleteJobEffect
 

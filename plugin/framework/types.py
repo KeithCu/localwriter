@@ -41,3 +41,11 @@ class ToolError(TypedDict):
     code: str
     message: str
     details: dict[str, Any]
+
+# Send-handler FSM (plugin.modules.chatbot.state_machine)
+SendHandlerKind = Literal["audio", "image", "agent", "web"]
+SendHandlerFsmStatus = Literal[
+    "ready", "starting", "running", "done", "error", "stopped"
+]
+# CompleteJobEffect.terminal_status (UI / job completion; capitalized)
+SendHandlerCompleteStatus = Literal["Error", "Stopped", "Ready"]
