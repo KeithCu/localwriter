@@ -116,20 +116,19 @@ class SendHandlersMixin:
             transcript_text = run_blocking_in_thread(
                 self.ctx, cl.transcribe_audio, wav_path, model=stt_model
             )
-
-            import os
-            try:
-                os.remove(wav_path)
-            except Exception:
-                pass
-            self.audio_wav_path = None
-
             return transcript_text
 
         except Exception as e:
             log.error("Transcription error in _transcribe_audio: %s", e)
             self._append_response("\n" + _("[Transcription error: {0}]").format(str(e)) + "\n")
             raise e
+        finally:
+            import os
+            try:
+                os.remove(wav_path)
+            except Exception:
+                pass
+            self.audio_wav_path = None
 
     def _run_unified_worker_drain_loop(
         self: SendHandlerHost,
