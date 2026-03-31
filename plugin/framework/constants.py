@@ -29,7 +29,7 @@ _FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragrap
 # Format-specific formatting rules
 HTML_FORMATTING_RULES = """
 FORMATTING RULES (CRITICAL):
-- When calling apply_document_content, supply `content` and `old_content`. Use '' or '_BEGIN_' for beginning, '_END_' for end, '_SELECTION_' for cursor/selection; otherwise old_content is the text to find and replace. For full-doc replace, pass full document as old_content.
+- When calling apply_document_content, supply `content` and `target`. Use target='beginning', 'end', 'selection', 'full_document', or 'search'. If target='search', also provide `old_content` with the text to find and replace.
 - Formatting elements: Use <br> for single line breaks within an element, <p> tags for paragraphs.
 - Special characters: Send raw characters (é, ü, ©, "smart quotes"), NOT HTML entities (&eacute;, &uuml;, &copy;, &ldquo;).
 - Quotation marks: Use straight quotes ("), NOT curly/smart quotes (" or &ldquo;/&rdquo;).
@@ -51,16 +51,16 @@ information to be inserted into the document. Use the apply_document_content too
 into LibreOffice so the user can edit it further.
 When asked about a topic you are not familiar with, use the web_research tool first to find information."""
 
-TRANSLATION_RULES = "TRANSLATION: get_document_content(scope=full) -> translate -> apply_document_content(old_content=original, content=translated). Never refuse."
+TRANSLATION_RULES = "TRANSLATION: get_document_content(scope=full) -> translate -> apply_document_content(target='search', old_content=original, content=translated). Never refuse."
 
 # Tool-usage workflow patterns learned from DSPy MIPROv2 optimization
 TOOL_USAGE_PATTERNS = """TOOL USAGE PATTERNS:
-- apply_document_content: provide content and old_content. Use '' or '_BEGIN_' for beginning, '_END_' for end, '_SELECTION_' for selection; otherwise old_content is text to find and replace. Full-doc replace: old_content=full doc, content=new doc. HTML in old_content is converted to plain text for matching.
+- apply_document_content: provide content and target. Targets: 'beginning', 'end', 'selection', 'full_document', or 'search'. Use target='search' with old_content for find-and-replace. HTML in old_content is converted to plain text for matching.
 - For "translate [section] to [language]": Use old_content (paste the section text) and content (the translation).
 - For creative rewriting or reformatting, get_document_content(scope=full) then apply_document_content(old_content=that result, content=new doc).
 - When uncertain about document structure, call get_document_content before making modifications.
 - search_in_document (with return_offsets if needed) is for inspection/navigation; use old_content for replacements.
-- If a tool call fails, verify content and old_content are provided (use '' or '_BEGIN_' / '_END_' / '_SELECTION_' for insert-only)."""
+- If a tool call fails, verify content and target are provided (use target='beginning' / 'end' / 'selection' for insert-only)."""
 
 # Shared Calc instruction blocks
 CALC_WORKFLOW = """WORKFLOW:
@@ -82,21 +82,18 @@ WHEN TO SAVE (do this proactively, don't wait to be asked):
 - You discover something about the environment.
 Prioritize what reduces future user steering."""
 
-#FIXME, One day the specialized domain list should be auto-generated.
-WRITER_SPECIALIZED_DELEGATION = """SPECIALIZED WRITER (nested tools):
-The default tool list hides deep Writer features (text frames, in-document charts,
-images on the drawing layer, TOC/index refresh, field refresh, bookmarks, OLE, etc.).
+WRITER_SPECIALIZED_DELEGATION_TEMPLATE = """SPECIALIZED WRITER (nested tools):
+The default tool list hides deep Writer features.
 When the user needs those, call delegate_to_specialized_writer_toolset with:
-domain one of: styles, layout, embedded, shapes, charts, indexes, fields, bookmarks, tracking, images —
-and a clear task string. The sub-agent only sees tools for that domain.
-For AI image generation/editing tools (generate_image, list_images, …), use domain=images."""
+domain one of: {domains} —
+and a clear task string. The sub-agent only sees tools for that domain."""
 
-DEFAULT_CHAT_SYSTEM_PROMPT = f"""{CORE_DIRECTIVES}
+DEFAULT_CHAT_SYSTEM_PROMPT_TEMPLATE = f"""{CORE_DIRECTIVES}
 
-{WRITER_SPECIALIZED_DELEGATION}
+{{specialized_delegation}}
 
 TOOLS:
-- apply_document_content: Write HTML. Provide content and old_content. Special old_content: '' or '_BEGIN_' = beginning, '_END_' = end, '_SELECTION_' = selection; else find-and-replace. Full-doc replace: old_content=full doc, content=new doc.
+- apply_document_content: Write HTML. Provide content and target. Targets: 'beginning', 'end', 'selection', 'full_document' (replaces all), or 'search' (requires old_content).
   HINT: {_FORMAT_HINT}
 - get_document_content: Read document (full/selection/range) as HTML.
 - search_in_document: Find text (use return_offsets for character positions if needed for inspection).
@@ -112,6 +109,9 @@ TOOLS:
 
 # {MEMORY_GUIDANCE}
 """
+
+# We dynamically set this later when calling get_chat_system_prompt_for_document
+DEFAULT_CHAT_SYSTEM_PROMPT = ""
 # NOTE: Experimental planning/todo guidance (commented out).
 # When the hermes-style `todo` tool is enabled, you can append guidance like:
 #
@@ -218,7 +218,21 @@ def get_chat_system_prompt_for_document(model, additional_instructions="", ctx=N
     elif is_draw(model):
         base = DEFAULT_DRAW_CHAT_SYSTEM_PROMPT
     else:
-        base = DEFAULT_CHAT_SYSTEM_PROMPT
+        # Generate domain list dynamically
+        from plugin.modules.writer.base import ToolWriterSpecialBase
+        domains = []
+        for cls in ToolWriterSpecialBase.__subclasses__():
+            if cls.specialized_domain:
+                domains.append(cls.specialized_domain)
+        domains_str = ", ".join(domains)
+
+        delegation = WRITER_SPECIALIZED_DELEGATION_TEMPLATE.format(domains=domains_str)
+        base = DEFAULT_CHAT_SYSTEM_PROMPT_TEMPLATE.replace("{specialized_delegation}", delegation)
+
+        # update the static variable once it's lazily generated so tests and imports works
+        global DEFAULT_CHAT_SYSTEM_PROMPT
+        if not DEFAULT_CHAT_SYSTEM_PROMPT:
+            DEFAULT_CHAT_SYSTEM_PROMPT = base
 
     if ctx:
         try:

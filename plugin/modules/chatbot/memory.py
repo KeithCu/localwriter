@@ -42,7 +42,7 @@ class MemoryTool(ToolBase):
     description = (
         "Persistent memory for the agent. Stores user profile, preferences, and quirks. "
         "Inserts or updates a specific key in a YAML/JSON-like key: value structure. "
-        "To delete a memory, update it with a value like 'unknown'."
+        "To delete a memory, update it with an empty string."
     )
     uno_services = None
     tier = "core"

@@ -136,10 +136,9 @@ class GetDocumentContent(ToolBase):
 # ApplyDocumentContent
 # ------------------------------------------------------------------
 
-# Reserved values for old_content: insert at position instead of find-and-replace.
-_OLD_CONTENT_BEGIN = "_BEGIN_"
-_OLD_CONTENT_END = "_END_"
-_OLD_CONTENT_SELECTION = "_SELECTION_"
+# ------------------------------------------------------------------
+# ApplyDocumentContent
+# ------------------------------------------------------------------
 
 class ApplyDocumentContent(ToolBase):
     """Insert or replace content in the document.
@@ -269,26 +268,7 @@ class ApplyDocumentContent(ToolBase):
             return {"status": "ok", "message": "Inserted content at beginning."}
 
         # target == "search" from here on
-        # Backward-compatibility for old_content special values
         old_stripped = str(old_content).strip()
-        if old_stripped == _OLD_CONTENT_END:
-            format_support.insert_content_at_position(
-                ctx.doc, ctx.ctx, content, "end",
-                config_svc=config_svc,
-            )
-            return {"status": "ok", "message": "Inserted content at end."}
-        if old_stripped == _OLD_CONTENT_SELECTION:
-            format_support.insert_content_at_position(
-                ctx.doc, ctx.ctx, content, "selection",
-                config_svc=config_svc,
-            )
-            return {"status": "ok", "message": "Inserted content at selection."}
-        if not old_stripped or old_stripped == _OLD_CONTENT_BEGIN:
-            format_support.insert_content_at_position(
-                ctx.doc, ctx.ctx, content, "beginning",
-                config_svc=config_svc,
-            )
-            return {"status": "ok", "message": "Inserted content at beginning (old_content was empty)."}
 
         import re as re_mod
         search_string = old_stripped
