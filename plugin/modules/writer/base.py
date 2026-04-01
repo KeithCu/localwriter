@@ -88,6 +88,12 @@ class ToolWriterBookmarkBase(ToolWriterSpecialBase):
     uno_services = ["com.sun.star.text.TextDocument"]
 
 
+class ToolWriterFootnoteBase(ToolWriterSpecialBase):
+    specialized_domain = "footnotes"
+    intent = "edit"
+    uno_services = ["com.sun.star.text.TextDocument"]
+
+
 # class SpecializedWorkflowFinished(ToolBase):
 #     """Tool called by the sub-agent to indicate it has completed its task."""
 #

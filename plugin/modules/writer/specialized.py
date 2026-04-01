@@ -41,8 +41,8 @@ class DelegateToSpecializedWriter(ToolBase):
         "Delegates a specialized task to a sub-agent with a focused toolset. "
         "Use this for complex Writer operations like manipulating tables, "
         "charts, fields, styles, layout, embedded objects, shapes, indexes, "
-        "bookmarks, track changes (tracking), or in-document image work "
-        "(domain=images: generate, list, insert, replace images, etc.)."
+        "bookmarks, track changes (tracking), footnotes/endnotes (domain=footnotes), "
+        "or in-document image work (domain=images: generate, list, insert, replace images, etc.)."
     )
 
     def __init__(self):

@@ -36,6 +36,7 @@ class WriterModule(ModuleBase):
             bookmark_tools,
             indexes,
             fields,
+            footnotes,
             embedded,
             tracking,
         )
