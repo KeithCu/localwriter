@@ -216,10 +216,12 @@ class GenerateImage(ToolWriterImageBase):
         msg = execute_on_main_thread(_insert_or_replace, timeout=mt_timeout)
 
         if provider in ("endpoint", "openrouter"):
-            image_model_used = args.get("image_model") or get_config(ctx.ctx, "image_model") or get_text_model(ctx.ctx)
+            image_model_used = str(
+                args.get("image_model") or get_config(ctx.ctx, "image_model") or get_text_model(ctx.ctx) or ""
+            ).strip()
             if image_model_used:
                 endpoint = get_config_str(ctx.ctx, "endpoint").strip()
-                update_lru_history(ctx.ctx, image_model_used.strip(), "image_model_lru", endpoint)
+                update_lru_history(ctx.ctx, image_model_used, "image_model_lru", endpoint)
 
         return {"status": "ok", "message": msg}
 
