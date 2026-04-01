@@ -115,3 +115,51 @@ cursor = doc.getText().createTextCursor()
 # ... move cursor to desired paragraph ...
 cursor.setPropertyValue("BreakType", PAGE_BEFORE)
 ```
+
+## 5. Comprehensive PageStyle Properties
+
+A complete dump of all available properties for `com.sun.star.style.PageStyle`. Most are `long` measurements in 1/100th mm, `boolean`, `string`, or specific enum/struct types.
+
+### Page Dimensions and Margins
+* `Width`, `Height` (long): Absolute page size.
+* `IsLandscape` (boolean): Page orientation.
+* `LeftMargin`, `RightMargin`, `TopMargin`, `BottomMargin` (long): Distance from page edge to content.
+* `GutterMargin` (long): Additional space for binding.
+
+### Background and Fill Properties
+Used to set the background color or image of the page itself.
+* `BackColor` (long), `BackTransparent` (boolean)
+* `FillStyle` (com.sun.star.drawing.FillStyle)
+* `FillColor`, `FillColor2` (long)
+* `FillBitmapURL`, `FillGradientName`, etc.
+
+### Header/Footer
+* `HeaderIsOn` / `FooterIsOn` (boolean): Master toggle.
+* `HeaderIsShared` / `FooterIsShared` (boolean): If left and right pages share the same header.
+* `HeaderHeight` / `FooterHeight` (long): Absolute height.
+* `HeaderBodyDistance` / `FooterBodyDistance` (long): Spacing between header/footer and main text.
+* `HeaderIsDynamicHeight` / `FooterIsDynamicHeight` (boolean): Auto-grow header/footer height.
+* `HeaderText`, `HeaderTextLeft`, `HeaderTextRight` (com.sun.star.text.XText): The text objects for headers.
+* Header/Footer backgrounds (`HeaderBackColor`, `HeaderFillStyle`, etc.) and borders (`HeaderLeftBorder`, etc.).
+
+### Borders
+* `TopBorder`, `BottomBorder`, `LeftBorder`, `RightBorder` (com.sun.star.table.BorderLine)
+* `BorderDistance` (long): Distance from text to borders.
+
+### Footnotes
+Properties defining how footnotes are displayed at the bottom of the page.
+* `FootnoteHeight` (long): Max height of footnote area.
+* `FootnoteLineWeight` (short), `FootnoteLineStyle` (byte), `FootnoteLineColor` (long)
+* `FootnoteLineRelativeWidth` (byte): Width as percentage of text area width.
+* `FootnoteLineDistance` (long): Distance from text area.
+* `FootnoteLineTextDistance` (long): Distance from separator line to footnote text.
+
+### Grid (Asian Typography)
+* `GridBaseHeight`, `GridBaseWidth` (long)
+* `GridDisplay`, `GridSnapToChars` (boolean)
+* `GridMode` (short)
+
+### Miscellaneous
+* `NumberingType` (short): Page numbering format (e.g., 4=Arabic, 0=Upper Roman, etc.).
+* `PageStyleLayout` (com.sun.star.style.PageStyleLayout enum): `ALL`, `LEFT`, `RIGHT`, `MIRRORED`.
+* `RegisterParagraphStyle` (string): Register-true (line up lines of text on both sides of a page).

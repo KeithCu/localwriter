@@ -323,9 +323,27 @@ class GetPageStyleProperties(ToolWriterLayoutBase):
                 "right_margin_mm": style.getPropertyValue("RightMargin") / 100.0,
                 "top_margin_mm": style.getPropertyValue("TopMargin") / 100.0,
                 "bottom_margin_mm": style.getPropertyValue("BottomMargin") / 100.0,
+                "gutter_margin_mm": style.getPropertyValue("GutterMargin") / 100.0,
                 "header_is_on": style.getPropertyValue("HeaderIsOn"),
                 "footer_is_on": style.getPropertyValue("FooterIsOn"),
+                "header_is_shared": style.getPropertyValue("HeaderIsShared"),
+                "footer_is_shared": style.getPropertyValue("FooterIsShared"),
+                "header_height_mm": style.getPropertyValue("HeaderHeight") / 100.0,
+                "footer_height_mm": style.getPropertyValue("FooterHeight") / 100.0,
+                "header_body_distance_mm": style.getPropertyValue("HeaderBodyDistance") / 100.0,
+                "footer_body_distance_mm": style.getPropertyValue("FooterBodyDistance") / 100.0,
+                "back_color": style.getPropertyValue("BackColor"),
+                "back_transparent": style.getPropertyValue("BackTransparent"),
+                "numbering_type": style.getPropertyValue("NumberingType"),
+                "footnote_height_mm": style.getPropertyValue("FootnoteHeight") / 100.0,
+                "register_paragraph_style": style.getPropertyValue("RegisterParagraphStyle"),
             }
+            # Attempt to safely fetch PageStyleLayout enum
+            try:
+                psl = style.getPropertyValue("PageStyleLayout")
+                props["page_style_layout"] = psl.value if hasattr(psl, "value") else int(psl)
+            except Exception:
+                pass
             return {"status": "ok", "properties": props}
         except Exception as e:
             return self._tool_error(f"Error reading properties from page style '{style_name}': {e}")
@@ -354,8 +372,21 @@ class SetPageStyleProperties(ToolWriterLayoutBase):
             "right_margin_mm": {"type": "number", "description": "Right margin in mm."},
             "top_margin_mm": {"type": "number", "description": "Top margin in mm."},
             "bottom_margin_mm": {"type": "number", "description": "Bottom margin in mm."},
+            "gutter_margin_mm": {"type": "number", "description": "Gutter margin in mm (for binding)."},
             "header_is_on": {"type": "boolean", "description": "Enable or disable header."},
             "footer_is_on": {"type": "boolean", "description": "Enable or disable footer."},
+            "header_is_shared": {"type": "boolean", "description": "Share header between left/right pages."},
+            "footer_is_shared": {"type": "boolean", "description": "Share footer between left/right pages."},
+            "header_height_mm": {"type": "number", "description": "Absolute header height in mm."},
+            "footer_height_mm": {"type": "number", "description": "Absolute footer height in mm."},
+            "header_body_distance_mm": {"type": "number", "description": "Spacing from header to body in mm."},
+            "footer_body_distance_mm": {"type": "number", "description": "Spacing from footer to body in mm."},
+            "back_color": {"type": "integer", "description": "Background color (RGB long)."},
+            "back_transparent": {"type": "boolean", "description": "Make background transparent."},
+            "numbering_type": {"type": "integer", "description": "Numbering type enum (4=Arabic, 0=Roman)."},
+            "footnote_height_mm": {"type": "number", "description": "Max footnote area height in mm."},
+            "register_paragraph_style": {"type": "string", "description": "Register true reference style."},
+            "page_style_layout": {"type": "integer", "description": "0=ALL, 1=LEFT, 2=RIGHT, 3=MIRRORED"},
         },
         "required": [],
     }
@@ -397,12 +428,55 @@ class SetPageStyleProperties(ToolWriterLayoutBase):
             if "bottom_margin_mm" in kwargs:
                 style.setPropertyValue("BottomMargin", int(kwargs["bottom_margin_mm"] * 100))
                 updated.append("bottom_margin")
+            if "gutter_margin_mm" in kwargs:
+                style.setPropertyValue("GutterMargin", int(kwargs["gutter_margin_mm"] * 100))
+                updated.append("gutter_margin")
             if "header_is_on" in kwargs:
                 style.setPropertyValue("HeaderIsOn", kwargs["header_is_on"])
                 updated.append("header_is_on")
             if "footer_is_on" in kwargs:
                 style.setPropertyValue("FooterIsOn", kwargs["footer_is_on"])
                 updated.append("footer_is_on")
+            if "header_is_shared" in kwargs:
+                style.setPropertyValue("HeaderIsShared", kwargs["header_is_shared"])
+                updated.append("header_is_shared")
+            if "footer_is_shared" in kwargs:
+                style.setPropertyValue("FooterIsShared", kwargs["footer_is_shared"])
+                updated.append("footer_is_shared")
+            if "header_height_mm" in kwargs:
+                style.setPropertyValue("HeaderHeight", int(kwargs["header_height_mm"] * 100))
+                updated.append("header_height")
+            if "footer_height_mm" in kwargs:
+                style.setPropertyValue("FooterHeight", int(kwargs["footer_height_mm"] * 100))
+                updated.append("footer_height")
+            if "header_body_distance_mm" in kwargs:
+                style.setPropertyValue("HeaderBodyDistance", int(kwargs["header_body_distance_mm"] * 100))
+                updated.append("header_body_distance")
+            if "footer_body_distance_mm" in kwargs:
+                style.setPropertyValue("FooterBodyDistance", int(kwargs["footer_body_distance_mm"] * 100))
+                updated.append("footer_body_distance")
+            if "back_color" in kwargs:
+                style.setPropertyValue("BackColor", kwargs["back_color"])
+                updated.append("back_color")
+            if "back_transparent" in kwargs:
+                style.setPropertyValue("BackTransparent", kwargs["back_transparent"])
+                updated.append("back_transparent")
+            if "numbering_type" in kwargs:
+                style.setPropertyValue("NumberingType", kwargs["numbering_type"])
+                updated.append("numbering_type")
+            if "footnote_height_mm" in kwargs:
+                style.setPropertyValue("FootnoteHeight", int(kwargs["footnote_height_mm"] * 100))
+                updated.append("footnote_height")
+            if "register_paragraph_style" in kwargs:
+                style.setPropertyValue("RegisterParagraphStyle", kwargs["register_paragraph_style"])
+                updated.append("register_paragraph_style")
+            if "page_style_layout" in kwargs:
+                from com.sun.star.style.PageStyleLayout import (ALL, LEFT, RIGHT, MIRRORED)
+                m = {0: ALL, 1: LEFT, 2: RIGHT, 3: MIRRORED}
+                val = m.get(kwargs["page_style_layout"])
+                if val is not None:
+                    style.setPropertyValue("PageStyleLayout", val)
+                    updated.append("page_style_layout")
         except Exception as e:
             return self._tool_error(f"Error setting properties on page style '{style_name}': {e}")
 

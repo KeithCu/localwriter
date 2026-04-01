@@ -58,8 +58,21 @@ def test_get_page_style_properties():
             "RightMargin": 2000,
             "TopMargin": 2000,
             "BottomMargin": 2000,
+            "GutterMargin": 0,
             "HeaderIsOn": True,
-            "FooterIsOn": False
+            "FooterIsOn": False,
+            "HeaderIsShared": True,
+            "FooterIsShared": True,
+            "HeaderHeight": 500,
+            "FooterHeight": 500,
+            "HeaderBodyDistance": 500,
+            "FooterBodyDistance": 500,
+            "BackColor": 16777215,
+            "BackTransparent": True,
+            "NumberingType": 4,
+            "FootnoteHeight": 0,
+            "RegisterParagraphStyle": "",
+            "PageStyleLayout": MagicMock(value=0)
         }
         return props[name]
     style.getPropertyValue.side_effect = get_prop
