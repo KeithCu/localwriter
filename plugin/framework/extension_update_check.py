@@ -81,7 +81,8 @@ def run_extension_update_check(ctx: Any) -> None:
             UPDATE_XML_URL,
         )
         now = time.time()
-        raw_last = get_config(ctx, CONFIG_KEY_EXTENSION_UPDATE_CHECK_EPOCH)
+        from plugin.framework.config import get_config_int
+        raw_last = get_config_int(ctx, CONFIG_KEY_EXTENSION_UPDATE_CHECK_EPOCH)
         if raw_last is not None and raw_last != "":
             try:
                 last_ts = float(str(raw_last))

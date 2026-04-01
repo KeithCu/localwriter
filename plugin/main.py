@@ -591,8 +591,8 @@ def _get_http_module(ctx=None):
 
 def _start_mcp_server(ctx):
     """Ensure HTTP/MCP server is loaded. Start happens natively in module lifecycle."""
-    from plugin.framework.config import get_config, as_bool
-    if not as_bool(get_config(ctx, "mcp_enabled")):
+    from plugin.framework.config import get_config_bool
+    if not get_config_bool(ctx, "mcp_enabled"):
         return
     bootstrap(ctx)
 

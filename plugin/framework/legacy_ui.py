@@ -29,7 +29,11 @@ from plugin.framework.dialogs import (
     translate_dialog,
 )
 from plugin.framework.i18n import _
-from plugin.framework.config import get_config, get_current_endpoint, get_text_model, populate_combobox_with_lru, set_config, update_lru_history
+from plugin.framework.config import (
+    get_config, get_current_endpoint, get_text_model,
+    populate_combobox_with_lru, set_config, update_lru_history,
+    get_config_str, get_config_bool, get_config_int, get_config_float
+)
 from plugin.framework.logging import init_logging, agent_log
 from plugin.modules.chatbot.history_db import HAS_SQLITE
 import uno
@@ -60,7 +64,7 @@ def input_box(ctx, message, title="", default="", x=None, y=None):
             dlg.getModel().Title = title
         
         prompt_ctrl = dlg.getControl("prompt_selector")
-        current_prompt = get_config(ctx, "additional_instructions")
+        current_prompt = get_config_str(ctx, "additional_instructions")
         populate_combobox_with_lru(ctx, prompt_ctrl, current_prompt, "prompt_lru", "")
 
         model_selector = get_optional(dlg, "model_selector")
@@ -206,7 +210,7 @@ def settings_box(ctx, title="Settings", x=None, y=None):
                                     if text_ctrl:
                                         populate_combobox_with_lru(self._ctx, text_ctrl, "", "model_lru", resolved)
                                     if image_ctrl:
-                                        if get_config(self._ctx, "image_provider") == "endpoint":
+                                        if get_config_str(self._ctx, "image_provider") == "endpoint":
                                             populate_combobox_with_lru(self._ctx, image_ctrl, "", "image_model_lru", resolved)
                                         else:
                                             populate_image_model_selector(self._ctx, image_ctrl)
@@ -371,11 +375,11 @@ def show_eval_dashboard(ctx):
 
     try:
         endpoint_ctrl = dlg.getControl("endpoint")
-        set_control_text(endpoint_ctrl, str(get_config(ctx, "endpoint") or ""))
+        set_control_text(endpoint_ctrl, get_config_str(ctx, "endpoint"))
         
         model_ctrl = dlg.getControl("models")
         current_model = str(get_config(ctx, "text_model") or get_config(ctx, "model") or "")
-        current_endpoint = str(get_config(ctx, "endpoint") or "").strip()
+        current_endpoint = get_config_str(ctx, "endpoint").strip()
         populate_combobox_with_lru(ctx, model_ctrl, current_model, "model_lru", current_endpoint)
 
         class EvalRunListener(BaseActionListener):

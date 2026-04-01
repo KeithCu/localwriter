@@ -16,7 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Legacy operations for Calc (Extend/Edit Selection)."""
-from plugin.framework.config import get_config, get_config_int, get_api_config, validate_api_config
+from plugin.framework.config import (
+    get_config, get_config_int, get_config_str, get_api_config, validate_api_config
+)
 from plugin.modules.http.errors import format_error_message
 from plugin.modules.http.client import LlmClient
 from plugin.framework.async_stream import run_stream_completion_async
@@ -37,9 +39,9 @@ def do_calc_extend_edit(ctx, model, input_box_fn, is_edit):
     col_range = range(area.StartColumn, area.EndColumn + 1)
     row_range = range(area.StartRow, area.EndRow + 1)
 
-    extend_sys = get_config(ctx, "extend_selection_system_prompt")
+    extend_sys = get_config_str(ctx, "extend_selection_system_prompt")
     extend_max = get_config_int(ctx, "extend_selection_max_tokens")
-    edit_sys = get_config(ctx, "edit_selection_system_prompt")
+    edit_sys = get_config_str(ctx, "edit_selection_system_prompt")
     edit_max = get_config_int(ctx, "edit_selection_max_new_tokens")
 
     tasks = []

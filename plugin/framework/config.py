@@ -340,11 +340,8 @@ def _resolve_default(key):
         if val is not None:
             return val
 
-    if "@" in key or key.endswith("_lru"):
-        return []
-    if "by_endpoint" in key or "_map" in key:
-        return {}
-    return ""
+    # Strict check: if not in schema and not a recognized dynamic pattern, it's a bug.
+    raise ConfigError(f"Config key {key!r} not found in schema", "CONFIG_KEY_NOT_FOUND")
 
 
 # In-memory configuration cache so we don't open/parse/validate writeragent.json
@@ -459,14 +456,32 @@ def get_config_int(ctx, key) -> int:
         raise ConfigError(f"Config key {key!r} has non-integer value: {v!r}", "CONFIG_TYPE_ERROR") from e
 
 
-def get_config_str(ctx, key, default=""):
-    """Return a config value as str (for free-text keys like additional_instructions)."""
+def get_config_str(ctx, key) -> str:
+    """Get a config value as str. ALL requested keys MUST be in the schema.
+    Throws ConfigError if key is not found."""
     v = get_config(ctx, key)
     if v is None:
-        return default
+        return ""
     if isinstance(v, str):
         return v
     return str(v)
+
+
+def get_config_bool(ctx, key) -> bool:
+    """Get a config value as bool. ALL requested keys MUST be in the schema.
+    Throws ConfigError if key is not found."""
+    v = get_config(ctx, key)
+    return as_bool(v)
+
+
+def get_config_float(ctx, key) -> float:
+    """Get a config value as float. ALL requested keys MUST be in the schema.
+    Throws ConfigError if key is not found."""
+    v = get_config(ctx, key)
+    try:
+        return float(v)
+    except (ValueError, TypeError) as e:
+        raise ConfigError(f"Config key {key!r} has non-float value: {v!r}", "CONFIG_TYPE_ERROR") from e
 
 
 def get_config_dict(ctx):
@@ -1001,12 +1016,12 @@ def get_api_config(ctx):
         "model": get_text_model(ctx),
         "is_openwebui": is_openwebui,
         "is_openrouter": is_openrouter,
-        "seed": get_config(ctx, "seed") or "",
-        "request_timeout": _safe_int(get_config(ctx, "request_timeout"), 120),
-        "chat_max_tool_rounds": _safe_int(get_config(ctx, "chat_max_tool_rounds"), 25),
+        "seed": get_config_str(ctx, "seed"),
+        "request_timeout": get_config_int(ctx, "request_timeout"),
+        "chat_max_tool_rounds": get_config_int(ctx, "chat_max_tool_rounds"),
     }
 
-    temp = _safe_float(get_config(ctx, "temperature"), -1)
+    temp = get_config_float(ctx, "temperature")
     if temp >= 0:
         api_config["temperature"] = temp
 
@@ -1126,9 +1141,13 @@ class ConfigService(ServiceBase):
                  log.debug("ConfigService.get ConfigError: %s", e)
 
         ctx = get_ctx()
-        val = get_config(ctx, key)
-        if val is not None and val != "":
-            return val
+        try:
+            val = get_config(ctx, key)
+            if val is not None and val != "":
+                return val
+        except ConfigError:
+            pass
+
         if key not in self._defaults:
             return default
         return self._defaults[key]

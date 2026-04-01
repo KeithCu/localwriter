@@ -14,7 +14,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from plugin.framework.config import get_config, set_config, get_current_endpoint, as_bool, endpoint_from_selector_text, get_image_model, set_image_model, get_api_key_for_endpoint, set_api_key_for_endpoint
+from plugin.framework.config import (
+    get_config, set_config, get_current_endpoint, as_bool,
+    endpoint_from_selector_text, get_image_model, set_image_model,
+    get_api_key_for_endpoint, set_api_key_for_endpoint,
+    get_config_bool, get_config_int, get_config_float, get_config_str
+)
 from plugin.framework.event_bus import global_event_bus
 
 import logging
@@ -27,30 +32,30 @@ def get_settings_field_specs(ctx):
     log.debug("get_settings_field_specs entry")
     current_endpoint_for_specs = get_current_endpoint(ctx)
     field_specs = [
-        {"name": "endpoint", "value": str(get_config(ctx, "endpoint") or "")},
-        {"name": "request_timeout", "value": str(get_config(ctx, "request_timeout")), "type": "int"},
+        {"name": "endpoint", "value": get_config_str(ctx, "endpoint")},
+        {"name": "request_timeout", "value": str(get_config_int(ctx, "request_timeout")), "type": "int"},
         {"name": "text_model", "value": str(get_config(ctx, "text_model") or get_config(ctx, "model") or "")},
         {"name": "image_model", "value": str(get_image_model(ctx))},
         {"name": "stt_model", "value": str(get_config(ctx, "stt_model") or "")},
         {"name": "api_key", "value": str(get_api_key_for_endpoint(ctx, current_endpoint_for_specs))},
-        {"name": "temperature", "value": str(get_config(ctx, "temperature")), "type": "float"},
-        {"name": "chat_max_tokens", "value": str(get_config(ctx, "chat_max_tokens")), "type": "int"},
-        {"name": "chat_context_length", "value": str(get_config(ctx, "chat_context_length")), "type": "int"},
-        {"name": "additional_instructions", "value": str(get_config(ctx, "additional_instructions") or "")},
+        {"name": "temperature", "value": str(get_config_float(ctx, "temperature")), "type": "float"},
+        {"name": "chat_max_tokens", "value": str(get_config_int(ctx, "chat_max_tokens")), "type": "int"},
+        {"name": "chat_context_length", "value": str(get_config_int(ctx, "chat_context_length")), "type": "int"},
+        {"name": "additional_instructions", "value": get_config_str(ctx, "additional_instructions")},
         {"name": "use_aihorde", "value": "true" if get_config(ctx, "image_provider") == "aihorde" else "false", "type": "bool"},
         {"name": "aihorde_api_key", "value": str(get_config(ctx, "aihorde_api_key") or "")},
-        {"name": "image_base_size", "value": str(get_config(ctx, "image_base_size")), "type": "int"},
-        {"name": "image_default_aspect", "value": str(get_config(ctx, "image_default_aspect") or "")},
-        {"name": "image_cfg_scale", "value": str(get_config(ctx, "image_cfg_scale")), "type": "float"},
-        {"name": "image_steps", "value": str(get_config(ctx, "image_steps")), "type": "int"},
-        {"name": "image_nsfw", "value": "true" if as_bool(get_config(ctx, "image_nsfw")) else "false", "type": "bool"},
-        {"name": "image_censor_nsfw", "value": "true" if as_bool(get_config(ctx, "image_censor_nsfw")) else "false", "type": "bool"},
-        {"name": "image_max_wait", "value": str(get_config(ctx, "image_max_wait")), "type": "int"},
-        {"name": "image_auto_gallery", "value": "true" if as_bool(get_config(ctx, "image_auto_gallery")) else "false", "type": "bool"},
-        {"name": "image_insert_frame", "value": "true" if as_bool(get_config(ctx, "image_insert_frame")) else "false", "type": "bool"},
-        {"name": "image_translate_prompt", "value": "true" if as_bool(get_config(ctx, "image_translate_prompt")) else "false", "type": "bool"},
-        {"name": "image_translate_from", "value": str(get_config(ctx, "image_translate_from") or "")},
-        {"name": "seed", "value": str(get_config(ctx, "seed") or "")},
+        {"name": "image_base_size", "value": str(get_config_int(ctx, "image_base_size")), "type": "int"},
+        {"name": "image_default_aspect", "value": get_config_str(ctx, "image_default_aspect")},
+        {"name": "image_cfg_scale", "value": str(get_config_float(ctx, "image_cfg_scale")), "type": "float"},
+        {"name": "image_steps", "value": str(get_config_int(ctx, "image_steps")), "type": "int"},
+        {"name": "image_nsfw", "value": "true" if get_config_bool(ctx, "image_nsfw") else "false", "type": "bool"},
+        {"name": "image_censor_nsfw", "value": "true" if get_config_bool(ctx, "image_censor_nsfw") else "false", "type": "bool"},
+        {"name": "image_max_wait", "value": str(get_config_int(ctx, "image_max_wait")), "type": "int"},
+        {"name": "image_auto_gallery", "value": "true" if get_config_bool(ctx, "image_auto_gallery") else "false", "type": "bool"},
+        {"name": "image_insert_frame", "value": "true" if get_config_bool(ctx, "image_insert_frame") else "false", "type": "bool"},
+        {"name": "image_translate_prompt", "value": "true" if get_config_bool(ctx, "image_translate_prompt") else "false", "type": "bool"},
+        {"name": "image_translate_from", "value": get_config_str(ctx, "image_translate_from")},
+        {"name": "seed", "value": get_config_str(ctx, "seed")},
     ]
 
     try:

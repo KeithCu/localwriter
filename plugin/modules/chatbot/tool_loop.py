@@ -32,6 +32,7 @@ from plugin.framework.config import (
     get_api_config,
     get_config,
     get_config_int,
+    get_config_bool,
     get_config_str,
     get_current_endpoint,
     get_stt_model,
@@ -67,8 +68,7 @@ from plugin.modules.chatbot.tool_loop_state import (
 
 log = logging.getLogger(__name__)
 
-# Default max tool rounds when not in config (get_api_config supplies chat_max_tool_rounds)
-DEFAULT_MAX_TOOL_ROUNDS = 25
+# DEFAULT_MAX_TOOL_ROUNDS removed; now managed by WriterAgentConfig.chat_max_tool_rounds
 
 class ToolLoopHost(Protocol):
     ctx: Any
@@ -207,7 +207,7 @@ class ToolCallingMixin:
                     chat_append_cb = _web_append
 
                     try:
-                        if as_bool(get_config(ctx, "chatbot.prompt_for_web_research")):
+                        if get_config_bool(ctx, "chatbot.prompt_for_web_research"):
                             def _web_approval(query_for_engine, tool_name, args):
                                 q = getattr(self, "_active_q", None)
                                 if q is None:
@@ -287,7 +287,7 @@ class ToolCallingMixin:
             self._terminal_status = "Error"
             return
 
-        extra_instructions = get_config_str(self.ctx, "additional_instructions", "")
+        extra_instructions = get_config_str(self.ctx, "additional_instructions")
         self.session.messages[0]["content"] = get_chat_system_prompt_for_document(
             model, extra_instructions, ctx=self.ctx
         )
@@ -438,9 +438,7 @@ class ToolCallingMixin:
             % (use_tools, len(self.session.messages))
         )
 
-        max_tool_rounds = api_config.get(
-            "chat_max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS
-        )
+        max_tool_rounds = api_config["chat_max_tool_rounds"]
         self._start_tool_calling_async(
             client,
             model,
@@ -844,7 +842,7 @@ class ToolCallingMixin:
         on message type, keeping the UI responsive via processEventsToIdle().
         """
         if max_tool_rounds is None:
-            max_tool_rounds = DEFAULT_MAX_TOOL_ROUNDS
+            max_tool_rounds = get_config_int(self.ctx, "chat_max_tool_rounds")
         log.info(
             "=== Tool-calling loop START (max %d rounds) ==="
             % max_tool_rounds

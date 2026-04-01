@@ -24,6 +24,9 @@ from plugin.modules.http.client import LlmClient
 from plugin.modules.http.requests import sync_request
 from plugin.modules.http.errors import _format_http_error_response
 from plugin.contrib.aihordeclient import AiHordeClient
+from plugin.framework.config import (
+    get_config_bool, get_config_int, get_config_float, get_config_str
+)
 
 log = logging.getLogger(__name__)
 
@@ -186,7 +189,7 @@ class AIHordeImageProvider(ImageProvider):
     def __init__(self, config, ctx):
         self.ctx = ctx
         self.config = config
-        self.api_key = config.get("aihorde_api_key", "0000000000")
+        self.api_key = get_config_str(ctx, "aihorde_api_key")
         # We need a minimal "informer" to bridge AIHordeClient's callbacks
         class SimpleInformer:
             def __init__(self, outer_ctx):
@@ -234,12 +237,20 @@ class AIHordeImageProvider(ImageProvider):
 
         self.informer = SimpleInformer(self.callback_context)
 
+        # Build a settings dict from config accessors for AiHordeClient compatibility
+        horde_settings = {
+            "aihorde_api_key": get_config_str(ctx, "aihorde_api_key"),
+            "image_nsfw": get_config_bool(ctx, "image_nsfw"),
+            "image_censor_nsfw": get_config_bool(ctx, "image_censor_nsfw"),
+            "image_max_wait": get_config_int(ctx, "image_max_wait"),
+        }
+
         self.client = AiHordeClient(
             client_version="1.0.0",
             url_version_update="",
             client_help_url="",
             client_download_url="",
-            settings=config,
+            settings=horde_settings,
             client_name="WriterAgent_Horde_Client",
             informer=self.informer
         )
@@ -308,7 +319,7 @@ class ImageService:
 
     def generate_image(self, prompt, provider_name=None, status_callback=None, **kwargs):
         if not provider_name:
-            provider_name = self.config.get("image_provider", "aihorde")
+            provider_name = get_config_str(self.ctx, "image_provider")
 
         provider = self.get_provider(provider_name)
         if not provider:
@@ -317,33 +328,26 @@ class ImageService:
         # Merge configuration defaults with kwargs
         # Note: width/height are explicitly calculated in tool_generate_image
         # but we provide safe fallbacks here just in case of direct calls
-        base_size = self.config.get("image_base_size", 512)
-        try:
-            base_size = int(base_size)
-        except (ValueError, TypeError):
-            base_size = 512
-            
-        try:
-            steps = int(self.config.get("image_steps", -1))
-        except (ValueError, TypeError):
-            steps = -1
+        base_size = get_config_int(self.ctx, "image_base_size")
+        steps = get_config_int(self.ctx, "image_steps")
 
-        defaults = {
+        from typing import Any
+        defaults: dict[str, Any] = {
             "width": base_size,
             "height": base_size,
-            "strength": self.config.get("image_cfg_scale", 7.5),
+            "strength": get_config_float(self.ctx, "image_cfg_scale"),
             "steps": steps,
-            "nsfw": self.config.get("image_nsfw", False),
-            "censor_nsfw": self.config.get("image_censor_nsfw", True),
-            "max_wait": self.config.get("image_max_wait", 5),
+            "nsfw": get_config_bool(self.ctx, "image_nsfw"),
+            "censor_nsfw": get_config_bool(self.ctx, "image_censor_nsfw"),
+            "max_wait": get_config_int(self.ctx, "image_max_wait"),
         }
 
         # Provider-specific defaults
         if provider_name == "aihorde":
-            defaults["model"] = self.config.get("aihorde_model", "stable_diffusion")
+            defaults["model"] = get_config_str(self.ctx, "aihorde_model")
 
         # Special case: prompt translation
-        if self.config.get("image_translate_prompt", True):
+        if get_config_bool(self.ctx, "image_translate_prompt"):
             # We could add translation logic here if needed,
             # or let the provider handle it. LOSHD has it.
             pass
@@ -353,8 +357,8 @@ class ImageService:
                 kwargs[k] = v
 
         # Optional: translate prompt to English when image_translate_prompt is True and source language is set
-        if self.config.get("image_translate_prompt", True):
-            src_lang = (self.config.get("image_translate_from") or "").strip()
+        if get_config_bool(self.ctx, "image_translate_prompt"):
+            src_lang = get_config_str(self.ctx, "image_translate_from")
             if src_lang:
                 try:
                     from plugin.modules.chatbot.translation_tool import opustm_hf_translate

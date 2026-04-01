@@ -15,7 +15,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """Legacy operations for Writer (Extend/Edit Selection)."""
-from plugin.framework.config import get_config, get_config_int, get_api_config, validate_api_config, get_current_endpoint, update_lru_history
+from plugin.framework.config import (
+    get_config_int, get_config_str, get_text_model, get_api_config, 
+    validate_api_config, get_current_endpoint, update_lru_history
+)
 from plugin.modules.http.errors import format_error_message
 from plugin.framework.async_stream import run_stream_completion_async
 from plugin.framework.dialogs import msgbox
@@ -28,13 +31,13 @@ def do_extend_selection(ctx, model, input_box_fn):
     if len(original_text) == 0:
         return
 
-    extra_instructions = get_config(ctx, "additional_instructions")
+    extra_instructions = get_config_str(ctx, "additional_instructions")
     system_prompt = extra_instructions
     current_endpoint = get_current_endpoint(ctx)
     update_lru_history(ctx, system_prompt, "prompt_lru", current_endpoint)
     prompt = original_text
     max_tokens = get_config_int(ctx, "extend_selection_max_tokens")
-    model_val = get_config(ctx, "text_model") or get_config(ctx, "model")
+    model_val = get_text_model(ctx)
     update_lru_history(ctx, model_val, "model_lru", current_endpoint)
 
     api_config = get_api_config(ctx)

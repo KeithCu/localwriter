@@ -203,22 +203,28 @@ class TestConfigSyncFileIO(unittest.TestCase):
         if os.path.exists(self.config_path):
             os.remove(self.config_path)
 
-        # Test fallback to _CONFIG_DEFAULTS
+        from plugin.framework.errors import ConfigError
+
+        # Test fallback to _CONFIG_DEFAULTS (keys that exist in schema/defaults)
         self.assertEqual(get_config(self.ctx, "calc_prompt_max_tokens"), 70)
         self.assertEqual(get_config(self.ctx, "chat_direct_image"), False)
 
-        # Test fallback logic in _resolve_default based on key patterns
-        # Unknown string key -> ""
-        self.assertEqual(get_config(self.ctx, "unknown_key"), "")
+        # Test that unknown keys now raise ConfigError (strict schema enforcement)
+        # Unknown string key -> raises
+        with self.assertRaises(ConfigError):
+            get_config(self.ctx, "unknown_key")
 
-        # Keys ending in _lru -> []
-        self.assertEqual(get_config(self.ctx, "some_new_lru"), [])
+        # Keys ending in _lru but not in schema -> raises
+        with self.assertRaises(ConfigError):
+            get_config(self.ctx, "some_new_lru")
 
-        # Keys containing by_endpoint -> {}
-        self.assertEqual(get_config(self.ctx, "custom_by_endpoint"), {})
+        # Keys containing by_endpoint but not in schema -> raises
+        with self.assertRaises(ConfigError):
+            get_config(self.ctx, "custom_by_endpoint")
 
-        # Keys containing _map -> {}
-        self.assertEqual(get_config(self.ctx, "some_custom_map"), {})
+        # Keys containing _map but not in schema -> raises
+        with self.assertRaises(ConfigError):
+            get_config(self.ctx, "some_custom_map")
 
 if __name__ == '__main__':
     unittest.main()

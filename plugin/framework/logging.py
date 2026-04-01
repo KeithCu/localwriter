@@ -63,16 +63,14 @@ def init_logging(ctx):
             if udir:
                 _debug_log_path = os.path.join(udir, DEBUG_LOG_FILENAME)
                 _agent_log_path = os.path.join(udir, AGENT_LOG_FILENAME)
-                _enable_agent_log = config.as_bool(config.get_config(ctx, "enable_agent_log"))
+                _enable_agent_log = config.get_config_bool(ctx, "enable_agent_log")
         except (OSError, ImportError, ValueError, ConfigError):
             pass
 
         try:
             from plugin.framework import config
             import logging
-            level_str = config.get_config(ctx, "log_level")
-            if not isinstance(level_str, str):
-                level_str = "WARNING"
+            level_str = config.get_config_str(ctx, "log_level")
             numeric_level = getattr(logging, level_str.upper(), logging.WARNING)
             global _log_level_numeric
             _log_level_numeric = numeric_level
