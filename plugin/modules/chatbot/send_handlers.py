@@ -356,7 +356,7 @@ class SendHandlersMixin:
             if isinstance(e, (DisposedException, RuntimeException, UnoException)):
                 log.debug("Failed to get document URL for agent backend (likely disposed): %s", e)
 
-        max_context = get_config_int(self.ctx, "chat_context_length", 8000)
+        max_context = get_config_int(self.ctx, "chat_context_length")
         try:
             doc_context = get_document_context_for_chat(
                 model,

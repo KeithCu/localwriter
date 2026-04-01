@@ -33,7 +33,7 @@ def do_extend_selection(ctx, model, input_box_fn):
     current_endpoint = get_current_endpoint(ctx)
     update_lru_history(ctx, system_prompt, "prompt_lru", current_endpoint)
     prompt = original_text
-    max_tokens = get_config_int(ctx, "extend_selection_max_tokens", 1000)
+    max_tokens = get_config_int(ctx, "extend_selection_max_tokens")
     model_val = get_config(ctx, "text_model") or get_config(ctx, "model")
     update_lru_history(ctx, model_val, "model_lru", current_endpoint)
 
@@ -80,7 +80,7 @@ def do_edit_selection(ctx, model, input_box_fn):
 
     prompt = "ORIGINAL VERSION:\n" + original_text + "\n Below is an edited version according to the following instructions. There are no comments in the edited version. The edited version is followed by the end of the document. The original version will be edited as follows to create the edited version:\n" + user_input + "\nEDITED VERSION:\n"
     system_prompt = extra_instructions or ""
-    max_tokens = len(original_text) + get_config_int(ctx, "edit_selection_max_new_tokens", 1000)
+    max_tokens = len(original_text) + get_config_int(ctx, "edit_selection_max_new_tokens")
 
     api_config = get_api_config(ctx)
     ok, err_msg = validate_api_config(api_config)

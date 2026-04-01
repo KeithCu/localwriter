@@ -142,7 +142,7 @@ class PromptFunction(unohelper.Base, _XPromptFunctionBase):  # pyright: ignore[r
                     except (TypeError, ValueError):
                         max_tokens = 70
                 else:
-                    max_tokens = get_config_int(self.ctx, "calc_prompt_max_tokens", 70)
+                    max_tokens = get_config_int(self.ctx, "calc_prompt_max_tokens")
 
                 messages = []
                 if system_prompt:

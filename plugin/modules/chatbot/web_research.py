@@ -119,12 +119,12 @@ class WebResearchTool(ToolBase):
             config = get_api_config(ctx.ctx)
             max_tokens = int(config.get("chat_max_tokens", 2048))
             from plugin.framework.config import get_config_int
-            max_steps = get_config_int(ctx.ctx, "chat_max_tool_rounds", 25)
+            max_steps = get_config_int(ctx.ctx, "chat_max_tool_rounds")
 
             udir = user_config_dir(ctx.ctx)
-            raw_mb = get_config_int(ctx.ctx, "web_cache_max_mb", 50)
+            raw_mb = get_config_int(ctx.ctx, "web_cache_max_mb")
             cache_max_mb = 0 if raw_mb <= 0 else max(1, min(500, raw_mb))
-            cache_max_age_days = get_config_int(ctx.ctx, "web_cache_validity_days", 7)
+            cache_max_age_days = get_config_int(ctx.ctx, "web_cache_validity_days")
             cache_path = os.path.join(udir, "localwriter_web_cache.db") if (udir and cache_max_mb > 0) else None
 
             smol_model = WriterAgentSmolModel(

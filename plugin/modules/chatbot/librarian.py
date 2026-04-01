@@ -193,7 +193,7 @@ TOOLS FOR COMPLETION:
             from typing import cast, Iterable
             from plugin.contrib.smolagents.tools import Tool as SmolTool
             from plugin.framework.config import get_config_int
-            max_steps = get_config_int(ctx.ctx, "chat_max_tool_rounds", 25)
+            max_steps = get_config_int(ctx.ctx, "chat_max_tool_rounds")
 
             agent = ToolCallingAgent(
                 tools=cast(list[SmolTool], [

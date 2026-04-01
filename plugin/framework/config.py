@@ -210,6 +210,8 @@ class WriterAgentConfig:
     audio_support_map: Dict[str, bool] = dataclasses.field(default_factory=dict)
     chat_direct_image: bool = False
     calc_prompt_max_tokens: int = 70
+    extend_selection_max_tokens: int = 1000
+    edit_selection_max_new_tokens: int = 1000
 
     # Store arbitrary module.yaml config entries
     _extra_config: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -444,13 +446,17 @@ def get_config(ctx, key):
 
     return _resolve_default(key)
 
-def get_config_int(ctx, key, default: int = 0) -> int:
-    """Get a config value as int. Accepts float or string (e.g. 50.0 or \"50.00\") from JSON/UI; returns int. Use for int settings like web_cache_max_mb, extend_selection_max_tokens."""
+def get_config_int(ctx, key) -> int:
+    """Get a config value as int. All requested keys MUST be in the schema (WriterAgentConfig or MODULES).
+    Throws ConfigError if the key is missing or invalid."""
     v = get_config(ctx, key)
+    # _resolve_default returns "" (or []/{}) for unknown/fallback keys.
+    if v == "":
+        raise ConfigError(f"Config key {key!r} not found in schema", "CONFIG_KEY_NOT_FOUND")
     try:
         return int(float(v))
-    except (ValueError, TypeError):
-        return default if default is not None else 0
+    except (ValueError, TypeError) as e:
+        raise ConfigError(f"Config key {key!r} has non-integer value: {v!r}", "CONFIG_TYPE_ERROR") from e
 
 
 def get_config_str(ctx, key, default=""):

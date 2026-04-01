@@ -309,8 +309,8 @@ class ToolCallingMixin:
                 set_image_model(self.ctx, selected_image_model)
                 log.debug("_do_send: image model updated to %s" % selected_image_model)
 
-        max_context = get_config_int(self.ctx, "chat_context_length", 8000)
-        max_tokens = get_config_int(self.ctx, "chat_max_tokens", 16384)
+        max_context = get_config_int(self.ctx, "chat_context_length")
+        max_tokens = get_config_int(self.ctx, "chat_max_tokens")
         log.debug(
             "_do_send: config loaded: max_tokens=%d, max_context=%d"
             % (max_tokens, max_context)
@@ -592,7 +592,7 @@ class ToolCallingMixin:
             try:
                 doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
                 if doc:
-                    max_ctx = get_config_int(self.ctx, "chat_context_length", 8000)
+                    max_ctx = get_config_int(self.ctx, "chat_context_length")
                     doc_text = get_document_context_for_chat(
                         doc,
                         max_ctx,

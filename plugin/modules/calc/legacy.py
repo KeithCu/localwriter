@@ -38,9 +38,9 @@ def do_calc_extend_edit(ctx, model, input_box_fn, is_edit):
     row_range = range(area.StartRow, area.EndRow + 1)
 
     extend_sys = get_config(ctx, "extend_selection_system_prompt")
-    extend_max = get_config_int(ctx, "extend_selection_max_tokens", 1000)
+    extend_max = get_config_int(ctx, "extend_selection_max_tokens")
     edit_sys = get_config(ctx, "edit_selection_system_prompt")
-    edit_max = get_config_int(ctx, "edit_selection_max_new_tokens", 1000)
+    edit_max = get_config_int(ctx, "edit_selection_max_new_tokens")
 
     tasks = []
     cell_range = sheet.getCellRangeByPosition(area.StartColumn, area.StartRow, area.EndColumn, area.EndRow)
