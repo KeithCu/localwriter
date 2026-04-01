@@ -80,6 +80,11 @@ class ToolWriterFieldBase(ToolWriterSpecialBase):
     specialized_domain = "fields"
     uno_services = ["com.sun.star.text.TextDocument"]
 
+class ToolWriterCommentBase(ToolWriterSpecialBase):
+    specialized_domain = "comments"
+    intent = "review"
+    uno_services = ["com.sun.star.text.TextDocument"]
+
 
 class WriterAgentSpecialTracking(ToolWriterSpecialBase):
     specialized_domain = "tracking"

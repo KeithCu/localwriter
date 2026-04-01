@@ -25,7 +25,7 @@ import json
 import logging
 import dataclasses
 import time
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import Dict, Any, Optional, TYPE_CHECKING, cast
 from plugin.framework.event_bus import global_event_bus
 _uno_mod: Any
 _unohelper_mod: Any
@@ -301,6 +301,35 @@ class WriterAgentConfig:
             log.warning("Invalid request_timeout %s, falling back to 120", self.request_timeout)
             self.request_timeout = 120
 
+        _cmtr_def = 25
+        r_cmtr = self.chat_max_tool_rounds
+        cmtr_ok: int | None = None
+        if type(r_cmtr) is bool:
+            pass
+        elif isinstance(r_cmtr, int) and r_cmtr >= 1:
+            cmtr_ok = r_cmtr
+        elif isinstance(r_cmtr, str):
+            t = r_cmtr.strip()
+            if t:
+                try:
+                    n = int(float(t))
+                    if n >= 1:
+                        cmtr_ok = n
+                except (ValueError, TypeError):
+                    pass
+        elif r_cmtr is not None and r_cmtr != "":
+            try:
+                n = int(float(r_cmtr))
+                if n >= 1:
+                    cmtr_ok = n
+            except (ValueError, TypeError):
+                pass
+        if cmtr_ok is None:
+            log.warning("Invalid chat_max_tool_rounds %r, falling back to %s", r_cmtr, _cmtr_def)
+            self.chat_max_tool_rounds = _cmtr_def
+        else:
+            self.chat_max_tool_rounds = cmtr_ok
+
         if not isinstance(self.temperature, (int, float)):
             log.warning("Invalid temperature %s, falling back to -1.0", self.temperature)
             self.temperature = -1.0
@@ -471,11 +500,14 @@ def get_config_int(ctx, key) -> int:
     """Get a config value as int. All requested keys MUST be in the schema (WriterAgentConfig or MODULES).
     Throws ConfigError if the key is missing or invalid."""
     v = get_config(ctx, key)
-    # _resolve_default returns "" (or []/{}) for unknown/fallback keys.
+    # Empty string or None from JSON/UI: use schema default (same as missing key).
+    if v == "" or v is None:
+        v = _resolve_default(key)
+    # _resolve_default returns "" for unknown keys that slip through without a dataclass default.
     if v == "":
         raise ConfigError(f"Config key {key!r} not found in schema", "CONFIG_KEY_NOT_FOUND")
     try:
-        return int(float(v))
+        return int(float(cast(Any, v)))
     except (ValueError, TypeError) as e:
         raise ConfigError(f"Config key {key!r} has non-integer value: {v!r}", "CONFIG_TYPE_ERROR") from e
 
@@ -503,7 +535,7 @@ def get_config_float(ctx, key) -> float:
     Throws ConfigError if key is not found."""
     v = get_config(ctx, key)
     try:
-        return float(v)
+        return float(cast(Any, v))
     except (ValueError, TypeError) as e:
         raise ConfigError(f"Config key {key!r} has non-float value: {v!r}", "CONFIG_TYPE_ERROR") from e
 

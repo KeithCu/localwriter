@@ -168,7 +168,7 @@ class ToolLoopState:
 
 # Simple string effects for common operations
 effects.append("exit_loop")  # Simple string effect
-effects.append(UIEffect(kind="status", text="Ready"))  # Structured effect
+effects.append(ToolLoopUIEffect(kind="status", text="Ready"))  # Structured effect
 
 # Pure transition function
 def next_state(state: ToolLoopState, event: ToolLoopEvent) -> Tuple[ToolLoopState, List[Any]]:

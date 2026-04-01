@@ -166,6 +166,21 @@ class TestI18n(unittest.TestCase):
         self.assertEqual(out["endpoint"], "http://example.com/v1")
         self.assertEqual(out["chat_max_tokens"], 2048)
 
+    def test_config_validate_chat_max_tool_rounds_empty_string(self):
+        cfg = WriterAgentConfig.from_dict({"endpoint": "http://x", "chat_max_tool_rounds": ""})
+        cfg.validate()
+        self.assertEqual(cfg.chat_max_tool_rounds, 25)
+
+    def test_config_validate_chat_max_tool_rounds_string_number(self):
+        cfg = WriterAgentConfig.from_dict({"endpoint": "http://x", "chat_max_tool_rounds": "10"})
+        cfg.validate()
+        self.assertEqual(cfg.chat_max_tool_rounds, 10)
+
+    def test_config_validate_chat_max_tool_rounds_invalid_falls_back(self):
+        cfg = WriterAgentConfig.from_dict({"endpoint": "http://x", "chat_max_tool_rounds": "nope"})
+        cfg.validate()
+        self.assertEqual(cfg.chat_max_tool_rounds, 25)
+
     def test_extra_key_fallback_when_missing_from_extra_config(self):
         """If a key is absent from _extra_config, keep JSON value (edge case)."""
         data = {"endpoint": "http://x", "orphan.key": "keep-me"}
