@@ -10,18 +10,21 @@ sys.modules["unohelper"] = MagicMock()
 
 # Mock com.sun.star hierarchy
 star = types.ModuleType("com.sun.star")
-star.text = types.ModuleType("com.sun.star.text")
+setattr(star, "text", types.ModuleType("com.sun.star.text"))
 
 class MockBase: pass
-setattr(star.text, "Footnote", MockBase)
-setattr(star.text, "Endnote", MockBase)
+setattr(getattr(star, "text"), "Footnote", MockBase)
+setattr(getattr(star, "text"), "Endnote", MockBase)
 
 sys.modules["com"] = types.ModuleType("com")
 setattr(sys.modules["com"], "sun", types.ModuleType("com.sun"))
 setattr(sys.modules["com"].sun, "star", star)
 
 # Now we can safely import our module
-from plugin.modules.writer.footnotes import FootnotesInsert, FootnotesList, FootnotesEdit, FootnotesDelete
+from plugin.modules.writer.footnotes import (
+    FootnotesInsert, FootnotesList, FootnotesEdit, FootnotesDelete,
+    FootnotesSettingsGet, FootnotesSettingsUpdate
+)
 
 # Fake Context
 class FakeCtx:
@@ -139,3 +142,42 @@ def test_invalid_note_type():
     res = tool.execute(ctx, note_type="invalid_type")
     assert res["status"] == "error"
     assert "Invalid note_type" in res["message"]
+
+def test_footnotes_settings_get():
+    doc = MagicMock()
+    doc.supportsService.return_value = True
+
+    settings = MagicMock()
+
+    def get_property_value(name):
+        return f"value_for_{name}"
+
+    settings.getPropertyValue.side_effect = get_property_value
+    doc.getFootnoteSettings.return_value = settings
+
+    tool = FootnotesSettingsGet()
+    ctx = FakeCtx(doc)
+
+    res = tool.execute(ctx, note_type="footnote")
+
+    assert res["status"] == "ok"
+    assert res["settings"]["Prefix"] == "value_for_Prefix"
+    assert res["settings"]["BeginNotice"] == "value_for_BeginNotice"
+
+def test_footnotes_settings_update():
+    doc = MagicMock()
+    doc.supportsService.return_value = True
+
+    settings = MagicMock()
+    doc.getFootnoteSettings.return_value = settings
+
+    tool = FootnotesSettingsUpdate()
+    ctx = FakeCtx(doc)
+
+    res = tool.execute(ctx, note_type="footnote", properties={"Prefix": "[", "Suffix": "]"})
+
+    assert res["status"] == "ok"
+    assert "Prefix" in res["updated_properties"]
+    assert "Suffix" in res["updated_properties"]
+    settings.setPropertyValue.assert_any_call("Prefix", "[")
+    settings.setPropertyValue.assert_any_call("Suffix", "]")

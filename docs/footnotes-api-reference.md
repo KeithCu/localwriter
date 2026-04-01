@@ -84,6 +84,31 @@ if footnotes.getCount() > 0:
     # Alternatively: anchor.getText().removeTextContent(note)
 ```
 
+## Settings (FootnoteSettings / EndnoteSettings)
+The `getFootnoteSettings()` and `getEndnoteSettings()` methods return an `XPropertySet` that allows managing formatting and numbering rules for the respective note type. The `EndnoteSettings` service includes the properties from `FootnoteSettings`.
+
+Key Properties:
+- `Prefix` (string): Text before the footnote symbol.
+- `Suffix` (string): Text after the footnote symbol.
+- `StartAt` (short): The first number for automatic numbering.
+- `NumberingType` (short): Specifies the numbering style (e.g., Arabic, Roman).
+- `CharStyleName` (string): Character style for the note symbol.
+- `AnchorCharStyleName` (string): Character style for the note anchor in the text.
+- `PageStyleName` (string): Page style for the page containing note texts.
+- `ParaStyleName` (string): Paragraph style for the note text.
+- `BeginNotice` (string): Text at the restart of the note text after a page break (footnotes only).
+- `EndNotice` (string): Text at the end of a note part before a page break (footnotes only).
+- `PositionEndOfDoc` (boolean): If TRUE, footnote text is shown at the end of the document (footnotes only).
+- `FootnoteCounting` (short): How note numbers are counted (e.g., per page, per chapter, per document).
+
+Example of updating settings:
+```python
+settings = doc.getFootnoteSettings()
+settings.setPropertyValue("Prefix", "[")
+settings.setPropertyValue("Suffix", "]")
+settings.setPropertyValue("StartAt", 1)
+```
+
 ## Exceptions and Edge Cases
 - Inserting a note at an invalid position or inside another note may throw `IllegalArgumentException`.
 - Modifying notes inside read-only sections or locked text frames may fail.

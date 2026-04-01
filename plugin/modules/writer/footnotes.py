@@ -33,6 +33,18 @@ def _get_note_supplier(doc: Any, note_type: str) -> Any:
     else:
         raise ToolExecutionError(f"Invalid note_type '{note_type}'. Must be 'footnote' or 'endnote'.")
 
+def _get_note_settings(doc: Any, note_type: str) -> Any:
+    if note_type == "footnote":
+        if not doc.supportsService("com.sun.star.text.GenericTextDocument"):
+            raise ToolExecutionError("Document does not support footnotes.")
+        return doc.getFootnoteSettings()
+    elif note_type == "endnote":
+        if not doc.supportsService("com.sun.star.text.GenericTextDocument"):
+            raise ToolExecutionError("Document does not support endnotes.")
+        return doc.getEndnoteSettings()
+    else:
+        raise ToolExecutionError(f"Invalid note_type '{note_type}'. Must be 'footnote' or 'endnote'.")
+
 
 class FootnotesInsert(ToolWriterFootnoteBase):
     name = "footnotes_insert"
@@ -270,3 +282,109 @@ class FootnotesDelete(ToolWriterFootnoteBase):
 
         except Exception as e:
             return self._tool_error(f"Failed to delete {note_type}: {str(e)}")
+
+
+class FootnotesSettingsGet(ToolWriterFootnoteBase):
+    name = "footnotes_settings_get"
+    description = (
+        "Gets the current formatting and numbering settings for footnotes or endnotes. "
+        "These include prefix, suffix, starting number, and styles."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "note_type": {
+                "type": "string",
+                "enum": ["footnote", "endnote"],
+                "description": "Whether to get settings for footnotes or endnotes.",
+            },
+        },
+        "required": ["note_type"],
+    }
+    is_mutation = False
+
+    def execute(self, ctx: Any, **kwargs: Any) -> dict[str, Any]:
+        note_type = str(kwargs.get("note_type"))
+        doc = ctx.doc
+
+        try:
+            settings = _get_note_settings(doc, note_type)
+
+            # Common properties
+            props = {
+                "Prefix": settings.getPropertyValue("Prefix"),
+                "Suffix": settings.getPropertyValue("Suffix"),
+                "StartAt": settings.getPropertyValue("StartAt"),
+                "NumberingType": settings.getPropertyValue("NumberingType"),
+                "CharStyleName": settings.getPropertyValue("CharStyleName"),
+                "AnchorCharStyleName": settings.getPropertyValue("AnchorCharStyleName"),
+                "PageStyleName": settings.getPropertyValue("PageStyleName"),
+                "ParaStyleName": settings.getPropertyValue("ParaStyleName"),
+            }
+
+            # Footnote-specific properties
+            if note_type == "footnote":
+                props["BeginNotice"] = settings.getPropertyValue("BeginNotice")
+                props["EndNotice"] = settings.getPropertyValue("EndNotice")
+                props["PositionEndOfDoc"] = settings.getPropertyValue("PositionEndOfDoc")
+                props["FootnoteCounting"] = settings.getPropertyValue("FootnoteCounting")
+
+            return {
+                "status": "ok",
+                "settings": props,
+            }
+        except Exception as e:
+            return self._tool_error(f"Failed to get {note_type} settings: {str(e)}")
+
+
+class FootnotesSettingsUpdate(ToolWriterFootnoteBase):
+    name = "footnotes_settings_update"
+    description = (
+        "Updates the formatting and numbering settings for footnotes or endnotes. "
+        "You can specify which properties to change (e.g., Prefix, Suffix, StartAt, NumberingType)."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "note_type": {
+                "type": "string",
+                "enum": ["footnote", "endnote"],
+                "description": "Whether to update settings for footnotes or endnotes.",
+            },
+            "properties": {
+                "type": "object",
+                "description": "A dictionary of properties to update (e.g., {'Prefix': '[', 'Suffix': ']'})",
+            },
+        },
+        "required": ["note_type", "properties"],
+    }
+    is_mutation = True
+
+    def execute(self, ctx: Any, **kwargs: Any) -> dict[str, Any]:
+        note_type = str(kwargs.get("note_type"))
+        props_to_update = kwargs.get("properties", {})
+        doc = ctx.doc
+
+        if not isinstance(props_to_update, dict):
+            return self._tool_error("Properties must be a dictionary.")
+
+        try:
+            settings = _get_note_settings(doc, note_type)
+
+            updated_props = []
+            for prop_name, prop_val in props_to_update.items():
+                try:
+                    # UNO sometimes requires specific types like shorts for certain properties
+                    # e.g., StartAt and NumberingType are shorts, but let pyuno handle the coercion mostly
+                    settings.setPropertyValue(prop_name, prop_val)
+                    updated_props.append(prop_name)
+                except Exception as e:
+                    return self._tool_error(f"Failed to set property '{prop_name}' to '{prop_val}': {str(e)}")
+
+            return {
+                "status": "ok",
+                "message": f"Successfully updated {note_type} settings.",
+                "updated_properties": updated_props,
+            }
+        except Exception as e:
+            return self._tool_error(f"Failed to update {note_type} settings: {str(e)}")
