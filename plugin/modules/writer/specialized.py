@@ -206,12 +206,15 @@ class DelegateToSpecializedWriter(ToolBase):
                 f"Use them to fulfill the user's request."
             )
 
+            from plugin.framework.config import get_config_int
+            max_steps = get_config_int(ctx.ctx, "chat_max_tool_rounds", 25)
+
             from typing import cast, Iterable
             from plugin.contrib.smolagents.tools import Tool as SmolTool
             agent = ToolCallingAgent(
                 tools=cast(list[SmolTool], smol_tools),
                 model=smol_model,
-                max_steps=10,
+                max_steps=max_steps,
                 instructions=instructions,
                 final_answer_tool_name="specialized_workflow_finished",
                 system_prompt_examples=SPECIALIZED_EXAMPLES_BLOCK,

@@ -181,7 +181,7 @@ class WriterAgentConfig:
     chat_context_length: int = 8000
     chat_max_tokens: int = 16384
     request_timeout: int = 120
-    chat_max_tool_rounds: int = 5
+    chat_max_tool_rounds: int = 25
     stt_model: str = ""
     api_keys_by_endpoint: Dict[str, str] = dataclasses.field(default_factory=dict)
     aihorde_api_key: str = ""
@@ -997,7 +997,7 @@ def get_api_config(ctx):
         "is_openrouter": is_openrouter,
         "seed": get_config(ctx, "seed") or "",
         "request_timeout": _safe_int(get_config(ctx, "request_timeout"), 120),
-        "chat_max_tool_rounds": _safe_int(get_config(ctx, "chat_max_tool_rounds"), 5),
+        "chat_max_tool_rounds": _safe_int(get_config(ctx, "chat_max_tool_rounds"), 25),
     }
 
     temp = _safe_float(get_config(ctx, "temperature"), -1)

@@ -118,7 +118,8 @@ class WebResearchTool(ToolBase):
 
             config = get_api_config(ctx.ctx)
             max_tokens = int(config.get("chat_max_tokens", 2048))
-            max_steps = int(config.get("search_web_max_steps", 20))
+            from plugin.framework.config import get_config_int
+            max_steps = get_config_int(ctx.ctx, "chat_max_tool_rounds", 25)
 
             udir = user_config_dir(ctx.ctx)
             raw_mb = get_config_int(ctx.ctx, "web_cache_max_mb", 50)

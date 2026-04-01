@@ -40,21 +40,25 @@ Action:
 }
 """
 
-LIBRARIAN_EXAMPLES_BLOCK = """Task: "Hi! I'd like to get started."
+LIBRARIAN_EXAMPLES_BLOCK = """Task: My name is Joe."
 
 Action:
 {
   "name": "upsert_memory",
-  "arguments": {"key": "onboarding_started", "content": "true"}
+  "arguments": {"key": "name", "content": "Joe"}
 }
 Observation: {"status": "ok"}
 
 Action:
 {
-  "name": "final_answer",
-  "arguments": "Welcome! What should I call you?"
+  "name": "reply_to_user",
+  "arguments": {"message": "Hello, Joe! Would you like to learn more about WriterAgent?"}
 }
+Observation: {"status": "ok"}
+
 """
+
+
 
 SPECIALIZED_EXAMPLES_BLOCK = """Task: "List the indexes in this document so we can plan edits."
 

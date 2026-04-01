@@ -68,7 +68,7 @@ from plugin.modules.chatbot.tool_loop_state import (
 log = logging.getLogger(__name__)
 
 # Default max tool rounds when not in config (get_api_config supplies chat_max_tool_rounds)
-DEFAULT_MAX_TOOL_ROUNDS = 5
+DEFAULT_MAX_TOOL_ROUNDS = 25
 
 class ToolLoopHost(Protocol):
     ctx: Any
