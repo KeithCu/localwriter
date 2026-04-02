@@ -14,18 +14,18 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Writer page layout tools (layout domain, specialized tier).
+"""Writer page tools (page domain, specialized tier).
 
 Page styles, margins, headers/footers, columns, and page breaks.
 """
 
-from plugin.modules.writer.base import ToolWriterLayoutBase
+from plugin.modules.writer.base import ToolWriterPageBase
 
 # ------------------------------------------------------------------
 # GetPageStyleProperties
 # ------------------------------------------------------------------
 
-class GetPageStyleProperties(ToolWriterLayoutBase):
+class GetPageStyleProperties(ToolWriterPageBase):
     """Get dimensions, margins, and header/footer states of a page style."""
 
     name = "get_page_style_properties"
@@ -94,7 +94,7 @@ class GetPageStyleProperties(ToolWriterLayoutBase):
 # SetPageStyleProperties
 # ------------------------------------------------------------------
 
-class SetPageStyleProperties(ToolWriterLayoutBase):
+class SetPageStyleProperties(ToolWriterPageBase):
     """Modify dimensions, margins, and header/footer toggles of a page style."""
 
     name = "set_page_style_properties"
@@ -228,7 +228,7 @@ class SetPageStyleProperties(ToolWriterLayoutBase):
 # GetHeaderFooterText
 # ------------------------------------------------------------------
 
-class GetHeaderFooterText(ToolWriterLayoutBase):
+class GetHeaderFooterText(ToolWriterPageBase):
     """Retrieve the text content of a page style's header or footer."""
 
     name = "get_header_footer_text"
@@ -286,7 +286,7 @@ class GetHeaderFooterText(ToolWriterLayoutBase):
 # SetHeaderFooterText
 # ------------------------------------------------------------------
 
-class SetHeaderFooterText(ToolWriterLayoutBase):
+class SetHeaderFooterText(ToolWriterPageBase):
     """Set the text content of a page style's header or footer."""
 
     name = "set_header_footer_text"
@@ -352,7 +352,7 @@ class SetHeaderFooterText(ToolWriterLayoutBase):
 # GetPageColumns
 # ------------------------------------------------------------------
 
-class GetPageColumns(ToolWriterLayoutBase):
+class GetPageColumns(ToolWriterPageBase):
     """Get the column layout for a page style."""
 
     name = "get_page_columns"
@@ -406,7 +406,7 @@ class GetPageColumns(ToolWriterLayoutBase):
 # SetPageColumns
 # ------------------------------------------------------------------
 
-class SetPageColumns(ToolWriterLayoutBase):
+class SetPageColumns(ToolWriterPageBase):
     """Set the number of columns and spacing for a page style."""
 
     name = "set_page_columns"
@@ -480,7 +480,7 @@ class SetPageColumns(ToolWriterLayoutBase):
 # InsertPageBreak
 # ------------------------------------------------------------------
 
-class InsertPageBreak(ToolWriterLayoutBase):
+class InsertPageBreak(ToolWriterPageBase):
     """Insert a page break at the current cursor position."""
 
     name = "insert_page_break"

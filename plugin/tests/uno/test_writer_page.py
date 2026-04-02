@@ -2,7 +2,7 @@ import pytest
 from typing import Any
 from unittest.mock import MagicMock
 
-# Mock UNO imports required for testing layout tools outside of LibreOffice environment
+# Mock UNO imports required for testing page tools outside of LibreOffice environment
 import sys
 import types
 sys.modules['uno'] = MagicMock()
@@ -22,7 +22,7 @@ sys.modules['com.sun.star.style.BreakType'] = com_sun_star_style_breaktype
 setattr(com_sun_star_style_breaktype, "PAGE_BEFORE", 4)
 
 
-from plugin.modules.writer.layout import (
+from plugin.modules.writer.page import (
     GetPageStyleProperties,
     SetPageStyleProperties,
     GetHeaderFooterText,

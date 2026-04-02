@@ -46,8 +46,8 @@ class ToolWriterStyleBase(ToolWriterSpecialBase):
     intent = "edit"
     uno_services = ["com.sun.star.text.TextDocument"]
 
-class ToolWriterLayoutBase(ToolWriterSpecialBase):
-    specialized_domain = "layout"
+class ToolWriterPageBase(ToolWriterSpecialBase):
+    specialized_domain = "page"
     intent = "edit"
     uno_services = ["com.sun.star.text.TextDocument"]
 

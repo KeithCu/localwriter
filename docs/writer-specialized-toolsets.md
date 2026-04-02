@@ -260,7 +260,7 @@ Some Writer tools intentionally use **`tier = "extended"`** (or `core`) so users
 | Domain / area | WriterAgent status | Module & tools | Extended LO API (gaps) |
 |---------------|--------------------|----------------|-------------------------|
 | **Styles** | ✅ Implemented | `styles.py`: ListStyles, GetStyleInfo; StylesApply (extended tier, main chat) | Advanced typography: ligatures/special chars, kerning/tracking, OpenType features, font embedding |
-| **Layout** | ✅ Implemented | `layout.py`: Get/SetPageStyleProperties, Get/SetHeaderFooterText, Get/SetPageColumns, InsertPageBreak | Custom page layouts; page backgrounds (see Watermark row) |
+| **Page** | ✅ Implemented | `page.py`: Get/SetPageStyleProperties, Get/SetHeaderFooterText, Get/SetPageColumns, InsertPageBreak | Custom page layouts; page backgrounds (see Watermark row) |
 | **Text frames** | ✅ Implemented | `textframes.py`: ListTextFrames, GetTextFrameInfo, SetTextFrameProperties | — |
 | **Embedded OLE** | ✅ Implemented | `embedded.py`: EmbeddedInsert, EmbeddedEdit | — |
 | **Images** | ✅ Implemented | `images.py`: GenerateImage (async), List/Get/SetImage*, DownloadImage, Insert/Delete/ReplaceImage | Advanced image editing |

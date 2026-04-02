@@ -43,6 +43,7 @@ class ListSections(ToolBaseDummy):
                 "is_protected": getattr(section, "IsProtected", False),
             })
         return {"status": "ok", "sections": sections, "count": len(sections)}
+
 class GotoPage(ToolBaseDummy):
     name = "goto_page"
     intent = "navigate"
@@ -61,6 +62,7 @@ class GotoPage(ToolBaseDummy):
         vc = controller.getViewCursor()
         vc.jumpToPage(kwargs["page"])
         return {"status": "ok", "page": vc.getPage()}
+
 class GetPageObjects(ToolBaseDummy):
     name = "get_page_objects"
     intent = "navigate"
@@ -220,82 +222,4 @@ class ReadSection(ToolBaseDummy):
             "content": content,
             "length": len(content),
         }
-class ResolveBookmark(ToolBaseDummy):
-    """Resolve a bookmark to its paragraph index and heading text."""
 
-    name = "resolve_bookmark"
-    intent = "navigate"
-    description = (
-        "Resolve a bookmark to its current paragraph index and text. "
-        "Most tools accept 'bookmark:NAME' as locator directly -- use "
-        "resolve_bookmark only when you need the raw paragraph index."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "bookmark_name": {
-                "type": "string",
-                "description": "Bookmark name (e.g. _mcp_a1b2c3d4).",
-            },
-        },
-        "required": ["bookmark_name"],
-    }
-    uno_services = ["com.sun.star.text.TextDocument"]
-
-    def execute(self, ctx, **kwargs):
-        bookmark_name = kwargs.get("bookmark_name", "")
-        if not bookmark_name:
-            return self._tool_error("bookmark_name is required.")
-
-        doc = ctx.doc
-        if not hasattr(doc, "getBookmarks"):
-            return self._tool_error("Document does not support bookmarks.")
-
-        bookmarks = doc.getBookmarks()
-        if not bookmarks.hasByName(bookmark_name):
-            hint = "Bookmark '%s' not found." % bookmark_name
-            if bookmark_name.startswith("_mcp_"):
-                hint += (
-                    " It may have been deleted or the document changed. "
-                    "Use heading_text:<text> locator for resilient "
-                    "heading addressing, or call get_document_tree "
-                    "to refresh bookmarks."
-                )
-                existing = [
-                    n for n in bookmarks.getElementNames()
-                    if n.startswith("_mcp_")
-                ]
-                if existing:
-                    hint += " Existing bookmarks: %s" % ", ".join(existing[:10])
-            return self._tool_error(hint)
-
-        bm = bookmarks.getByName(bookmark_name)
-        anchor = bm.getAnchor()
-
-        # Find paragraph index
-        doc_svc = ctx.services.document
-        para_ranges = doc_svc.get_paragraph_ranges(doc)
-        text_obj = doc.getText()
-        para_idx = doc_svc.find_paragraph_for_range(
-            anchor, para_ranges, text_obj
-        )
-
-        result = {
-            "status": "ok",
-            "bookmark": bookmark_name,
-            "paragraph_index": para_idx,
-        }
-
-        # Get heading text if available
-        if 0 <= para_idx < len(para_ranges):
-            element = para_ranges[para_idx]
-            if element.supportsService("com.sun.star.text.Paragraph"):
-                try:
-                    result["text"] = element.getString()
-                    result["outline_level"] = element.getPropertyValue(
-                        "OutlineLevel"
-                    )
-                except Exception:
-                    pass
-
-        return result

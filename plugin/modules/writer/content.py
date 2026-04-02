@@ -147,7 +147,7 @@ class ApplyDocumentContent(ToolBase):
 
     - **Two edit paths**:
       - *Import path* (HTML/markup): for structural rewrites (tables, headings,
-        layout changes) we prepare HTML in `format_support` and import it via
+        page changes) we prepare HTML in `format_support` and import it via
         ``insertDocumentFromURL``. This is what all of the `insert_*` helpers
         use.
       - *Format‑preserving path* (plain text): for small textual corrections

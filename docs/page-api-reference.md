@@ -1,6 +1,6 @@
-# LibreOffice Writer Layout API Reference
+# LibreOffice Writer Page API Reference
 
-This document outlines the LibreOffice UNO API components used for advanced document layout in Writer, covering page styles, headers, footers, margins, and columns.
+This document outlines the LibreOffice UNO API components used for advanced page layout in Writer, covering page styles, headers, footers, margins, and columns.
 
 ## Overview
 
