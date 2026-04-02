@@ -227,7 +227,33 @@ class LlmClient:
         json_data = json.dumps(data).encode("utf-8")
         path = get_url_path_and_query(url)
 
-        log.debug("Request data: %s" % json.dumps(data, indent=2))
+        log_data = data.copy()
+        if "messages" in log_data and isinstance(log_data["messages"], list):
+            import copy
+            try:
+                log_messages = copy.deepcopy(log_data["messages"])
+                for m in log_messages:
+                    if not isinstance(m, dict):
+                        continue
+                    content = m.get("content")
+                    if isinstance(content, list):
+                        for part in content:
+                            if isinstance(part, dict):
+                                if part.get("type") == "input_audio":
+                                    audio = part.get("input_audio", {})
+                                    if isinstance(audio, dict) and "data" in audio:
+                                        audio["data"] = "<audio base64 data truncated, length=%d>" % len(audio["data"])
+                                if part.get("type") == "image_url":
+                                    img = part.get("image_url", {})
+                                    if isinstance(img, dict) and "url" in img and isinstance(img["url"], str):
+                                        url_val = img["url"]
+                                        if url_val.startswith("data:image"):
+                                            img["url"] = "<image base64 data truncated, length=%d>" % len(url_val)
+                log_data["messages"] = log_messages
+            except Exception:
+                log_data["messages"] = [{"note": "<failed to truncate messages for log>"}]
+
+        log.debug("Request data: %s" % json.dumps(log_data, indent=2))
         return "POST", path, json_data, self._headers()
 
     def extract_content_from_response(self, chunk):
@@ -315,7 +341,31 @@ class LlmClient:
             "=== Chat Request (tools=%s, stream=%s) ===" % (bool(tools), stream)
         )
         log.debug("URL: %s" % url)
-        log.debug("Messages: %s" % json.dumps(messages, indent=2))
+
+        # Truncate large base64 data for logging
+        log_messages = []
+        import copy
+        try:
+            log_messages = copy.deepcopy(messages)
+            for m in log_messages:
+                content = m.get("content")
+                if isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict):
+                            if part.get("type") == "input_audio":
+                                audio = part.get("input_audio", {})
+                                if isinstance(audio, dict) and "data" in audio:
+                                    audio["data"] = "<audio base64 data truncated, length=%d>" % len(audio["data"])
+                            if part.get("type") == "image_url":
+                                img = part.get("image_url", {})
+                                if isinstance(img, dict) and "url" in img and isinstance(img["url"], str):
+                                    url_val = img["url"]
+                                    if url_val.startswith("data:image"):
+                                        img["url"] = "<image base64 data truncated, length=%d>" % len(url_val)
+        except Exception:
+            log_messages = [{"note": "<failed to truncate messages for log>"}]
+
+        log.debug("Messages: %s" % json.dumps(log_messages, indent=2))
         
         path = get_url_path_and_query(url)
             
@@ -348,7 +398,13 @@ class LlmClient:
         init_logging(self.ctx)
         log.debug("=== Image Request ===")
         log.debug("URL: %s" % url)
-        log.debug("Data: %s" % json.dumps(data, indent=2))
+
+        log_data = data.copy()
+        image_url = log_data.get("image_url")
+        if image_url and isinstance(image_url, str) and image_url.startswith("data:image"):
+            log_data["image_url"] = "<image base64 data truncated, length=%d>" % len(image_url)
+
+        log.debug("Data: %s" % json.dumps(log_data, indent=2))
         
         path = get_url_path_and_query(url)
             
