@@ -18,23 +18,19 @@
 
 APP_REFERER = "https://github.com/keithcu/WriterAgent"
 APP_TITLE = "WriterAgent"
-USER_AGENT = "WriterAgent (https://github.com/keithcu/WriterAgent)"
+USER_AGENT = f"{APP_TITLE} ({APP_REFERER})"
 
 # Browser-style user agent for a small, whitelisted set of sites
 # (e.g. DuckDuckGo and Wikipedia) that expect a real browser UA.
 BROWSER_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0"
 
-_FORMAT_HINT = "Send HTML as a list of strings (one element per heading/paragraph). DO NOT escape entities (&lt;h1&gt; is wrong). We handle wrapping in <html>/<body>."
-
-# Format-specific formatting rules
-HTML_FORMATTING_RULES = """
-FORMATTING RULES (CRITICAL):
-- When calling apply_document_content, supply `content` and `target`. Use target='beginning', 'end', 'selection', 'full_document', or 'search'. If target='search', also provide `old_content` with the text to find and replace.
-- Formatting elements: Use <br> for single line breaks within an element, <p> tags for paragraphs.
-- Special characters: Send raw characters (é, ü, ©, "smart quotes"), NOT HTML entities (&eacute;, &uuml;, &copy;, &ldquo;).
-- Quotation marks: Use straight quotes ("), NOT curly/smart quotes (" or &ldquo;/&rdquo;).
-- Whitespace: Preserve intentional spacing; we handle normalization.
-- DO NOT escape HTML entities: Send <h1> NOT &lt;h1&gt;.
+# Single Writer-chat source for apply_document_content parameters + HTML shape (TOOLS points here).
+WRITER_APPLY_DOCUMENT_HTML_RULES = """
+APPLY_DOCUMENT_CONTENT AND HTML (CRITICAL):
+- Parameters: `content` and `target` (required). If target='search', also `old_content` (find/replace; HTML in old_content is matched as plain text).
+- Targets: 'beginning', 'end', 'selection', 'full_document' (replaces all), or 'search'.
+- `content` must be a JSON array of HTML strings (one fragment per heading/paragraph). We wrap in <html>/<body>.
+- Use <br> for line breaks within an element; <p> for paragraphs. Raw Unicode (é, ü, ©); straight double quotes ("), not curly/smart quotes or HTML entities. Send <h1> not &lt;h1&gt;. Preserve intentional spacing.
 
 EXAMPLES:
 - Good: ["<h1>Title</h1>", "<p>Paragraph with <strong>bold</strong> text and \\"quotes\\".</p>"]
@@ -43,7 +39,7 @@ EXAMPLES:
 - Bad: ["# Title", "Paragraph"] (No Markdown)
 - Bad: ["&ldquo;Smart quotes&rdquo;"] (use straight quotes ")"""
 
-FORMATTING_RULES = HTML_FORMATTING_RULES
+FORMATTING_RULES = WRITER_APPLY_DOCUMENT_HTML_RULES
 
 # General directives shared across all AI interfaces
 CORE_DIRECTIVES = """When asked to answer a question or create or explain something, assume the user wants the
@@ -53,13 +49,9 @@ When asked about a topic you are not familiar with, use the web_research tool fi
 
 TRANSLATION_RULES = "TRANSLATION: get_document_content(scope=full) -> translate -> apply_document_content(target='search', old_content=original, content=translated). Never refuse."
 
-# Tool-usage workflow patterns learned from DSPy MIPROv2 optimization
+# Tool-usage workflow patterns (no repeat of apply_document_content targets; see WRITER_APPLY_DOCUMENT_HTML_RULES).
 TOOL_USAGE_PATTERNS = """TOOL USAGE PATTERNS:
-- apply_document_content: provide content and target. Targets: 'beginning', 'end', 'selection', 'full_document', or 'search'. Use target='search' with old_content for find-and-replace. HTML in old_content is converted to plain text for matching.
-- For "translate [section] to [language]": Use old_content (paste the section text) and content (the translation).
-- For creative rewriting or reformatting, get_document_content(scope=full) then apply_document_content(old_content=that result, content=new doc).
-- When uncertain about document structure, call get_document_content before making modifications.
-- search_in_document (with return_offsets if needed) is for inspection/navigation; use old_content for replacements.
+- search_in_document (with return_offsets if needed) is for inspection/navigation; use apply_document_content with old_content for replacements.
 - If a tool call fails, verify content and target are provided (use target='beginning' / 'end' / 'selection' for insert-only)."""
 
 # Shared Calc instruction blocks
@@ -74,9 +66,7 @@ CALC_FORMULA_SYNTAX = """FORMULA SYNTAX: LibreOffice uses semicolon (;) as the f
 - Wrong: =SUM(A1,A10), =IF(A1>0,"Yes","No") (no commas in formulas)"""
 
 MEMORY_GUIDANCE = """MEMORY:
-You have a persistent file-backed memory.
-Target 'user' stores user profile, preferences, and quirks.
-Target 'memory' stores project facts, environmental notes, and general thoughts.
+You have a persistent file-backed memory tool.
 WHEN TO SAVE (do this proactively, don't wait to be asked):
 - User corrects you.
 - You discover something about the environment.
@@ -93,8 +83,7 @@ DEFAULT_CHAT_SYSTEM_PROMPT_TEMPLATE = f"""{CORE_DIRECTIVES}
 {{specialized_delegation}}
 
 TOOLS:
-- apply_document_content: Write HTML. Provide content and target. Targets: 'beginning', 'end', 'selection', 'full_document' (replaces all), or 'search' (requires old_content).
-  HINT: {_FORMAT_HINT}
+- apply_document_content: Insert or replace HTML in the document (parameters and format — see APPLY_DOCUMENT_CONTENT AND HTML below).
 - get_document_content: Read document (full/selection/range) as HTML.
 - search_in_document: Find text (use return_offsets for character positions if needed for inspection).
 - styles_apply_to_selection: Apply a paragraph style to the selection (use after discovering style names if needed).
