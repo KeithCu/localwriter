@@ -49,6 +49,8 @@ class DelegateToSpecializedCalc(ToolBase):
         for cls in ToolCalcSpecialBase.__subclasses__():
             if getattr(cls, "specialized_domain", None):
                 domains.append(cls.specialized_domain)
+        if "research" not in domains:
+            domains.append("research")
 
         self.parameters = {
             "type": "object",
@@ -93,6 +95,11 @@ class DelegateToSpecializedCalc(ToolBase):
         status_callback = getattr(ctx, "status_callback", None)
         append_thinking_callback = getattr(ctx, "append_thinking_callback", None)
         stop_checker = getattr(ctx, "stop_checker", None)
+
+        if domain == "research":
+            from plugin.modules.chatbot.web_research import WebResearchTool
+            tool = WebResearchTool()
+            return tool.execute(ctx, query=task)
 
         if not USE_SUB_AGENT:
             # Tell the main LLM loop to switch tools for the next round
