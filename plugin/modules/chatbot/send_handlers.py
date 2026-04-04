@@ -38,6 +38,7 @@ class SendHandlerHost(Protocol):
     ctx: Any
     client: "LlmClient | None"
     stop_requested: bool
+    _in_librarian_mode: bool
     session: "ChatSession"
     response_control: Any
     status_control: Any
@@ -502,6 +503,7 @@ class SendHandlersMixin:
         interpreter = EffectInterpreter(self)
         current_state = SendHandlerState(handler_type="web", status="ready") # We can reuse 'web' handler_type or create a new one, but for simplicity, 'web' will dispatch StartEvent
 
+        self._in_librarian_mode = True
         self.session.add_user_message(query_text)
 
         # 1. State machine transition: start
@@ -640,6 +642,7 @@ class SendHandlersMixin:
                         self.session.add_assistant_message(content=msg)
                     elif data.get("status") == "switch_mode":
                         # We want to exit librarian flow on the next turn.
+                        self._in_librarian_mode = False
                         from plugin.framework.i18n import _
                         answer = data.get("result", _("Perfect! I'm switching you to the main assistant now."))
                         msg = _("Librarian: {0}").format(answer) + "\n"

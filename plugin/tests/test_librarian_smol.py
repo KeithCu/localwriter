@@ -114,6 +114,7 @@ class TestLibrarianSmol(unittest.TestCase):
             res = tool.execute(ctx, query="hi")
 
         self.assertEqual(res.get("status"), "ok")
+        self.assertNotEqual(res.get("status"), "switch_mode")
         chat_append.assert_called_once()
         line = chat_append.call_args[0][0]
         self.assertIn("Memory update", line)

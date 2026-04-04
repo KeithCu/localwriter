@@ -13,6 +13,7 @@ class DummyChatbotPanel(SendHandlersMixin):
         self.ctx = MockContext()
         setattr(self.ctx, "getServiceManager", MagicMock())
         self.stop_requested = False
+        self._in_librarian_mode = False
         self.responses = []
         self.status_history = []
         self._terminal_status = None
@@ -340,3 +341,142 @@ def test_run_web_research_invalid_json():
 
                 # Verify stream completed normally (terminal status is Ready)
                 assert panel._terminal_status == "Ready"
+
+
+def test_run_librarian_keeps_panel_flag_until_switch():
+    panel = DummyChatbotPanel()
+    model = MockDocument()
+
+    mock_main = MagicMock()
+    mock_registry = MagicMock()
+    mock_registry.execute.return_value = {"status": "ok", "result": "Still onboarding"}
+    mock_registry._services = MagicMock()
+    mock_main.get_tools.return_value = mock_registry
+
+    mock_uno = MagicMock()
+
+    class DummyBase1(object):
+        pass
+
+    class DummyBase2(object):
+        pass
+
+    mock_unohelper = MagicMock()
+    mock_unohelper.Base = DummyBase1
+    mock_awt = MagicMock()
+    mock_awt.XActionListener = DummyBase2
+    mock_awt.XItemListener = DummyBase2
+    mock_awt.XTextListener = DummyBase2
+    mock_awt.XWindowListener = DummyBase2
+    mock_lang = MagicMock()
+    mock_lang.XEventListener = DummyBase2
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "plugin.main": mock_main,
+            "uno": mock_uno,
+            "unohelper": mock_unohelper,
+            "com.sun.star.text": MagicMock(),
+            "com.sun.star.awt": mock_awt,
+            "com.sun.star.lang": mock_lang,
+        },
+    ):
+        with patch("plugin.framework.worker_pool.run_in_background") as mock_run_bg:
+            def fake_run_bg(func):
+                func()
+
+            mock_run_bg.side_effect = fake_run_bg
+
+            with patch("plugin.framework.async_stream.run_stream_drain_loop") as mock_run_stream:
+                def fake_drain_loop(q, toolkit, job_done, apply_chunk, on_stream_done, on_stopped, on_error, on_status_fn, ctx, stop_checker, **kwargs):
+                    while not q.empty():
+                        item = q.get()
+                        k = item[0]
+                        if k == StreamQueueKind.CHUNK:
+                            apply_chunk(item[1])
+                        elif k == StreamQueueKind.STREAM_DONE:
+                            on_stream_done(item[1])
+                        elif k == StreamQueueKind.STATUS:
+                            on_status_fn(item[1])
+                        elif k == StreamQueueKind.ERROR:
+                            on_error(item[1])
+
+                mock_run_stream.side_effect = fake_drain_loop
+
+                getattr(panel.ctx, "getServiceManager")().createInstanceWithContext.return_value = MagicMock()
+                panel._run_librarian("Hello", model)  # type: ignore
+
+    assert panel._in_librarian_mode is True
+    mock_registry.execute.assert_called_once()
+    args, kwargs = mock_registry.execute.call_args
+    assert args[0] == "librarian_onboarding"
+    assert kwargs["query"] == "Hello"
+
+
+def test_run_librarian_clears_panel_flag_on_switch_mode():
+    panel = DummyChatbotPanel()
+    model = MockDocument()
+
+    mock_main = MagicMock()
+    mock_registry = MagicMock()
+    mock_registry.execute.return_value = {"status": "switch_mode", "result": "Switching now"}
+    mock_registry._services = MagicMock()
+    mock_main.get_tools.return_value = mock_registry
+
+    mock_uno = MagicMock()
+
+    class DummyBase1(object):
+        pass
+
+    class DummyBase2(object):
+        pass
+
+    mock_unohelper = MagicMock()
+    mock_unohelper.Base = DummyBase1
+    mock_awt = MagicMock()
+    mock_awt.XActionListener = DummyBase2
+    mock_awt.XItemListener = DummyBase2
+    mock_awt.XTextListener = DummyBase2
+    mock_awt.XWindowListener = DummyBase2
+    mock_lang = MagicMock()
+    mock_lang.XEventListener = DummyBase2
+
+    with patch.dict(
+        "sys.modules",
+        {
+            "plugin.main": mock_main,
+            "uno": mock_uno,
+            "unohelper": mock_unohelper,
+            "com.sun.star.text": MagicMock(),
+            "com.sun.star.awt": mock_awt,
+            "com.sun.star.lang": mock_lang,
+        },
+    ):
+        with patch("plugin.framework.worker_pool.run_in_background") as mock_run_bg:
+            def fake_run_bg(func):
+                func()
+
+            mock_run_bg.side_effect = fake_run_bg
+
+            with patch("plugin.framework.async_stream.run_stream_drain_loop") as mock_run_stream:
+                def fake_drain_loop(q, toolkit, job_done, apply_chunk, on_stream_done, on_stopped, on_error, on_status_fn, ctx, stop_checker, **kwargs):
+                    while not q.empty():
+                        item = q.get()
+                        k = item[0]
+                        if k == StreamQueueKind.CHUNK:
+                            apply_chunk(item[1])
+                        elif k == StreamQueueKind.STREAM_DONE:
+                            on_stream_done(item[1])
+                        elif k == StreamQueueKind.STATUS:
+                            on_status_fn(item[1])
+                        elif k == StreamQueueKind.ERROR:
+                            on_error(item[1])
+
+                mock_run_stream.side_effect = fake_drain_loop
+
+                getattr(panel.ctx, "getServiceManager")().createInstanceWithContext.return_value = MagicMock()
+                panel._run_librarian("Done", model)  # type: ignore
+
+    assert panel._in_librarian_mode is False
+    mock_registry.execute.assert_called_once()

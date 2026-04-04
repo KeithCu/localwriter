@@ -91,6 +91,10 @@ Bypasses document context/tools for that send; calls `web_research`. **`panel_fa
 
 Sidebar shows when the model calls `upsert_memory`: **main document chat** uses the tool-loop FSM in [`tool_loop_state.py`](plugin/modules/chatbot/tool_loop_state.py) — a line like `[Memory update: key '…']` when the key is present in arguments, then the usual tool result line. **Librarian onboarding** uses [`librarian.py`](plugin/modules/chatbot/librarian.py): the same style line is sent through `ToolContext.chat_append_callback` (chunk path) so it is visible even when `chatbot.show_search_thinking` is off (other librarian tool progress still goes through the thinking stream only).
 
+### Librarian handoff
+
+Sidebar onboarding still **starts** when `USER.md` is empty, but once the librarian has started the active [`SendButtonListener`](plugin/modules/chatbot/panel.py) keeps an in-memory `_in_librarian_mode` flag so later turns stay with the librarian even after `upsert_memory` writes preferences to `USER.md`. That panel-local flag is cleared only when the librarian path in [`send_handlers.py`](plugin/modules/chatbot/send_handlers.py) receives `status == "switch_mode"` from `switch_to_document_mode`; `USER.md` is preference storage only and no longer doubles as the handoff signal.
+
 ### Tools by document type
 
 Paragraph tools in [`content.py`](plugin/modules/writer/content.py) are **`ToolBaseDummy`** until rebased. **Specialized tier** (`ToolWriterSpecialBase` in [`base.py`](plugin/modules/writer/base.py)): styles, page (page styles, margins, headers/footers, columns, page breaks), textframes (`list_text_frames`, `get_text_frame_info`, `set_text_frame_properties`), shapes/charts in doc, indexes, fields, bookmarks, embedded, **images** (`generate_image`, list/insert/replace, …), **track changes** (`set_track_changes`, `get_tracked_changes`, `manage_tracked_changes`), and **Writer** `create_shape` — omitted from default chat/MCP tool lists via `exclude_tiers` in [`tool_registry.py`](plugin/framework/tool_registry.py). `create_shape` remains visible for Draw/Impress default lists (shared tool name; tier exception in `get_tools`).

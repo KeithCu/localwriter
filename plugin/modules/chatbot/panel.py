@@ -217,6 +217,7 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         self.stop_requested = False
         self._terminal_status = "Ready"
         self._send_busy = False
+        self._in_librarian_mode = False
         self.client = None
         self.audio_wav_path = None
         self._current_agent_backend = None  # Set during _do_send_via_agent_backend for Stop button
@@ -805,18 +806,23 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         except Exception as e:
             log.error("_do_send: agent backend check failed: %s" % e)
 
-        # Check if USER.md exists for Librarian Onboarding
-        user_md_exists = False
-        try:
-            from plugin.modules.chatbot.memory import MemoryStore
-            store = MemoryStore(self.ctx)
-            if store.read("user"):
-                user_md_exists = True
-        except Exception as e:
-            log.error(f"Failed to check memory store for librarian onboarding: {e}")
+        if self._in_librarian_mode:
+            log.info("_do_send: continuing librarian onboarding agent")
+            self._run_librarian(query_text, model)
+            return
 
-        # FIXME: This is how to enable the librarian onboarding agent
+        # Check if USER.md exists for Librarian Onboarding entry
+        user_md_exists = False
+        from plugin.modules.chatbot.memory import MemoryStore
+        store = MemoryStore(self.ctx)
+        if store.read("user"):
+            user_md_exists = True
+
+        # Start onboarding when no user profile exists yet. Once started, the
+        # per-panel librarian flag keeps later turns in onboarding until the
+        # librarian explicitly switches modes.
         if not user_md_exists:
+            self._in_librarian_mode = True
             log.info("_do_send: using librarian onboarding agent")
             self._run_librarian(query_text, model)
             return
