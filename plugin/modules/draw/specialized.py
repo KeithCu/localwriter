@@ -21,8 +21,11 @@ class DelegateToSpecializedDraw(ToolBase):
 
     def __init__(self):
         super().__init__()
-        # Since Draw doesn't have ToolDrawSpecialBase subclasses yet, we just start with web_research
-        domains = ["web_research"]
+        from plugin.modules.draw.base import ToolDrawSpecialBase
+        domains = []
+        for cls in ToolDrawSpecialBase.__subclasses__():
+            if getattr(cls, "specialized_domain", None):
+                domains.append(cls.specialized_domain)
 
         self.parameters = {
             "type": "object",

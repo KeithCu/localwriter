@@ -17,8 +17,9 @@
 import logging
 
 from plugin.framework.tool_base import ToolBase
-from plugin.modules.writer.base import ToolWriterSpecialBase
-from plugin.modules.calc.base import ToolCalcSpecialBase
+from plugin.modules.writer.base import ToolWriterWebResearchBase
+from plugin.modules.calc.base import ToolCalcWebResearchBase
+from plugin.modules.draw.base import ToolDrawWebResearchBase
 
 log = logging.getLogger(__name__)
 
@@ -62,10 +63,7 @@ def _norm_research_query(s: str) -> str:
 
 
 # Use multiple inheritance so the domain is auto-discovered by the sub-agent delegates.
-# Since Draw does not yet have a special base, we will manually inject it or let Draw's
-# specialized tool manually specify "web_research" like it currently does.
-class WebResearchTool(ToolWriterSpecialBase, ToolCalcSpecialBase):
-    specialized_domain = "web_research"
+class WebResearchTool(ToolWriterWebResearchBase, ToolCalcWebResearchBase, ToolDrawWebResearchBase):
     name = "web_research"
     description = "Search the web to answer questions or find information."
     parameters = {

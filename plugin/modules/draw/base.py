@@ -14,20 +14,20 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-"""Base classes for specialized Calc toolsets."""
+"""Base classes for specialized Draw toolsets."""
 
 from typing import ClassVar
 
-from plugin.framework.tool_base import ToolBase, ToolBaseDummy
+from plugin.framework.tool_base import ToolBase
 
 
-class ToolCalcSpecialBase(ToolBase):
-    """Base class for all specialized Calc tools.
+class ToolDrawSpecialBase(ToolBase):
+    """Base class for all specialized Draw tools.
 
     Tools deriving from this base are NOT exposed directly to the main
     agent's general toolset. Instead, they are exposed only to the
     specialized sub-agent when the user delegates a task to that specific
-    domain (e.g., 'images').
+    domain.
     """
 
     tier = "specialized"
@@ -36,11 +36,5 @@ class ToolCalcSpecialBase(ToolBase):
 
 # --- Domain-Specific Base Classes ---
 
-class ToolCalcImageBase(ToolCalcSpecialBase):
-    specialized_domain = "images"
-    intent = "media"
-    uno_services = ["com.sun.star.sheet.SpreadsheetDocument"]
-
-
-class ToolCalcWebResearchBase(ToolCalcSpecialBase):
+class ToolDrawWebResearchBase(ToolDrawSpecialBase):
     specialized_domain = "web_research"
