@@ -76,7 +76,7 @@ class WebResearchTool(ToolBase):
         },
         "required": ["query"]
     }
-    tier = "agent"
+    tier = "specialized"  # Make it a specialized tool so it doesn't appear in the main chat prompt
     is_mutation = False
     long_running = True
 
