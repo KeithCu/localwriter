@@ -21,8 +21,8 @@ class DelegateToSpecializedDraw(ToolBase):
 
     def __init__(self):
         super().__init__()
-        # Since Draw doesn't have ToolDrawSpecialBase subclasses yet, we just start with research
-        domains = ["research"]
+        # Since Draw doesn't have ToolDrawSpecialBase subclasses yet, we just start with web_research
+        domains = ["web_research"]
 
         self.parameters = {
             "type": "object",
@@ -55,7 +55,7 @@ class DelegateToSpecializedDraw(ToolBase):
         domain = kwargs.get("domain")
         task = kwargs.get("task")
 
-        if domain == "research":
+        if domain == "web_research":
             from plugin.modules.chatbot.web_research import WebResearchTool
             tool = WebResearchTool()
             return tool.execute(ctx, query=task)

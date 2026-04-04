@@ -257,7 +257,7 @@ def test_web_research_tool():
                 with patch("plugin.framework.config.get_config", return_value="false"):
                     with patch("plugin.framework.config.get_config_int", return_value=10):
                         with patch("plugin.framework.config.get_api_config", return_value={"chat_max_tokens": 2048}):
-                            result = tool.execute(ctx, domain="research", task="What is the latest Python release?")
+                            result = tool.execute(ctx, domain="web_research", task="What is the latest Python release?")
 
                 assert result["status"] == "ok"
                 assert "3.12.3" in result["result"]
@@ -283,7 +283,7 @@ def test_web_research_tool_stop():
                 with patch("plugin.framework.config.get_config", return_value="false"):
                     with patch("plugin.framework.config.get_config_int", return_value=10):
                         with patch("plugin.framework.config.get_api_config", return_value={"chat_max_tokens": 2048}):
-                            result = tool.execute(ctx, domain="research", task="What is the latest Python release?")
+                            result = tool.execute(ctx, domain="web_research", task="What is the latest Python release?")
 
                 assert result["status"] == "error"
                 assert result["message"] == "Web search stopped by user."
