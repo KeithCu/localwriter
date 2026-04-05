@@ -151,6 +151,96 @@ class TestEndpointUrlSuitableForModelFetch(unittest.TestCase):
         self.assertTrue(endpoint_url_suitable_for_v1_models_fetch("http://[::1]:8080"))
 
 
+class TestPopulateComboboxWithLruFetchOptions(unittest.TestCase):
+    """populate_combobox_with_lru(skip_remote_fetch / remote_models) must not call fetch_available_models."""
+
+    def setUp(self):
+        self.ctx = MagicMock()
+        self.config_data = {}
+
+        def mock_get_config(ctx, key):
+            return self.config_data.get(key, "")
+
+        def mock_set_config(ctx, key, value):
+            self.config_data[key] = value
+
+        self.get_patcher = patch("plugin.framework.config.get_config", side_effect=mock_get_config)
+        self.set_patcher = patch("plugin.framework.config.set_config", side_effect=mock_set_config)
+        self.get_patcher.start()
+        self.set_patcher.start()
+
+    def tearDown(self):
+        self.get_patcher.stop()
+        self.set_patcher.stop()
+
+    def test_skip_remote_fetch_does_not_call_fetch(self):
+        from plugin.framework.config import populate_combobox_with_lru
+
+        ctrl = MagicMock()
+        ctrl.getItemCount.return_value = 0
+        with patch("plugin.framework.config.fetch_available_models") as mock_fetch:
+            populate_combobox_with_lru(
+                self.ctx,
+                ctrl,
+                "",
+                "model_lru",
+                "http://localhost:8080",
+                skip_remote_fetch=True,
+            )
+            mock_fetch.assert_not_called()
+
+    def test_remote_models_does_not_call_fetch(self):
+        from plugin.framework.config import populate_combobox_with_lru
+
+        ctrl = MagicMock()
+        ctrl.getItemCount.return_value = 0
+        with patch("plugin.framework.config.fetch_available_models") as mock_fetch:
+            populate_combobox_with_lru(
+                self.ctx,
+                ctrl,
+                "",
+                "model_lru",
+                "http://localhost:8080",
+                remote_models=["m1", "m2"],
+            )
+            mock_fetch.assert_not_called()
+            ctrl.addItems.assert_called()
+            items = ctrl.addItems.call_args[0][0]
+            self.assertIn("m1", items)
+            self.assertIn("m2", items)
+
+
+class TestFetchAvailableModelsCache(unittest.TestCase):
+    """_model_fetch_cache is process-wide; same normalized endpoint hits HTTP once."""
+
+    def tearDown(self):
+        import plugin.framework.config as cfg
+
+        keys_to_del = [k for k in cfg._model_fetch_cache if "127.0.0.1:58901" in k or "127.0.0.1:58902" in k]
+        for k in keys_to_del:
+            del cfg._model_fetch_cache[k]
+
+    def test_second_call_does_not_http(self):
+        from plugin.framework import config as cfg
+
+        with patch("plugin.modules.http.requests.sync_request") as mock_sync:
+            mock_sync.return_value = {"data": [{"id": "alpha"}]}
+            r1 = cfg.fetch_available_models("http://127.0.0.1:58901")
+            r2 = cfg.fetch_available_models("http://127.0.0.1:58901")
+            self.assertEqual(r1, ["alpha"])
+            self.assertEqual(r2, ["alpha"])
+            self.assertEqual(mock_sync.call_count, 1)
+
+    def test_normalized_url_shares_cache_entry(self):
+        from plugin.framework import config as cfg
+
+        with patch("plugin.modules.http.requests.sync_request") as mock_sync:
+            mock_sync.return_value = {"data": [{"id": "beta"}]}
+            cfg.fetch_available_models("http://127.0.0.1:58902/")
+            cfg.fetch_available_models("http://127.0.0.1:58902")
+            self.assertEqual(mock_sync.call_count, 1)
+
+
 class TestConfigSyncFileIO(unittest.TestCase):
     def setUp(self):
         self.ctx = MagicMock()

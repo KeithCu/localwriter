@@ -726,6 +726,8 @@ def set_native_audio_support(ctx, model_id, endpoint, supported):
     set_config(ctx, "audio_support_map", cache)
 
 
+# GET {base}/v1/models — memoized for the lifetime of this Python process (LibreOffice
+# session). Key is normalized `.../v1/models`; value is model id list or None after failure.
 _model_fetch_cache: dict[str, list[str] | None] = {}
 
 
@@ -755,12 +757,19 @@ def endpoint_url_suitable_for_v1_models_fetch(endpoint: str) -> bool:
 
 
 def fetch_available_models(endpoint):
-    """Fetch available models from endpoint/v1/models. Returns list of IDs or None on error."""
+    """Fetch available models from endpoint/v1/models. Returns list of IDs or None on error.
+
+    Responses (including failed lookups, stored as None) are cached in `_model_fetch_cache`
+    for the process lifetime so repeated Settings/sidebar use does not re-hit the network.
+    """
     if not endpoint:
         return None
-    if not endpoint_url_suitable_for_v1_models_fetch(endpoint):
+    base = normalize_endpoint_url(endpoint)
+    if not base:
         return None
-    url = f"{endpoint.rstrip('/')}/v1/models"
+    if not endpoint_url_suitable_for_v1_models_fetch(base):
+        return None
+    url = f"{base}/v1/models"
     if url in _model_fetch_cache:
         return _model_fetch_cache[url]
 
@@ -786,11 +795,24 @@ def fetch_available_models(endpoint):
     _model_fetch_cache[url] = None
     return None
 
-def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint):
+def populate_combobox_with_lru(
+    ctx,
+    ctrl,
+    current_val,
+    lru_key,
+    endpoint,
+    *,
+    remote_models: list[str] | None = None,
+    skip_remote_fetch: bool = False,
+):
     """Helper to populate a combobox with values from an LRU list in config.
     LRU is scoped to the provided endpoint.
     Merges relevant default models based on the capability inferred from lru_key.
-    Returns the value set."""
+    Returns the value set.
+
+    remote_models: when set, use as /v1/models IDs for **text** comboboxes only (skip internal fetch).
+    skip_remote_fetch: when True, never call fetch_available_models (LRU + provider defaults).
+    """
     scoped_key = f"{lru_key}@{endpoint}" if endpoint else lru_key
     lru = get_config(ctx, scoped_key)
     if not isinstance(lru, list):
@@ -804,8 +826,13 @@ def populate_combobox_with_lru(ctx, ctrl, current_val, lru_key, endpoint):
     # For text models, determine if we should fetch from the API.
     # We do NOT fetch for known massive providers (openrouter, together).
     massive_providers = {"openrouter", "together"}
-    fetched_models = None
-    if req_cap == "text" and endpoint and (not provider or provider not in massive_providers):
+    fetched_models: list[str] | None = None
+    if remote_models is not None:
+        if req_cap == "text":
+            fetched_models = remote_models
+    elif skip_remote_fetch:
+        fetched_models = None
+    elif req_cap == "text" and endpoint and (not provider or provider not in massive_providers):
         fetched_models = fetch_available_models(endpoint)
 
     if fetched_models is not None:
@@ -1114,7 +1141,14 @@ def get_api_config(ctx):
     return api_config
 
 
-def populate_image_model_selector(ctx, ctrl, override_endpoint=None):
+def populate_image_model_selector(
+    ctx,
+    ctrl,
+    override_endpoint=None,
+    *,
+    remote_models: list[str] | None = None,
+    skip_remote_fetch: bool = False,
+):
     """Adaptive population of image model selector (ComboBox) based on provider.
     When image_provider is endpoint, uses override_endpoint if provided else config endpoint;
     uses strict=True so only models for that endpoint are shown. Returns the value set."""
@@ -1130,7 +1164,15 @@ def populate_image_model_selector(ctx, ctrl, override_endpoint=None):
         return current_image_model
     current_image_model = get_image_model(ctx)
     endpoint = override_endpoint if override_endpoint is not None else get_current_endpoint(ctx)
-    return populate_combobox_with_lru(ctx, ctrl, current_image_model, "image_model_lru", endpoint)
+    return populate_combobox_with_lru(
+        ctx,
+        ctrl,
+        current_image_model,
+        "image_model_lru",
+        endpoint,
+        remote_models=remote_models,
+        skip_remote_fetch=skip_remote_fetch,
+    )
 
 
 class ConfigAccessError(ConfigError):

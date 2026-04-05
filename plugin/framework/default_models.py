@@ -4,8 +4,10 @@ Flat catalog: each model has ``ids`` (provider-specific IDs). models are
 available for providers listed as keys in the ``ids`` dict.
 """
 
+from typing import Any
 
-def resolve_model_id(model, provider):
+
+def resolve_model_id(model: dict[str, Any], provider):
     """Resolve the effective model ID for a given provider.
 
     Args:
@@ -39,7 +41,7 @@ def get_provider_defaults(provider):
     return defaults
 
 
-DEFAULT_MODELS = [
+DEFAULT_MODELS: list[dict[str, Any]] = [
     # ---- Text models (cross-provider) ------------------------------------
 
     {
