@@ -224,7 +224,7 @@ Restart LibreOffice after deploy.
 - Queue from HTTP threads → **main-thread** `drain_mcp_queue` ([`mcp_protocol.py`](plugin/modules/http/mcp_protocol.py)).
 - **AsyncCallback** ~100ms from [`plugin/main.py`](plugin/main.py) (not chat-drain-only).
 - **`X-Document-URL`** → `resolve_document_by_url` in `document.py`; else active document.
-- Config: `mcp_enabled`, `mcp_port` (default 8765); Http tab in Settings. Started from **MainJob**, not sidebar. Localhost, no auth.
+- Config: `mcp_enabled`, `mcp_port` (default 8765); Http tab in Settings. When `mcp_enabled`, [`HttpModule.start_background`](plugin/modules/http/__init__.py) runs from [`bootstrap()`](plugin/main.py) after modules load (restart picks up saved config). [`apply_settings_result`](plugin/framework/settings_dialog.py) emits `config:changed` with `ctx` only (no `key`); [`HttpModule._on_config_changed`](plugin/modules/http/__init__.py) treats that as a bulk apply and starts/stops the HTTP server to match `http.mcp_enabled` immediately on OK. LibreOffice may bootstrap more than once (e.g. sidebar vs menu); [`HttpModule`](plugin/modules/http/__init__.py) keeps a single primary instance and shared listener so the MCP port is not bound twice. Localhost, no auth.
 
 ---
 

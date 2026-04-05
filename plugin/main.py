@@ -170,6 +170,10 @@ def bootstrap(ctx=None):
         from plugin.framework.module_loader import ModuleLoader
         _modules.extend(ModuleLoader.load_modules(_services))
 
+        # 6. Background phase: modules that start listeners/servers (e.g. HttpModule when MCP enabled)
+        for mod in _modules:
+            mod.start_background(_services)
+
         # Wire event bus into config service
         events_svc = _services.get("events")
         if events_svc:
@@ -196,7 +200,6 @@ def _register_core_handlers():
 
     def _open_settings():
         _open_dialog_safely(settings_box, "Failed to open settings")
-        _start_mcp_server(get_ctx())
 
     register_action_handler("main", "settings", _open_settings)
 
@@ -616,7 +619,7 @@ def _do_mcp_status(ctx):
 def try_ensure_mcp_timer(ctx):
     """Legacy entry point from sidebar to ensure server is running.
     The new framework main_thread executes drains natively without timers."""
-    _start_mcp_server(ctx)
+    pass
 
 
 # Bootstrapper replaces the previous monolithic MainJob.

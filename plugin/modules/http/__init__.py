@@ -17,11 +17,20 @@
 """HTTP server module — owns the HTTP server lifecycle."""
 
 import logging
+import threading
 from typing import Any, cast
 
 from plugin.framework.module_base import ModuleBase
 
 log = logging.getLogger("writeragent.http")
+
+# LibreOffice may call bootstrap() more than once (e.g. sidebar vs menu UNO contexts). Each run
+# constructs a new HttpModule(), which would otherwise create a second registry and try to
+# bind the same port. The first instance is canonical; later instances reuse its registry/server.
+_primary_http_module: "HttpModule | None" = None
+_shared_registry: Any = None
+_shared_http_server: Any = None
+_http_peer_lock = threading.Lock()
 
 
 class HttpModule(ModuleBase):
@@ -35,89 +44,142 @@ class HttpModule(ModuleBase):
     """
 
     def initialize(self, services):
+        global _primary_http_module, _shared_registry, _shared_http_server
+
         from plugin.modules.http.routes import HttpRouteRegistry
 
-        self._registry = HttpRouteRegistry()
-        services.register("http_routes", self._registry)
-        self._server = None
-        self._services = services
-        self._mcp_protocol = None
-        self._mcp_routes_registered = False
+        with _http_peer_lock:
+            if _primary_http_module is not None:
+                # Second (or later) bootstrap in this process: share registry and server state.
+                prim = _primary_http_module
+                self._registry = _shared_registry
+                self._server = _shared_http_server
+                self._services = services
+                self._mcp_protocol = prim._mcp_protocol
+                self._mcp_routes_registered = prim._mcp_routes_registered
+                self._srv_lock = prim._srv_lock
+                services.register("http_routes", self._registry)
+                log.info(
+                    "HttpModule initialize: reusing primary HTTP/MCP (mcp_enabled=%s, server=%s)",
+                    services.config.proxy_for(self.name).get("mcp_enabled"),
+                    "running" if (_shared_http_server and _shared_http_server.is_running()) else "stopped",
+                )
+                return
 
-        # Built-in endpoints
-        self._registry.add("GET", "/health", self._handle_health)
-        self._registry.add("GET", "/", self._handle_info)
-        self._registry.add("GET", "/api/config", self._handle_config_get)
-        self._registry.add("POST", "/api/config", self._handle_config_set)
+            self._registry = HttpRouteRegistry()
+            _shared_registry = self._registry
+            services.register("http_routes", self._registry)
+            self._server = None
+            self._services = services
+            self._mcp_protocol = None
+            self._mcp_routes_registered = False
+            self._srv_lock = threading.Lock()
 
-        # MCP endpoints
-        mcp_enabled = services.config.proxy_for(self.name).get("mcp_enabled")
-        log.info("HttpModule initialize: mcp_enabled=%s", mcp_enabled)
-        if mcp_enabled:
-            self._register_mcp_routes(services)
+            # Built-in endpoints
+            self._registry.add("GET", "/health", self._handle_health)
+            self._registry.add("GET", "/", self._handle_info)
+            self._registry.add("GET", "/api/config", self._handle_config_get)
+            self._registry.add("POST", "/api/config", self._handle_config_set)
 
-        if hasattr(services, "events"):
-            services.events.subscribe("config:changed", self._on_config_changed)
+            # MCP endpoints
+            mcp_enabled = services.config.proxy_for(self.name).get("mcp_enabled")
+            log.info("HttpModule initialize: mcp_enabled=%s", mcp_enabled)
+            if mcp_enabled:
+                self._register_mcp_routes(services)
+
+            if hasattr(services, "events"):
+                services.events.subscribe("config:changed", self._on_config_changed)
+
+            _primary_http_module = self
+
+    def _bound_http_server(self):
+        """Server instance for this process: shared copy after primary starts, else this instance."""
+        global _shared_http_server
+        if _shared_http_server is not None:
+            return _shared_http_server
+        return self._server
 
     def start_background(self, services):
-        if services.config.proxy_for(self.name).get("enabled"):
+        # We start automatically if MCP is enabled.
+        if services.config.proxy_for(self.name).get("mcp_enabled"):
             self._start_server(services)
 
     def _on_config_changed(self, **data):
         key = data.get("key", "")
-        if not key.startswith("http."):
+        # Non-http keys: ignore. Per-key http.* below. Empty key = bulk save (e.g. Settings OK).
+        if key and not key.startswith("http."):
             return
-        cfg = self._services.config.proxy_for(self.name)
+        # MCP lifecycle: explicit toggle, or bulk apply (Settings dialog does not pass key).
+        if key and key not in ("http.mcp_enabled",) and key != "":
+            return
 
-        if key == "http.enabled":
-            enabled = cfg.get("enabled")
-            if enabled and not self._server:
-                self._start_server(self._services)
-            elif not enabled and self._server:
-                self._stop_server()
-        elif key == "http.mcp_enabled":
-            enabled = cfg.get("mcp_enabled")
-            log.info("Config changed: http.mcp_enabled=%s", enabled)
-            if enabled and not self._mcp_routes_registered:
-                self._register_mcp_routes(self._services)
-            elif not enabled and self._mcp_routes_registered:
-                self._unregister_mcp_routes(self._services)
+        cfg = self._services.config.proxy_for(self.name)
+        enabled = cfg.get("mcp_enabled")
+        log.info("HTTP/MCP config sync (key=%r): mcp_enabled=%s", key or "(bulk)", enabled)
+        if enabled and not self._mcp_routes_registered:
+            self._register_mcp_routes(self._services)
+        elif not enabled and self._mcp_routes_registered:
+            self._unregister_mcp_routes(self._services)
+
+        bound = self._bound_http_server()
+        if enabled and not (bound and bound.is_running()):
+            self._start_server(self._services)
+        elif not enabled and bound:
+            self._stop_server()
 
     def _start_server(self, services):
+        global _shared_http_server
         from plugin.modules.http.server import HttpServer
 
-        cfg = services.config.proxy_for(self.name)
-        event_bus = getattr(services, "events", None)
+        with self._srv_lock:
+            bound = self._bound_http_server()
+            if bound is not None and bound.is_running():
+                return
 
-        self._server = HttpServer(
-            route_registry=self._registry,
-            port=cfg.get("port") or cfg.get("mcp_port") or 8765,
-            host=cfg.get("host") or "localhost",
-            use_ssl=cfg.get("use_ssl") or False,
-            ssl_cert=cfg.get("ssl_cert") or "",
-            ssl_key=cfg.get("ssl_key") or "",
-        )
-        try:
-            self._server.start()
-            if event_bus:
-                status = self._server.get_status()
-                event_bus.emit("http:server_started",
-                               port=status["port"], host=status["host"],
-                               url=status["url"])
-            if event_bus:
-                event_bus.emit("menu:update")
-        except Exception:
-            log.exception("Failed to start HTTP server")
-            self._server = None
+            cfg = services.config.proxy_for(self.name)
+            event_bus = getattr(services, "events", None)
+
+            srv = HttpServer(
+                route_registry=self._registry,
+                port=cfg.get("port") or cfg.get("mcp_port") or 8765,
+                host=cfg.get("host") or "localhost",
+                use_ssl=cfg.get("use_ssl") or False,
+                ssl_cert=cfg.get("ssl_cert") or "",
+                ssl_key=cfg.get("ssl_key") or "",
+            )
+            try:
+                srv.start()
+                if event_bus:
+                    status = srv.get_status()
+                    event_bus.emit("http:server_started",
+                                   port=status["port"], host=status["host"],
+                                   url=status["url"])
+                if event_bus:
+                    event_bus.emit("menu:update")
+                self._server = srv
+                _shared_http_server = srv
+            except Exception:
+                log.exception("Failed to start HTTP server")
+                try:
+                    srv.stop()
+                except Exception:
+                    log.debug("HttpServer.stop after failed start", exc_info=True)
 
     def _stop_server(self):
-        if self._server:
-            self._server.stop()
+        global _shared_http_server
+        with self._srv_lock:
+            srv = self._bound_http_server()
+            if not srv:
+                return
+            srv.stop()
             self._server = None
-            event_bus = getattr(self._services, "events", None)
-            if event_bus:
-                event_bus.emit("http:server_stopped", reason="shutdown")
-                event_bus.emit("menu:update")
+            _shared_http_server = None
+            if _primary_http_module is not None:
+                _primary_http_module._server = None
+        event_bus = getattr(self._services, "events", None)
+        if event_bus:
+            event_bus.emit("http:server_stopped", reason="shutdown")
+            event_bus.emit("menu:update")
 
     def shutdown(self):
         self._stop_server()
@@ -176,13 +238,15 @@ class HttpModule(ModuleBase):
     def get_menu_text(self, action):
         from plugin.framework.i18n import _
         if action == "toggle_server":
-            if self._server and self._server.is_running():
-                return _("Stop HTTP Server")
-            return _("Start HTTP Server")
+            b = self._bound_http_server()
+            if b and b.is_running():
+                return _("Stop MCP Server")
+            return _("Start MCP Server")
         return None
 
     def get_menu_icon(self, action):
-        running = self._server and self._server.is_running()
+        b = self._bound_http_server()
+        running = b and b.is_running()
         if action == "toggle_server":
             # Show target state: "start" icon when stopped, "stop" icon when running
             return "stopped" if running else "running"
@@ -196,20 +260,22 @@ class HttpModule(ModuleBase):
         from plugin.framework.i18n import _
 
         ctx = get_ctx()
-        if self._server and self._server.is_running():
-            log.info("Stopping HTTP server via toggle")
+        b = self._bound_http_server()
+        if b and b.is_running():
+            log.info("Stopping MCP server via toggle")
             self._stop_server()
-            msgbox(ctx, "WriterAgent", _("HTTP server stopped"))
+            msgbox(ctx, "WriterAgent", _("MCP server stopped"))
         else:
-            log.info("Starting HTTP server via toggle")
+            log.info("Starting MCP server via toggle")
             self._start_server(self._services)
-            if self._server and self._server.is_running():
-                status = self._server.get_status()
+            b2 = self._bound_http_server()
+            if b2 and b2.is_running():
+                status = b2.get_status()
                 msgbox(ctx, "WriterAgent",
-                       _("HTTP server started") + "\n{0}".format(status.get("url", "")))
+                       _("MCP server started") + "\n{0}".format(status.get("url", "")))
             else:
                 msgbox(ctx, "WriterAgent",
-                       _("HTTP server failed to start") + "\n" + _("Check ~/localwriter.log"))
+                       _("MCP server failed to start") + "\n" + _("Check ~/localwriter.log"))
 
     def _action_server_status(self):
         from plugin.framework.dialogs import msgbox, add_dialog_label, add_dialog_edit, add_dialog_button
@@ -217,19 +283,20 @@ class HttpModule(ModuleBase):
         from plugin.framework.i18n import _
 
         ctx = get_ctx()
-        if not self._server:
-            msgbox(ctx, "WriterAgent", _("HTTP server is not running"))
+        b = self._bound_http_server()
+        if not b:
+            msgbox(ctx, "WriterAgent", _("MCP server is not running"))
             return
 
-        status = self._server.get_status()
+        status = b.get_status()
         running = status.get("running", False)
         if not running:
-            msgbox(ctx, "WriterAgent", _("HTTP server not running"))
+            msgbox(ctx, "WriterAgent", _("MCP server not running"))
             return
 
         url = status.get("url", "?")
         routes = status.get("routes", 0)
-        msg = _("HTTP server running") + "\n" + _("Routes: {0}").format(routes)
+        msg = _("MCP server running") + "\n" + _("Routes: {0}").format(routes)
 
         try:
             assert ctx is not None
