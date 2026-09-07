@@ -4,6 +4,8 @@
 **Inputs:** `/workspace/pr634-followups/initial-plan.md`, merged PR [#634](https://github.com/KeithCu/writeragent/pull/634) on `master`  
 **Scope:** Research only — no product PR. Goal: proper fixes that stay **simple, robust, and easy for models**.
 
+> **Later product decision:** `apply_style` now defaults to `clear_direct='style_props'` (house font/size win, bold/italic/colour stay). `none` is an explicit opt-in. The same-style-only special case discussed in §2.7 was **not** implemented. Treat sections below that say “default is `none`” as historical.
+
 Symbols and paths below are current `master` unless noted.
 
 ---
@@ -28,7 +30,7 @@ The remaining hazards are mostly **API shape and honesty**, not missing flags:
 |--------|---------------------|
 | Refuse treats **page-number fields like logos** | Normal footer (`Confidential \| Page N`) always errors; only `force` (destructive) is offered as retry |
 | Refuse message steers to **document-wide search** | Firm name / “Confidential” hit the **body** first; field presentation `"1"` replaces destroy the field |
-| **Region-off** leftover content not scanned | LO keeps `HeaderText` when `HeaderIsOn=False`; re-enable + write reports `ok` while deleting |
+| ~~**Region-off** leftover content not scanned~~ | **Not reproduced (F5):** `HeaderText` is `None` when off and empty after off→on, so no leftover exists to scan |
 | Scan **does not walk tables** | Letterhead tables (logo \| address) never show as “held”; `setString` flattens them |
 | **XText `==` / `!=` for logo anchors** | False “safe” refuse miss → original silent delete |
 | Tool **description** still sells overwrite | Models pick tools from descriptions; refuse is buried in `force` + system prompt |
@@ -37,6 +39,20 @@ The remaining hazards are mostly **API shape and honesty**, not missing flags:
 | Shared text helper **paragraph vs document** walk | `get_string_without_tracked_deletions` on a paragraph injects `\n` between portions |
 
 Expedient patches (“add another prompt line”, “always force”, “always style_props”) feel wrong long-term because they either destroy content, fight preserve-inline tests, or leave the model with two contradictory tools for one intent.
+
+---
+
+## 1.5 Live-verified findings (Sept 2026, dev-host LO)
+
+Probe file: `tests/writer/test_probe_pr634_uno.py` (throwaway probes; to be folded into proper UNO regressions). Values observed on the current dev LibreOffice — re-verify on the runtime the extension actually ships to, which is often older.
+
+| # | Claim tested | Observed | Consequence |
+|---|--------------|----------|-------------|
+| F1 | Same-style apply drops direct Para* | `ParaLeftMargin` 1500 → 0 on same `ParaStyleName`; also 0 after `Heading 1` | `clear_direct='none'` overclaims indent preservation on any re-apply (§2.7) |
+| F2 | Char* on same-style apply | paragraph-wide `CharWeight`/`CharHeight` reset (150→100, 18→12); portion-level bold preserved (150) | same-style house-font fix must *actively clear* font, not just skip restore (§2.7) |
+| F3 | Portions surface paragraph-wide Char* | a portion's `CharWeight` reads 150 for a paragraph-wide set | capture cannot distinguish paragraph-wide vs portion-level overrides (§2.7) |
+| F4 | `get_string_without_tracked_deletions` on a paragraph | `'Paragraph \nwith n\normal and bold text\n'` (spurious `\n` between runs) | confirms §2.8 |
+| F5 | Region-off `HeaderText` | `None` while `HeaderIsOn=False`; `''` after off→on | §2.3 "leftover content" premise does not reproduce (plain text, this build) |
 
 ---
 
@@ -129,7 +145,7 @@ Until the page-region tool ships, softening refuse-on-fields without a surgical 
 
 ---
 
-### 2.3 Scan leftover content when the region is off; walk tables
+### 2.3 Region-off leftover content; walk tables
 
 **Today**
 
@@ -141,8 +157,6 @@ if style.getPropertyValue(is_on_prop):
         scan = _scan_region_content(ctx.doc, existing)
 ```
 
-If `HeaderIsOn` / `FooterIsOn` is false, scan stays empty → enable + `setString` → `ok`, even when LO still holds leftover `HeaderText` (logo, fields, tables).
-
 `_scan_region_content` only:
 
 - Enumerates **paragraphs → portions** for fields  
@@ -150,20 +164,22 @@ If `HeaderIsOn` / `FooterIsOn` is false, scan stays empty → enable + `setStrin
 
 A letterhead **table** enumerates as a table element, not paragraphs — fields inside cells are missed; `setString` flattens the table.
 
+**Live-verified correction (F5):** on this build `getPropertyValue("HeaderText")` returns **`None`** while `HeaderIsOn=False`, and after an off→on cycle the header is **empty** — plain-text header content is *not* retained across disable. The earlier premise ("LO keeps `HeaderText` when off; re-enable + write deletes it") does **not** reproduce for plain text here. That removes the "always scan when the region is off" work: there is nothing to scan. Re-verify on target LO builds before writing any code for it — do not add an always-scan branch speculatively.
+
 **Recommended approach**
 
-1. **Always scan** when `text_prop` resolves to a non-null `XText`, regardless of `is_on_prop`. Toggle-off is not “empty.”  
+1. **Drop** the "always scan when region off" change (F5). Keep scanning only when the region is on.  
 2. On enumeration, if an element is a **table** (or non-paragraph with nested text): either  
-   - **refuse** (“region holds a table; use force only to wipe, or edit cells surgically”), or  
+   - **refuse** ("region holds a table; use force only to wipe, or edit cells surgically"), or  
    - recursively scan cell `XText`s for fields/images (heavier).  
-   Prefer **refuse-on-non-paragraph** for v1 of the follow-up — simple, model-clear, matches “don’t flatten structures.”  
+   Prefer **refuse-on-non-paragraph** for v1 of the follow-up — simple, model-clear, matches "don't flatten structures."  
 3. Same rule for text frames nested in the header if encountered.
 
 **Tests**
 
-- UNO: write logo+text, set `HeaderIsOn=False`, call set without force → refuse; content intact when re-enabled.  
 - UNO: header with 1×2 table → refuse without force; `paragraph_count` / new `structures` signal in scan optional.  
-- UNO: plain empty header with region off → set allowed (true empty).
+- UNO: plain empty header with region off → set allowed (true empty).  
+- (Removed the "logo set off → refuse, content intact when re-enabled" test — the premise did not reproduce; see F5.)
 
 **Residual risk**
 
@@ -261,34 +277,46 @@ If extending image insert slips, the page-tool description must **say** image_in
 
 **Today (`format.py` `apply_paragraph_style_preserving_direct_char`)**
 
-Documented LO fact: setting `ParaStyleName` to a **different** style resets Char*; re-applying the **same** style does not. Default `clear_direct="none"` restores all captured Char* overrides → house font invisible; hint tells agent to retry with `style_props`.
+Default `clear_direct="none"` restores all captured Char* overrides → house font invisible; the hint tells the agent to retry with `style_props`.
 
 Initial plan proposal: on default/`none`, if current `ParaStyleName == style_name`, skip restoring only `STYLE_GOVERNED_CHAR_PROPERTIES` (font/size), still restore bold/italic/colour; do not clear `CLEARABLE_PARA_PROPERTIES`.
 
-**Assessment:** Plan is **right**. It matches LO’s actual asymmetry and keeps preserve-inline UNO tests (red/bold only) green. It is better than “always style_props” (wipes Courier exceptions) and better than “prompt says call twice.”
+**Live-verified LO behavior (F1–F3)** — this settles the open questions:
+
+1. Re-applying the **same** `ParaStyleName` **does drop direct Para*** (`ParaLeftMargin` 1500 → 0). A different style does too. So `clear_direct='none'` overclaims “preserves formatting” for indents on *any* re-apply.
+2. Char* is **split**, not uniform:
+   - **Paragraph-wide** direct Char* (whole-paragraph bold/size) is **reset** by same-style apply.
+   - **Portion-level** direct Char* (a bold run) is **preserved** by same-style apply.
+   - A portion’s `getPropertyValue("CharWeight")` surfaces a paragraph-wide override (F3), so the capture cannot tell the two apart.
+
+**Assessment:** the plan’s *direction* is right, but “skip restoring font/size” alone is **insufficient**. LO itself preserves portion-level font, so skipping the restore leaves the old font on runs — exactly the common `.docx` case. The same-style path must **actively clear** `STYLE_GOVERNED_CHAR_PROPERTIES` (what `style_props` already does), not merely skip restoring them, while still restoring bold/italic/colour.
 
 **Recommended approach**
 
-Implement the same-style rule exactly as the plan states. Optional later tighten: only auto-skip font restore when all captured portions share the same font/size (defer until a UNO test demands it).
+On default/`none` with current `ParaStyleName == style_name` (compare against the *resolved*, case-insensitive name — `ApplyStyle` already resolves case-insensitively at `styles.py`):
+
+- skip restoring `STYLE_GOVERNED_CHAR_PROPERTIES`, **and** call `_reset_properties_to_default(capture_cursor, STYLE_GOVERNED_CHAR_PROPERTIES)` so the portion-level font/size LO preserved is cleared and the house font shows.
+- still restore bold/italic/colour (portion-level bold is preserved by LO; restoring is a no-op that keeps the red/bold inline tests green).
+- do **not** clear `CLEARABLE_PARA_PROPERTIES` (but note LO drops Para* regardless — see the resolved murky item below).
 
 Clarify product semantics:
 
-- Omitted / `"none"` + **same style** → house font wins, emphasis kept, quote indents kept.  
-- Omitted / `"none"` + **different style** → today’s full restore.  
+- Omitted / `"none"` + **same style** → house font wins, emphasis kept; **quote indents are NOT preserved** (LO resets Para*).  
+- Omitted / `"none"` + **different style** → today’s full restore (indents still dropped by LO).  
 - `"style_props"` / `"all"` unchanged explicit clears.
 
-**Tests** (as plan)
+**Tests** (as plan, plus)
 
 - UNO lawyer sequence → Arial 9.5, bold survives.  
 - Existing preserve-inline red/bold still passes.  
-- Apply Quotations to Times-direct Standard preserves Times unless `style_props`.  
-- Unit: same-style path skips restoring font/size only.
+- UNO: Standard paragraph with a **portion-level** Times run, same-style house-font apply → the run yields to the house font (proves the active clear, not just skip-restore).  
+- Unit: same-style path clears font/size AND does not restore them.
 
 **Residual risk**
 
-Courier word inside already-Standard paragraph loses Courier on house-font apply — accept until evidence says otherwise; document in tool description one line.
+Intentional portion-level font (a Courier word inside an already-Standard paragraph) is lost on house-font apply — now because the *active clear* removes it, not because of skip-restore. Accept until evidence says otherwise; document in the tool description one line.
 
-**Murky UNO (verify before locking copy):** `format.py` claims re-applying the same `ParaStyleName` still **drops direct Para*** (indents/alignment) even though Char* stay. If that is true on target LO builds, agent-facing language that `clear_direct='none'` “preserves formatting” overclaims for quote indents — today *and* after the same-style font rule. Do **not** paper over this with more prose: add a UNO test that applies Standard→Standard on a paragraph with only `ParaLeftMargin` direct, and record whether the indent survives. That result decides whether the house-font follow-up must also re-apply captured Para* on the `none` path (heavier) or whether docs simply stop promising indent preserve on same-style re-apply.
+**Murky UNO — RESOLVED (F1):** re-applying the same `ParaStyleName` drops direct Para* (indents/alignment). So either the `none` path must also capture+re-apply Para* (heavier), or the docs/tool description stop promising indent preservation on re-apply. Default to the honest wording (no indent promise) unless a UNO test later demands restore — do **not** paper over this with more prose.
 
 ---
 
@@ -297,6 +325,8 @@ Courier word inside already-Standard paragraph loses Courier on house-font apply
 **Today (`plugin/doc/text_helpers.py`)**
 
 Always `createEnumeration()` and treats each child as a **paragraph**, joining with `\n`. On a **paragraph** `XTextRange`, children are **portions** → bold runs become separate “paragraphs” with newlines. `html_export._visible_portions` reimplements the correct portion walk and comments that it must stay aligned for offset paint.
+
+**Live-verified (F4):** `para.createEnumeration()` returns Text portions, and `get_string_without_tracked_deletions(para)` on a single paragraph with one bold run returns `'Paragraph \nwith n\normal and bold text\n'` — a spurious `\n` between every run.
 
 Call sites still passing paragraph-ish objects: `tree.py`, `text_analytics.py`, `linguistic_index.py`, plus html_export’s intentional bypass.
 
@@ -357,13 +387,9 @@ In-process dispatch to the same implementation `page_get_style_properties` uses 
 
 ### 2.11 `_paint_direct_formatting` aborts Char* if Para* fails
 
-**Today (`html_export.py`)**
+**Fixed (`html_export.py`)**
 
-Para property copy in try/except; on failure **`return`** before the portion Char* loop. A single refused `Para*` drops the entire reason the temp-doc path exists (bold/indent visibility on range read).
-
-**Recommended approach**
-
-Catch Para* failures, log, **continue** to portion painting. Char* failures already `continue` per portion.
+Para* copy is isolated from obtaining `para_start`. A refused Para* is logged and the portion Char* loop still runs. Char* failures already `continue` per portion. Without `para_start` the function still returns (nothing to paint onto).
 
 **Tests**
 
@@ -412,7 +438,7 @@ Catch Para* failures, log, **continue** to portion painting. Char* failures alre
    `data-lo-para` stays read-only; detect it as an attribute; escape it; don’t pretend colour exists if FODT doesn’t emit it.
 
 8. **Tests lock UNO quirks before behavior changes**  
-   Especially: logo identity, region-off leftover, field-preserving replace, same-style font clear.
+   Especially: logo identity, field-preserving replace, same-style font clear. (Region-off leftover is closed out — F5; no behavior to lock.)
 
 ---
 
@@ -421,10 +447,10 @@ Catch Para* failures, log, **continue** to portion painting. Char* failures alre
 Sequenced so UNO tests pin quirks before API behavior shifts:
 
 1. **Shared `uno_text_same` + live UNO: refuse-on-logo still works** (proves scan identity before changing refuse rules).  
-2. **Always scan when `text_prop` exists (region off) + refuse-on-table**; UNO tests for both.  
+2. **Refuse-on-table** (drop the region-off always-scan — F5 says there is nothing to scan); UNO table-refuse test.  
 3. **Field policy + `page_replace_header_footer_text` (or equivalent)** in one slice: stop steering to global search; rewrite `page_set` description; UNO field-preserve replace.  
-4. **Same-style default house-font** in `apply_paragraph_style_preserving_direct_char` + lawyer UNO + preserve-inline regression.  
-5. **Fix `get_string_without_tracked_deletions`** + share `_visible_portions`; paragraph UNO test.  
+4. **Same-style default house-font** in `apply_paragraph_style_preserving_direct_char` — active-clear font/size (not skip-restore), per F1–F3; lawyer UNO + preserve-inline regression.  
+5. **Fix `get_string_without_tracked_deletions`** + share `_visible_portions`; paragraph UNO test (F4).  
 6. **`data-lo-para` escape + `fo:color` (or doc fix) + attribute-shaped `_note_read_only_attrs`**.  
 7. **`_paint_direct_formatting` don’t abort Char* on Para* failure**.  
 8. **`image_insert` + `header_first` / `footer_first`**; search-reach FakePageStyle.  

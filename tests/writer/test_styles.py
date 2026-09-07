@@ -141,6 +141,21 @@ def test_get_style_info():
     assert res["is_in_use"] is True
 
 
+def test_apply_style_clear_direct_schema_default_is_style_props():
+    """Small models read the schema; default must be the house-font-wins value."""
+    schema = ApplyStyle.parameters["properties"]["clear_direct"]
+    assert schema["default"] == "style_props"
+    assert schema["enum"] == ["none", "style_props", "all"]
+
+
+def test_resolve_clear_direct_defaults():
+    assert ApplyStyle._resolve_clear_direct("ParagraphStyles", None) == "style_props"
+    assert ApplyStyle._resolve_clear_direct("ParagraphStyles", "") == "style_props"
+    assert ApplyStyle._resolve_clear_direct("ParagraphStyles", "none") == "none"
+    assert ApplyStyle._resolve_clear_direct("CharacterStyles", None) == "none"
+    assert ApplyStyle._resolve_clear_direct("CharacterStyles", "all") == "all"
+
+
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
 @patch("plugin.writer.styles.resolve_target_cursor")
 def test_apply_style_paragraph(mock_resolve, mock_preserve, mock_ctx):
@@ -152,7 +167,7 @@ def test_apply_style_paragraph(mock_resolve, mock_preserve, mock_ctx):
 
     assert res["status"] == "ok"
     assert res["family"] == "ParagraphStyles"
-    mock_preserve.assert_called_once_with(mock_ctx.doc, cursor, "Heading 1", "none")
+    mock_preserve.assert_called_once_with(mock_ctx.doc, cursor, "Heading 1", "style_props")
     cursor.setPropertyValue.assert_not_called()
 
 
@@ -178,26 +193,39 @@ def test_apply_style_clear_direct_is_forwarded(mock_resolve, mock_preserve, mock
 
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
 @patch("plugin.writer.styles.resolve_target_cursor")
-def test_apply_style_reports_preserved_overrides_with_hint(mock_resolve, mock_preserve, mock_ctx):
-    """The default path echoes the direct formatting that overrode the style — otherwise a style
-    apply that changed nothing on screen is indistinguishable from one that worked."""
+def test_apply_style_explicit_none_reports_overrides_without_retry_hint(mock_resolve, mock_preserve, mock_ctx):
+    """clear_direct='none' still echoes what was kept. No retry-with-style_props hint: that
+    dance was for the old default=none no-op; default already shows the house font."""
     mock_resolve.return_value = MagicMock()
     mock_preserve.return_value = {"direct_formatting": "preserved", "clear_direct": "none",
                                   "preserved_char_overrides": {"CharFontName": "Times New Roman", "CharHeight": 12.0}}
 
-    res = ApplyStyle().execute(mock_ctx, style="Standard", target="selection")
+    res = ApplyStyle().execute(mock_ctx, style="Standard", target="selection", clear_direct="none")
 
     assert res["preserved_char_overrides"]["CharHeight"] == 12.0
-    assert "clear_direct='style_props'" in res["hint"]
+    assert "hint" not in res
 
 
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
 @patch("plugin.writer.styles.resolve_target_cursor")
-def test_apply_style_clear_direct_rejected_on_full_document(mock_resolve, mock_preserve, mock_ctx):
-    """Clearing the whole document erases the very formatting used to tell paragraph kinds apart."""
+def test_apply_style_default_allowed_on_full_document(mock_resolve, mock_preserve, mock_ctx):
+    """Default style_props is allowed on full_document so house font shows without a flag."""
+    mock_resolve.return_value = MagicMock()
+    mock_preserve.return_value = {"direct_formatting": "cleared", "clear_direct": "style_props"}
+
+    res = ApplyStyle().execute(mock_ctx, style="Standard", target="full_document")
+
+    assert res["status"] == "ok"
+    assert mock_preserve.call_args[0][3] == "style_props"
+
+
+@patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
+@patch("plugin.writer.styles.resolve_target_cursor")
+def test_apply_style_clear_direct_all_rejected_on_full_document(mock_resolve, mock_preserve, mock_ctx):
+    """Ctrl+M on the whole document would wipe emphasis; force the per-range path."""
     mock_resolve.return_value = MagicMock()
 
-    res = ApplyStyle().execute(mock_ctx, style="Standard", target="full_document", clear_direct="style_props")
+    res = ApplyStyle().execute(mock_ctx, style="Standard", target="full_document", clear_direct="all")
 
     assert res["status"] == "error"
     assert "full_document" in res["message"]

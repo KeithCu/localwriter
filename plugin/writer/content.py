@@ -173,8 +173,8 @@ def _note_read_only_attrs(result, content):
     result["ignored_attributes"] = [_READ_ONLY_ATTR]
     result["message"] = (result.get("message") or "") + (
         " Note: %s in the content was ignored — it is a read-only report of a paragraph's hand-set"
-        " formatting. To change an indent or a font, apply a named style (apply_style, with"
-        " clear_direct when the paragraph is formatted by hand)." % _READ_ONLY_ATTR)
+        " formatting. To change an indent or a font, apply a named style (apply_style;"
+        " default clear_direct lets the style's font and size show)." % _READ_ONLY_ATTR)
     return result
 
 
