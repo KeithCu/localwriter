@@ -254,11 +254,14 @@ reads back with the bold in place.
 `data-lo-para` is **read-only**: the write path still cannot restore `Para*` when applying a named
 style, which is why it is not emitted as `style=""` — that would round-trip back and be swallowed.
 To make a style win over hand-set values, `apply_style` takes `clear_direct`
-(`none` | `style_props` | `all`), which resets the style-governed `Char*` and the paragraph
-properties to default so the style shows. It is refused on `target='full_document'`: clearing the
-whole document erases the very formatting that distinguishes body text from quotes and headings.
-With `clear_direct='none'` the result echoes `preserved_char_overrides` — the overrides that kept
-the style invisible — so a no-op apply is no longer indistinguishable from a successful one.
+(`none` | `style_props` | `all`). **Default is `style_props`**: house font name + size win
+(via `STYLE_GOVERNED_CHAR_PROPERTIES` + `_reset_properties_to_default`), bold/italic/colour stay,
+and `CLEARABLE_PARA_PROPERTIES` (indents/alignment) are cleared so the style shows. `none` is an
+explicit opt-in that keeps a hand-set font (historical “masking Times” behaviour). `all` is
+Ctrl+M-ish and is refused on `target='full_document'` (that would flatten emphasis across the
+whole document). With `clear_direct='none'` the result still echoes `preserved_char_overrides`.
+**Re-applying a style does not keep a quote indent** — LibreOffice drops direct `Para*`
+(margins/alignment) when `ParaStyleName` is set, even on `none`.
 
 ## v1 limitations (shipped)
 
@@ -266,7 +269,7 @@ These are intentional trade-offs in v1. Tests document the behavior ([`test_xhtm
 
 | Limitation | v1 behavior | Workaround for agents/users | Post-v1 direction |
 |------------|-------------|----------------------------|-------------------|
-| **Whole-paragraph direct overrides** (center, para colour, margins, whole-paragraph font) | Do not round-trip on **write**. Read REPORTS them as read-only `data-lo-para`, taken from the FODT automatic style (see [Direct formatting on read](#direct-formatting-on-read)) | Read `data-lo-para` to tell an indented quote from body text; apply a named style per range with `apply_style(clear_direct='style_props')` so the style wins over the hand-set values | Make `data-lo-para` writable |
+| **Whole-paragraph direct overrides** (center, para colour, margins, whole-paragraph font) | Do not round-trip on **write**. Read REPORTS them as read-only `data-lo-para`, taken from the FODT automatic style (see [Direct formatting on read](#direct-formatting-on-read)) | Read `data-lo-para` to tell an indented quote from body text; `apply_style` defaults to `clear_direct='style_props'` so the house font/size and style indents show (bold/italic stay). Pass `clear_direct='none'` only to keep a hand-set font. Re-applying a style does **not** keep a quote indent — LO drops direct `Para*` | Make `data-lo-para` writable |
 | **Table cell paragraph styles** | `paragraph-*` stripped inside `<table>`; no `data-lo-style` on cell blocks | `apply_style` on cell text; don't rely on agent HTML for table styling | Table-aware style index or cell-level tokens |
 | **Partial edits** (`end` / `search` / `selection` / `beginning`) | Content inserted; `data-lo-style` **not** applied (would restyle merged adjacent text) | `target='full_document'` for styled rewrites; `apply_style` to restyle existing text | Apply only to genuinely new paragraphs after import |
 | **Dual export cost** | Every full read (and range read via temp doc) runs XHTML + FODT `storeToURL` | `scope=range`, `get_document_tree`, `search_in_document` before full reads | Cached UNO paragraph-style index; drop FODT on `scope=full` |

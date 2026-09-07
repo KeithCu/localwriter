@@ -299,8 +299,8 @@ WRITER_APPLY_DOCUMENT_HTML_RULES = f"""APPLY_DOCUMENT_CONTENT AND HTML (CRITICAL
   data-lo-style applies only on target='full_document' — on 'beginning'/'end'/'selection'/'search' it is ignored because it would restyle adjacent text (use apply_style or a full_document rewrite).
   v1: whole-paragraph alignment/colour/margins and table-cell styles do not round-trip on write.
 - Hand-set formatting: `data-lo-para` (e.g. `data-lo-para="margin-left:3.25cm; font-size:12pt"`) reports what a paragraph has set directly. READ-ONLY — send it back and the result says it was ignored; it is how you tell a block quote from body text in a document formatted by hand. Reported on both scope='full' and scope='range'.
-  Direct formatting OVERRIDES styles, so there apply_style/style_update alone change nothing on screen; apply_style then echoes `preserved_char_overrides`.
-  Re-apply that range with clear_direct='style_props' to let the style's font, size and indent show (bold/italic survive). One range at a time — it is refused on target='full_document', which would erase the very formatting that tells the paragraphs apart.
+  apply_style defaults to clear_direct='style_props': the style's font name/size and paragraph indents show; bold/italic/colour stay. Pass clear_direct='none' only to keep a hand-set font. clear_direct='all' is Ctrl+M (refused on target='full_document').
+  Re-applying a style does not keep a quote indent — LibreOffice drops direct Para* (margins/alignment) when ParaStyleName is set.
 
 EXAMPLES:
 - Good: ["<h1>Title</h1>", "<p>Paragraph with <strong>bold</strong> text and \\"quotes\\".</p>"]

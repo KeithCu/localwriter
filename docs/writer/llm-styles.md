@@ -55,7 +55,7 @@ Full design notes: [html-style-model-plan.md](html-style-model-plan.md#v1-limita
 
 | Situation | What v1 does | What to do instead |
 |-----------|--------------|-------------------|
-| Whole-paragraph alignment, colour, or margins (not a named style) | Not preserved on read; only the **base style name** may be recovered after an edit | Use a named paragraph style; use inline `style` on **spans** for character-level exceptions |
+| Whole-paragraph alignment, colour, or margins (not a named style) | Not preserved on write; read reports them as read-only `data-lo-para`. Re-applying a style does **not** keep a quote indent (LibreOffice drops direct `Para*`) | Use a named paragraph style (`apply_style` defaults to house font/size winning; pass `clear_direct='none'` only to keep a hand-set font); use inline `style` on **spans** for character-level exceptions |
 | Styling content you insert at `end` / `search` / `selection` | `data-lo-style` is **not** applied (would restyle text already in the document) | Use `target='full_document'` for styled rewrites, or `apply_style` on existing text |
 | Table cell paragraph styles | Not exposed in agent HTML | Use `apply_style` on the cell text |
 | Large documents | Every full read exports twice (XHTML + flat ODF) | Prefer `scope=range`, `get_document_tree`, and `search_in_document` before `scope=full` |
