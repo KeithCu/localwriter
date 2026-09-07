@@ -478,7 +478,6 @@ def test_column_distinct_peek_lists_low_cardinality_and_skips_phone_book():
         _column_distinct_peek,
     )
 
-    header = ("Country", "Phone")
     rows = [("Country", "Phone")]
     for i in range(_DISTINCT_PEEK_HIGH_CARDINALITY + 5):
         # Two countries, unique phones — phone book must not be listed.
