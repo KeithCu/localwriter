@@ -557,47 +557,59 @@ def get_core_directives(model) -> str:
         return WRITER_CORE_DIRECTIVES
 
 
-def _catalog_entries_from_base(base_cls, *, agent_label: str | None = None, ctx=None) -> list[dict[str, str]]:
-    """Build ``[{domain, description}, …]`` for one specialized base class (delegate/MCP catalog)."""
+def _catalog_entries_from_base(base_cls, *, agent_label: str | None = None, ctx=None,
+                               for_discovery: bool = False) -> list[dict[str, str]]:
+    """Build ``[{domain, description}, …]`` for one specialized base class (delegate/MCP catalog).
+
+    ``for_discovery`` skips the exclusions that only shape a chat prompt. CALC_HIDDEN_SPECIALIZED_
+    DOMAINS keeps Python delegation out of the Calc sidebar's suggestions, but the MCP tool list
+    exposes those tools regardless — so applying it to find_tools made them callable and
+    undiscoverable at once. The sidebar-only domains stay excluded either way: the flat tool list
+    drops them too, so both modes agree without help.
+    """
     entries: list[dict[str, str]] = []
     for cls in base_cls.__subclasses__():
         domain = getattr(cls, "specialized_domain", None)
         desc = getattr(cls, "specialized_domain_description", None)
         if not domain:
             continue
-        if agent_label == "Calc" and domain in CALC_HIDDEN_SPECIALIZED_DOMAINS:
+        if agent_label == "Calc" and domain in CALC_HIDDEN_SPECIALIZED_DOMAINS and not for_discovery:
             continue
         if agent_label == "Writer" and domain in WRITER_SIDEBAR_ONLY_DOMAINS:
             continue
         if agent_label == "Draw" and domain in IMPRESS_DRAW_SIDEBAR_ONLY_DOMAINS:
             continue
-        if domain == "vision" and ctx is not None:
-            from plugin.vision.vision_availability import vision_venv_configured
+        if ctx is not None:
+            from plugin.vision.vision_availability import specialized_domain_available
 
-            if not vision_venv_configured(ctx):
+            if not specialized_domain_available(str(domain), ctx):
                 continue
         entries.append({"domain": str(domain), "description": str(desc or "")})
     return entries
 
 
-def get_specialized_domain_catalog(*, agent_label: str | None, ctx=None) -> list[dict[str, str]]:
+def get_specialized_domain_catalog(*, agent_label: str | None, ctx=None,
+                                   for_discovery: bool = False) -> list[dict[str, str]]:
     """Full specialized domain catalog — same entries as sidebar/delegate domain hints.
 
     ``agent_label`` is ``Writer`` / ``Calc`` / ``Draw`` for one app, or ``None`` to merge
     all three (e.g. MCP ``find_tools`` with no document open).
+
+    ``for_discovery`` is set by MCP ``find_tools``: it keeps the domains whose exclusion only
+    shapes a chat prompt, so discovery covers everything the flat tool list exposes.
     """
     if agent_label == "Calc":
         from plugin.calc.base import ToolCalcSpecialBase
 
-        entries = _catalog_entries_from_base(ToolCalcSpecialBase, agent_label="Calc", ctx=ctx)
+        entries = _catalog_entries_from_base(ToolCalcSpecialBase, agent_label="Calc", ctx=ctx, for_discovery=for_discovery)
     elif agent_label == "Draw":
         from plugin.draw.base import ToolDrawSpecialBase
 
-        entries = _catalog_entries_from_base(ToolDrawSpecialBase, agent_label="Draw", ctx=ctx)
+        entries = _catalog_entries_from_base(ToolDrawSpecialBase, agent_label="Draw", ctx=ctx, for_discovery=for_discovery)
     elif agent_label == "Writer":
         from plugin.writer.specialized_base import ToolWriterSpecialBase
 
-        entries = _catalog_entries_from_base(ToolWriterSpecialBase, agent_label="Writer", ctx=ctx)
+        entries = _catalog_entries_from_base(ToolWriterSpecialBase, agent_label="Writer", ctx=ctx, for_discovery=for_discovery)
     else:
         from plugin.calc.base import ToolCalcSpecialBase
         from plugin.draw.base import ToolDrawSpecialBase
