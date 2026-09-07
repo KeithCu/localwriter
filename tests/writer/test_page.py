@@ -18,6 +18,7 @@ from plugin.writer.page import (
     PageInsertBreak,
     _disable_blocked_by_content,
     _region_holds_content,
+    read_page_style_properties,
 )
 
 
@@ -70,6 +71,8 @@ def test_get_page_style_properties():
     assert res["properties"]["height_mm"] == 297.0
     assert res["properties"]["header_is_on"] is True
     assert res["properties"]["footer_is_on"] is False
+    # Same payload as the shared helper both tools call.
+    assert res == read_page_style_properties(doc, "Standard")
 
 
 def test_set_page_style_properties():

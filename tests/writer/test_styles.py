@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import pytest
 from unittest.mock import MagicMock, patch
+from plugin.writer.page import PageGetStyleProperties
 from plugin.writer.styles import StyleList, StyleGetInfo, ApplyStyle, StyleCreate, StyleImport, StyleUpdate
 from plugin.tests.testing_utils import TestingFactory, WriterDocStub
 
@@ -139,6 +140,84 @@ def test_get_style_info():
     assert res["status"] == "ok"
     assert res["name"] == "Emphasis"
     assert res["is_in_use"] is True
+
+
+def _page_style_properties():
+    """UNO 1/100 mm values that read_page_style_properties converts to mm."""
+    return {
+        "Width": 21000,
+        "Height": 29700,
+        "IsLandscape": False,
+        "LeftMargin": 2000,
+        "RightMargin": 2000,
+        "TopMargin": 2000,
+        "BottomMargin": 2000,
+        "GutterMargin": 0,
+        "HeaderIsOn": True,
+        "FooterIsOn": False,
+        "HeaderIsShared": True,
+        "FooterIsShared": True,
+        "HeaderHeight": 500,
+        "FooterHeight": 500,
+        "HeaderBodyDistance": 500,
+        "FooterBodyDistance": 500,
+        "BackColor": 16777215,
+        "BackTransparent": True,
+        "NumberingType": 4,
+        "FootnoteHeight": 0,
+        "RegisterParagraphStyle": "",
+        "FirstIsShared": True,
+        "PageStyleLayout": MagicMock(value=0),
+    }
+
+
+def _page_style_ctx(style_name="Standard"):
+    style = MagicMock()
+    props = _page_style_properties()
+    style.getPropertyValue.side_effect = lambda n: props[n]
+    return _ctx_with_families(PageStyles=_style_family({style_name: style}))
+
+
+def test_style_get_info_page_styles_returns_page_properties():
+    """style_get_info(PageStyles) must return real page props, not a redirect error."""
+    mock_ctx = _page_style_ctx()
+
+    res = StyleGetInfo().execute(mock_ctx, style="Standard", family="PageStyles")
+
+    assert res["status"] == "ok"
+    assert "does not read page styles" not in str(res)
+    props = res["properties"]
+    assert props["left_margin_mm"] == 20.0
+    assert props["right_margin_mm"] == 20.0
+    assert props["top_margin_mm"] == 20.0
+    assert props["bottom_margin_mm"] == 20.0
+    assert props["header_is_on"] is True
+    assert props["header_height_mm"] == 5.0
+    assert props["footer_is_on"] is False
+    assert props["style_name"] == "Standard"
+
+
+def test_style_get_info_page_styles_matches_page_get_style_properties():
+    """Both public tools share read_page_style_properties — same payload, no second impl."""
+    mock_ctx = _page_style_ctx()
+
+    via_style = StyleGetInfo().execute(mock_ctx, style="Standard", family="PageStyles")
+    via_page = PageGetStyleProperties().execute(mock_ctx, style="Standard")
+
+    assert via_style["status"] == "ok"
+    assert via_page["status"] == "ok"
+    assert via_style["properties"] == via_page["properties"]
+
+
+def test_style_get_info_page_styles_missing_style_is_not_a_redirect():
+    """Unknown page style is a real not-found error, not 'use page_get_style_properties'."""
+    mock_ctx = _page_style_ctx("Standard")
+
+    res = StyleGetInfo().execute(mock_ctx, style="DoesNotExist", family="PageStyles")
+
+    assert res["status"] == "error"
+    assert "DoesNotExist" in res["message"]
+    assert "page_get_style_properties" not in res["message"]
 
 
 def test_apply_style_clear_direct_schema_default_is_style_props():

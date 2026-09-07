@@ -47,6 +47,7 @@ else:
 from plugin.doc.visual_helpers import parse_color_to_uno_int
 from plugin.framework.tool import ToolBase as FrameworkToolBase
 from .format import apply_paragraph_style_preserving_direct_char
+from .page import read_page_style_properties
 from .specialized_base import ToolWriterStyleBase
 from .target_resolver import resolve_target_cursor
 
@@ -227,19 +228,36 @@ class StyleGetInfo(ToolWriterStyleBase):
     """Get detailed properties of a named style."""
 
     name = "style_get_info"
-    description = "Get detailed properties of a specific style (font, size, margins, etc.)."
-    parameters = {"type": "object", "properties": {"style": {"type": "string", "description": "Name of the style to inspect."}, "family": {"type": "string", "description": "Style family. Default: ParagraphStyles."}}, "required": ["style"]}
+    description = (
+        "Get detailed properties of a specific style (font, size, margins, etc.). "
+        "family=PageStyles returns the same page-style payload as page_get_style_properties."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "style": {"type": "string", "description": "Name of the style to inspect."},
+            "family": {
+                "type": "string",
+                "description": (
+                    "Style family. Default: ParagraphStyles. "
+                    "PageStyles returns margins, size, and header/footer state."
+                ),
+            },
+        },
+        "required": ["style"],
+    }
 
     def execute(self, ctx, **kwargs):
         style_name = kwargs.get("style", "")
         family = kwargs.get("family", "ParagraphStyles")
 
-        # style_list reports PageStyles, but the property set read here is text-style shaped and
-        # would come back empty for one. Send the caller to the tool that does answer.
+        # style_list reports PageStyles; the text-style property set below is empty for one.
+        # Dispatch in-process to the shared page-style reader (not a nested LLM / tool call).
         if family == "PageStyles":
-            return self._tool_error(
-                "style_get_info does not read page styles. Use page_get_style_properties(style='%s') "
-                "for margins, size and header/footer state." % (style_name or "Standard"))
+            result = read_page_style_properties(ctx.doc, style_name or "Standard")
+            if result.get("status") == "error":
+                return self._tool_error(result["message"])
+            return result
 
         doc = ctx.doc
         style_family = self.get_item(doc, "getStyleFamilies", family, missing_msg="Document does not support style families.", not_found_msg="Unknown style family: %s" % family)
