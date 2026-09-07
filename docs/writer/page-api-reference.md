@@ -48,7 +48,7 @@ Headers and footers are also controlled via the Page Style properties. Each page
 - **`HeaderTextLeft`** / **`HeaderTextRight`** / **`FooterTextLeft`** / **`FooterTextRight`**: Used when left and right pages have different headers/footers (i.e., when `HeaderIsShared` is False).
 - **`FirstIsShared`** (`bool`): If false, the first page has its own header/footer — the usual setup for a letterhead. Its content then lives in **`HeaderTextFirst`** / **`FooterTextFirst`**, which are separate text objects: `HeaderText` does not reach them.
 
-These variants are exposed as the `region` values of `page_get_header_footer_text` / `page_set_header_footer_text`: `header`, `footer`, `header_first`, `footer_first`, `header_left`, `footer_left`. When the matching `*IsShared` flag is on, the variant mirrors the shared text, so asking for it is always safe. `page_get_style_properties` reports `first_is_shared`, and `page_set_style_properties` writes it.
+These variants are exposed as the `region` values of `page_get_header_footer_text` / `page_set_header_footer_text`: `header`, `footer`, `header_first`, `footer_first`, `header_left`, `footer_left`. When the matching `*IsShared` flag is on, the variant mirrors the shared text, so asking for it is always safe. `page_get_style_properties` reports `first_is_shared`, and `page_set_style_properties` writes it. **Turn the header/footer on first** — `FirstIsShared` reads/writes as nothing while `HeaderIsOn` / `FooterIsOn` is false.
 
 Images in a header/footer must be anchored **`AS_CHARACTER`** (in the text flow). A floating `AT_CHARACTER` image does not contribute to line height, so even with dynamic height the region may not grow.
 

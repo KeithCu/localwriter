@@ -214,6 +214,8 @@ def test_as_character_logo_html_roundtrip(ctx, doc):
 @with_native_doc("writer")
 def test_first_page_header_is_its_own_html(ctx, doc):
     style, _name = _style(doc)
+    # FirstIsShared is ignored while the header is off (property reads None).
+    style.setPropertyValue("HeaderIsOn", True)
     style.setPropertyValue("FirstIsShared", False)
     set_shared = _set(doc, ctx, "header", "<p>Shared header copy</p>")
     set_first = _set(doc, ctx, "header_first", "<p>First-page letterhead</p>")
@@ -238,6 +240,7 @@ def test_first_page_header_is_its_own_html(ctx, doc):
 @with_native_doc("writer")
 def test_first_page_footer_analogue(ctx, doc):
     style, _name = _style(doc)
+    style.setPropertyValue("FooterIsOn", True)
     style.setPropertyValue("FirstIsShared", False)
     _set(doc, ctx, "footer", "<p>Shared footer copy</p>")
     _set(doc, ctx, "footer_first", "<p>First-page footer</p>")

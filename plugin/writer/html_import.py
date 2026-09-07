@@ -647,7 +647,7 @@ _FIELD_PLACEHOLDER_FMT = "[[WA-FIELD:%s]]"
 _EXPORTED_FIELD_TITLES = ("page-number", "page-count", "time", "date")
 _FIELD_SPAN_RE = re.compile(
     r'<span\b(?=[^>]*\btitle\s*=\s*["\'](page-number|page-count|time|date)["\'])'
-    r'[^>]*(?:/>|>.*?</span>)',
+    r'(?:[^>]*/>|[^>]*>.*?</span>)',
     re.IGNORECASE | re.DOTALL,
 )
 _FIELD_TITLE_TO_SERVICE = {

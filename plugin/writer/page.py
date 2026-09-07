@@ -58,20 +58,6 @@ def _empty_scan() -> dict[str, Any]:
     return {"fields": [], "images": [], "paragraph_count": 0}
 
 
-def _describe_region_contents(scan: dict[str, Any]) -> str:
-    """Human-readable summary of a scan, e.g. ``1 image(s): TIMBRE, 1 field(s): Page number``.
-
-    Empty when the region is plain text, so callers can use it as the "is this destructive?" test
-    and as the message in one go.
-    """
-    parts = []
-    if scan["images"]:
-        parts.append("%d image(s): %s" % (len(scan["images"]), ", ".join(scan["images"])))
-    if scan["fields"]:
-        parts.append("%d field(s): %s" % (len(scan["fields"]), ", ".join(f["content"] for f in scan["fields"])))
-    return ", ".join(parts)
-
-
 def _scan_region_content(doc, text_obj) -> dict[str, Any]:
     """Report what a header/footer holds beyond plain text: fields and anchored images.
 

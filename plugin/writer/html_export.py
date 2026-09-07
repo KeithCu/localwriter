@@ -620,21 +620,92 @@ def _copy_table(src_doc, src_table, dest_doc):
     _goto_doc_end(dest_doc)
 
 
+def _copy_xtext_by_portions(src_doc, src_text, dest_doc):
+    """Copy paragraphs/fields without the view transferable.
+
+    Needed when ``select()`` on ``HeaderText`` pastes nothing because the
+    view is on the first page (``FirstIsShared=False``).
+    """
+    dest_text = dest_doc.getText()
+    dest_text.setString("")
+    dest_cursor = dest_text.createTextCursor()
+    dest_cursor.gotoStart(False)
+    try:
+        enum = src_text.createEnumeration()
+    except Exception:
+        dest_text.setString(src_text.getString() if src_text else "")
+        return
+    first_para = True
+    while enum.hasMoreElements() is True:
+        try:
+            el = enum.nextElement()
+        except Exception:
+            break
+        if _supports_service(el, "com.sun.star.text.TextTable"):
+            _copy_table(src_doc, el, dest_doc)
+            _goto_doc_end(dest_doc)
+            dest_cursor = dest_text.createTextCursor()
+            dest_cursor.gotoEnd(False)
+            first_para = False
+            continue
+        if not first_para:
+            try:
+                dest_text.insertControlCharacter(dest_cursor, _PARAGRAPH_BREAK, False)
+                dest_cursor.gotoNextParagraph(False)
+            except Exception:
+                pass
+        first_para = False
+        try:
+            portions = el.createEnumeration()
+        except Exception:
+            try:
+                dest_text.insertString(dest_cursor, el.getString(), False)
+            except Exception:
+                pass
+            continue
+        while portions.hasMoreElements() is True:
+            try:
+                portion = portions.nextElement()
+                kind = portion.getPropertyValue("TextPortionType")
+            except Exception:
+                break
+            if kind == "TextField":
+                try:
+                    field = portion.getPropertyValue("TextField")
+                except Exception:
+                    continue
+                _copy_field_into(dest_doc, dest_text, dest_cursor, field)
+            else:
+                try:
+                    chunk = portion.getString()
+                except Exception:
+                    chunk = ""
+                if chunk:
+                    dest_text.insertString(dest_cursor, chunk, False)
+
+
 def _copy_xtext_into_doc(src_doc, src_text, dest_doc):
     """Copy *src_text* (body, header, footer, cell) into *dest_doc*'s body.
 
     Paragraphs use the transferable so fields and AS_CHARACTER images survive.
     Tables are recreated — LO's transferable drops a header table (probed).
+    When the view is on the first page, ``select(HeaderText)`` pastes empty;
+    fall back to a portion walk so shared vs first-page regions still export.
     """
     dest_doc.getText().setString("")
+    src_plain = (src_text.getString() if src_text else "") or ""
     if not _xtext_has_tables(src_text):
-        if not _paste_range(src_doc, _whole_xtext_range(src_text), dest_doc):
-            dest_doc.getText().setString(src_text.getString() if src_text else "")
+        pasted = _paste_range(src_doc, _whole_xtext_range(src_text), dest_doc)
+        dest_plain = dest_doc.getText().getString() or ""
+        if pasted and dest_plain.strip():
+            return
+        if src_plain.strip():
+            _copy_xtext_by_portions(src_doc, src_text, dest_doc)
         return
     try:
         enum = src_text.createEnumeration()
     except Exception:
-        dest_doc.getText().setString(src_text.getString() if src_text else "")
+        dest_doc.getText().setString(src_plain)
         return
     while enum.hasMoreElements() is True:
         try:
@@ -649,6 +720,9 @@ def _copy_xtext_into_doc(src_doc, src_text, dest_doc):
                     dest_doc.getText().insertString(dest_doc.getText().getEnd(), el.getString(), False)
                 except Exception:
                     pass
+    dest_plain = dest_doc.getText().getString() or ""
+    if not dest_plain.strip() and src_plain.strip():
+        _copy_xtext_by_portions(src_doc, src_text, dest_doc)
 
 
 def _open_hidden_writer(ctx):
