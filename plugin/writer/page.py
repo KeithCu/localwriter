@@ -139,11 +139,11 @@ def _disable_blocked_by_content(doc, style, kwargs: dict[str, Any]) -> str | Non
 
 
 def _scan_region_content(doc, text_obj) -> dict[str, Any]:
-    """Report what a header/footer holds beyond plain text: fields and anchored images.
+    """Report fields and anchored images in a header/footer as get-side extras.
 
-    ``getString()`` flattens both away — a letterhead logo reads back as an empty line and a
-    page-number field as the literal digit — so a caller cannot see what a plain-text overwrite
-    is about to delete. Returns ``{"fields": [...], "images": [...], "paragraph_count": int}``.
+    HTML ``content`` already carries structure; these lists are machine-readable so a
+    caller can see logos and live fields without parsing the markup. Returns
+    ``{"fields": [...], "images": [...], "paragraph_count": int}``.
     """
     out = _empty_scan()
     try:
@@ -483,8 +483,8 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
         "Get this page-style header or footer as HTML so you can edit structure "
         "(fields, tables, logos) and send it back to page_set_header_footer_text. "
         "Uses the same XHTML export as get_document_content, pointed at the region's "
-        "XText — getString() hid images and flattened fields. "
-        "Use header_first / footer_first when first_is_shared is false."
+        "XText. Also lists images, fields, and paragraph_count so structure is visible "
+        "without parsing the HTML. Use header_first / footer_first when first_is_shared is false."
     )
     parameters = {
         "type": "object",
@@ -552,6 +552,7 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
                 "format": "html",
             }
             if text_obj is not None:
+                # Machine-readable extras; HTML already has the structure. Not a write refuse gate.
                 scan = _scan_region_content(ctx.doc, text_obj)
                 result["paragraph_count"] = scan["paragraph_count"]
                 if scan["fields"]:
@@ -584,7 +585,7 @@ class PageSetHeaderFooterText(ToolWriterPageBase):
         "pointed at the region's XText. Call page_get_header_footer_text first and edit "
         "that HTML. Enables the region if it is off. Pass auto_height=true so a taller "
         "letterhead grows instead of overlapping the body. Plain text is wrapped as a "
-        "paragraph; it still goes through import, not setString wipe."
+        "paragraph and still goes through import."
     )
     parameters = {
         "type": "object",
@@ -636,8 +637,6 @@ class PageSetHeaderFooterText(ToolWriterPageBase):
 
         try:
             is_on_prop, text_prop = _REGION_PROPS[region]
-            # force= was a refuse/wipe hatch when getString lied and set used setString.
-            # HTML get+import is the edit path now; ignore a leftover force kwarg.
             style.setPropertyValue(is_on_prop, True)
             auto_height = kwargs.get("auto_height")
             if auto_height is not None:

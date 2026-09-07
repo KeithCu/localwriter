@@ -6,7 +6,9 @@
 
 > **Later product decision:** `apply_style` now defaults to `clear_direct='style_props'` (house font/size win, bold/italic/colour stay). `none` is an explicit opt-in. The same-style-only special case discussed in §2.7 was **not** implemented. Treat sections below that say “default is `none`” as historical.
 
-Symbols and paths below are current `master` unless noted.
+> **Header/footer write path (after #638):** HTML get + HTML import replaced refuse-on-held, `force`, and “use search instead of `page_set`.” Sections below that prescribe refuse, `force=true` wipe, or search-as-escape are historical. Get still reports `images` / `fields` / `paragraph_count` as optional scan extras — not as a write refuse gate. Do not add refuse-on-table. `page_set_style_properties` refuse-when-`header_is_on=false` while content remains is a separate feature if it lands.
+
+Symbols and paths below describe the #634-era API unless a later banner says otherwise.
 
 ---
 

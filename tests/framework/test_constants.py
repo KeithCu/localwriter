@@ -210,6 +210,11 @@ def test_writer_apply_document_math_latex_rules_document_only():
     assert "Math (CRITICAL)" not in HTML_FRAGMENT_RULES
     assert "Local edits use target='search'" in WRITER_APPLY_DOCUMENT_HTML_RULES
     assert "target='full_document' is rewrite/translation only" in WRITER_APPLY_DOCUMENT_HTML_RULES
+    assert "page_get_header_footer_text" in WRITER_APPLY_DOCUMENT_HTML_RULES
+    assert "page_set_header_footer_text" in WRITER_APPLY_DOCUMENT_HTML_RULES
+    assert "setString wipe" not in WRITER_APPLY_DOCUMENT_HTML_RULES
+    assert "force=true" not in WRITER_APPLY_DOCUMENT_HTML_RULES
+    assert "target='search' still reaches headers" not in WRITER_APPLY_DOCUMENT_HTML_RULES
 
     model = MagicMock()
     model.supportsService.return_value = False

@@ -2,7 +2,10 @@
 # Copyright (c) 2026 KeithCu
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Live UNO: page_get / page_set header-footer HTML roundtrip (API shape B)."""
+"""Live UNO: page_get / page_set header-footer HTML roundtrip.
+
+Logos, fields, and tables set without force; get still lists scan extras.
+"""
 
 from __future__ import annotations
 
