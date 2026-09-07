@@ -156,12 +156,13 @@ class AddComment(ToolBase):
             anchor_text = found.getString()
         except Exception:
             pass
-        before = _count_annotations(doc)
+        names_before = _annotation_field_names(doc)
         match_text = found.getText()
         cursor = match_text.createTextCursorByRange(found.getStart())
         cursor.gotoRange(found.getEnd(), True)
         match_text.insertTextContent(cursor, annotation, True)
-        if _count_annotations(doc) <= before:
+        names_after = _annotation_field_names(doc)
+        if len(names_after) <= len(names_before):
             return {
                 "status": "error",
                 "message": "Comment insert did not register an annotation.",
@@ -177,7 +178,7 @@ class AddComment(ToolBase):
             "matched": True,
             "comment_added": True,
             "anchor_text": anchor_text or search_text,
-            "name": _annotation_name(annotation),
+            "name": _name_of_new_annotation(doc, annotation, names_before),
         }
 
     def _insert_reply(self, doc, parent, parent_name, content, author):
@@ -192,9 +193,10 @@ class AddComment(ToolBase):
         doc_text = doc.getText()
         anchor = parent.getAnchor()
         cursor = doc_text.createTextCursorByRange(anchor.getStart())
-        before = _count_annotations(doc)
+        names_before = _annotation_field_names(doc)
         doc_text.insertTextContent(cursor, reply, False)
-        if _count_annotations(doc) <= before:
+        names_after = _annotation_field_names(doc)
+        if len(names_after) <= len(names_before):
             return {
                 "status": "error",
                 "message": "Reply insert did not register an annotation.",
@@ -206,7 +208,7 @@ class AddComment(ToolBase):
             "message": "Reply added.",
             "author": author,
             "comment_added": True,
-            "name": _annotation_name(reply),
+            "name": _name_of_new_annotation(doc, reply, names_before),
             "parent_name": parent_name,
         }
 
@@ -556,13 +558,13 @@ def _annotation_name(field):
         return ""
 
 
-def _count_annotations(doc):
-    """How many Annotation text fields are on *doc* (0 if the enumeration is unusable)."""
-    n = 0
+def _annotation_field_names(doc):
+    """Name of each Annotation on *doc* (empty string when Name is unreadable)."""
+    names = []
     try:
         enum = doc.getTextFields().createEnumeration()
     except Exception:
-        return 0
+        return names
     while True:
         try:
             if not enum.hasMoreElements():
@@ -571,11 +573,36 @@ def _count_annotations(doc):
         except Exception:
             break
         try:
-            if field.supportsService("com.sun.star.text.textfield.Annotation"):
-                n += 1
+            if not field.supportsService("com.sun.star.text.textfield.Annotation"):
+                continue
         except Exception:
             continue
-    return n
+        try:
+            names.append(field.getPropertyValue("Name") or "")
+        except Exception:
+            names.append("")
+    return names
+
+
+def _name_of_new_annotation(doc, field, names_before):
+    """Name on *field*, or the new Name that appeared on *doc* after insert.
+
+    Point-insert replies (CommentResolve shape) often leave Name empty on the
+    pre-insert instance; the document field enumeration has the assigned id.
+    """
+    name = _annotation_name(field)
+    if name:
+        return name
+    prior = set(n for n in names_before if n)
+    for n in _annotation_field_names(doc):
+        if n and n not in prior:
+            return n
+    return ""
+
+
+def _count_annotations(doc):
+    """How many Annotation text fields are on *doc* (0 if the enumeration is unusable)."""
+    return len(_annotation_field_names(doc))
 
 
 def _set_annotation_date(annotation):

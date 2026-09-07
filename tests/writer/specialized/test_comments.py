@@ -208,3 +208,25 @@ def test_add_comment_reply_via_parent_name_skips_search():
     _cursor, _field, absorb = doc_text.insertTextContent.call_args[0]
     assert absorb is False
 
+
+def test_name_of_new_annotation_reads_back_from_doc():
+    """Point-insert replies leave Name empty on the instance; read the new Name from the doc."""
+    from plugin.writer.specialized.comments import _name_of_new_annotation
+
+    class FakeEnum:
+        def __init__(self, items):
+            self._items = list(items)
+        def hasMoreElements(self):
+            return bool(self._items)
+        def nextElement(self):
+            return self._items.pop(0)
+
+    field = MagicMock()
+    field.getPropertyValue.return_value = ""
+    listed = MagicMock()
+    listed.supportsService.return_value = True
+    listed.getPropertyValue.return_value = "__Annotation__9_1"
+    doc = MagicMock()
+    doc.getTextFields.return_value.createEnumeration.side_effect = lambda: FakeEnum([listed])
+    assert _name_of_new_annotation(doc, field, names_before=[]) == "__Annotation__9_1"
+
