@@ -279,8 +279,10 @@ class ApplyStyle(FrameworkToolBase):
         "with family='CharacterStyles' to remove a character style. "
         "Use target='selection' (default), 'beginning', 'end', 'full_document', "
         "or 'search' with old_content. "
-        "If the result reports preserved_char_overrides, the target had hand-set formatting that "
-        "overrides the style and nothing changed on screen — re-apply with clear_direct='style_props'."
+        "Paragraph styles default to clear_direct='style_props': the style's font name and size "
+        "show (house font wins) and paragraph indents/alignment follow the style; bold, italic "
+        "and colour stay. Pass clear_direct='none' only to keep a hand-set font. "
+        "Re-applying a style does not keep a quote indent — LibreOffice drops direct Para*."
     )
     parameters = {
         "type": "object",
@@ -291,14 +293,16 @@ class ApplyStyle(FrameworkToolBase):
             "old_content": {"type": "string", "description": "Text to find and apply style to if target = 'search'."},
             "all_matches": {"type": "boolean", "description": "For target='search': apply to EVERY occurrence of old_content (default false = first only)."},
             "occurrence": {"type": "integer", "description": "For target='search': apply to this single 0-based occurrence instead of the first."},
-            "clear_direct": {"type": "string", "enum": ["none", "style_props", "all"], "description": (
+            "clear_direct": {"type": "string", "enum": ["none", "style_props", "all"], "default": "style_props", "description": (
                 "What to do with direct (hand-set) formatting on the target, ParagraphStyles only. "
-                "'none' (default) keeps it — but direct formatting OVERRIDES the style, so on a document "
-                "formatted by hand the style will have no visible effect. 'style_props' drops the font "
-                "name/size override and the paragraph indents/alignment so the style's own values show, "
-                "keeping bold/italic/colour. 'all' drops every direct override (Ctrl+M). "
-                "Not allowed with target='full_document' — clearing the whole document flattens the "
-                "formatting that tells one kind of paragraph from another; style each range instead.")},
+                "'style_props' (default) drops the font name/size override and the paragraph "
+                "indents/alignment so the style's own values show, keeping bold/italic/colour. "
+                "The name means 'let the style's properties win' for the font/size/indent the "
+                "style governs — not 'clear only what this style defines'. "
+                "'none' keeps a hand-set font (historical; the style can look unchanged). "
+                "'all' drops every direct override (Ctrl+M). "
+                "'all' is not allowed with target='full_document' — that would flatten emphasis "
+                "across the whole document; style each range instead.")},
         },
         "required": ["style"],
     }
@@ -308,7 +312,7 @@ class ApplyStyle(FrameworkToolBase):
     # Maps family to the UNO property that holds the style name.
     _PROPERTY_MAP = {"ParagraphStyles": "ParaStyleName", "CharacterStyles": "CharStyleName"}
 
-    def _apply_one(self, ctx, family, uno_prop, uno_value, cursor, clear_direct="none"):
+    def _apply_one(self, ctx, family, uno_prop, uno_value, cursor, clear_direct="style_props"):
         """Apply the style to one cursor. Returns the direct-formatting report (or None)."""
         if family == "ParagraphStyles":
             return apply_paragraph_style_preserving_direct_char(ctx.doc, cursor, uno_value, clear_direct)
@@ -330,13 +334,19 @@ class ApplyStyle(FrameworkToolBase):
             for key in ("cleared_char_properties", "cleared_paragraph_properties"):
                 if rep.get(key):
                     out[key] = rep[key]  # same list for every range; last one wins
-        if out.get("preserved_char_overrides"):
-            # The whole point of the echo: a style apply that changed nothing visible used to be
-            # indistinguishable from one that worked.
-            out["hint"] = ("Direct formatting on the target overrides this style, so the document "
-                           "may look unchanged. Re-apply with clear_direct='style_props' to let the "
-                           "style's font, size and indents show.")
+        # No retry hint: default is already style_props (house font shows). preserved_char_overrides
+        # is only set on the explicit none path, which the caller asked for.
         return out
+
+    @staticmethod
+    def _resolve_clear_direct(family, raw):
+        """Paragraph styles default to style_props so the house font shows without a retry.
+
+        Character styles ignore the flag (it is not implemented for them); omitted there is none.
+        """
+        if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+            return "style_props" if family == "ParagraphStyles" else "none"
+        return str(raw).strip()
 
     def execute(self, ctx, **kwargs):
         style_name = str(kwargs.get("style") or "").strip()
@@ -377,20 +387,20 @@ class ApplyStyle(FrameworkToolBase):
         target = kwargs.get("target", "selection")
         old_content = kwargs.get("old_content")
 
-        clear_direct = str(kwargs.get("clear_direct") or "none").strip()
+        clear_direct = self._resolve_clear_direct(family, kwargs.get("clear_direct"))
         if clear_direct not in ("none", "style_props", "all"):
             return self._tool_error("clear_direct must be one of: none, style_props, all.")
         if clear_direct != "none":
             if family != "ParagraphStyles":
                 return self._tool_error("clear_direct only applies to family='ParagraphStyles'.")
-            if target == "full_document":
-                # Clearing the whole document erases the direct formatting that distinguishes a
-                # block quote from body text — and the caller needs that distinction to pick which
-                # style each range gets. Force the per-range path instead.
+            if clear_direct == "all" and target == "full_document":
+                # Ctrl+M on the whole document wipes emphasis as well as fonts — force the
+                # per-range path. style_props (the default) is allowed: house font/size win
+                # and bold/italic/colour stay.
                 return self._tool_error(
-                    "clear_direct is not allowed with target='full_document': it would flatten the "
-                    "whole document, including the formatting that tells body text from quotes and "
-                    "headings. Style each range separately (target='search') instead.")
+                    "clear_direct='all' is not allowed with target='full_document': it would "
+                    "flatten emphasis across the whole document. Style each range separately "
+                    "(target='search') instead, or omit clear_direct to use style_props.")
 
         # Multi-occurrence styling (target='search' only). resolve_target_cursor styles only the
         # first match; all_matches / occurrence let a defined term or repeated quote lead be

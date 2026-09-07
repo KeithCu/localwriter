@@ -4,6 +4,8 @@
 **Inputs:** `/workspace/pr634-followups/initial-plan.md`, merged PR [#634](https://github.com/KeithCu/writeragent/pull/634) on `master`  
 **Scope:** Research only — no product PR. Goal: proper fixes that stay **simple, robust, and easy for models**.
 
+> **Later product decision:** `apply_style` now defaults to `clear_direct='style_props'` (house font/size win, bold/italic/colour stay). `none` is an explicit opt-in. The same-style-only special case discussed in §2.7 was **not** implemented. Treat sections below that say “default is `none`” as historical.
+
 Symbols and paths below are current `master` unless noted.
 
 ---

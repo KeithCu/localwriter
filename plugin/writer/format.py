@@ -209,10 +209,15 @@ def _strip_html_boilerplate(html_string):  # pyright: ignore[reportUnusedFunctio
 #   plugin/writer/format.py   — replace_single_range_with_content style restore (~595)
 #   plugin/notebook/writer_importer.py — resolved paragraph style on import (~621)
 #   plugin/notebook/notebook_runner.py — output cell paragraph style (~177)
-# Char properties a paragraph style is expected to govern. With clear_direct="style_props" these
-# are the ONLY captured overrides not restored after the style is applied, so the style's font and
-# size finally show while hand-set bold/italic/colour survive. See CLEARABLE_PARA_PROPERTIES for
-# the paragraph half (indents/alignment), which setting ParaStyleName does NOT reset on its own.
+# Char properties a paragraph style is expected to govern. apply_style defaults to
+# clear_direct="style_props": these are the ONLY captured overrides not restored after the style
+# is applied, so the house font and size show while hand-set bold/italic/colour survive.
+# See CLEARABLE_PARA_PROPERTIES for the paragraph half (indents/alignment).
+#
+# Future idea — not now: clear whatever the *target style* actually defines (PropertyState /
+# inheritance), instead of this fixed list. Hard because a Normal weight or an inherited default
+# looks the same as "the style does not set this", so it is easy to wipe emphasis the style
+# never claimed.
 STYLE_GOVERNED_CHAR_PROPERTIES = (
     "CharFontName", "CharFontNameAsian", "CharFontNameComplex",
     "CharHeight", "CharHeightAsian", "CharHeightComplex",
@@ -277,21 +282,23 @@ def apply_paragraph_style_preserving_direct_char(doc, cursor, style_name, clear_
 
     Setting ParaStyleName to a DIFFERENT style resets hand-set Char* properties to that style's
     defaults — across the WHOLE paragraph, even for a sub-range cursor — which is what the capture
-    below exists to undo. Re-applying the style a paragraph already has does not reset them (it
-    does still drop the paragraph's direct Para*), so clearing an override is never a side effect
-    to rely on; see _reset_properties_to_default.
+    below exists to undo. Re-applying the style a paragraph already has does not reset Char*
+    (LibreOffice 26.2). It *does* drop the paragraph's direct Para* (margins, alignment, first-line
+    indent) — so re-applying Standard does not keep a hand-set quote indent. Clearing a Char*
+    override is never a side effect to rely on; see _reset_properties_to_default.
     ``getPropertyState`` is unreliable at the text-portion level, so overrides are
     detected by VALUE (Char* differs from the paragraph's current style default).
 
-    *clear_direct* decides what happens to those captured overrides:
-      ``"none"`` (default) restores all of them — the historical behaviour, which keeps a
-      document's hand-set font but also means an updated style is invisible on screen;
+    *clear_direct* decides what happens to those captured overrides. The helper default is
+    ``"none"`` so HTML import / style-restore callers keep inline fonts; ``apply_style``
+    defaults to ``"style_props"`` so a house-font update is visible without a retry:
       ``"style_props"`` restores everything except STYLE_GOVERNED_CHAR_PROPERTIES and clears
-      CLEARABLE_PARA_PROPERTIES, so font/size/indent obey the style and bold/italic survive;
+      CLEARABLE_PARA_PROPERTIES, so font/size/indent obey the style and bold/italic/colour survive;
+      ``"none"`` restores all captured Char* — keeps a hand-set font (the style can look like a
+      no-op). Does not restore Para*; LibreOffice already dropped those when ParaStyleName was set;
       ``"all"`` restores nothing and clears the paragraph properties too (Ctrl+M semantics).
 
-    Returns a report dict so callers can tell the agent what actually happened — a style apply
-    that silently kept the old font used to be indistinguishable from success.
+    Returns a report dict so callers can tell the agent what actually happened.
 
     KNOWN LIMITATION: a direct override whose value equals the old style default is not
     captured; applying a style with a different default can change that property visibly.
