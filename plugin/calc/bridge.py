@@ -35,6 +35,21 @@ from plugin.calc.address_utils import (
 log = logging.getLogger("writeragent.calc")
 
 
+def is_agent_visible_sheet(name: str) -> bool:
+    """True unless *name* is a LibreOffice internal sheet.
+
+    Leading ``_`` covers ``__Anonymous_Sheet_DB__0`` (xlsx→ods database-range
+    tab) and similar internals. The sheets stay in the document; agent-facing
+    lists omit them. Delete-at-trial-open is parked (eval-2 §2.7).
+    """
+    return bool(name) and not str(name).startswith("_")
+
+
+def filter_agent_sheet_names(names) -> list[str]:
+    """Drop leading-``_`` names from an agent-facing sheet enumeration."""
+    return [n for n in names if is_agent_visible_sheet(n)]
+
+
 class CalcBridge:
     """Bridge between the plugin layer and the UNO Calc document."""
 
@@ -76,8 +91,9 @@ class CalcBridge:
         """
         sheets = self.doc.getSheets()
         if not sheets.hasByName(name):
+            available = filter_agent_sheet_names(sheets.getElementNames())
             raise ValueError(
-                "No sheet named '%s'. Available: %s" % (name, ", ".join(sheets.getElementNames()))
+                "No sheet named '%s'. Available: %s" % (name, ", ".join(available))
             )
         return sheets.getByName(name)
 

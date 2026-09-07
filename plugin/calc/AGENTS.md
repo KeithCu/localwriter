@@ -27,3 +27,4 @@ Topic docs: [docs/calc/specialized-toolsets.md](../../docs/calc/specialized-tool
 - `plugin/scripting/venv/calc_functions_*.py` alphabet splits are intentional; do not merge them.
 - `float(...)` inside `=PYTHON("...")` formula strings → Calc lexer `#NAME?`. Use code-in-cell or bare `np.sum` (see enabling-numpy doc).
 - In tests, resolve tools with `plugin.main.get_tools().get("tool_name")`.
+- Sheet names starting with `_` (xlsx→ods `__Anonymous_Sheet_DB__*`, etc.) stay in the workbook. Omit them from agent-facing lists (`list_sheets`, `get_sheet_summary`, chat context). Do **not** delete them at trial/document open (parked).

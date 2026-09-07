@@ -159,9 +159,9 @@ def format_venv_import_policy_for_prompt(*, compact: bool = False) -> str:
         f"Pre-imported (do not write import lines): {aliases}. "
         "When =PY has data range args, xl(\"%Pn%\") is also injected (binding-only Excel bridge; not a live sheet read). "
         f"DO NOT import {do_not_import}. "
-        "Prefer np/sp/pd/st and scipy over hand-rolled Python; use dt for dates, plt for charts. "
-        "For folder SQL analytics over CSV/Parquet use the trusted query_folder_sql (or run_sql / session_duckdb) helper when available; results cap at 200 rows and say so when truncated. "
-        "In shared kernel, session_duckdb() reuses one DuckDB connection and registered tables until Reset Python Session."
+        # DuckDB helpers stay implemented; omit them from this default =PY blurb
+        # until that path is product-ready (eval-2 §2.7). Do not re-advertise here.
+        "Prefer np/sp/pd/st and scipy over hand-rolled Python; use dt for dates, plt for charts."
     )
     blocked_security = _join_modules(tuple(sorted(DANGEROUS_MODULES)))
     blocked_network = _join_modules(
@@ -179,7 +179,11 @@ def format_venv_import_policy_for_prompt(*, compact: bool = False) -> str:
         )
     else:
         stdlib = _join_modules(_venv_stdlib_modules())
-        packages = _join_modules(_venv_package_modules())
+        # Keep duckdb / plugin.scripting.duckdb_sql importable in the venv; do
+        # not list them in the LLM-facing allowed-packages line.
+        packages = _join_modules(
+            tuple(m for m in _venv_package_modules() if "duckdb" not in m.lower())
+        )
         common = _join_modules(_VENV_COMMON_BLOCKED)
         parts.append(f"Allowed stdlib in this sandbox: {stdlib}.")
         parts.append(f"Allowed packages in this sandbox (+ submodules where applicable): {packages}.")

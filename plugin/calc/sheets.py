@@ -26,7 +26,7 @@ import logging
 from plugin.framework.errors import ToolExecutionError, UnoObjectError
 from plugin.framework.tool import ToolBase
 from plugin.calc.base import ToolCalcSheetBase
-from plugin.calc.bridge import CalcBridge
+from plugin.calc.bridge import CalcBridge, filter_agent_sheet_names, is_agent_visible_sheet
 from plugin.calc.analyzer import SheetAnalyzer
 
 log = logging.getLogger("writeragent.calc")
@@ -36,7 +36,7 @@ class ListSheets(ToolCalcSheetBase):
     """List all sheet names in the workbook."""
 
     name = "list_sheets"
-    description = "Lists all sheet names in the workbook."
+    description = "Lists user-visible sheet names in the workbook (omits LibreOffice internal tabs)."
     parameters = {"type": "object", "properties": {}}
     is_mutation = False
 
@@ -44,7 +44,7 @@ class ListSheets(ToolCalcSheetBase):
         bridge = CalcBridge(ctx.doc)
         try:
             doc = bridge.get_active_document()
-            sheet_names = list(doc.getSheets().getElementNames())
+            sheet_names = filter_agent_sheet_names(doc.getSheets().getElementNames())
             log.info("Sheets listed: %s", sheet_names)
             return {"status": "ok", "result": sheet_names}
         except Exception as e:
@@ -224,6 +224,12 @@ class GetSheetSummary(ToolBase):
         bridge = CalcBridge(ctx.doc)
         analyzer = SheetAnalyzer(bridge)
         sheet_name = kwargs.get("sheet")
+        # Leading '_' tabs are LO internals (xlsx→ods ``__Anonymous_Sheet_DB__*``).
+        # Omit from agent summaries; do not delete the sheet.
+        if sheet_name and not is_agent_visible_sheet(sheet_name):
+            return self._tool_error(f"No user-visible sheet named '{sheet_name}'.")
 
         result = analyzer.get_sheet_summary(sheet_name=sheet_name)
+        if not is_agent_visible_sheet(result.get("sheet_name", "")):
+            return self._tool_error("Active sheet is a LibreOffice internal tab; specify a user-visible sheet.")
         return {"status": "ok", "result": result}
