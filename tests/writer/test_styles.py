@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import pytest
 from unittest.mock import MagicMock, patch
+from plugin.writer.page import PageGetStyleProperties
 from plugin.writer.styles import StyleList, StyleGetInfo, ApplyStyle, StyleCreate, StyleImport, StyleUpdate
 from plugin.tests.testing_utils import TestingFactory, WriterDocStub
 
@@ -139,6 +140,57 @@ def test_get_style_info():
     assert res["status"] == "ok"
     assert res["name"] == "Emphasis"
     assert res["is_in_use"] is True
+
+
+def _page_style_for_info():
+    """Page-style mock with the UNO properties get_page_style_properties reads."""
+    style = MagicMock()
+    props = {
+        "Width": 21000,
+        "Height": 29700,
+        "IsLandscape": False,
+        "LeftMargin": 2000,
+        "RightMargin": 2000,
+        "TopMargin": 2500,
+        "BottomMargin": 2000,
+        "GutterMargin": 0,
+        "HeaderIsOn": True,
+        "FooterIsOn": False,
+        "HeaderIsShared": True,
+        "FooterIsShared": True,
+        "HeaderHeight": 500,
+        "FooterHeight": 500,
+        "HeaderBodyDistance": 500,
+        "FooterBodyDistance": 500,
+        "BackColor": 16777215,
+        "BackTransparent": True,
+        "NumberingType": 4,
+        "FootnoteHeight": 0,
+        "RegisterParagraphStyle": "",
+        "FirstIsShared": False,
+        "PageStyleLayout": MagicMock(value=0),
+    }
+    style.getPropertyValue.side_effect = lambda n: props[n]
+    return style
+
+
+def test_get_style_info_page_styles_returns_page_properties():
+    """style_get_info(PageStyles) must answer in-process, not error-bounce to the page tool."""
+    style = _page_style_for_info()
+    mock_ctx = _ctx_with_families(PageStyles=_style_family({"Standard": style}))
+
+    res = StyleGetInfo().execute(mock_ctx, style="Standard", family="PageStyles")
+
+    assert res["status"] == "ok"
+    assert res["family"] == "PageStyles"
+    assert res["properties"]["left_margin_mm"] == 20.0
+    assert res["properties"]["top_margin_mm"] == 25.0
+    assert res["properties"]["header_is_on"] is True
+    assert res["properties"]["footer_is_on"] is False
+    assert res["properties"]["first_is_shared"] is False
+    page = PageGetStyleProperties().execute(mock_ctx, style="Standard")
+    assert page["status"] == "ok"
+    assert page["properties"] == res["properties"]
 
 
 def test_apply_style_clear_direct_schema_default_is_style_props():
