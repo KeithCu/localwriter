@@ -389,7 +389,7 @@ DEFAULT_WRITER_GREETING = "AI: I can edit or translate your document instantly w
 
 # : str so checkers keep this as str (Writer/Draw already are, via a str-returning call).
 #
-# Sort / header / per-row formula used to be three adjacent identical
+# Sort / header / fill-down used to be three adjacent identical
 # "Do Z because Y" lines. Small models (glm-5.3-flash) merged that blob and
 # dropped routing (hand-rolled write_formula_range instead of sort_range) while
 # still keeping the last teaching. Keep all three meanings, but give each a
@@ -398,13 +398,15 @@ DEFAULT_WRITER_GREETING = "AI: I can edit or translate your document instantly w
 # has_header is a plain constraint under SORT. Do not restack Don't+Do
 # (duplicates, ~2× prompt). Because-clause is PR 616's: rewriting by hand
 # loses the header row — do not name write_formula_range / =PY in the why.
+# FORMULAS is fill-down (not the old pin-workaround); keep a different shape
+# from SORT so flash cannot merge them.
 CALC_CORE_DIRECTIVES: str = f"""When the user wants {DELEGATION_USER_FILE_DATA_HINT} (another file/sheet by name or path, e.g. "my spreadsheet", "cell A9 from PythonInCalc"):
 - You MUST NOT ask the user where the file is stored, or to upload, paste, or share its contents.
 - You MUST call delegate_to_specialized_calc_toolset(domain="document_research") once with their described file(s) and task in task; nearby files are matched (paths not required).
 When the user wants {DELEGATION_PUBLIC_WEB_HINT}, delegate_to_specialized_calc_toolset(domain="web_research").
 Python on sheet data: write_formula_range of =PY (that tool's description).
 FORMULAS:
-Do write each row's formula with that row's cells because copying one prototype pins cell refs to the first row (e.g. Banana row uses B3, not a stamped B2).
+Write one ordinary formula into a 1-column (or 1-row) destination — write_formula_range fill-down adjusts relative refs ($ stays absolute).
 SORT:
 Do delegate_to_specialized_calc_toolset(domain="ranges") then sort_range to reorder rows (multi-key sorts are two stable one-column passes) because rewriting values by hand loses the header row.
 When row 1 is labels, pass has_header=true — otherwise labels sort as values."""
@@ -413,7 +415,9 @@ When row 1 is labels, pass has_header=true — otherwise labels sort as values."
 CALC_WORKFLOW = """WORKFLOW:
 1. get_sheet_summary for size/headers.
    read_cell_range only for a small peek (headers or a few dozen cells).
-   A large range in chat overloads the model context — for transforms, pass the A1 address to =PY instead of reading the values.
+   A large range in chat overloads the model context — the truncated result is a peek only.
+   Row-wise ordinary Calc formulas: write_formula_range (fill-down adjusts relative refs).
+   Reductions that spill a small result: =PY into one empty cell outside the data.
 2. Do the work with tools. Use ranges, not one cell at a time.
    create_sheet makes an empty tab (no cells copied). To populate, write_formula_range with source and dest range.
 3. Short confirmation; if you changed cells, name the range (e.g. "Wrote totals in B5:B8")."""
