@@ -136,7 +136,21 @@ def test_disable_header_refuses_while_table_remains(ctx, doc):
     res = _set_props(doc, ctx, header_is_on=False)
     assert res["status"] == "error"
     assert style.getPropertyValue("HeaderIsOn") is True
-    assert "Logo cell" in style.getPropertyValue("HeaderText").getString()
+    # getString() on a header table is empty / not the cell text — the table
+    # itself must still be there (the refuse is what keeps it).
+    header = style.getPropertyValue("HeaderText")
+    found_table = False
+    enum = header.createEnumeration()
+    while enum.hasMoreElements() is True:
+        el = enum.nextElement()
+        try:
+            if el.supportsService("com.sun.star.text.TextTable") is True:
+                assert el.getCellByName("A1").getString() == "Logo cell"
+                found_table = True
+                break
+        except Exception:
+            continue
+    assert found_table, "letterhead table must remain after refused disable"
 
 
 @native_test
