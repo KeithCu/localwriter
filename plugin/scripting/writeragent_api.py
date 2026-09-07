@@ -1174,9 +1174,9 @@ vision = _VisionProxy()
 class _WriterProxy:
     """Proxy for writer tools."""
 
-    def add_comment(self, content: str, search: str, *, occurrence: int | None = None, author: str | None = None) -> dict:
-        """Add a comment/annotation anchored to text matching search."""
-        return _rpc_call("add_comment", content=content, search=search, occurrence=occurrence, author=author)
+    def add_comment(self, content: str, *, search: str | None = None, occurrence: int | None = None, author: str | None = None, parent_name: str | None = None) -> dict:
+        """Add a comment/annotation."""
+        return _rpc_call("add_comment", content=content, search=search, occurrence=occurrence, author=author, parent_name=parent_name)
 
     def apply_document_content(self, content: list, *, target: str | None = None, old_content: str | None = None, all_matches: bool | None = None, position: str | None = None, dry_run: bool | None = None, regex: bool | None = None, case_sensitive: bool | None = None) -> dict:
         """Insert or replace content."""

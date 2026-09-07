@@ -69,29 +69,51 @@ class CommentList(ToolWriterCommentBase):
 
 
 class AddComment(ToolBase):
-    """Add a comment anchored to a search string."""
+    """Add a comment anchored to a search string, or reply via parent_name."""
 
     name = "add_comment"
     intent = "review"
     description = (
-        "Add a comment/annotation anchored to text matching search. The comment SPANS the "
-        "matched passage (the user sees which text it covers). Use occurrence to target a later "
-        "match and author to sign it."
+        "Add a comment/annotation. For a new root comment, pass search (and optional occurrence) "
+        "so the comment SPANS the matched passage. To reply without resolving, pass parent_name "
+        "(the 'name' from comment_list); search is not required. Replies nest under that immediate "
+        "parent (including other replies) and do not mark it resolved — use comment_resolve for "
+        "reply-and-resolve. Use author to sign the comment."
     )
     parameters = {"type": "object", "properties": {
         "content": {"type": "string", "description": "The comment text."},
-        "search": {"type": "string", "description": "Anchor the comment to text matching this string."},
-        "occurrence": {"type": "integer", "description": "0-based match to comment on when search repeats (default 0)."},
+        "search": {"type": "string", "description": "Anchor a new root comment to text matching this string. Not required when parent_name is set."},
+        "occurrence": {"type": "integer", "description": "0-based match to comment on when search repeats (default 0). Ignored when parent_name is set."},
         "author": {"type": "string", "description": "Comment author (default 'WriterAgent')."},
-    }, "required": ["content", "search"]}
+        "parent_name": {"type": "string", "description": "Reply to this comment (the 'name' from comment_list). Immediate parent — not coerced to the thread root. When set, search/occurrence are skipped."},
+    }, "required": ["content"]}
     uno_services = ["com.sun.star.text.TextDocument"]
     is_mutation = True
 
     def execute(self, ctx, **kwargs):
         content = kwargs.get("content", "")
-        search_text = kwargs.get("search")
+        parent_name = (kwargs.get("parent_name") or "").strip()
         author = (kwargs.get("author") or "WriterAgent").strip() or "WriterAgent"
 
+        # Reply path: look up the immediate parent by Name and insert at its anchor
+        # (same shape as CommentResolve) without setting Resolved. Do not walk to the
+        # thread root — nesting under a reply matches LO's Reply button (#636).
+        if parent_name:
+            if not content:
+                return self._tool_error("Provide content.")
+            parent = _find_annotation_by_name(ctx.doc, parent_name)
+            if parent is None:
+                # Top-level comment_added (not _tool_error details) matches the
+                # search-miss payload so clients can branch on one field.
+                return {
+                    "status": "error",
+                    "code": "COMMENT_NOT_FOUND",
+                    "message": "Comment '%s' not found. Call comment_list to see the current names." % parent_name,
+                    "comment_added": False,
+                }
+            return self._insert_reply(ctx.doc, parent, parent_name, content, author)
+
+        search_text = kwargs.get("search")
         if not search_text:
             return self._tool_error("Provide search.")
         try:
@@ -134,12 +156,13 @@ class AddComment(ToolBase):
             anchor_text = found.getString()
         except Exception:
             pass
-        before = _count_annotations(doc)
+        names_before = _annotation_field_names(doc)
         match_text = found.getText()
         cursor = match_text.createTextCursorByRange(found.getStart())
         cursor.gotoRange(found.getEnd(), True)
         match_text.insertTextContent(cursor, annotation, True)
-        if _count_annotations(doc) <= before:
+        names_after = _annotation_field_names(doc)
+        if len(names_after) <= len(names_before):
             return {
                 "status": "error",
                 "message": "Comment insert did not register an annotation.",
@@ -148,7 +171,50 @@ class AddComment(ToolBase):
                 "anchor_text": anchor_text or search_text,
             }
 
-        return {"status": "ok", "message": "Comment added.", "author": author, "matched": True, "comment_added": True, "anchor_text": anchor_text or search_text}
+        return {
+            "status": "ok",
+            "message": "Comment added.",
+            "author": author,
+            "matched": True,
+            "comment_added": True,
+            "anchor_text": anchor_text or search_text,
+            "name": _name_of_new_annotation(doc, annotation, names_before),
+        }
+
+    def _insert_reply(self, doc, parent, parent_name, content, author):
+        """Insert a threaded reply at the parent's anchor. Does not set Resolved."""
+        reply = doc.createInstance("com.sun.star.text.textfield.Annotation")
+        reply.setPropertyValue("ParentName", parent_name)
+        reply.setPropertyValue("Content", content)
+        reply.setPropertyValue("Author", author)
+        # Point-insert replies (ParentName set) do not get an auto Name from Writer;
+        # the pre-insert instance and the document enumeration both stay empty.
+        # Setting Name before insert sticks (LO probe: listed ParentName + Name).
+        assigned_name = _ensure_annotation_name(reply, doc)
+        _set_annotation_date(reply)
+        # Same insert as CommentResolve.execute (point insert at parent anchor,
+        # absorb=False). That path also sets Resolved; this one must not.
+        doc_text = doc.getText()
+        anchor = parent.getAnchor()
+        cursor = doc_text.createTextCursorByRange(anchor.getStart())
+        names_before = _annotation_field_names(doc)
+        doc_text.insertTextContent(cursor, reply, False)
+        names_after = _annotation_field_names(doc)
+        if len(names_after) <= len(names_before):
+            return {
+                "status": "error",
+                "message": "Reply insert did not register an annotation.",
+                "comment_added": False,
+                "parent_name": parent_name,
+            }
+        return {
+            "status": "ok",
+            "message": "Reply added.",
+            "author": author,
+            "comment_added": True,
+            "name": _annotation_name(reply) or assigned_name or _name_of_new_annotation(doc, reply, names_before),
+            "parent_name": parent_name,
+        }
 
 
 class CommentDelete(ToolWriterCommentBase):
@@ -465,13 +531,12 @@ class CommentCheckStop(ToolWriterCommentBase):
 # ------------------------------------------------------------------
 
 
-def _count_annotations(doc):
-    """How many Annotation text fields are on *doc* (0 if the enumeration is unusable)."""
-    n = 0
+def _find_annotation_by_name(doc, comment_name):
+    """Return the Annotation field whose Name matches *comment_name*, or None."""
     try:
         enum = doc.getTextFields().createEnumeration()
     except Exception:
-        return 0
+        return None
     while True:
         try:
             if not enum.hasMoreElements():
@@ -480,11 +545,82 @@ def _count_annotations(doc):
         except Exception:
             break
         try:
-            if field.supportsService("com.sun.star.text.textfield.Annotation"):
-                n += 1
+            if not field.supportsService("com.sun.star.text.textfield.Annotation"):
+                continue
+            if field.getPropertyValue("Name") == comment_name:
+                return field
         except Exception:
             continue
-    return n
+    return None
+
+
+def _annotation_name(field):
+    """LibreOffice-assigned Name after insert (empty if the property is unreadable)."""
+    try:
+        return field.getPropertyValue("Name") or ""
+    except Exception:
+        return ""
+
+
+def _annotation_field_names(doc):
+    """Name of each Annotation on *doc* (empty string when Name is unreadable)."""
+    names = []
+    try:
+        enum = doc.getTextFields().createEnumeration()
+    except Exception:
+        return names
+    while True:
+        try:
+            if not enum.hasMoreElements():
+                break
+            field = enum.nextElement()
+        except Exception:
+            break
+        try:
+            if not field.supportsService("com.sun.star.text.textfield.Annotation"):
+                continue
+        except Exception:
+            continue
+        try:
+            names.append(field.getPropertyValue("Name") or "")
+        except Exception:
+            names.append("")
+    return names
+
+
+def _ensure_annotation_name(field, doc):
+    """Return *field*'s Name, assigning a unique one if Writer left it empty."""
+    name = _annotation_name(field)
+    if name:
+        return name
+    existing = set(n for n in _annotation_field_names(doc) if n)
+    stamp = int(now_aware().timestamp())
+    n = len(existing) + 1
+    candidate = "__Annotation__%d_%d" % (n, stamp)
+    while candidate in existing:
+        n += 1
+        candidate = "__Annotation__%d_%d" % (n, stamp)
+    try:
+        field.setPropertyValue("Name", candidate)
+    except Exception:
+        return ""
+    return _annotation_name(field) or candidate
+
+
+def _name_of_new_annotation(doc, field, names_before):
+    """Name on *field*, or the new Name that appeared on *doc* after insert.
+
+    Point-insert replies (CommentResolve shape) often leave Name empty on the
+    pre-insert instance; the document field enumeration has the assigned id.
+    """
+    name = _annotation_name(field)
+    if name:
+        return name
+    prior = set(n for n in names_before if n)
+    for n in _annotation_field_names(doc):
+        if n and n not in prior:
+            return n
+    return ""
 
 
 def _set_annotation_date(annotation):

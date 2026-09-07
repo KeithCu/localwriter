@@ -107,3 +107,150 @@ def test_comment_scan_tasks_with_prefixes():
     assert res_filtered["count"] == 1
     assert res_filtered["tasks"][0]["prefix"] == "NOTE"
 
+
+def test_add_comment_schema_parent_name_optional():
+    from plugin.writer.specialized.comments import AddComment
+
+    params = AddComment.parameters
+    assert "parent_name" in params["properties"]
+    assert params["required"] == ["content"]
+    assert "search" not in params["required"]
+    assert "parent_name" not in params["required"]
+
+
+def test_add_comment_reply_requires_content():
+    from plugin.writer.specialized.comments import AddComment
+
+    ctx = MagicMock()
+    res = AddComment().execute(ctx, parent_name="some-parent")
+    assert res["status"] == "error"
+    assert "content" in res["message"].lower()
+    ctx.doc.getTextFields.assert_not_called()
+
+
+def test_add_comment_reply_unknown_parent():
+    from plugin.writer.specialized.comments import AddComment
+
+    class FakeEnum:
+        def __init__(self, items):
+            self._items = list(items)
+        def hasMoreElements(self):
+            return bool(self._items)
+        def nextElement(self):
+            return self._items.pop(0)
+
+    doc = MagicMock()
+    doc.getTextFields.return_value.createEnumeration.side_effect = lambda: FakeEnum([])
+    res = AddComment().execute(MagicMock(doc=doc), content="a reply", parent_name="no-such-comment")
+    assert res["status"] == "error"
+    assert res.get("comment_added") is False
+    assert "no-such-comment" in res["message"]
+
+
+def test_add_comment_reply_via_parent_name_skips_search():
+    """parent_name is the reply path: no text search, ParentName = immediate parent, not Resolved."""
+    from plugin.writer.specialized.comments import AddComment
+
+    class FakeEnum:
+        def __init__(self, items):
+            self._items = list(items)
+        def hasMoreElements(self):
+            return bool(self._items)
+        def nextElement(self):
+            return self._items.pop(0)
+
+    parent = MagicMock()
+    parent.supportsService.return_value = True
+    # B is itself a reply to A — we must parent the new comment to B, not walk to A.
+    parent.getPropertyValue.side_effect = lambda p: {
+        "Name": "B",
+        "ParentName": "A",
+        "Resolved": False,
+    }.get(p, "")
+
+    reply = MagicMock()
+    reply.supportsService.return_value = True
+    reply.getPropertyValue.side_effect = lambda p: {
+        "Name": "C",
+        "ParentName": "B",
+    }.get(p, "")
+
+    doc = MagicMock()
+    doc.createInstance.return_value = reply
+    calls = {"n": 0}
+
+    def _enum():
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            return FakeEnum([parent])
+        return FakeEnum([parent, reply])
+
+    doc.getTextFields.return_value.createEnumeration.side_effect = _enum
+    doc_text = MagicMock()
+    doc.getText.return_value = doc_text
+
+    with patch("plugin.writer.specialized.comments._set_annotation_date"):
+        res = AddComment().execute(
+            MagicMock(doc=doc),
+            content="approved",
+            parent_name="B",
+            search="should-be-ignored",
+        )
+    assert res["status"] == "ok", res
+    assert res["name"] == "C"
+    assert res["parent_name"] == "B"
+    assert res["comment_added"] is True
+    doc.findFirst.assert_not_called()
+    reply.setPropertyValue.assert_any_call("ParentName", "B")
+    assert not any(c[0][0] == "Resolved" for c in reply.setPropertyValue.call_args_list)
+    parent.setPropertyValue.assert_not_called()
+    doc_text.insertTextContent.assert_called_once()
+    _cursor, _field, absorb = doc_text.insertTextContent.call_args[0]
+    assert absorb is False
+
+
+def test_ensure_annotation_name_assigns_when_empty():
+    from plugin.writer.specialized.comments import _ensure_annotation_name
+
+    class FakeEnum:
+        def __init__(self, items):
+            self._items = list(items)
+        def hasMoreElements(self):
+            return bool(self._items)
+        def nextElement(self):
+            return self._items.pop(0)
+
+    existing = MagicMock()
+    existing.supportsService.return_value = True
+    existing.getPropertyValue.return_value = "__Annotation__1_1"
+    field = MagicMock()
+    field.getPropertyValue.return_value = ""
+    doc = MagicMock()
+    doc.getTextFields.return_value.createEnumeration.side_effect = lambda: FakeEnum([existing])
+    name = _ensure_annotation_name(field, doc)
+    assert name.startswith("__Annotation__")
+    assert name != "__Annotation__1_1"
+    field.setPropertyValue.assert_called_once_with("Name", name)
+
+
+def test_name_of_new_annotation_reads_back_from_doc():
+    """Point-insert replies leave Name empty on the instance; read the new Name from the doc."""
+    from plugin.writer.specialized.comments import _name_of_new_annotation
+
+    class FakeEnum:
+        def __init__(self, items):
+            self._items = list(items)
+        def hasMoreElements(self):
+            return bool(self._items)
+        def nextElement(self):
+            return self._items.pop(0)
+
+    field = MagicMock()
+    field.getPropertyValue.return_value = ""
+    listed = MagicMock()
+    listed.supportsService.return_value = True
+    listed.getPropertyValue.return_value = "__Annotation__9_1"
+    doc = MagicMock()
+    doc.getTextFields.return_value.createEnumeration.side_effect = lambda: FakeEnum([listed])
+    assert _name_of_new_annotation(doc, field, names_before=[]) == "__Annotation__9_1"
+
