@@ -111,7 +111,7 @@ def test_find_writeragent_json_missing() -> None:
 def _afc_style_tree(root: Path) -> Path:
     """Task dir + fixtures siblings that document_research would otherwise see."""
     fixtures = root / "fixtures"
-    fixtures.mkdir()
+    fixtures.mkdir(parents=True)
     (fixtures / POPULATION_ODS_NAME).write_bytes(b"ODS-BYTES")
     (fixtures / "Population v2.xlsx").write_bytes(b"XLSX")
     (fixtures / "min-range-too-large.ods").write_bytes(b"MIN")
