@@ -56,9 +56,7 @@ Images in a header/footer must be anchored **`AS_CHARACTER`** (in the text flow)
 
 `getString()` cannot represent a letterhead — a logo is an empty line and a page-number field is its rendered digits. `page_get_header_footer_text` therefore exports the region's `XText` through the same XHTML + postprocess stack as `get_document_content` (`xtext_to_content` in `html_export.py`): copy the region into a hidden Writer body, then `document_to_content`. Fields appear as `<span title="page-number"/>` (and `page-count` / `date` / `time`); tables and `<img>` logos are in the HTML. `include_images` defaults to **true** so a letterhead is visible. The result still lists `images` / `fields` / `paragraph_count` as machine-readable extras.
 
-`page_set_header_footer_text` imports that HTML into the same `XText` via `replace_xtext_with_html` (`html_import.py`) — StarWriter `insertDocumentFromURL`, not `setString`. Field spans are restored as live UNO fields after import (the HTML filter drops the empty span). Plain text is wrapped as a paragraph and still goes through import.
-
-There is no `force` parameter. It existed because get lied and set wiped; honest HTML get + HTML set is the edit path. `apply_document_content(target='search')` still reaches headers and footers for a surgical substring edit (document-wide `findFirst`); that reach is unchanged.
+`page_set_header_footer_text` imports that HTML into the same `XText` via `replace_xtext_with_html` (`html_import.py`) — StarWriter `insertDocumentFromURL`. Field spans are restored as live UNO fields after import (the HTML filter drops the empty span). Plain text is wrapped as a paragraph and still goes through import. Get the HTML, edit it, set it back — logos, tables, and fields stay live.
 
 ### Python Example: Enabling and Writing to a Header
 ```python
@@ -69,7 +67,7 @@ There is no `force` parameter. It existed because get lied and set wiped; honest
 # Low-level UNO equivalent of enabling the region (the tool does this):
 default_style.setPropertyValue("HeaderIsOn", True)
 header_text = default_style.getPropertyValue("HeaderText")
-# Do not setString a letterhead — use replace_xtext_with_html / the page set tool.
+# Write via replace_xtext_with_html / page_set so logos, tables, and fields stay live.
 ```
 
 ## 3. Columns (`com.sun.star.text.TextColumns`)

@@ -288,7 +288,7 @@ def test_get_header_footer_returns_html_and_still_lists_logo_and_field():
 
 
 def test_set_header_footer_imports_html_even_when_a_logo_is_present():
-    """force/refuse was the getString-lie hatch; HTML set is the edit path now."""
+    """HTML set with a logo must succeed — no force, no refuse-on-held."""
     from unittest.mock import patch
 
     text_obj = MagicMock()
@@ -305,6 +305,48 @@ def test_set_header_footer_imports_html_even_when_a_logo_is_present():
     replace_html.assert_called_once()
     text_obj.setString.assert_not_called()
     style.setPropertyValue.assert_any_call("HeaderIsOn", True)
+
+
+def test_set_header_footer_imports_field_html_without_force():
+    """A footer with a page-number field is a normal HTML set, not a refuse."""
+    from unittest.mock import patch
+
+    text_obj = MagicMock()
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([
+        _paragraph([_portion("Text"), _portion("TextField", _page_number_field())]),
+    ])
+    doc, _style = _page_style_doc(text_obj)
+    html = '<p>Confidential | <span title="page-number"/></p>'
+
+    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
+        res = PageSetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="footer", content=html)
+
+    assert res["status"] == "ok"
+    replace_html.assert_called_once()
+    assert replace_html.call_args[0][1] == html
+    text_obj.setString.assert_not_called()
+
+
+def test_set_header_footer_imports_table_html_without_force():
+    """Letterhead tables go through HTML import; do not add refuse-on-table."""
+    from unittest.mock import patch
+
+    text_obj = MagicMock()
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Text")])])
+    doc, _style = _page_style_doc(text_obj)
+    html = "<table><tr><td>Logo cell</td><td>Address cell</td></tr></table>"
+
+    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
+        res = PageSetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="header", content=html)
+
+    assert res["status"] == "ok"
+    replace_html.assert_called_once()
+    assert replace_html.call_args[0][1] == html
+    text_obj.setString.assert_not_called()
 
 
 def test_set_header_footer_enables_a_region_that_is_off():
@@ -326,30 +368,19 @@ def test_set_header_footer_enables_a_region_that_is_off():
     text_obj.setString.assert_not_called()
 
 
-def test_set_header_footer_ignores_legacy_force_kwarg():
-    from unittest.mock import patch
-
-    text_obj = MagicMock()
-    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
-    doc, _style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
-
-    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
-        res = PageSetHeaderFooterText().execute(
-            TestingFactory.create_context(doc=doc, doc_type="writer"),
-            style="Standard", region="header", content="<p>plain</p>", force=True)
-
-    assert res["status"] == "ok"
-    replace_html.assert_called_once()
-    assert "force" not in PageSetHeaderFooterText.parameters["properties"]
-
-
-def test_page_header_footer_descriptions_say_html_not_wipe():
+def test_page_header_footer_schema_has_no_force_and_descriptions_say_html():
+    """force/refuse-on-held is gone: schema omits force; copy says get/set HTML, not wipe."""
     get_desc = PageGetHeaderFooterText.description.lower()
     set_desc = PageSetHeaderFooterText.description.lower()
     assert "html" in get_desc
     assert "html" in set_desc
-    assert "setstring" in set_desc
+    assert "images" in get_desc and "fields" in get_desc
+    assert "force" not in PageSetHeaderFooterText.parameters["properties"]
     assert "force" not in set_desc
+    assert "force" not in get_desc
+    assert "wipe" not in set_desc
+    assert "refuse" not in set_desc
+    assert "setstring" not in set_desc
 
 
 def test_first_page_region_targets_its_own_text_object():
