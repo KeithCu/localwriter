@@ -117,9 +117,10 @@ def _normalize_decl(decl):
 # values were hand-set — reporting it would present a style's own indent as a direct override. The
 # .fodt automatic style holds exactly the overrides and nothing inherited.
 #
-# Both the geometry and the paragraph-level font are reported: a .docx reused as a model carries
-# its font as a whole-paragraph override, which is precisely what makes an applied style look like
-# it did nothing.
+# Geometry, paragraph-level font, and paragraph colour are reported: a .docx reused as a model
+# carries its font as a whole-paragraph override, which is precisely what makes an applied style
+# look like it did nothing. fo:color was missing here, so Issue-1-style center+red never showed
+# red in data-lo-para (char spans could still carry colour).
 #
 # INFORMATIONAL only — the write path ignores ``data-lo-para`` (it still cannot restore Para* when
 # applying a named style), which is why it is not emitted as ``style=""``: that would round-trip
@@ -137,6 +138,7 @@ _FODT_OVERRIDE_ATTRS = (
     ("fo:font-size", "font-size"),
     ("fo:font-weight", "font-weight"),
     ("fo:font-style", "font-style"),
+    ("fo:color", "color"),
 )
 
 # ODF writes alignment relative to writing direction; the agent reads CSS.
@@ -328,7 +330,9 @@ class _SemanticTransformer(HTMLParser):
         if token:
             raw = _inject_attr(raw, ' data-lo-style="%s"' % token)
         if para_css:
-            raw = _inject_attr(raw, ' data-lo-para="%s"' % para_css)
+            # ODF values are unescaped before this (a font name can contain "). Without
+            # quote=True the injected attribute closes early and the tag is not well-formed.
+            raw = _inject_attr(raw, ' data-lo-para="%s"' % _html.escape(para_css, quote=True))
         return raw
 
     def _rewrite_span(self, raw, attrs):
