@@ -38,8 +38,19 @@ Other important prompts (not assembled here):
 # ---------------------------------------------------------------------------
 
 # Research routing (short); domain bullets use these strings as-is.
-DELEGATION_USER_FILE_DATA_HINT = "to use information that is not in the current document, and may be in (my / our) personal or business documents"
+# Other documents the user names — not a re-read of the open workbook (eval-2
+# models were fishing prompt/rubric siblings via document_research).
+DELEGATION_USER_FILE_DATA_HINT = (
+    "to use information from other documents the user points at "
+    "((my / our) personal or business files), not the open workbook"
+)
 DELEGATION_PUBLIC_WEB_HINT = "to research public topics"
+# Extra specialized-template line (Writer/Calc). Keep single-line; "same folder"
+# taught models to scan leftover notes next to the open file.
+DOCUMENT_RESEARCH_OTHER_DOCS_LINE = (
+    "document_research: other documents the user points at, not the open "
+    "workbook or leftover notes/prompts in its folder (one delegation per file set). "
+)
 
 APPLY_DOCUMENT_CONTENT_TOOL_RESEARCH_HINT = "Required after web_research or document_research delegates return."
 
@@ -316,7 +327,7 @@ WRITER_SPECIALIZED_DELEGATION_TEMPLATE = (
     "SPECIALIZED WRITER (nested tools): The default tool list hides deep Writer features. "
     "When the user needs those, call delegate_to_specialized_writer_toolset with: domain one of: {domains} "
     "and a `task` string that fully specifies what the specialized task must do. The executor has the real tools for that domain. "
-    "document_research: other personal/business files in the same folder (one delegation per file set). "
+    f"{DOCUMENT_RESEARCH_OTHER_DOCS_LINE}"
     "web_research: public web topics; main agent writes returned report to document (apply_document_content). "
     f"{SPECIALIZED_TASK_RULES}"
 )
@@ -398,7 +409,7 @@ DEFAULT_WRITER_GREETING = "AI: I can edit or translate your document instantly w
 # has_header is a plain constraint under SORT. Do not restack Don't+Do
 # (duplicates, ~2× prompt). Because-clause is PR 616's: rewriting by hand
 # loses the header row — do not name write_formula_range / =PY in the why.
-CALC_CORE_DIRECTIVES: str = f"""When the user wants {DELEGATION_USER_FILE_DATA_HINT} (another file/sheet by name or path, e.g. "my spreadsheet", "cell A9 from PythonInCalc"):
+CALC_CORE_DIRECTIVES: str = f"""When the user wants {DELEGATION_USER_FILE_DATA_HINT} (another file the user names — not this open workbook, e.g. "my spreadsheet", "cell A9 from PythonInCalc"):
 - You MUST NOT ask the user where the file is stored, or to upload, paste, or share its contents.
 - You MUST call delegate_to_specialized_calc_toolset(domain="document_research") once with their described file(s) and task in task; nearby files are matched (paths not required).
 When the user wants {DELEGATION_PUBLIC_WEB_HINT}, delegate_to_specialized_calc_toolset(domain="web_research").
@@ -427,6 +438,7 @@ CALC_SPECIALIZED_DELEGATION_TEMPLATE = (
     "SPECIALIZED CALC (nested tools): The default tool list hides advanced Calc features. "
     "When the user needs those, call delegate_to_specialized_calc_toolset with: domain one of: {domains} "
     "and a `task` string that fully specifies what the specialized task must do. The task executor has full tool access for that domain. "
+    f"{DOCUMENT_RESEARCH_OTHER_DOCS_LINE}"
     f"{SPECIALIZED_TASK_RULES}"
 )
 
