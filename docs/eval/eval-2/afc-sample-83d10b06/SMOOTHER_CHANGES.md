@@ -26,11 +26,18 @@ Restore harder criteria by reversing the rows below (copy wording from
   XLSX has no Anonymous sheet; `_xlnm._FilterDatabase` now points at
   `Population!$A$1:$H$1517`. Internal style names (`PageStyle_Sheet1`)
   and the `xl/worksheets/sheet1.xml` part name were not renamed.
-- **Not added:** a prompt line saying the sheet is already named
-  Population. The rename is enough.
 - **Restore:** rename the data tab back to `Sheet1` (and point the
   filter/database range at `Sheet1` again). Gold GDPVal still uses
   `Sheet1`.
+
+## Intentionally not added (2026-09-07)
+
+No optional prompt one-liners. The writer prompt stays the prior
+eval-2 text plus step-3 key remaps. Rejected (do not add later):
+
+- “sheet is already named Population” / “do not rename”
+- “sample-size from knowledge” / “web not required”
+- any other soft steering beyond the step-3 remaps and the sheet rename
 
 ## 2026-09-07 — Step 3 entity bullets → Legal Entity cell text
 
