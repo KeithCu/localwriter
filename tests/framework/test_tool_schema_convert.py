@@ -225,9 +225,13 @@ def test_write_formula_range_mcp_widens_values_to_string_or_array():
     tool = WriteCellRange()
     openai = to_openai_schema(tool)["function"]["parameters"]["properties"]["values"]
     mcp = to_mcp_schema(tool)["inputSchema"]["properties"]["values"]
-    assert openai["type"] == "string"
+    # values is optional (source-only copy); strict providers get string|null.
+    assert openai["type"] == ["string", "null"]
     assert mcp["type"] == ["string", "array"]
     assert mcp["items"]["type"] == ["string", "number"]
+    openai_params = to_openai_schema(tool)["function"]["parameters"]
+    assert "source" in openai_params["properties"]
+    assert openai_params["required"] == ["range"]
 
 
 def test_mcp_widens_array_range_to_string_or_array():
