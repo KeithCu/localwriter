@@ -11,14 +11,14 @@ Using the data in the ‘Population’ spreadsheet, complete the following:
 3. Select a sample for audit testing based on the following criteria and indicate sampled rows in column K by entering “1”. Ensure that i) each sample selected satisfies at least one criteria listed below, and ii) across all samples selected, each criteria below is satisfied by at least one selected sample among all samples selected.
 - Metrics with >20% variance between Q2 and Q3. Emphasize metrics with exceptionally large percentage changes.
 - Include metrics from the following entities due to past issues:
---CB Cash Italy
---CB Correspondent Banking Greece
---IB Debt Markets Luxembourg
---CB Trade Finance Brazil
---PB EMEA UAE
-- Include metrics A1 and C1, which carry higher risk weightings.
+--Willett Bank Rome
+--Willett Bank Athens
+--Willett Bank Lux
+--Willett Bank Brazil
+--Willett Bank UAE
+- Include metrics Terrorist Financing breaches and Proliferation Financing breaches, which carry higher risk weightings.
 - Include rows where values are zero for both quarters.
-- Include entries from Trade Finance and Correspondent Banking businesses.
+- Include entries from Marine Finance and Correspondent Banking businesses.
 - Include metrics from Cayman Islands, Pakistan, and UAE.
 - Ensure coverage across all Divisions and sub-Divisions.
 

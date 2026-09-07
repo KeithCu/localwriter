@@ -7,6 +7,7 @@ Intentional delta vs [`prompt.gdpval.txt`](prompt.gdpval.txt) (byte-identical to
    - sheet titled ‘Sample’
    - sheet titled ‘Sample Size Calculation’
 3. Step 2 parenthetical: gold says “columns H and I” (I is not on Population). Writer prompt uses fixture axes plus the in-workbook oracle: Q2 is in H, Q3 is in G; variance = (G−H)/H into J; flags in K.
+4. **Smoother-path cut (2026-09-07):** step 3 exact keys were rewritten so every searched string is cell text in the fixture (entities, KRIs, Trade Finance). The data sheet tab was renamed `Sheet1` → `Population`. See [`SMOOTHER_CHANGES.md`](SMOOTHER_CHANGES.md) to restore GDPVal-harder criteria.
 
 ## In-workbook axes (fixture + oracle, not gold letters)
 
@@ -16,13 +17,12 @@ Gold `Sample v2` is a **different** deliverable (variance in **I**, flags in **J
 
 ## Not changed
 
-- Entity list (CB Cash Italy, CB Correspondent Banking Greece, IB Debt Markets Luxembourg, CB Trade Finance Brazil, PB EMEA UAE)
-- Metrics A1 / C1, zero-both-quarters, Trade Finance / Correspondent Banking, Cayman Islands / Pakistan / UAE
+- Zero-both-quarters; Cayman Islands / Pakistan / UAE
 - Coverage across all Divisions and sub-Divisions
 - Sample-size parameters (90% confidence, 10% tolerable error)
 - Step 1 wording (“second tab titled ‘Sample Size Calculation’”)
-- Gold rubric, `task.json`, `meta.txt`, `prompt.gdpval.txt`, Population fixture, Sample gold workbook
-- `docs/eval/gdpval/`
+- Gold rubric, `task.json`, `meta.txt`, `prompt.gdpval.txt`, Sample gold workbook
+- `docs/eval/gdpval/` (gold Population fixture there is still tab `Sheet1`)
 
 The gold rubric still describes a separate Excel file named `Sample`. This variant is for iterating WriterAgent/Calc in-workbook behavior; do not treat gold rubric items about a separate deliverable filename as automatically rewritten.
 
