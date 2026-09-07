@@ -15,7 +15,6 @@ load ``document_helpers`` → chat context / ``DocumentService``.
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
 from typing import TypedDict
 
 import uno
@@ -194,7 +193,7 @@ def _visible_portions(
     *,
     abort_on_portion_error: bool = False,
     limit: int | None = None,
-) -> Iterator[tuple[object, str]]:
+):
     """Yield ``(portion, text)`` for visible text, skipping tracked deletions.
 
     Shared by ``get_string_without_tracked_deletions`` and html_export paint so
