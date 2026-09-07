@@ -6,19 +6,20 @@ from plugin.tests.testing_utils import setup_uno_mocks
 setup_uno_mocks()
 
 from plugin.framework.prompts import (
-    DELEGATION_USER_FILE_DATA_HINT,
-    SIDEBAR_VS_DOCUMENT,
-    get_greeting_for_document,
-    get_chat_system_prompt_for_document,
-    get_core_directives,
-    get_specialized_delegation_for_model,
-    python_specialized_sub_agent_hint,
-    WRITER_CORE_DIRECTIVES,
     CALC_CORE_DIRECTIVES,
-    DRAW_CORE_DIRECTIVES,
-    DEFAULT_WRITER_GREETING,
     DEFAULT_CALC_GREETING,
     DEFAULT_DRAW_GREETING,
+    DEFAULT_WRITER_GREETING,
+    DELEGATION_USER_FILE_DATA_HINT,
+    DRAW_CORE_DIRECTIVES,
+    SIDEBAR_VS_DOCUMENT,
+    WRITER_CORE_DIRECTIVES,
+    WRITER_SPECIALIZED_DELEGATION_TEMPLATE,
+    get_chat_system_prompt_for_document,
+    get_core_directives,
+    get_greeting_for_document,
+    get_specialized_delegation_for_model,
+    python_specialized_sub_agent_hint,
 )
 
 # NOTE: the EXTERNAL_AGENT_GUIDANCE pin test moved to tests/chatbot/test_agent_manual.py —
@@ -487,4 +488,10 @@ def test_document_research_multi_file_delegation_in_prompts():
     for directives in (WRITER_CORE_DIRECTIVES, CALC_CORE_DIRECTIVES, DRAW_CORE_DIRECTIVES):
         assert "described file(s)" in directives
         assert "once with" in directives or "once with their" in directives
+
+
+def test_document_research_prompt_is_other_docs_not_open_workbook():
+    # Tiny wording only: "same folder" taught models to scan leftover siblings.
+    assert "not the open workbook" in WRITER_SPECIALIZED_DELEGATION_TEMPLATE
+    assert "same folder" not in WRITER_SPECIALIZED_DELEGATION_TEMPLATE
 

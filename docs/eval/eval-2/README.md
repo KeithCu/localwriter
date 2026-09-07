@@ -6,7 +6,7 @@ Each subdirectory is one experiment. First: `afc-sample-83d10b06/` (GDPval audit
 
 See each task’s `run.md` for how to execute a trial.
 
-Headed GDPval/AFC: run `scripts/eval_2_headed.py` (writes `chatbot.max_tool_rounds` to 50, restores when done). Do not hand-edit `writeragent.json`. Everyday default stays 15.
+Headed GDPval/AFC: run `scripts/eval_2_headed.py --launch` (writes `chatbot.max_tool_rounds` to 50, restores when done). `--launch` copies **only** `Population v2.ods` into a clean trial dir (`$TMP/writeragent-eval2-afc` by default) and opens that copy — prompt/rubric/gold and fixture siblings stay out of the folder `document_research` can list. Do not open `fixtures/` or the task directory. Do not hand-edit `writeragent.json`. Everyday default stays 15.
 
 After a trial, score the saved workbook (not chat Ready):
 

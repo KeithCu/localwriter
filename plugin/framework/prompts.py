@@ -316,7 +316,7 @@ WRITER_SPECIALIZED_DELEGATION_TEMPLATE = (
     "SPECIALIZED WRITER (nested tools): The default tool list hides deep Writer features. "
     "When the user needs those, call delegate_to_specialized_writer_toolset with: domain one of: {domains} "
     "and a `task` string that fully specifies what the specialized task must do. The executor has the real tools for that domain. "
-    "document_research: other personal/business files in the same folder (one delegation per file set). "
+    "document_research: other personal/business files, not the open workbook (one delegation per file set). "
     "web_research: public web topics; main agent writes returned report to document (apply_document_content). "
     f"{SPECIALIZED_TASK_RULES}"
 )
