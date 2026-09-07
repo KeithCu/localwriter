@@ -5,7 +5,7 @@ This spreadsheet titled ‘Population’ contains Anti-Financial Crime Risk Metr
 Using the data in the ‘Population’ spreadsheet, complete the following:
 1. Calculate the required sample size for audit testing based on a 90% confidence level and a 10% tolerable error rate. Include your workings in a second tab titled ‘Sample Size Calculation’.
 
-2. Perform a variance analysis on Q2 and Q3 data (columns H and I).
+2. Perform a variance analysis on Q2 and Q3 data (Q2 is in H, Q3 is in G; variance = (G−H)/H into J; flags in K).
 - Calculate quarter-on-quarter variance and capture the result in column J.
 
 3. Select a sample for audit testing based on the following criteria and indicate sampled rows in column K by entering “1”. Ensure that i) each sample selected satisfies at least one criteria listed below, and ii) across all samples selected, each criteria below is satisfied by at least one selected sample among all samples selected.

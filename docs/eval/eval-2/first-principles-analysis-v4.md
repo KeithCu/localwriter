@@ -152,10 +152,10 @@ Deepseek ~450 `getCellAddress` errors then Ready. ~50 rounds **without** a brake
 **Verified**
 
 - Fixture headers: A=No … **G=Q3 2024 KRI, H=Q2 2024 KRI** (8 columns A–H).  
-- Writer prompt: “columns **H and I**” for variance → **J** / flags **K** — **I does not exist**; Q2/Q3 axes wrong.  
+- Writer prompt now uses the one-liner below (was “columns **H and I**”; I does not exist on Population).  
 - Gold `rubric_pretty.txt` is **structurally** a different deliverable (separate Sample workbook; variance in **I**; flags in **J**; S-total wording references **K** while other lines treat **J** as variance). Not a letter-shift of the in-workbook variant.
 
-**One-line prompt fix (eval-2):**  
+**Eval-2 writer prompt one-liner:**  
 *“Q2 is in H, Q3 is in G; variance = (G−H)/H into J; flags in K.”*
 
 Derive `rubric.eval2` from **fixture + in-workbook oracle**, not by substituting letters in gold. Leave `docs/eval/gdpval/` untouched.
