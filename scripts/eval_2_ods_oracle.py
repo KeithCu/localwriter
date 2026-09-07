@@ -341,7 +341,12 @@ def score_sheets(sheets: dict[str, list[list[Cell]]]) -> OracleResult:
     s_flags = 0
     if sample is not None:
         s_flags = sum(1 for row in data_rows if is_flag_one(_flag_cell(row)))
-    if r_required is not None and r_required >= 1 and s_flags < r_required:
+    if (
+        sample is not None
+        and r_required is not None
+        and r_required >= 1
+        and s_flags < r_required
+    ):
         failures.append(f"S={s_flags} flag=1 in column K is < R={r_required}")
 
     husk_cells, scored_cells = _count_scored_husks(data_rows)
