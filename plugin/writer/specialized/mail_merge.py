@@ -40,7 +40,8 @@ def _to_file_url(path_or_url: str) -> str:
     if path_or_url.startswith("file://"):
         return path_or_url
     try:
-        if uno and hasattr(uno, "systemPathToFileUrl"):
+        # import uno is unconditional; ty treats `if uno` as always-true once UNO is linked.
+        if hasattr(uno, "systemPathToFileUrl"):
             res = uno.systemPathToFileUrl(os.path.abspath(path_or_url))
             if isinstance(res, str):
                 return res
