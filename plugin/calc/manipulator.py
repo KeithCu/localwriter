@@ -46,6 +46,7 @@ else:
 
 
 from plugin.calc import CalcError
+from plugin.calc.formula_fill import expand_single_formula
 from plugin.calc.datetime_wire import (
     coalesce_temporal_apply_rects,
     duration_serial_from_iso,
@@ -665,7 +666,11 @@ class CellManipulator:
         Args:
             range_str: Cell range (e.g. "A1:A10", "B2:D2").
             formula_or_values: Single formula/value for all cells, or a
-                list/array of values for each cell.
+                list/array of values for each cell. A single ordinary
+                formula into a 1×N or N×1 range fill-down/across with
+                relative A1 adjust. ``=PY`` uses a span-peek (multi-row
+                DataRange stays verbatim). A 2-D range plus one formula
+                is an error — pass an explicit array instead.
 
         Returns:
             Summary of the operation.
@@ -723,7 +728,21 @@ class CellManipulator:
                     raise CalcError(f"Array has {len(formula_or_values)} values but range has {total_cells} cells. Use a single string to fill the whole range, or an array with exactly that many values for cell-by-cell control.")
                 values = formula_or_values
             else:
-                values = [formula_or_values] * total_cells
+                # Used to pin ``[formula] * n`` so J2:J5 + ``=H2`` wrote
+                # identical ``=H2`` in every cell (AFC fill-down miss).
+                # Ordinary 1-D formulas now adjust relative A1 refs; =PY
+                # span-peeks DataRange (multi-row → verbatim). 2-D + one
+                # formula is refused. LO fill/series can be revisited later.
+                if (
+                    isinstance(formula_or_values, str)
+                    and formula_or_values.startswith("=")
+                    and total_cells > 1
+                ):
+                    values = expand_single_formula(
+                        formula_or_values, num_rows, num_cols
+                    )
+                else:
+                    values = [formula_or_values] * total_cells
 
             doc = self.bridge.get_active_document()
             formats = doc.getNumberFormats()

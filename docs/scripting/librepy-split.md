@@ -361,7 +361,7 @@ Config keys: `last_python_script_name_writer`, `last_python_script_name_calc`, `
 | [`plugin/writer/xhtml_style_postprocess.py`](../../plugin/writer/xhtml_style_postprocess.py) | HTML post-process |
 | [`plugin/calc/bridge.py`](../../plugin/calc/bridge.py) | Active sheet / document access |
 | [`plugin/calc/address_utils.py`](../../plugin/calc/address_utils.py) | `index_to_column` for anchor cell |
-| [`plugin/calc/manipulator.py`](../../plugin/calc/manipulator.py) | `write_formula_range` |
+| [`plugin/calc/manipulator.py`](../../plugin/calc/manipulator.py) | `write_formula_range` (1-D formula fill-down via [`formula_fill.py`](../../plugin/calc/formula_fill.py)) |
 | [`plugin/calc/tabular_egress.py`](../../plugin/calc/tabular_egress.py) | Tabular helper results → sheet |
 | [`plugin/calc/rich_html.py`](../../plugin/calc/rich_html.py) | Rich HTML cell insert (Vision Calc egress) |
 | [`plugin/main_core.py`](../../plugin/main_core.py) | LibrePy bootstrap — **not** [`plugin/main.py`](../../plugin/main.py) |
@@ -822,7 +822,7 @@ Allowlist: [`scripts/librepy_bundle_paths.py`](../../scripts/librepy_bundle_path
 
 ### Layer 2 adds (~18 paths)
 
-`python_runner.py`, `python_runner_ui.py`, `document_scripts.py`, `chatbot/dialogs.py` (shared XDL kit), `uno_context.py`, `worker_pool.py`, `appearance.py`, `doc/visual_helpers.py`, `writer/format.py`, `writer/xhtml_style_postprocess.py`, `calc/bridge.py`, `calc/address_utils.py`, `calc/manipulator.py`, `calc/tabular_egress.py`, `calc/rich_html.py`, `main_core.py`, `scripting/native_binaries.py` (Cython pack download; `audio_recorder_service.py` is WriterAgent-only)
+`python_runner.py`, `python_runner_ui.py`, `document_scripts.py`, `chatbot/dialogs.py` (shared XDL kit), `uno_context.py`, `worker_pool.py`, `appearance.py`, `doc/visual_helpers.py`, `writer/format.py`, `writer/xhtml_style_postprocess.py`, `calc/bridge.py`, `calc/address_utils.py`, `calc/manipulator.py`, `calc/formula_fill.py`, `calc/tabular_egress.py`, `calc/rich_html.py`, `main_core.py`, `scripting/native_binaries.py` (Cython pack download; `audio_recorder_service.py` is WriterAgent-only)
 
 ### Layer 3 adds (~25 paths)
 
