@@ -463,7 +463,7 @@ def _para_of(portions):
 
 
 def test_visible_portions_skips_tracked_deletions():
-    """Must match get_string_without_tracked_deletions exactly — a divergence would paint one
+    """Shared walk with get_string_without_tracked_deletions — a divergence would paint one
     run's formatting onto another run's characters."""
     from plugin.writer import html_export as hx
 

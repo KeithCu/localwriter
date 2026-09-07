@@ -12,7 +12,10 @@ import logging
 import re
 import time
 
-from plugin.doc.text_helpers import get_string_without_tracked_deletions
+from plugin.doc.text_helpers import (
+    get_string_without_tracked_deletions,
+    _visible_portions as _shared_visible_portions,
+)
 from plugin.framework.uno_context import get_desktop
 from . import xhtml_style_postprocess as xhtml_post
 from . import format as format_mod
@@ -155,40 +158,15 @@ def _source_style(model, style_name, cache):
 
 
 def _visible_portions(para):
-    """Yield ``(portion, text)`` for a paragraph's visible text, skipping tracked deletions.
+    """Visible portions for offset paint. Same walk as the text helper.
 
-    Mirrors the walk in ``get_string_without_tracked_deletions`` exactly — same Redline/Delete
-    toggle, same skips — so an offset taken from that string indexes into these chunks without
-    drift. Any divergence here would paint one run's formatting onto another's characters.
+    Aborts on portion enum / type failure so later runs are not painted at a
+    drifted offset. ``get_string_without_tracked_deletions`` continues past a
+    bad portion instead — that is the only intentional divergence.
     """
-    try:
-        portion_enum = para.createEnumeration()
-    except Exception:
-        return
-    in_delete = False
-    seen = 0
-    while portion_enum.hasMoreElements() is True and seen < _COPY_PORTION_LIMIT:
-        seen += 1
-        try:
-            portion = portion_enum.nextElement()
-            portion_type = portion.getPropertyValue("TextPortionType")
-        except Exception:
-            return
-        if portion_type == "Redline":
-            try:
-                if str(portion.getPropertyValue("RedlineType")) == "Delete":
-                    in_delete = not in_delete
-            except Exception:
-                pass
-            continue
-        if in_delete:
-            continue
-        try:
-            chunk = portion.getString()
-        except Exception:
-            continue
-        if chunk:
-            yield portion, chunk
+    yield from _shared_visible_portions(
+        para, abort_on_portion_error=True, limit=_COPY_PORTION_LIMIT
+    )
 
 
 def _paint_direct_formatting(para, portions, temp_text, trim_start, trim_end, style=None):
@@ -256,11 +234,9 @@ def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc
                 style = el.getPropertyValue("ParaStyleName")
             except Exception:
                 style = ""
-            # Built from the portion walk rather than get_string_without_tracked_deletions: that
-            # helper enumerates a paragraph's PORTIONS as if they were paragraphs and joins them
-            # with "\n", so a bold run mid-sentence used to come back as "text\nbold\ntext" —
-            # spurious <br/> in the output, and offsets that no longer match the portions the
-            # formatting has to be painted onto.
+            # Same _visible_portions walk as get_string_without_tracked_deletions so
+            # paint offsets match the helper string. Still walk here (not just the
+            # helper) because we need the portion objects to copy Char* properties.
             portions = list(_visible_portions(el))
             para_text = "".join(chunk for _unused, chunk in portions)
             style = style or ""
