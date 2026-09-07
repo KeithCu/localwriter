@@ -26,7 +26,7 @@ import io
 import logging
 import re
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from com.sun.star.awt import FontWeight
@@ -64,6 +64,27 @@ log = logging.getLogger("writeragent.calc")
 
 
 # ── Helper ─────────────────────────────────────────────────────────────
+
+
+def _uno_range_address(cell_or_range: Any) -> Any:
+    """Normalize a UNO cell or range to ``CellRangeAddress``.
+
+    ``resolve_range_or_address`` returns an ``XCell`` for a single cell
+    (``getCellAddress`` only) and an ``XCellRange`` for A1:B2 / named ranges
+    (``getRangeAddress``). ``copyRange`` needs the latter shape.
+    """
+    if hasattr(cell_or_range, "getRangeAddress"):
+        return cell_or_range.getRangeAddress()
+    cell_addr = cell_or_range.getCellAddress()
+    from com.sun.star.table import CellRangeAddress
+
+    ra = CellRangeAddress()
+    ra.Sheet = cell_addr.Sheet
+    ra.StartColumn = cell_addr.Column
+    ra.EndColumn = cell_addr.Column
+    ra.StartRow = cell_addr.Row
+    ra.EndRow = cell_addr.Row
+    return ra
 
 
 def _parse_formula_or_values_string(s: str, *, single_cell_range: bool = False):
@@ -878,6 +899,40 @@ class CellManipulator:
             # UNO often yields str(e) == ""; keep a usable message for the agent.
             msg = str(e) or getattr(e, "Message", None) or type(e).__name__
             log.exception("Range formula write failed for %s", range_str)
+            raise CalcError(msg) from e
+
+    def copy_formula_range(self, source_str: str, dest_str: str) -> dict[str, Any]:
+        """Copy formulas and values from *source_str* onto *dest_str* start.
+
+        Uses sheet ``copyRange`` (``XCellRangeMovement``) so the paste matches
+        Calc: relative refs shift by the dest offset, ``$`` anchors stay.
+        Dest is the top-left (or a range whose start is used); size is the
+        source extent.
+        """
+        from com.sun.star.table import CellAddress
+
+        try:
+            source_obj = self.bridge.resolve_range_or_address(source_str)
+            dest_obj = self.bridge.resolve_range_or_address(dest_str)
+            source_ra = _uno_range_address(source_obj)
+            dest_ra = _uno_range_address(dest_obj)
+            rows = int(source_ra.EndRow) - int(source_ra.StartRow) + 1
+            cols = int(source_ra.EndColumn) - int(source_ra.StartColumn) + 1
+
+            dest_cell = CellAddress()
+            dest_cell.Sheet = dest_ra.Sheet
+            dest_cell.Column = dest_ra.StartColumn
+            dest_cell.Row = dest_ra.StartRow
+
+            dest_sheet = self.bridge.get_active_document().getSheets().getByIndex(dest_ra.Sheet)
+            dest_sheet.copyRange(dest_cell, source_ra)
+
+            msg = f"Copied {rows}×{cols} from {source_str} onto {dest_str}."
+            log.info("%s", msg)
+            return {"message": msg, "rows_copied": rows, "cols_copied": cols}
+        except Exception as e:
+            msg = str(e) or getattr(e, "Message", None) or type(e).__name__
+            log.exception("Range copy failed from %s onto %s", source_str, dest_str)
             raise CalcError(msg) from e
 
     # ── Chart ──────────────────────────────────────────────────────────

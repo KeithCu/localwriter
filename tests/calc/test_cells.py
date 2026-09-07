@@ -686,7 +686,12 @@ def test_write_cell_range_tool_error_return():
 
 
 def test_json_array_value_count_and_a1_shape():
-    from plugin.calc.cells import _a1_range_shape, _json_array_value_count
+    from plugin.calc.cells import (
+        _a1_range_shape,
+        _json_array_value_count,
+        _normalize_source_arg,
+        _values_conflict_with_source,
+    )
 
     assert _json_array_value_count('["a", "b", "c", "d"]') == 4
     assert _json_array_value_count(["a", "b", "c", "d"]) == 4
@@ -698,6 +703,15 @@ def test_json_array_value_count_and_a1_shape():
     assert _a1_range_shape("Sheet1.C2:C9") == (8, 8, 1)
     assert _a1_range_shape("A1:B1") == (2, 1, 2)
     assert _a1_range_shape("SalesData") is None
+    assert _normalize_source_arg(None) == (None, None)
+    assert _normalize_source_arg("  Sheet1.A1:C3  ") == ("Sheet1.A1:C3", None)
+    assert _normalize_source_arg("   ") == (None, None)
+    src, err = _normalize_source_arg(["A1:C3"])
+    assert src is None and err is not None
+    assert not _values_conflict_with_source({"range": ["A1"]})
+    assert not _values_conflict_with_source({"range": ["A1"], "values": None})
+    assert _values_conflict_with_source({"range": ["A1"], "values": ""})
+    assert _values_conflict_with_source({"range": ["A1"], "values": "=A1"})
 
 
 def test_write_formula_range_rejects_json_length_mismatch():
@@ -756,3 +770,93 @@ def test_write_formula_range_accepts_matching_json_and_scalar_fill():
     assert filled["status"] == "ok"
     assert cleared["status"] == "ok"
     assert manip_cls.return_value.write_formula_range.call_count == 3
+
+
+def test_write_formula_range_source_and_values_errors():
+    """source + values is forbidden — no silent write or copy."""
+    from plugin.calc.cells import WriteCellRange
+
+    ctx = SimpleNamespace(doc=MagicMock())
+    with (
+        patch("plugin.calc.cells.CalcBridge"),
+        patch("plugin.calc.cells.CellManipulator") as manip_cls,
+    ):
+        result = WriteCellRange().execute(
+            ctx, range=["Sample.A1"], source="Sheet1.A1:C3", values="=A1"
+        )
+
+    assert result["status"] == "error"
+    assert "do not pass values" in result["message"].lower()
+    manip_cls.return_value.write_formula_range.assert_not_called()
+    manip_cls.return_value.copy_formula_range.assert_not_called()
+
+
+def test_write_formula_range_source_and_empty_values_errors():
+    from plugin.calc.cells import WriteCellRange
+
+    ctx = SimpleNamespace(doc=MagicMock())
+    with (
+        patch("plugin.calc.cells.CalcBridge"),
+        patch("plugin.calc.cells.CellManipulator") as manip_cls,
+    ):
+        result = WriteCellRange().execute(
+            ctx, range=["Sample.A1"], source="Sheet1.A1:C3", values=""
+        )
+
+    assert result["status"] == "error"
+    assert "do not pass values" in result["message"].lower()
+    manip_cls.return_value.copy_formula_range.assert_not_called()
+
+
+def test_write_formula_range_source_only_copies_block_size():
+    from plugin.calc.cells import WriteCellRange
+
+    ctx = SimpleNamespace(doc=MagicMock())
+    with (
+        patch("plugin.calc.cells.CalcBridge"),
+        patch("plugin.calc.cells.CellManipulator") as manip_cls,
+        patch("plugin.writer.edit_review.WriterCompoundUndo"),
+    ):
+        manip_cls.return_value.copy_formula_range.return_value = {
+            "message": "Copied 3×3 from Sheet1.A1:C3 onto Sample.A1.",
+            "rows_copied": 3,
+            "cols_copied": 3,
+        }
+        result = WriteCellRange().execute(
+            ctx, range=["Sample.A1"], source="Sheet1.A1:C3"
+        )
+
+    assert result["status"] == "ok"
+    assert result["rows_copied"] == 3
+    assert result["cols_copied"] == 3
+    assert "3×3" in result["message"]
+    manip_cls.return_value.write_formula_range.assert_not_called()
+    manip_cls.return_value.copy_formula_range.assert_called_once_with(
+        "Sheet1.A1:C3", "Sample.A1"
+    )
+
+
+def test_write_formula_range_missing_values_without_source_errors():
+    from plugin.calc.cells import WriteCellRange
+
+    ctx = SimpleNamespace(doc=MagicMock())
+    with (
+        patch("plugin.calc.cells.CalcBridge"),
+        patch("plugin.calc.cells.CellManipulator") as manip_cls,
+    ):
+        result = WriteCellRange().execute(ctx, range=["A1"])
+
+    assert result["status"] == "error"
+    assert "values is required" in result["message"]
+    manip_cls.return_value.write_formula_range.assert_not_called()
+    manip_cls.return_value.copy_formula_range.assert_not_called()
+
+
+def test_write_formula_range_description_teaches_source_copy():
+    from plugin.calc.cells import WriteCellRange
+
+    desc = WriteCellRange.description
+    assert "DO: to copy a block onto another sheet or place, pass source and dest range" in desc
+    assert "do not pass values" in desc
+    assert WriteCellRange.parameters["required"] == ["range"]
+    assert "source" in WriteCellRange.parameters["properties"]

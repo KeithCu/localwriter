@@ -156,6 +156,27 @@ def _a1_range_shape(range_name: str) -> tuple[int, int, int] | None:
     return cols * rows, rows, cols
 
 
+def _normalize_source_arg(raw: Any) -> tuple[str | None, str | None]:
+    """Parse optional ``source`` (A1 / Sheet.A1). Returns ``(source, error)``."""
+    if raw is None:
+        return None, None
+    if not isinstance(raw, str):
+        return None, "source must be a string A1 or Sheet.A1 address (dot sheet prefix, never Excel !)."
+    stripped = raw.strip()
+    return (stripped or None), None
+
+
+def _values_conflict_with_source(kwargs: dict[str, Any]) -> bool:
+    """True when ``source`` is set and ``values`` was also passed (including empty).
+
+    Keith rule: source and values are mutually exclusive. Empty ``values`` still
+    counts as provided so a paste-copy is not confused with a clear/write.
+    """
+    if "values" not in kwargs:
+        return False
+    return kwargs.get("values") is not None
+
+
 def _values_length_mismatch_message(range_name: str, n_vals: int, n_cells: int, rows: int, cols: int) -> str:
     """Loud error so the model can resize the array or the range (no silent zip/pad)."""
     hint = ""
@@ -261,7 +282,10 @@ class WriteCellRange(ToolBase):
         "YYYY-MM-DDTHH:MM[:SS]. These become real Calc date/time values. Elapsed/stopwatch values: "
         "use PTnHnMnS (e.g. PT30H, PT1H30M); these become duration serials with elapsed formatting. "
         "Do not include a timezone offset or Z, and do not use locale forms like 08/05/2026; those "
-        "are stored as text. Prefix with an apostrophe ('2026-08-08) to force text."
+        "are stored as text. Prefix with an apostrophe ('2026-08-08) to force text. "
+        "DO: to copy a block onto another sheet or place, pass source and dest range; do not pass "
+        "values. Dest is the top-left (or a matching range whose start is used); the copied size is "
+        "the source extent. Relative formula refs adjust for the dest offset; $ stay."
     )
     parameters = {
         "type": "object",
@@ -272,12 +296,14 @@ class WriteCellRange(ToolBase):
                 "description": (
                     'Target range(s) (e.g. ["A1:A10"], ["Sheet1.B2:D2"]). '
                     "Use a dot for other sheets (Sheet1.B2), never Excel Sheet1!B2. "
-                    "Sheet prefixes target that sheet without switching the active sheet."
+                    "Sheet prefixes target that sheet without switching the active sheet. "
+                    "With source, this is the paste top-left (source extent is copied)."
                 ),
             },
             "values": {
                 "type": "string",
                 "description": (
+                    "Required unless source is set (do not pass both). "
                     "Single string: fills the entire range with that value or formula "
                     "(use '=' prefix for formulas). In formulas, other sheets are Sheet.A1 "
                     "(dot), not Excel Sheet!A1. JSON array: must have exactly as many "
@@ -285,8 +311,17 @@ class WriteCellRange(ToolBase):
                     "Empty string/array clears the range."
                 ),
             },
+            "source": {
+                "type": "string",
+                "description": (
+                    "Optional source block to copy (A1 or Sheet.A1, dot sheet prefix, "
+                    "never Excel Sheet1!A1). When set, dest range is the paste top-left "
+                    "(or a matching range whose start is used); copied size is the source "
+                    "extent. Do not pass values."
+                ),
+            },
         },
-        "required": ["range", "values"],
+        "required": ["range"],
     }
     uno_services = ["com.sun.star.sheet.SpreadsheetDocument"]
     tier = "core"
@@ -299,15 +334,54 @@ class WriteCellRange(ToolBase):
         manipulator = CellManipulator(bridge)
         rn = kwargs.get("range") or []
         rn = [rn] if isinstance(rn, str) else (rn or [])
+        source, source_err = _normalize_source_arg(kwargs.get("source"))
+        if source_err:
+            return self._tool_error(source_err)
+
+        if len(rn) == 0:
+            return self._tool_error("range is required")
+
+        # source XOR values: a paste-copy must not also write/clear a values payload.
+        if source:
+            if _values_conflict_with_source(kwargs):
+                return self._tool_error(
+                    "Do not pass values when source is set. "
+                    "To copy a block, pass source and dest range only."
+                )
+            undo = WriterCompoundUndo(ctx.doc, "WriterAgent: Copy range")
+            try:
+                copied: dict[str, Any] | None = None
+                for dest in rn:
+                    copied = manipulator.copy_formula_range(source, dest)
+                if copied is None:
+                    return self._tool_error("range is required")
+                msg = copied["message"]
+                if len(rn) > 1:
+                    msg = (
+                        f"Copied {copied['rows_copied']}×{copied['cols_copied']} "
+                        f"from {source} onto {len(rn)} ranges."
+                    )
+                return {
+                    "status": "ok",
+                    "message": msg,
+                    "rows_copied": copied["rows_copied"],
+                    "cols_copied": copied["cols_copied"],
+                }
+            except Exception as e:
+                return self._tool_error(str(e))
+            finally:
+                undo.close()
+
         fov = kwargs.get("values")
+        # values is required when source is omitted (schema keeps it optional so
+        # source-only calls pass validate). Missing must not fall through as clear.
+        if fov is None:
+            return self._tool_error("values is required when source is omitted")
         # Normalize: schema is string for Gemini; accept number/list from other providers
         if isinstance(fov, (int, float)):
             fov = str(fov)
         elif isinstance(fov, list):
             fov = json.dumps(fov) if fov else ""
-
-        if len(rn) == 0:
-            return self._tool_error("range is required")
 
         # Schema already says JSON array length must match the range. Models
         # (solar-pro4) still passed 4 values into an 8-cell range; zip-style

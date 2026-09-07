@@ -21,6 +21,7 @@ def _execute_calc_tool(doc, ctx, name, args):
 def test_create_sheet(ctx, doc):
     res = _execute_calc_tool(doc, ctx, "create_sheet", {"sheet": "NewSheet"})
     assert res.get("status") == "ok", f"create_sheet failed: {res}"
+    assert "no cells copied" in res.get("message", "")
     assert doc.getSheets().hasByName("NewSheet"), "Sheet not created"
 
 

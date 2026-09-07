@@ -163,6 +163,91 @@ def test_cross_sheet_formula(ctx, doc):
     assert cell.getValue() == 200.0, f"Cross-sheet formula did not compute to 200.0, got {cell.getValue()}"
 
 
+def _formula_compact(cell) -> str:
+    """Compare formulas without LO spacing differences."""
+    return (cell.getFormula() or "").replace(" ", "")
+
+
+@native_test
+@with_native_doc("calc")
+def test_write_formula_range_source_copies_block_and_adjusts_refs(ctx, doc):
+    """source-only copy uses source extent; relative refs shift, $ stay."""
+    active = doc.getCurrentController().getActiveSheet()
+    active.getCellByPosition(0, 0).setValue(10.0)  # A1
+    active.getCellByPosition(0, 1).setValue(20.0)  # A2
+    write = _execute_calc_tool(doc, ctx, "write_formula_range", {
+        "range": ["B1"],
+        "values": "=A1*2",
+    })
+    assert write.get("status") == "ok", f"seed formula failed: {write}"
+    write_abs = _execute_calc_tool(doc, ctx, "write_formula_range", {
+        "range": ["C1"],
+        "values": "=$A$1*2",
+    })
+    assert write_abs.get("status") == "ok", f"seed absolute failed: {write_abs}"
+    active.getCellByPosition(3, 0).setString("x")  # D1
+    active.getCellByPosition(4, 0).setString("y")  # E1
+
+    res = _execute_calc_tool(doc, ctx, "write_formula_range", {
+        "range": ["B2"],
+        "source": "B1",
+    })
+    assert res.get("status") == "ok", f"source copy failed: {res}"
+    assert res.get("rows_copied") == 1
+    assert res.get("cols_copied") == 1
+    assert _formula_compact(active.getCellByPosition(1, 1)) == "=A2*2"
+    assert active.getCellByPosition(1, 1).getValue() == 40.0
+
+    res_abs = _execute_calc_tool(doc, ctx, "write_formula_range", {
+        "range": ["C2"],
+        "source": "C1",
+    })
+    assert res_abs.get("status") == "ok", f"absolute copy failed: {res_abs}"
+    assert _formula_compact(active.getCellByPosition(2, 1)) == "=$A$1*2"
+    assert active.getCellByPosition(2, 1).getValue() == 20.0
+
+    res_block = _execute_calc_tool(doc, ctx, "write_formula_range", {
+        "range": ["D5"],
+        "source": "D1:E1",
+    })
+    assert res_block.get("status") == "ok", f"block copy failed: {res_block}"
+    assert res_block.get("rows_copied") == 1
+    assert res_block.get("cols_copied") == 2
+    assert active.getCellByPosition(3, 4).getString() == "x"
+    assert active.getCellByPosition(4, 4).getString() == "y"
+
+
+@native_test
+@with_native_doc("calc")
+def test_write_formula_range_source_cross_sheet(ctx, doc):
+    """Sheet1.A1:C3 → Sample.A1 copies the 3×3 block onto the new tab."""
+    sheets = doc.getSheets()
+    src_name = doc.getCurrentController().getActiveSheet().getName()
+    src = sheets.getByName(src_name)
+    for row in range(3):
+        for col in range(3):
+            src.getCellByPosition(col, row).setValue(float(row * 3 + col + 1))
+
+    created = _execute_calc_tool(doc, ctx, "create_sheet", {"sheet": "Sample"})
+    assert created.get("status") == "ok", f"create_sheet failed: {created}"
+    assert "no cells copied" in created.get("message", "")
+    sample = sheets.getByName("Sample")
+    assert sample.getCellByPosition(0, 0).getValue() == 0.0
+
+    res = _execute_calc_tool(doc, ctx, "write_formula_range", {
+        "range": ["Sample.A1"],
+        "source": f"{src_name}.A1:C3",
+    })
+    assert res.get("status") == "ok", f"cross-sheet source copy failed: {res}"
+    assert res.get("rows_copied") == 3
+    assert res.get("cols_copied") == 3
+    for row in range(3):
+        for col in range(3):
+            expected = float(row * 3 + col + 1)
+            got = sample.getCellByPosition(col, row).getValue()
+            assert got == expected, f"Sample cell ({col},{row}) expected {expected}, got {got}"
+
+
 @native_test
 @with_native_doc("calc")
 def test_list_calc_functions(ctx, doc):

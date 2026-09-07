@@ -373,6 +373,8 @@ def test_write_formula_range_description_owns_py_dest_and_spill():
     assert "data.to_pandas().drop_duplicates()" in desc
     assert "mixed cell types" in desc
     assert "multiline CSV from a start cell" in desc
+    assert "DO: to copy a block onto another sheet or place, pass source and dest range" in desc
+    assert "do not pass values" in desc
 
 
 def test_insert_cell_html_description_keeps_border_guidance():
@@ -414,6 +416,8 @@ def test_calc_workflow_warns_large_range_overloads_context():
     assert "overloads the model context" in CALC_WORKFLOW
     assert "get_sheet_summary" in CALC_WORKFLOW
     assert "pass the A1 address to =PY" in CALC_WORKFLOW
+    assert "create_sheet makes an empty tab (no cells copied)" in CALC_WORKFLOW
+    assert "write_formula_range with source and dest range" in CALC_WORKFLOW
 
 
 def test_calc_chat_prompt_includes_context_overload_why():

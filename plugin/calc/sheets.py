@@ -87,7 +87,11 @@ class CreateSheet(ToolCalcSheetBase):
 
     name = "create_sheet"
     intent = "edit"
-    description = "Creates a new sheet."
+    description = (
+        "Creates a new empty sheet (tab exists; no cells copied). "
+        "create_sheet is not Sample/deliverable populate — after create, "
+        "write_formula_range with source to copy a block onto the new sheet."
+    )
     parameters = {"type": "object", "properties": {"sheet": {"type": "string", "description": "New sheet name"}, "position": {"type": "integer", "description": ("Sheet position (0-based). Appended to end if not specified.")}}, "required": ["sheet"]}
     is_mutation = True
 
@@ -103,7 +107,7 @@ class CreateSheet(ToolCalcSheetBase):
                 position = sheets.getCount()
             sheets.insertNewByName(sheet_name, position)
             log.info("New sheet created: %s (position: %d)", sheet_name, position)
-            result = f"New sheet named '{sheet_name}' created."
+            result = f"New sheet named '{sheet_name}' created; no cells copied."
             return {"status": "ok", "message": result}
         except Exception as e:
             log.exception("Sheet creation failed for %s", sheet_name)

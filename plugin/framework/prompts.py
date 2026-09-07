@@ -415,6 +415,7 @@ CALC_WORKFLOW = """WORKFLOW:
    read_cell_range only for a small peek (headers or a few dozen cells).
    A large range in chat overloads the model context — for transforms, pass the A1 address to =PY instead of reading the values.
 2. Do the work with tools. Use ranges, not one cell at a time.
+   create_sheet makes an empty tab (no cells copied). To populate, write_formula_range with source and dest range.
 3. Short confirmation; if you changed cells, name the range (e.g. "Wrote totals in B5:B8")."""
 
 
