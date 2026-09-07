@@ -64,6 +64,76 @@ class TestInsertImageIntoHeaderFooter(unittest.TestCase):
         self.assertTrue(result["auto_height"])
         self.assertIs(result["graphic"], graphic)
 
+    def test_first_page_header_uses_header_text_first(self):
+        # Shared HeaderText never reaches a different-first-page letterhead;
+        # header_first must resolve HeaderTextFirst (same map as page_get/set).
+        model = MagicMock()
+        style = MagicMock()
+        first_text = MagicMock(name="HeaderTextFirst")
+        shared_text = MagicMock(name="HeaderText")
+        cursor = MagicMock()
+        graphic = MagicMock()
+
+        style.getPropertyValue.side_effect = lambda name: {
+            "HeaderIsOn": True,
+            "HeaderText": shared_text,
+            "HeaderTextFirst": first_text,
+        }.get(name, MagicMock())
+        first_text.createTextCursorByRange.return_value = cursor
+        first_text.getEnd.return_value = MagicMock()
+
+        with (
+            patch("plugin.writer.page.resolve_page_style", return_value=(style, "Standard")),
+            patch("plugin.writer.page.set_header_footer_auto_height") as set_auto,
+            patch.object(image_tools, "_insert_embedded_at_writer_cursor", return_value=graphic) as insert,
+        ):
+            result = image_tools.insert_image_into_header_footer(
+                model,
+                "/tmp/logo.png",
+                "header_first",
+                width_mm=40,
+                height_mm=20,
+            )
+
+        set_auto.assert_called_once_with(style, "header_first", True)
+        self.assertEqual(insert.call_args.kwargs.get("text_container"), first_text)
+        self.assertIsNot(insert.call_args.kwargs.get("text_container"), shared_text)
+        self.assertEqual(result["region"], "header_first")
+
+    def test_first_page_footer_uses_footer_text_first(self):
+        model = MagicMock()
+        style = MagicMock()
+        first_text = MagicMock(name="FooterTextFirst")
+        cursor = MagicMock()
+        graphic = MagicMock()
+
+        style.getPropertyValue.side_effect = lambda name: {
+            "FooterIsOn": True,
+            "FooterTextFirst": first_text,
+        }.get(name, MagicMock())
+        first_text.createTextCursorByRange.return_value = cursor
+        first_text.getEnd.return_value = MagicMock()
+
+        with (
+            patch("plugin.writer.page.resolve_page_style", return_value=(style, "Standard")),
+            patch("plugin.writer.page.set_header_footer_auto_height"),
+            patch.object(image_tools, "_insert_embedded_at_writer_cursor", return_value=graphic) as insert,
+        ):
+            result = image_tools.insert_image_into_header_footer(
+                model, "/tmp/logo.png", "footer_first",
+            )
+
+        self.assertEqual(insert.call_args.kwargs.get("text_container"), first_text)
+        self.assertEqual(result["region"], "footer_first")
+
+    def test_unknown_region_lists_page_keys(self):
+        with self.assertRaises(ValueError) as raised:
+            image_tools.insert_image_into_header_footer(
+                MagicMock(), "/tmp/logo.png", "not_a_region",
+            )
+        self.assertIn("header_first", str(raised.exception))
+        self.assertIn("footer_first", str(raised.exception))
+
 
 class TestShouldLinkImagePath(unittest.TestCase):
     def test_user_path_is_linked(self):

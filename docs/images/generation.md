@@ -20,7 +20,7 @@ Image generation and editing in WriterAgent uses the **same endpoint URL and API
 
 [`plugin/writer/images/image_tools.py`](../../plugin/writer/images/image_tools.py):
 
-- **`image_insert`**: inserts into Writer, Calc, Draw, and Impress; stable paths are linked, temp/cache paths are embedded. Draw/Impress take millimetres (`page`, `x_mm`, `y_mm`; omitted x/y centers on the page).
+- **`image_insert`**: inserts into Writer, Calc, Draw, and Impress; stable paths are linked, temp/cache paths are embedded. Writer letterheads use `target=header`/`footer`; a different-first-page logo needs `first_is_shared=false` then `target=header_first`/`footer_first` (same `AS_CHARACTER` + `auto_height` path). Draw/Impress take millimetres (`page`, `x_mm`, `y_mm`; omitted x/y centers on the page).
 - **`get_selected_image_base64`**: extracts selected image for img2img.
 - **`add_image_to_gallery`**: optional Media Gallery add after generation.
 

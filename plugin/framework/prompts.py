@@ -334,6 +334,7 @@ WRITER_NAVIGATION_RULES = """NAVIGATING LARGE DOCUMENTS (map first, then drill �
 WRITER_IMAGES_RULES = """IMAGES:
 - Image tools live in the 'images' domain: image_insert, image_delete, image_replace, image_list, image_get_info (includes crop_mm), image_download.
   Extract text and structure (layout, tables) from images with extract_structure_from_image in the 'vision' domain; inserts a high-quality representation into the document.
+- Writer letterhead logos: image_insert(target='header'|'footer'). A different first page needs page_set_style_properties(first_is_shared=false) then target='header_first' (or footer_first) — otherwise the logo lands in the shared header and repeats on every page.
 - image_set_properties resizes (width_mm/height_mm), repositions (hori_orient/vert_orient — friendly values like left/center/right/top/bottom work), and crops (crop_top_mm / crop_bottom_mm / crop_left_mm / crop_right_mm — mm trimmed per edge).
 - To actually SEE an image (vision-capable models), call get_image — by graphic name, selection=true, or page=N to render that whole page.
   For a bulk read with pictures embedded, pass include_images=true to get_document_content."""
