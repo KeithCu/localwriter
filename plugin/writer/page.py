@@ -21,6 +21,8 @@ Page styles, margins, headers/footers, columns, and page breaks.
 
 from typing import Any
 
+from plugin.framework.errors import make_tool_error
+
 from .specialized_base import ToolWriterPageBase
 
 # region name -> (is_on property, text property)
@@ -227,6 +229,66 @@ def resolve_page_style(doc, style_name: str = "Standard"):
     return styles.getByName(style_name), style_name
 
 
+def get_page_style_properties(doc, style_name: str = "Standard") -> dict[str, Any]:
+    """Read dimensions, margins, and header/footer state of a Writer page style.
+
+    Shared by ``page_get_style_properties`` and ``style_get_info(family=PageStyles)``.
+    A future Option B could hard-merge those two public APIs into one (winner TBD:
+    general ``style_get_info`` vs the page toolkit); deferred for now.
+    """
+    try:
+        style_families = doc.getStyleFamilies()
+        page_styles = style_families.getByName("PageStyles")
+        if not page_styles.hasByName(style_name):
+            return make_tool_error(f"Page style '{style_name}' not found.")
+        style = page_styles.getByName(style_name)
+    except Exception as e:
+        return make_tool_error(f"Error accessing page style '{style_name}': {e}")
+
+    try:
+        props = {
+            "style_name": style_name,
+            "width_mm": style.getPropertyValue("Width") / 100.0,
+            "height_mm": style.getPropertyValue("Height") / 100.0,
+            "is_landscape": style.getPropertyValue("IsLandscape"),
+            "left_margin_mm": style.getPropertyValue("LeftMargin") / 100.0,
+            "right_margin_mm": style.getPropertyValue("RightMargin") / 100.0,
+            "top_margin_mm": style.getPropertyValue("TopMargin") / 100.0,
+            "bottom_margin_mm": style.getPropertyValue("BottomMargin") / 100.0,
+            "gutter_margin_mm": style.getPropertyValue("GutterMargin") / 100.0,
+            "header_is_on": style.getPropertyValue("HeaderIsOn"),
+            "footer_is_on": style.getPropertyValue("FooterIsOn"),
+            "header_is_shared": style.getPropertyValue("HeaderIsShared"),
+            "footer_is_shared": style.getPropertyValue("FooterIsShared"),
+            "header_height_mm": style.getPropertyValue("HeaderHeight") / 100.0,
+            "footer_height_mm": style.getPropertyValue("FooterHeight") / 100.0,
+            "header_body_distance_mm": style.getPropertyValue("HeaderBodyDistance") / 100.0,
+            "footer_body_distance_mm": style.getPropertyValue("FooterBodyDistance") / 100.0,
+            "back_color": style.getPropertyValue("BackColor"),
+            "back_transparent": style.getPropertyValue("BackTransparent"),
+            "numbering_type": style.getPropertyValue("NumberingType"),
+            "footnote_height_mm": style.getPropertyValue("FootnoteHeight") / 100.0,
+            "register_paragraph_style": style.getPropertyValue("RegisterParagraphStyle"),
+        }
+        # False means the first page has its OWN header/footer — the usual setup for a
+        # letterhead — reachable only through the header_first / footer_first regions. Fetched
+        # separately: not every page style offers it, and one missing property must not sink
+        # the whole read.
+        try:
+            props["first_is_shared"] = style.getPropertyValue("FirstIsShared")
+        except Exception:
+            pass
+        # Attempt to safely fetch PageStyleLayout enum
+        try:
+            psl = style.getPropertyValue("PageStyleLayout")
+            props["page_style_layout"] = psl.value if hasattr(psl, "value") else int(psl)
+        except Exception:
+            pass
+        return {"status": "ok", "properties": props}
+    except Exception as e:
+        return make_tool_error(f"Error reading properties from page style '{style_name}': {e}")
+
+
 # ------------------------------------------------------------------
 # PageGetStyleProperties
 # ------------------------------------------------------------------
@@ -240,60 +302,7 @@ class PageGetStyleProperties(ToolWriterPageBase):
     parameters = {"type": "object", "properties": {"style": {"type": "string", "description": "The name of the page style (e.g., 'Standard' or 'Default Style'). Defaults to 'Standard'."}}, "required": []}
 
     def execute(self, ctx, **kwargs):
-        style_name = kwargs.get("style", "Standard")
-        doc = ctx.doc
-
-        try:
-            style_families = doc.getStyleFamilies()
-            page_styles = style_families.getByName("PageStyles")
-            if not page_styles.hasByName(style_name):
-                return self._tool_error(f"Page style '{style_name}' not found.")
-            style = page_styles.getByName(style_name)
-        except Exception as e:
-            return self._tool_error(f"Error accessing page style '{style_name}': {e}")
-
-        try:
-            props = {
-                "style_name": style_name,
-                "width_mm": style.getPropertyValue("Width") / 100.0,
-                "height_mm": style.getPropertyValue("Height") / 100.0,
-                "is_landscape": style.getPropertyValue("IsLandscape"),
-                "left_margin_mm": style.getPropertyValue("LeftMargin") / 100.0,
-                "right_margin_mm": style.getPropertyValue("RightMargin") / 100.0,
-                "top_margin_mm": style.getPropertyValue("TopMargin") / 100.0,
-                "bottom_margin_mm": style.getPropertyValue("BottomMargin") / 100.0,
-                "gutter_margin_mm": style.getPropertyValue("GutterMargin") / 100.0,
-                "header_is_on": style.getPropertyValue("HeaderIsOn"),
-                "footer_is_on": style.getPropertyValue("FooterIsOn"),
-                "header_is_shared": style.getPropertyValue("HeaderIsShared"),
-                "footer_is_shared": style.getPropertyValue("FooterIsShared"),
-                "header_height_mm": style.getPropertyValue("HeaderHeight") / 100.0,
-                "footer_height_mm": style.getPropertyValue("FooterHeight") / 100.0,
-                "header_body_distance_mm": style.getPropertyValue("HeaderBodyDistance") / 100.0,
-                "footer_body_distance_mm": style.getPropertyValue("FooterBodyDistance") / 100.0,
-                "back_color": style.getPropertyValue("BackColor"),
-                "back_transparent": style.getPropertyValue("BackTransparent"),
-                "numbering_type": style.getPropertyValue("NumberingType"),
-                "footnote_height_mm": style.getPropertyValue("FootnoteHeight") / 100.0,
-                "register_paragraph_style": style.getPropertyValue("RegisterParagraphStyle"),
-            }
-            # False means the first page has its OWN header/footer — the usual setup for a
-            # letterhead — reachable only through the header_first / footer_first regions. Fetched
-            # separately: not every page style offers it, and one missing property must not sink
-            # the whole read.
-            try:
-                props["first_is_shared"] = style.getPropertyValue("FirstIsShared")
-            except Exception:
-                pass
-            # Attempt to safely fetch PageStyleLayout enum
-            try:
-                psl = style.getPropertyValue("PageStyleLayout")
-                props["page_style_layout"] = psl.value if hasattr(psl, "value") else int(psl)
-            except Exception:
-                pass
-            return {"status": "ok", "properties": props}
-        except Exception as e:
-            return self._tool_error(f"Error reading properties from page style '{style_name}': {e}")
+        return get_page_style_properties(ctx.doc, kwargs.get("style", "Standard"))
 
 
 # ------------------------------------------------------------------

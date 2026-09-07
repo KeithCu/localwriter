@@ -347,17 +347,11 @@ Call sites still passing paragraph-ish objects: `tree.py`, `text_analytics.py`, 
 
 ### 2.9 `style_get_info` PageStyles extra hop
 
-**Today (`styles.py`)**
-
-`family == "PageStyles"` returns a tool error telling the agent to call `page_get_style_properties`. Correct functionally; burns a turn.
-
-**Recommended approach**
-
-In-process dispatch to the same implementation `page_get_style_properties` uses (shared function, not a nested LLM call). Return that payload with a clear `family: PageStyles` (or existing page-tool shape). Error redirect was a fine first cut; dispatch is the proper small fix.
+**Shipped (Option A):** `style_get_info(family=PageStyles)` dispatches in-process to `get_page_style_properties` — the same function `page_get_style_properties` uses. Both public entry points stay. Not a nested LLM call and not an error redirect. Option B (hard-merge to a single public API; winner TBD) is deferred.
 
 **Tests**
 
-- Unit/mock: `style_get_info(PageStyles, Standard)` returns margin/header fields without `status=error`.
+- Unit/mock: `style_get_info(PageStyles, Standard)` returns margin/header fields with `status=ok`.
 
 ---
 
@@ -454,7 +448,7 @@ Sequenced so UNO tests pin quirks before API behavior shifts:
 6. **`data-lo-para` escape + `fo:color` (or doc fix) + attribute-shaped `_note_read_only_attrs`**.  
 7. **`_paint_direct_formatting` don’t abort Char* on Para* failure**.  
 8. **`image_insert` + `header_first` / `footer_first`**; search-reach FakePageStyle.  
-9. **`style_get_info` → in-process page props**; regenerate scripting proxies as needed.  
+9. **`style_get_info` → in-process page props** (Option A shipped); regenerate scripting proxies as needed.  
 10. **Nits pack:** CLEARABLE single source, portion-limit warning, Asian/Complex reporting, docs (`llm-styles.md`).
 
 Parallelizable: (5)–(7) and (8)–(9) after (1)–(3) land, if staffing allows — but do not change field refuse before surgical replace exists.

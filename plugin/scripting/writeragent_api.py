@@ -1061,7 +1061,7 @@ class _StylesProxy:
         return _rpc_call("style_create", style=style, family=family, parent_style=parent_style, property_updates=property_updates, conditional_rules=conditional_rules)
 
     def get_info(self, style: str, *, family: str | None = None) -> dict:
-        """Get detailed properties of a specific style (font, size, margins, etc.)."""
+        """Get detailed properties of a named style (font, size, paragraph margins)."""
         return _rpc_call("style_get_info", style=style, family=family)
 
     def import_(self, path: str, *, overwrite: bool = True, load_paragraph_styles: bool = True, load_page_styles: bool = False, load_frame_styles: bool = False, load_numbering_styles: bool = False) -> dict:
