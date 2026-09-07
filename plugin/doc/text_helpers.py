@@ -23,6 +23,8 @@ from plugin.doc import doc_type as _doc_type
 from plugin.framework.errors import UnoObjectError, check_disposed, safe_call
 from plugin.framework.thread_guard import main_thread_only
 
+_PARAGRAPH_SERVICE = "com.sun.star.text.Paragraph"
+
 
 def normalize_linebreaks(text: str | None) -> str:
     """Ensure all linebreaks use \\n (LF).
@@ -155,12 +157,124 @@ class HeadingTreeNode(TypedDict):
     body_paragraphs: int
 
 
+def _portion_type(portion) -> str | None:
+    try:
+        return portion.getPropertyValue("TextPortionType")
+    except Exception:
+        try:
+            return portion.TextPortionType
+        except Exception:
+            return None
+
+
+def _range_is_paragraph(text_range) -> bool:
+    """True when *text_range* is a paragraph: children are portions, not paragraphs.
+
+    ``createEnumeration()`` on a document or multi-para cursor yields paragraphs.
+    On a paragraph ``XTextRange`` it yields text portions (bold runs, redlines).
+    Treating those portions as paragraphs used to inject a ``\\n`` between runs.
+    """
+    try:
+        if text_range.supportsService(_PARAGRAPH_SERVICE):
+            return True
+    except Exception:
+        pass
+    try:
+        enum = text_range.createEnumeration()
+        if not enum.hasMoreElements():
+            return False
+        return _portion_type(enum.nextElement()) is not None
+    except Exception:
+        return False
+
+
+def _visible_portions(
+    para,
+    *,
+    abort_on_portion_error: bool = False,
+    limit: int | None = None,
+):
+    """Yield ``(portion, text)`` for visible text, skipping tracked deletions.
+
+    Shared by ``get_string_without_tracked_deletions`` and html_export paint so
+    an offset taken from the helper string indexes these chunks without drift.
+
+    Paint (``html_export._paint_direct_formatting``) passes
+    ``abort_on_portion_error=True``: a failed ``nextElement`` / portion type
+    would desync character offsets, so the walk stops. The helper continues
+    past a bad portion so later runs can still contribute text.
+    """
+    try:
+        portion_enum = para.createEnumeration()
+    except Exception:
+        return
+    in_delete = False
+    seen = 0
+    while portion_enum.hasMoreElements():
+        if limit is not None and seen >= limit:
+            return
+        seen += 1
+        try:
+            portion = portion_enum.nextElement()
+        except Exception:
+            if abort_on_portion_error:
+                return
+            continue
+        portion_type = _portion_type(portion)
+        if portion_type is None:
+            if abort_on_portion_error:
+                return
+            continue
+        if portion_type == "Redline":
+            try:
+                if str(portion.getPropertyValue("RedlineType")) == "Delete":
+                    in_delete = not in_delete
+            except Exception:
+                pass
+            continue
+        if in_delete:
+            continue
+        try:
+            chunk = portion.getString()
+        except Exception:
+            continue
+        if chunk:
+            yield portion, chunk
+
+
+def _paragraph_visible_text(para) -> str:
+    """Visible text of one paragraph via ``_visible_portions``.
+
+    Falls back to ``getString()`` only when the portion enum cannot be opened
+    (same as the old helper). An empty walk after a successful enum is kept
+    empty so tracked-only paragraphs do not re-include deleted text.
+    """
+    chunks = list(_visible_portions(para))
+    if chunks:
+        return "".join(chunk for _unused, chunk in chunks)
+    try:
+        para.createEnumeration()
+    except Exception:
+        try:
+            return para.getString()
+        except Exception:
+            return ""
+    return ""
+
+
 @main_thread_only
 def get_string_without_tracked_deletions(text_range) -> str:
-    """Return text_range text while skipping tracked deletions when possible."""
+    """Return *text_range* text while skipping tracked deletions when possible.
+
+    A paragraph (``com.sun.star.text.Paragraph``, or first child has
+    ``TextPortionType``) concatenates visible portions without a mid-``\\n``.
+    A document or multi-paragraph range still joins paragraphs with ``\\n``.
+    """
     if hasattr(text_range, "_mock_return_value") or type(text_range).__name__ in ("Mock", "MagicMock"):
         return text_range.getString()
     try:
+        if _range_is_paragraph(text_range):
+            return _paragraph_visible_text(text_range)
         para_enum = text_range.createEnumeration()
     except Exception:
         return text_range.getString()
@@ -173,43 +287,10 @@ def get_string_without_tracked_deletions(text_range) -> str:
             if not first_para:
                 parts.append("\n")
             first_para = False
-
-            try:
-                portion_enum = para.createEnumeration()
-            except Exception:
-                parts.append(para.getString())
-                continue
-
             # Each paragraph's portion enum is independent; Delete start/end
-            # markers for this walk live in that para. Reset here matches UNO.
-            in_delete = False
-            while portion_enum.hasMoreElements():
-                portion = portion_enum.nextElement()
-                try:
-                    try:
-                        portion_type = portion.getPropertyValue("TextPortionType")
-                    except Exception:
-                        portion_type = portion.TextPortionType
-                except Exception:
-                    continue
-
-                if portion_type == "Redline":
-                    try:
-                        if str(portion.getPropertyValue("RedlineType")) == "Delete":
-                            in_delete = not in_delete
-                    except Exception:
-                        pass
-                    continue
-
-                if in_delete:
-                    continue
-
-                try:
-                    chunk = portion.getString()
-                except Exception:
-                    continue
-                if chunk:
-                    parts.append(chunk)
+            # markers for this walk live in that para. Reset is inside
+            # _visible_portions (same as UNO per-paragraph redline markers).
+            parts.append(_paragraph_visible_text(para))
     except Exception:
         return text_range.getString()
 
