@@ -17,12 +17,20 @@ from plugin.writer.page import _scan_region_content
 
 
 def _logo_path() -> str:
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    for rel in ("extension/assets/logo_32.png", "assets/logo_32.png"):
-        path = os.path.join(root, *rel.split("/"))
-        if os.path.isfile(path):
-            return path
-    return os.path.join(root, "extension", "assets", "logo_32.png")
+    # Walk up from tests/writer/images/ so this works in the checkout
+    # (extension/assets) and in a remapped release tree (assets/).
+    here = os.path.abspath(__file__)
+    directory = os.path.dirname(here)
+    for _unused in range(6):
+        for rel in ("extension/assets/logo_32.png", "assets/logo_32.png"):
+            path = os.path.join(directory, *rel.split("/"))
+            if os.path.isfile(path):
+                return path
+        parent = os.path.dirname(directory)
+        if parent == directory:
+            break
+        directory = parent
+    return os.path.join(directory, "extension", "assets", "logo_32.png")
 
 
 def _standard_style(doc):
