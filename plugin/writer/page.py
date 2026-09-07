@@ -58,6 +58,84 @@ def _empty_scan() -> dict[str, Any]:
     return {"fields": [], "images": [], "paragraph_count": 0}
 
 
+def _region_has_table(text_obj) -> bool:
+    """True when the region's enumeration includes a text table (letterhead grid)."""
+    try:
+        enum = text_obj.createEnumeration()
+    except Exception:
+        return False
+    seen = 0
+    while enum.hasMoreElements() is True and seen < _SCAN_PARA_LIMIT:
+        seen += 1
+        try:
+            el = enum.nextElement()
+        except Exception:
+            break
+        try:
+            # `is True`: MagicMock supportsService() is truthy and would false-positive.
+            if el.supportsService("com.sun.star.text.TextTable") is True:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _region_holds_content(doc, text_obj) -> bool:
+    """True if the header/footer XText still holds text, fields, images, or tables.
+
+    Do not treat a missing ``IsOn`` as empty: LibreOffice may keep ``HeaderText``
+    after ``HeaderIsOn=false`` (F5). A ``None`` text object is the only true absence.
+    ``getString()`` misses logos and can hide tables; the #638 region scan plus a
+    table walk covers those.
+    """
+    if text_obj is None:
+        return False
+    try:
+        plain = text_obj.getString()
+    except Exception:
+        plain = ""
+    if isinstance(plain, str) and plain.strip():
+        return True
+    scan = _scan_region_content(doc, text_obj)
+    if scan["fields"] or scan["images"]:
+        return True
+    return _region_has_table(text_obj)
+
+
+def _disable_blocked_by_content(doc, style, kwargs: dict[str, Any]) -> str | None:
+    """Error text if ``header_is_on=false`` / ``footer_is_on=false`` would wipe content.
+
+    ``HeaderIsOn`` / ``FooterIsOn`` are the only toggles (no first/left IsOn props).
+    Turning one off drops every variant of that kind, so all matching regions are
+    scanned. Enabling (``true``) is never blocked. No force-off flag.
+    """
+    for kw, kind in (("header_is_on", "header"), ("footer_is_on", "footer")):
+        if kw not in kwargs or kwargs[kw]:
+            continue
+        held: list[str] = []
+        for region, (_unused_is_on, text_prop) in _REGION_PROPS.items():
+            if _region_kind(region) != kind:
+                continue
+            try:
+                text_obj = style.getPropertyValue(text_prop)
+            except Exception:
+                continue
+            if _region_holds_content(doc, text_obj):
+                held.append(region)
+        if not held:
+            continue
+        clears = "; ".join(
+            "page_set_header_footer_text(region='%s', content='')" % region for region in held
+        )
+        return (
+            "Cannot turn the %s off while it still has content (%s). "
+            "LibreOffice asks before deleting header/footer contents. "
+            "Clear first with %s, then page_set_style_properties(%s=false)."
+            % (kind, ", ".join(held), clears, kw)
+        )
+    return None
+
+
 def _scan_region_content(doc, text_obj) -> dict[str, Any]:
     """Report what a header/footer holds beyond plain text: fields and anchored images.
 
@@ -227,7 +305,12 @@ class PageSetStyleProperties(ToolWriterPageBase):
     """Modify dimensions, margins, and header/footer toggles of a page style."""
 
     name = "page_set_style_properties"
-    description = "Modify dimensions, margins, and header/footer toggles of a page style."
+    description = (
+        "Modify dimensions, margins, and header/footer toggles of a page style. "
+        "header_is_on=false / footer_is_on=false refuse if that region still has "
+        "text, fields, images, or tables — clear with page_set_header_footer_text "
+        "first, then disable. Enabling (true) is always allowed. No force-off."
+    )
     parameters = {
         "type": "object",
         "properties": {
@@ -240,8 +323,23 @@ class PageSetStyleProperties(ToolWriterPageBase):
             "top_margin_mm": {"type": "number", "description": "Top margin in mm."},
             "bottom_margin_mm": {"type": "number", "description": "Bottom margin in mm."},
             "gutter_margin_mm": {"type": "number", "description": "Gutter margin in mm (for binding)."},
-            "header_is_on": {"type": "boolean", "description": "Enable or disable header."},
-            "footer_is_on": {"type": "boolean", "description": "Enable or disable footer."},
+            "header_is_on": {
+                "type": "boolean",
+                "description": (
+                    "Enable the header, or disable it when empty. false refuses while "
+                    "any header region still holds text, fields, images, or tables — "
+                    "clear with page_set_header_footer_text first (LibreOffice asks "
+                    "before deleting header contents)."
+                ),
+            },
+            "footer_is_on": {
+                "type": "boolean",
+                "description": (
+                    "Enable the footer, or disable it when empty. false refuses while "
+                    "any footer region still holds text, fields, images, or tables — "
+                    "clear with page_set_header_footer_text first."
+                ),
+            },
             "header_is_shared": {"type": "boolean", "description": "Share header between left/right pages."},
             "footer_is_shared": {"type": "boolean", "description": "Share footer between left/right pages."},
             "first_is_shared": {"type": "boolean", "description": (
@@ -274,6 +372,12 @@ class PageSetStyleProperties(ToolWriterPageBase):
             style = page_styles.getByName(style_name)
         except Exception as e:
             return self._tool_error(f"Error accessing page style '{style_name}': {e}")
+
+        # Refuse HeaderIsOn/FooterIsOn=false before any write: LO UI asks
+        # "delete header?" rather than silently wiping leftover content.
+        blocked = _disable_blocked_by_content(doc, style, kwargs)
+        if blocked:
+            return self._tool_error(blocked)
 
         updated = []
         try:

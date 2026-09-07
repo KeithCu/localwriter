@@ -16,6 +16,8 @@ from plugin.writer.page import (
     PageSetHeaderFooterText,
     PageSetColumns,
     PageInsertBreak,
+    _disable_blocked_by_content,
+    _region_holds_content,
 )
 
 
@@ -383,3 +385,119 @@ def test_set_page_style_properties_writes_first_is_shared():
     assert res["status"] == "ok"
     assert "first_is_shared" in res["updated"]
     style.setPropertyValue.assert_any_call("FirstIsShared", False)
+
+
+# --- header/footer off: refuse while the region still holds content ----------------------
+
+
+def _empty_text_obj():
+    text_obj = MagicMock()
+    text_obj.getString.return_value = ""
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([])
+    return text_obj
+
+
+def test_region_holds_content_is_false_for_empty_or_whitespace():
+    doc, _style = _page_style_doc(_empty_text_obj())
+    assert _region_holds_content(doc, None) is False
+    empty = _empty_text_obj()
+    assert _region_holds_content(doc, empty) is False
+    ws = MagicMock()
+    ws.getString.return_value = "  \n"
+    ws.createEnumeration.side_effect = lambda: _enum_of([])
+    assert _region_holds_content(doc, ws) is False
+
+
+def test_region_holds_content_sees_text_fields_images_and_tables():
+    text_obj = MagicMock()
+    text_obj.getString.return_value = "Letterhead"
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([])
+    doc, _style = _page_style_doc(text_obj)
+    assert _region_holds_content(doc, text_obj) is True
+
+    field_obj = MagicMock()
+    field_obj.getString.return_value = ""
+    field_obj.createEnumeration.side_effect = lambda: _enum_of([
+        _paragraph([_portion("TextField", _page_number_field())]),
+    ])
+    doc_f, _style_f = _page_style_doc(field_obj)
+    assert _region_holds_content(doc_f, field_obj) is True
+
+    logo_obj = MagicMock()
+    logo_obj.getString.return_value = ""
+    logo_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    doc_i, _style_i = _page_style_doc(logo_obj, shapes=[_logo_anchored_in(logo_obj)])
+    assert _region_holds_content(doc_i, logo_obj) is True
+
+    table = MagicMock()
+    table.supportsService.side_effect = lambda s: s == "com.sun.star.text.TextTable"
+    table_obj = MagicMock()
+    table_obj.getString.return_value = ""
+    table_obj.createEnumeration.side_effect = lambda: _enum_of([table])
+    doc_t, _style_t = _page_style_doc(table_obj)
+    assert _region_holds_content(doc_t, table_obj) is True
+
+
+def test_set_style_properties_refuses_header_off_while_text_remains():
+    text_obj = _empty_text_obj()
+    text_obj.getString.return_value = "Keep this letterhead"
+    doc, style = _page_style_doc(text_obj)
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", width_mm=300, header_is_on=False)
+
+    assert res["status"] == "error"
+    assert "page_set_header_footer_text" in res["message"]
+    assert "header_is_on=false" in res["message"]
+    style.setPropertyValue.assert_not_called()
+
+
+def test_set_style_properties_refuses_footer_off_while_logo_remains():
+    text_obj = MagicMock()
+    text_obj.getString.return_value = ""
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    doc, style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", footer_is_on=False)
+
+    assert res["status"] == "error"
+    assert "footer" in res["message"]
+    style.setPropertyValue.assert_not_called()
+
+
+def test_set_style_properties_allows_header_off_when_empty():
+    doc, style = _page_style_doc(_empty_text_obj())
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", header_is_on=False)
+
+    assert res["status"] == "ok"
+    style.setPropertyValue.assert_any_call("HeaderIsOn", False)
+
+
+def test_set_style_properties_allows_enable_while_content_remains():
+    text_obj = _empty_text_obj()
+    text_obj.getString.return_value = "Already there"
+    doc, style = _page_style_doc(text_obj)
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", header_is_on=True)
+
+    assert res["status"] == "ok"
+    style.setPropertyValue.assert_any_call("HeaderIsOn", True)
+
+
+def test_disable_blocked_by_content_skips_enable_and_lists_held_regions():
+    text_obj = _empty_text_obj()
+    text_obj.getString.return_value = "First-page letterhead"
+    doc, style = _page_style_doc(text_obj)
+    assert _disable_blocked_by_content(doc, style, {"header_is_on": True}) is None
+    msg = _disable_blocked_by_content(doc, style, {"header_is_on": False})
+    assert msg is not None
+    assert "header" in msg
+    assert "page_set_header_footer_text" in msg
