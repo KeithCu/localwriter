@@ -150,7 +150,8 @@ DOMAIN_TOOLS = {   'bookmark': [   'bookmark_cleanup',
                       'mail_merge_register_source',
                       'mail_merge_run'],
     'math': ['insert_math'],
-    'page': [   'page_get_columns',
+    'page': [   'page_apply_header_footer_content',
+                'page_get_columns',
                 'page_get_header_footer_text',
                 'page_get_style_properties',
                 'page_insert_break',
@@ -754,9 +755,13 @@ class _PageProxy:
         """Get the column layout for a page style."""
         return _rpc_call("page_get_columns", style=style)
 
-    def get_header_footer_text(self, region: str, *, style: str | None = None) -> dict:
-        """Retrieve the text content of a page style's header or footer."""
-        return _rpc_call("page_get_header_footer_text", style=style, region=region)
+    def apply_header_footer_content(self, region: str, content: list, *, style: str | None = None, auto_height: bool | None = None) -> dict:
+        """Apply HTML to one header or footer region (structure-preserving full-region replace)."""
+        return _rpc_call("page_apply_header_footer_content", style=style, region=region, content=content, auto_height=auto_height)
+
+    def get_header_footer_text(self, region: str, *, style: str | None = None, format: str | None = None, include_images: bool | None = None) -> dict:
+        """Read a page-style header or footer."""
+        return _rpc_call("page_get_header_footer_text", style=style, region=region, format=format, include_images=include_images)
 
     def get_style_properties(self, *, style: str | None = None) -> dict:
         """Get dimensions, margins, and header/footer states of a page style."""
@@ -770,9 +775,9 @@ class _PageProxy:
         """Set the number of columns and spacing for a page style."""
         return _rpc_call("page_set_columns", style=style, column_count=column_count, spacing_mm=spacing_mm)
 
-    def set_header_footer_text(self, region: str, content: str, *, style: str | None = None, auto_height: bool | None = None) -> dict:
-        """Set the text content of a page style's header or footer."""
-        return _rpc_call("page_set_header_footer_text", style=style, region=region, content=content, auto_height=auto_height)
+    def set_header_footer_text(self, region: str, content: str, *, style: str | None = None, auto_height: bool | None = None, force: bool | None = None) -> dict:
+        """Replace a header or footer with PLAIN TEXT (XText.setString wipe)."""
+        return _rpc_call("page_set_header_footer_text", style=style, region=region, content=content, auto_height=auto_height, force=force)
 
     def set_style_properties(self, *, style: str | None = None, width_mm: float | None = None, height_mm: float | None = None, is_landscape: bool | None = None, left_margin_mm: float | None = None, right_margin_mm: float | None = None, top_margin_mm: float | None = None, bottom_margin_mm: float | None = None, gutter_margin_mm: float | None = None, header_is_on: bool | None = None, footer_is_on: bool | None = None, header_is_shared: bool | None = None, footer_is_shared: bool | None = None, header_height_mm: float | None = None, footer_height_mm: float | None = None, header_body_distance_mm: float | None = None, footer_body_distance_mm: float | None = None, back_color: int | None = None, back_transparent: bool | None = None, numbering_type: int | None = None, footnote_height_mm: float | None = None, register_paragraph_style: str | None = None, page_style_layout: int | None = None) -> dict:
         """Modify dimensions, margins, and header/footer toggles of a page style."""

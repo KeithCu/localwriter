@@ -486,6 +486,11 @@ def document_to_content(model, ctx, services, max_chars=None, scope="full", rang
     return impl(model, ctx, services, max_chars, scope, range_start, range_end, include_images=include_images)
 
 
+def page_region_to_content(model, ctx, services, style_name, region, *, include_images=False):
+    from .html_export import page_region_to_content as impl
+    return impl(model, ctx, services, style_name, region, include_images=include_images)
+
+
 def _ensure_html_linebreaks(content):  # pyright: ignore[reportUnusedFunction]
     from .html_import import _ensure_html_linebreaks as impl
     return impl(content)
@@ -529,6 +534,16 @@ def insert_content_at_position(model, ctx, content, position, config_svc=None):
 def replace_full_document(model, ctx, content, config_svc=None):
     from .html_import import replace_full_document as impl
     return impl(model, ctx, content, config_svc)
+
+
+def apply_html_to_xtext(model, ctx, text_obj, html, config_svc=None):
+    from .html_import import apply_html_to_xtext as impl
+    return impl(model, ctx, text_obj, html, config_svc)
+
+
+def field_spans_to_sentinels(html):
+    from .html_import import field_spans_to_sentinels as impl
+    return impl(html)
 
 
 def replace_single_range_with_content(model, text_range, content, ctx, config_svc=None):

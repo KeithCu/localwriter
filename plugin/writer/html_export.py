@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """XHTML/FODT export and image stripping for Writer documents.
 
-Public entry: ``document_to_content`` (also re-exported from ``plugin.writer.format``).
+Public entries (also re-exported from ``plugin.writer.format``):
+``document_to_content`` (body) and ``page_region_to_content`` (header/footer).
 """
 
 import logging
@@ -16,6 +17,39 @@ from plugin.doc.text_helpers import get_string_without_tracked_deletions
 from plugin.framework.uno_context import get_desktop
 from . import xhtml_style_postprocess as xhtml_post
 from . import format as format_mod
+
+# Flat-ODF master-page tags for the page-tool regions in page._REGION_PROPS.
+# ``header-style`` / ``header-footer-properties`` must not match: the extract
+# regex requires the next character after the tag name to be whitespace or ``>``.
+FODT_REGION_TAGS = {
+    "header": "style:header",
+    "footer": "style:footer",
+    "header_first": "style:header-first",
+    "footer_first": "style:footer-first",
+    "header_left": "style:header-left",
+    "footer_left": "style:footer-left",
+}
+
+# When FirstIsShared / HeaderIsShared is on, LO omits the variant tag and the
+# variant XText mirrors the shared one. Read the shared fragment instead of
+# reporting an empty first/left page.
+_FODT_REGION_FALLBACK = {
+    "header_first": "header",
+    "footer_first": "footer",
+    "header_left": "header",
+    "footer_left": "footer",
+}
+
+_FODT_TAG_RE_CACHE = {}
+_FODT_MASTER_PAGE_RE = re.compile(
+    r"<style:master-page\b([^>]*)>(.*?)</style:master-page>",
+    re.DOTALL,
+)
+_FODT_OFFICE_TEXT_RE = re.compile(
+    r"<office:text\b[^>]*>.*?</office:text>",
+    re.DOTALL,
+)
+_FODT_SELF_CLOSE_RE_CACHE = {}
 
 log = logging.getLogger("writeragent.writer")
 
@@ -69,6 +103,15 @@ def _export_xhtml(doc, config_svc):
 
 
 
+def _export_fodt(doc, config_svc):
+    """Export *doc* as flat ODF XML. Raises on failure."""
+    with format_mod._with_temp_buffer(None, config_svc, ext=format_mod.FODT_EXTENSION) as (path, file_url):
+        props = (format_mod.create_property_value("FilterName", format_mod.FLAT_ODF_FILTER),)
+        doc.storeToURL(file_url, props)
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return f.read()
+
+
 def _autostyle_maps(doc, config_svc):
     """Export *doc* as flat ODF once and return ``(parents, overrides)`` for the autostyles.
 
@@ -81,16 +124,126 @@ def _autostyle_maps(doc, config_svc):
     Both scopes report overrides: the range path copies the source paragraphs' direct formatting
     onto the temp document first (see _paint_direct_formatting)."""
     try:
-        with format_mod._with_temp_buffer(None, config_svc, ext=format_mod.FODT_EXTENSION) as (path, file_url):
-            props = (format_mod.create_property_value("FilterName", format_mod.FLAT_ODF_FILTER),)
-            doc.storeToURL(file_url, props)
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                fodt = f.read()
+        fodt = _export_fodt(doc, config_svc)
         return (xhtml_post.extract_autostyle_parents_from_fodt(fodt),
                 xhtml_post.extract_autostyle_overrides_from_fodt(fodt))
     except Exception:
         log.debug("_autostyle_maps: flat-ODF export failed", exc_info=True)
         return ({}, {})
+
+
+def extract_fodt_tag(xml, tag):
+    """Return the inner XML of ``<tag>...</tag>``, or None.
+
+    Does not match ``<tag-foo>`` (so ``style:header`` skips ``style:header-style``
+    and ``style:header-first``). Self-closing ``<tag/>`` returns ``""``.
+    """
+    if not xml or not tag:
+        return None
+    compiled = _FODT_TAG_RE_CACHE.get(tag)
+    if compiled is None:
+        compiled = re.compile(
+            r"<%s(?=[\s>])[^>]*>(.*?)</%s>" % (re.escape(tag), re.escape(tag)),
+            re.DOTALL,
+        )
+        _FODT_TAG_RE_CACHE[tag] = compiled
+    m = compiled.search(xml)
+    if m:
+        return m.group(1)
+    self_close = _FODT_SELF_CLOSE_RE_CACHE.get(tag)
+    if self_close is None:
+        self_close = re.compile(r"<%s(?=[\s/>])[^>]*/>" % re.escape(tag))
+        _FODT_SELF_CLOSE_RE_CACHE[tag] = self_close
+    if self_close.search(xml):
+        return ""
+    return None
+
+
+def fodt_master_page_inner(fodt, style_name):
+    """Inner XML of the master-page named *style_name*, or the first one, or None."""
+    if not fodt:
+        return None
+    fallback = None
+    needle = 'style:name="%s"' % (style_name or "")
+    for m in _FODT_MASTER_PAGE_RE.finditer(fodt):
+        if fallback is None:
+            fallback = m.group(2)
+        if style_name and needle in m.group(1):
+            return m.group(2)
+    return fallback
+
+
+def fodt_region_inner(fodt, style_name, region):
+    """Inner XML of a header/footer region from a flat-ODF export, or None if absent."""
+    tag = FODT_REGION_TAGS.get(region)
+    if not tag:
+        return None
+    master = fodt_master_page_inner(fodt, style_name)
+    scope = master if master is not None else fodt
+    inner = extract_fodt_tag(scope, tag)
+    if inner is not None:
+        return inner
+    fallback_region = _FODT_REGION_FALLBACK.get(region)
+    if fallback_region:
+        return extract_fodt_tag(scope, FODT_REGION_TAGS[fallback_region])
+    return None
+
+
+def _content_from_fodt_body_fragment(ctx, config_svc, fodt, inner_xml, *, include_images=False, model=None):
+    """Load *inner_xml* as a temp Writer body (keeping source FODT styles/binaries) and run the XHTML stack.
+
+    Header/footer XText cannot be ``storeToURL``'d on its own — the XHTML filter
+    exports the document *body* and skips ``SwXHeadFootText``. Copying that XText
+    via ``setString`` / ``createClone`` also fails (fields flatten; tables are
+    already attached). Splicing the region's flat-ODF fragment into a copy of
+    the same FODT as ``office:text`` keeps fields, tables, and embedded images,
+    then the body pipeline (``_export_xhtml`` + postprocess) is unchanged.
+    """
+    swapped = _FODT_OFFICE_TEXT_RE.sub(
+        "<office:text>" + (inner_xml or "") + "</office:text>",
+        fodt,
+        count=1,
+    )
+    desktop = get_desktop(ctx)
+    temp_doc = None
+    try:
+        with format_mod._with_temp_buffer(swapped, config_svc, ext=format_mod.FODT_EXTENSION) as (_path, file_url):
+            load_props = (
+                format_mod.create_property_value("Hidden", True),
+                format_mod.create_property_value("FilterName", format_mod.FLAT_ODF_FILTER),
+            )
+            temp_doc = desktop.loadComponentFromURL(file_url, "_default", 0, load_props)
+        if not temp_doc or not hasattr(temp_doc, "getText"):
+            raise RuntimeError("Could not load header/footer fragment as a temporary Writer document.")
+        xhtml = _export_xhtml(temp_doc, config_svc)
+        parents, overrides = _autostyle_maps(temp_doc, config_svc)
+        content = xhtml_post.xhtml_to_semantic_html(xhtml, parents, overrides)
+        content = _apply_image_export_options(content, include_images=include_images)
+        content = _inject_exported_math_tex(model, ctx, content)
+        return content
+    finally:
+        if temp_doc is not None:
+            try:
+                temp_doc.close(True)
+            except Exception:
+                pass
+
+
+def page_region_to_content(model, ctx, services, style_name, region, *, include_images=False):
+    """Export one page-style header/footer region through the body XHTML stack.
+
+    Returns the same agent-facing HTML as ``document_to_content`` (field spans
+    such as ``<span title="page-number"/>``, tables, ``data:image`` when
+    *include_images*). Empty or missing regions return ``""``.
+    """
+    config_svc = services.get("config") if services else None
+    fodt = _export_fodt(model, config_svc)
+    inner = fodt_region_inner(fodt, style_name, region)
+    if inner is None or not inner.strip():
+        return ""
+    return _content_from_fodt_body_fragment(
+        ctx, config_svc, fodt, inner, include_images=include_images, model=model,
+    )
 
 
 

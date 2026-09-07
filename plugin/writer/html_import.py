@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """HTML/StarWriter import, replace, and markup routing for Writer documents.
 
-Public entries are re-exported from ``plugin.writer.format``.
+Public entries are re-exported from ``plugin.writer.format``
+(including ``apply_html_to_xtext`` for header/footer regions).
 """
 
 import html as html_mod
@@ -22,6 +23,20 @@ from .math.html_math_segment import html_fragment_contains_mixed_math, segment_h
 from .math.math_mml_convert import convert_latex_to_starmath, convert_mathml_to_starmath, insert_writer_math_formula
 
 log = logging.getLogger("writeragent.writer")
+
+# LibreOffice's XHTML Writer File filter emits page fields as a self-closing
+# span (not <sdfield>). StarWriter HTML import drops that span, so apply must
+# turn it into a real text field or the roundtrip silently loses page numbers.
+XHTML_FIELD_TITLES = {
+    "page-number": "PageNumber",
+    "page-count": "PageCount",
+}
+_FIELD_SPAN_RE = re.compile(
+    r'<span\b[^>]*\btitle="([^"]+)"[^>]*(?:/>|>\s*</span>)',
+    re.IGNORECASE,
+)
+_FIELD_SENTINEL_RE = re.compile(r"WAFIELD_([A-Za-z0-9_-]+)_WAFIELD")
+_GO_RIGHT_CHUNK = 8192
 
 _MARKUP_PATTERNS = [
     # Markdown
@@ -526,6 +541,145 @@ def insert_content_at_position(model, ctx, content, position, config_svc=None):
     # named style would restyle that text. Styled paragraph writes go through full_document.
     _insert_mixed_or_plain_html(model, ctx, cursor, content, config_svc=config_svc, apply_styles=False)
 
+
+
+def field_spans_to_sentinels(html):
+    """Replace XHTML field spans with ASCII sentinels the StarWriter import keeps as text.
+
+    ``<span title="page-number"/>`` is how body ``document_to_content`` represents a
+    PageNumber field. Importing that span as HTML deletes it (the filter has no
+    mapping). A sentinel survives insertDocumentFromURL so we can walk the target
+    XText afterwards and insert the matching UNO field.
+    """
+    if not html or not isinstance(html, str) or "title=" not in html:
+        return html
+
+    def _repl(m):
+        title = (m.group(1) or "").strip().lower()
+        if title not in XHTML_FIELD_TITLES:
+            return m.group(0)
+        return "WAFIELD_%s_WAFIELD" % title
+
+    return _FIELD_SPAN_RE.sub(_repl, html)
+
+
+def _go_right(cursor, count, expand):
+    """Move *cursor* by *count* characters in 16-bit-safe chunks."""
+    remaining = int(count)
+    while remaining > 0:
+        n = min(remaining, _GO_RIGHT_CHUNK)
+        if not cursor.goRight(n, expand):
+            return False
+        remaining -= n
+    return True
+
+
+def _insert_field_for_title(model, text_obj, cursor, title):
+    service = XHTML_FIELD_TITLES.get(title)
+    if not service:
+        return False
+    field = model.createInstance("com.sun.star.text.textfield.%s" % service)
+    if not field:
+        return False
+    try:
+        # 4 = Arabic; default PageNumber fields otherwise come out as
+        # "Previous page" with an empty presentation in a header.
+        field.setPropertyValue("NumberingType", 4)
+    except Exception:
+        pass
+    text_obj.insertTextContent(cursor, field, False)
+    return True
+
+
+def _replace_sentinels_in_paragraph(model, para):
+    """Replace WAFIELD sentinels inside one paragraph (or cell paragraph)."""
+    try:
+        text_obj = para.getText()
+    except Exception:
+        return
+    guard = 0
+    while guard < 64:
+        guard += 1
+        try:
+            text = para.getString()
+        except Exception:
+            return
+        m = _FIELD_SENTINEL_RE.search(text or "")
+        if not m:
+            return
+        start, end = m.span()
+        try:
+            cur = text_obj.createTextCursorByRange(para.getStart())
+            if not _go_right(cur, start, False):
+                return
+            if not _go_right(cur, end - start, True):
+                return
+            cur.setString("")
+            _insert_field_for_title(model, text_obj, cur, m.group(1).lower())
+        except Exception:
+            log.debug("field sentinel replace failed", exc_info=True)
+            return
+
+
+def _replace_field_sentinels(model, text_obj):
+    """Walk *text_obj* (and nested tables) replacing field sentinels with UNO fields.
+
+    Must not use document ``findFirst``: that reaches the body first when the
+    sentinel string also appears there, and would insert the field in the wrong XText.
+    """
+    try:
+        enum = text_obj.createEnumeration()
+    except Exception:
+        return
+    while enum.hasMoreElements() is True:
+        el = enum.nextElement()
+        is_table = False
+        try:
+            is_table = el.supportsService("com.sun.star.text.TextTable")
+        except Exception:
+            pass
+        if is_table:
+            try:
+                rows = int(el.getRows().getCount())
+                cols = int(el.getColumns().getCount())
+            except Exception:
+                continue
+            for r in range(rows):
+                for c in range(cols):
+                    try:
+                        cell = el.getCellByPosition(c, r)
+                    except Exception:
+                        continue
+                    _replace_field_sentinels(model, cell)
+            continue
+        _replace_sentinels_in_paragraph(model, el)
+
+
+def apply_html_to_xtext(model, ctx, text_obj, html, config_svc=None):
+    """Clear *text_obj* and import *html* the way ``replace_full_document`` does for the body.
+
+    Used for header/footer regions (``SwXHeadFootText``). ``model=None`` on the
+    fragment insert so we never ``goto`` the document body end (that jump is
+    what breaks nested-XText HTML import). Field spans are recreated after import.
+    """
+    prepared = html_mod.unescape(html if isinstance(html, str) else "")
+    prepared = field_spans_to_sentinels(prepared)
+    cursor = text_obj.createTextCursor()
+    cursor.gotoStart(False)
+    cursor.gotoEnd(True)
+    with format_mod._deletion_author():
+        cursor.setString("")
+    cursor.gotoStart(False)
+    if not prepared.strip():
+        return
+    # apply_styles=False: _insert_mixed_or_plain_html would call
+    # _cursor_goto_document_end (body) after a styled import. Headers are a
+    # different XText; a body jump after insert is the nested-cell class of bug.
+    expanded = prepared.replace("\\n", "\n").replace("\\t", "\t")
+    single = _ensure_html_linebreaks(expanded)
+    insert_html_fragment_at_cursor(cursor, single, wrap=False, config_svc=config_svc, model=None)
+    if "WAFIELD_" in (text_obj.getString() or ""):
+        _replace_field_sentinels(model, text_obj)
 
 
 def replace_full_document(model, ctx, content, config_svc=None):
