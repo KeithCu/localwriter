@@ -623,11 +623,6 @@ def _name_of_new_annotation(doc, field, names_before):
     return ""
 
 
-def _count_annotations(doc):
-    """How many Annotation text fields are on *doc* (0 if the enumeration is unusable)."""
-    return len(_annotation_field_names(doc))
-
-
 def _set_annotation_date(annotation):
     """Set DateTimeValue (and Date) to now for a new annotation."""
     now = now_aware()
