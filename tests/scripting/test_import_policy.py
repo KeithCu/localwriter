@@ -144,14 +144,34 @@ def test_python_specialized_sub_agent_calc_plot_hint():
 
 
 def test_venv_policy_does_not_advertise_duckdb():
-    """Default =PY / Calc policy blurbs must not steer agents toward DuckDB."""
+    """LLM-facing =PY / Calc policy blurbs must not steer agents toward DuckDB."""
+    import plugin.framework.prompts as prompts
+    from plugin.framework.prompts import (
+        CALC_WORKFLOW,
+        python_specialized_sub_agent_hint,
+    )
+
+    prompts._ensure_venv_import_policy_strings()
     compact = format_venv_import_policy_for_prompt(compact=True)
     full = format_venv_import_policy_for_prompt(compact=False)
-    for policy in (compact, full):
-        assert "query_folder_sql" not in policy
-        assert "session_duckdb" not in policy
-        assert "run_sql" not in policy
-        assert "DuckDB" not in policy
+    surfaces = (
+        compact,
+        full,
+        prompts.CALC_FORMULA_SYNTAX,
+        prompts.PYTHON_VENV_AUTO_IMPORTS_TOOL_NOTE,
+        prompts.PYTHON_VENV_AUTO_IMPORTS_PROMPT_LINE,
+        CALC_WORKFLOW,
+        python_specialized_sub_agent_hint("Calc"),
+        python_specialized_sub_agent_hint("Writer"),
+    )
+    for text in surfaces:
+        lower = text.lower()
+        assert "query_folder_sql" not in lower
+        assert "session_duckdb" not in lower
+        assert "run_sql" not in lower
+        assert "duckdb" not in lower
+    # Product whitelist still allows the package; only the blurb omits it.
+    assert "duckdb" in venv_authorized_top_level_modules()
 
 
 def test_format_units_helper_hint():
