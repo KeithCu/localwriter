@@ -377,6 +377,15 @@ def test_clear_direct_never_touches_non_paragraph_properties():
         assert unwanted not in fmt.CLEARABLE_PARA_PROPERTIES
 
 
+def test_clearable_para_properties_are_the_single_source_for_styles_schema():
+    """styles.py used to duplicate the name list (stale 'cycle' comment). format owns it."""
+    from plugin.writer import format as fmt
+    from plugin.writer import styles as st
+
+    assert tuple(st._KNOWN_PARAGRAPH_PROPERTIES) == fmt.CLEARABLE_PARA_PROPERTIES
+    assert set(st._PARA_PROPERTY_SCHEMA) == set(fmt.CLEARABLE_PARA_PROPERTIES)
+
+
 def test_summarize_char_overrides_is_json_safe_and_first_portion_wins():
     from plugin.writer import format as fmt
 
@@ -388,6 +397,53 @@ def test_summarize_char_overrides_is_json_safe_and_first_portion_wins():
 
     assert summary == {"CharFontName": "Times New Roman", "CharHeight": 12.0}
     assert "CharLocale" not in summary  # UNO struct -> not serialisable, left out
+
+
+def test_summarize_char_overrides_reports_asian_complex():
+    """style_props clears Asian/Complex font slots; the report must say so (honest, not silent)."""
+    from plugin.writer import format as fmt
+
+    overrides = [(object(), {
+        "CharFontName": "Times New Roman",
+        "CharFontNameAsian": "SimSun",
+        "CharFontNameComplex": "Tahoma",
+        "CharHeight": 12.0,
+        "CharHeightAsian": 10.5,
+        "CharHeightComplex": 11.0,
+    })]
+    summary = fmt._summarize_char_overrides(overrides)
+
+    assert summary["CharFontNameAsian"] == "SimSun"
+    assert summary["CharFontNameComplex"] == "Tahoma"
+    assert summary["CharHeightAsian"] == 10.5
+    assert summary["CharHeightComplex"] == 11.0
+
+
+def test_reported_char_properties_cover_style_governed():
+    """Keep the clear-set and the report-set aligned: every slot style_props wipes is echoed."""
+    from plugin.writer import format as fmt
+
+    for name in fmt.STYLE_GOVERNED_CHAR_PROPERTIES:
+        assert name in fmt.REPORTED_CHAR_PROPERTIES
+
+
+def test_enum_hit_walk_cap_and_warning_are_honest():
+    from unittest.mock import MagicMock
+    from plugin.writer import format as fmt
+
+    more = MagicMock()
+    more.hasMoreElements.return_value = True
+    done = MagicMock()
+    done.hasMoreElements.return_value = False
+
+    assert fmt.enum_hit_walk_cap(50, 50, more) is True
+    assert fmt.enum_hit_walk_cap(49, 50, more) is False
+    assert fmt.enum_hit_walk_cap(50, 50, done) is False
+    dest = []
+    assert fmt.record_walk_cap(more, 50, 50, "text portions", dest) is True
+    assert dest and "cap 50" in dest[0]
+    assert "incomplete" in dest[0]
+    assert fmt.record_walk_cap(done, 50, 50, "text portions", dest) is False
 
 
 def test_style_governed_char_properties_spare_bold_and_italic():
@@ -487,6 +543,31 @@ def test_visible_portions_ignores_non_delete_redlines():
     ])
 
     assert "".join(chunk for _p, chunk in hx._visible_portions(para)) == "inserted text"
+
+
+def test_visible_portions_warns_when_walk_hits_cap():
+    """Silent truncate hid later runs' Char*; the agent needs a warning that the paint is partial."""
+    from plugin.writer import html_export as hx
+
+    para = _para_of([_text_portion("a"), _text_portion("b"), _text_portion("c")])
+    truncated = []
+    chunks = [chunk for _p, chunk in hx._visible_portions(para, limit=2, truncated_out=truncated)]
+
+    assert chunks == ["a", "b"]
+    assert truncated
+    assert "cap 2" in truncated[0]
+    assert "incomplete" in truncated[0]
+
+
+def test_visible_portions_does_not_warn_when_enum_is_exhausted():
+    from plugin.writer import html_export as hx
+
+    para = _para_of([_text_portion("a"), _text_portion("b")])
+    truncated = []
+    chunks = [chunk for _p, chunk in hx._visible_portions(para, limit=2, truncated_out=truncated)]
+
+    assert chunks == ["a", "b"]
+    assert truncated == []
 
 
 def test_copy_properties_skips_values_the_style_already_gives():

@@ -23,7 +23,7 @@ from typing import Any
 
 from plugin.framework.errors import make_tool_error
 from plugin.framework.uno_context import uno_same
-
+from .format import record_walk_cap
 from .specialized_base import ToolWriterPageBase
 
 # region name -> (is_on property, text property)
@@ -151,6 +151,7 @@ def _scan_region_content(doc, text_obj) -> dict[str, Any]:
         para_enum = text_obj.createEnumeration()
     except Exception:
         return out
+    notes: list[str] = []
     # `is True` and the hard caps match the enumeration walk in format.py: a UNO enumeration that
     # misbehaves otherwise spins here forever.
     while para_enum.hasMoreElements() is True and out["paragraph_count"] < _SCAN_PARA_LIMIT:
@@ -181,6 +182,10 @@ def _scan_region_content(doc, text_obj) -> dict[str, Any]:
                                       "content": field.getPresentation(True)})
             except Exception:
                 out["fields"].append({"presentation": "", "content": ""})
+        record_walk_cap(portions, seen_portions, _SCAN_PORTION_LIMIT, "text portions", notes)
+    record_walk_cap(para_enum, out["paragraph_count"], _SCAN_PARA_LIMIT, "paragraphs", notes)
+    if notes:
+        out["warning"] = notes[0]
     # Images anchored in the region live on the draw page, whatever their anchor type, so they are
     # found by matching the anchor's text object rather than by walking portions.
     try:
@@ -564,6 +569,8 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
                     result["fields"] = scan["fields"]
                 if scan["images"]:
                     result["images"] = scan["images"]
+                if scan.get("warning"):
+                    result["warning"] = scan["warning"]
             dyn_prop, _unused_spacing, height_prop = _height_props(region)
             try:
                 result["auto_height"] = bool(style.getPropertyValue(dyn_prop))

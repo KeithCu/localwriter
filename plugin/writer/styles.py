@@ -46,7 +46,7 @@ else:
 
 from plugin.doc.visual_helpers import parse_color_to_uno_int
 from plugin.framework.tool import ToolBase as FrameworkToolBase
-from .format import apply_paragraph_style_preserving_direct_char
+from .format import CLEARABLE_PARA_PROPERTIES, apply_paragraph_style_preserving_direct_char
 from .page import get_page_style_properties
 from .specialized_base import ToolWriterStyleBase
 from .target_resolver import resolve_target_cursor
@@ -85,7 +85,9 @@ _KNOWN_CHARACTER_PROPERTIES = {
     "CharWordMode": {"type": "boolean", "description": "Whether underline/strikeout applies only to words."}
 }
 
-_KNOWN_PARAGRAPH_PROPERTIES = {
+# Schema metadata only — names come from format.CLEARABLE_PARA_PROPERTIES so the
+# inspect set and the clear_direct wipe cannot drift.
+_PARA_PROPERTY_SCHEMA = {
     "ParaTopMargin": {"type": "integer", "description": "Top margin in 1/100th mm (1 inch = 2540)."},
     "ParaBottomMargin": {"type": "integer", "description": "Bottom margin in 1/100th mm."},
     "ParaLeftMargin": {"type": "integer", "description": "Left margin in 1/100th mm."},
@@ -95,6 +97,9 @@ _KNOWN_PARAGRAPH_PROPERTIES = {
     "ParaBackColor": {"type": "string", "description": "Paragraph background color (hex string)."},
     "ParaKeepTogether": {"type": "boolean", "description": "Keep lines of the paragraph together."},
     "ParaSplit": {"type": "boolean", "description": "Whether the paragraph is allowed to split across pages."}
+}
+_KNOWN_PARAGRAPH_PROPERTIES = {
+    name: _PARA_PROPERTY_SCHEMA[name] for name in CLEARABLE_PARA_PROPERTIES
 }
 
 # Combine properties for schema use
@@ -341,6 +346,9 @@ class ApplyStyle(FrameworkToolBase):
             for key in ("cleared_char_properties", "cleared_paragraph_properties"):
                 if rep.get(key):
                     out[key] = rep[key]  # same list for every range; last one wins
+            if rep.get("warning"):
+                # First range's walk-cap note is enough — same cap applies to every range.
+                out.setdefault("warning", rep["warning"])
         # No retry hint: default is already style_props (house font shows). preserved_char_overrides
         # is only set on the explicit none path, which the caller asked for.
         return out

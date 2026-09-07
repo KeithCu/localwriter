@@ -242,7 +242,8 @@ same export (no extra `storeToURL`) and `_rewrite_block` emits them as `data-lo-
 Geometry (margins, indent, alignment, line height), the paragraph-level font, and paragraph
 colour (`fo:color` → `color`) are reported: a `.docx` reused as a model carries its font as a
 whole-paragraph override, which is what makes an applied style look like it did nothing.
-Nothing is reported when the sidecar is unavailable, rather than guessing from the flattened CSS.
+Run colour also appears on spans as inline `style`. Nothing is reported when the sidecar is
+unavailable, rather than guessing from the flattened CSS.
 
 The range read reports it too. `_range_to_content_via_temp_doc` used to copy plain text plus the
 paragraph style name, so every override — `data-lo-para` and character runs alike — was already
@@ -269,7 +270,7 @@ These are intentional trade-offs in v1. Tests document the behavior ([`test_xhtm
 
 | Limitation | v1 behavior | Workaround for agents/users | Post-v1 direction |
 |------------|-------------|----------------------------|-------------------|
-| **Whole-paragraph direct overrides** (center, para colour, margins, whole-paragraph font) | Do not round-trip on **write**. Read REPORTS them as read-only `data-lo-para`, taken from the FODT automatic style (see [Direct formatting on read](#direct-formatting-on-read)) | Read `data-lo-para` to tell an indented quote from body text; `apply_style` defaults to `clear_direct='style_props'` so the house font/size and style indents show (bold/italic stay). Pass `clear_direct='none'` only to keep a hand-set font. Re-applying a style does **not** keep a quote indent — LO drops direct `Para*` | Make `data-lo-para` writable |
+| **Whole-paragraph direct overrides** (margins, indent, alignment, line-height, paragraph-level font, para colour) | Do not round-trip on **write**. **Read** reports them as read-only `data-lo-para` from the FODT automatic style, including `color:` when `fo:color` is set (see [Direct formatting on read](#direct-formatting-on-read)). Run colour also appears on spans. | DO: read `data-lo-para` to tell an indented or coloured quote from body text. `apply_style` defaults to `clear_direct='style_props'` so house font/size and style indents show (bold/italic stay). Pass `clear_direct='none'` only to keep a hand-set font. Re-applying a style does **not** keep a quote indent — LO drops direct `Para*` | Make `data-lo-para` writable |
 | **Table cell paragraph styles** | `paragraph-*` stripped inside `<table>`; no `data-lo-style` on cell blocks | `apply_style` on cell text; don't rely on agent HTML for table styling | Table-aware style index or cell-level tokens |
 | **Partial edits** (`end` / `search` / `selection` / `beginning`) | Content inserted; `data-lo-style` **not** applied (would restyle merged adjacent text) | `target='full_document'` for styled rewrites; `apply_style` to restyle existing text | Apply only to genuinely new paragraphs after import |
 | **Dual export cost** | Every full read (and range read via temp doc) runs XHTML + FODT `storeToURL` | `scope=range`, `get_document_tree`, `search_in_document` before full reads | Cached UNO paragraph-style index; drop FODT on `scope=full` |

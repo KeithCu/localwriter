@@ -223,18 +223,64 @@ STYLE_GOVERNED_CHAR_PROPERTIES = (
     "CharHeight", "CharHeightAsian", "CharHeightComplex",
 )
 
-# Whole-paragraph direct overrides cleared by clear_direct. Mirrors _KNOWN_PARAGRAPH_PROPERTIES in
-# plugin/writer/styles.py (kept here to avoid a styles -> format -> styles import cycle); keep the
-# two in sync. Deliberately NOT setAllPropertiesToDefault — that also wipes numbering, borders and
-# language, which no caller asked to lose.
+# Whole-paragraph direct overrides cleared by clear_direct. This module owns the name list;
+# styles.py imports it for the inspect/schema set so the two cannot drift. (styles already
+# imports from format — there is no cycle to avoid.) Deliberately NOT setAllPropertiesToDefault
+# — that also wipes numbering, borders and language, which no caller asked to lose.
 CLEARABLE_PARA_PROPERTIES = (
     "ParaTopMargin", "ParaBottomMargin", "ParaLeftMargin", "ParaRightMargin",
     "ParaFirstLineIndent", "ParaAdjust", "ParaBackColor", "ParaKeepTogether", "ParaSplit",
 )
 
-# Scalar, JSON-safe subset reported back to the agent. The capture itself still covers every Char*
-# property; only the report is narrowed (CharLocale and friends are UNO structs).
-REPORTED_CHAR_PROPERTIES = ("CharFontName", "CharHeight", "CharWeight", "CharPosture", "CharColor")
+# Scalar, JSON-safe subset reported back to the agent. Includes the Asian/Complex font/size
+# slots because style_props clears those too — omitting them made a CJK house-font apply look
+# like it only touched the Latin slot. The capture itself still covers every Char*; only the
+# report is narrowed (CharLocale and friends are UNO structs).
+REPORTED_CHAR_PROPERTIES = (
+    "CharFontName", "CharFontNameAsian", "CharFontNameComplex",
+    "CharHeight", "CharHeightAsian", "CharHeightComplex",
+    "CharWeight", "CharPosture", "CharColor",
+)
+
+# Walk caps for the capture in apply_paragraph_style_preserving_direct_char. A UNO enumeration
+# that misbehaves otherwise spins forever; hitting the cap means later runs were not read.
+_CAPTURE_PARA_LIMIT = 200000
+_CAPTURE_PORTION_LIMIT = 50000
+
+
+def enum_hit_walk_cap(seen, limit, enum):
+    """True when a walk stopped because of *limit*, not because *enum* was exhausted."""
+    if seen < limit or enum is None:
+        return False
+    try:
+        return enum.hasMoreElements() is True
+    except Exception:
+        return False
+
+
+def walk_cap_warning(kind, seen, limit):
+    """Agent-facing note when a text walk stopped at a hard cap.
+
+    The walk still returns what it collected; anything after the cap was not read, so
+    formatting (or a header scan) may be incomplete. DO: treat the result as partial and
+    re-read a smaller range rather than assuming the rest is unformatted.
+    """
+    return (
+        "Walk stopped after %d %s (cap %d). Later content was not read, so formatting "
+        "may be incomplete. Read a smaller range (or split the target) rather than "
+        "treating this result as the whole picture." % (seen, kind, limit)
+    )
+
+
+def record_walk_cap(enum, seen, limit, kind, dest=None):
+    """Log (and optionally collect) a walk-cap warning. Returns True when the cap was hit."""
+    if not enum_hit_walk_cap(seen, limit, enum):
+        return False
+    msg = walk_cap_warning(kind, seen, limit)
+    log.warning("%s", msg)
+    if dest is not None:
+        dest.append(msg)
+    return True
 
 
 def _reset_properties_to_default(cursor, names):
@@ -304,6 +350,8 @@ def apply_paragraph_style_preserving_direct_char(doc, cursor, style_name, clear_
     captured; applying a style with a different default can change that property visibly.
     """
 
+    walk_notes: list[str] = []
+
     def _expand_to_full_paragraphs(cur):
         try:
             text = cur.getText()
@@ -332,7 +380,7 @@ def apply_paragraph_style_preserving_direct_char(doc, cursor, style_name, clear_
         except Exception:
             return overrides
         _paras = 0
-        while para_enum.hasMoreElements() is True and _paras < 200000:
+        while para_enum.hasMoreElements() is True and _paras < _CAPTURE_PARA_LIMIT:
             _paras += 1
             try:
                 para = para_enum.nextElement()
@@ -353,7 +401,7 @@ def apply_paragraph_style_preserving_direct_char(doc, cursor, style_name, clear_
             except Exception:
                 continue
             _portions = 0
-            while portion_enum.hasMoreElements() is True and _portions < 50000:
+            while portion_enum.hasMoreElements() is True and _portions < _CAPTURE_PORTION_LIMIT:
                 _portions += 1
                 try:
                     portion = portion_enum.nextElement()
@@ -386,6 +434,8 @@ def apply_paragraph_style_preserving_direct_char(doc, cursor, style_name, clear_
                         overrides.append((pc, props))
                     except Exception:
                         continue
+            record_walk_cap(portion_enum, _portions, _CAPTURE_PORTION_LIMIT, "text portions", walk_notes)
+        record_walk_cap(para_enum, _paras, _CAPTURE_PARA_LIMIT, "paragraphs", walk_notes)
         return overrides
 
     capture_cursor = _expand_to_full_paragraphs(cursor) or cursor
@@ -430,6 +480,8 @@ def apply_paragraph_style_preserving_direct_char(doc, cursor, style_name, clear_
                         else sorted({n for _pc, props in overrides for n in props}))
         report["cleared_char_properties"] = _reset_properties_to_default(capture_cursor, char_targets)
         report["cleared_paragraph_properties"] = _reset_properties_to_default(capture_cursor, CLEARABLE_PARA_PROPERTIES)
+    if walk_notes:
+        report["warning"] = " ".join(walk_notes)
     return report
 
 
@@ -488,9 +540,9 @@ def _apply_image_export_options(content: str, *, include_images: bool) -> str:  
     return impl(content, include_images=include_images)
 
 
-def document_to_content(model, ctx, services, max_chars=None, scope="full", range_start=None, range_end=None, *, include_images=False):
+def document_to_content(model, ctx, services, max_chars=None, scope="full", range_start=None, range_end=None, *, include_images=False, walk_warnings=None):
     from .html_export import document_to_content as impl
-    return impl(model, ctx, services, max_chars, scope, range_start, range_end, include_images=include_images)
+    return impl(model, ctx, services, max_chars, scope, range_start, range_end, include_images=include_images, walk_warnings=walk_warnings)
 
 
 def xtext_to_content(text_obj, model, ctx, services=None, *, include_images=True, max_chars=None):

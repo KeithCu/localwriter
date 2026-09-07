@@ -260,6 +260,22 @@ def test_apply_style_explicit_none_reports_overrides_without_retry_hint(mock_res
 
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
 @patch("plugin.writer.styles.resolve_target_cursor")
+def test_apply_style_forwards_walk_cap_warning(mock_resolve, mock_preserve, mock_ctx):
+    """Portion-capture truncate must reach the tool result, not stay a silent log line."""
+    mock_resolve.return_value = MagicMock()
+    mock_preserve.return_value = {
+        "direct_formatting": "preserved",
+        "clear_direct": "none",
+        "warning": "Walk stopped after 50000 text portions (cap 50000). Later content was not read, so formatting may be incomplete.",
+    }
+
+    res = ApplyStyle().execute(mock_ctx, style="Standard", target="selection")
+
+    assert "incomplete" in res["warning"]
+
+
+@patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
+@patch("plugin.writer.styles.resolve_target_cursor")
 def test_apply_style_default_allowed_on_full_document(mock_resolve, mock_preserve, mock_ctx):
     """Default style_props is allowed on full_document so house font shows without a flag."""
     mock_resolve.return_value = MagicMock()

@@ -14,11 +14,12 @@
 #     (when supplied), else CSS fingerprint, else omitted
 #
 # v1 limitations (see docs/writer/html-style-model-plan.md#v1-limitations-shipped):
-#   - Whole-paragraph Para* overrides (center, para colour, margins) do not round-trip on WRITE;
-#     FODT recovers the base style NAME only. Char-level overrides via text-* spans survive.
-#     Read REPORTS the hand-set paragraph formatting as read-only data-lo-para, taken from the
-#     flat-ODF sidecar (see extract_autostyle_overrides_from_fodt): the XHTML CSS is flattened
-#     and cannot tell an override from an inherited value.
+#   - Whole-paragraph Para* overrides (center, margins, paragraph font, para colour) do not
+#     round-trip on WRITE; FODT recovers the base style NAME only. Char-level overrides via
+#     text-* spans survive (including run colour). Read REPORTS geometry, paragraph font, and
+#     fo:color as read-only data-lo-para, taken from the flat-ODF sidecar (see
+#     extract_autostyle_overrides_from_fodt): the XHTML CSS is flattened and cannot tell an
+#     override from an inherited value.
 #   - Inside <table>: paragraph-* classes stripped; no data-lo-style (cell styles out of scope).
 #   - Colliding compact tokens (two UNO names -> same token): token omitted on read.
 #

@@ -158,16 +158,26 @@ def _source_style(model, style_name, cache):
     return style
 
 
-def _visible_portions(para):
+def _visible_portions(para, limit=_COPY_PORTION_LIMIT, truncated_out=None):
     """Visible portions for offset paint. Same walk as the text helper.
 
     Aborts on portion enum / type failure so later runs are not painted at a
     drifted offset. ``get_string_without_tracked_deletions`` continues past a
     bad portion instead — that is the only intentional divergence.
+
+    Hitting *limit* used to stop silently, so a range read could omit later
+    runs' Char* with no signal. When the shared walk stops because of the cap,
+    log and append ``walk_cap_warning`` to *truncated_out*.
     """
+    hit: list[int] = []
     yield from _shared_visible_portions(
-        para, abort_on_portion_error=True, limit=_COPY_PORTION_LIMIT
+        para, abort_on_portion_error=True, limit=limit, truncated_out=hit
     )
+    if hit:
+        msg = format_mod.walk_cap_warning("text portions", hit[0], limit)
+        log.warning("%s", msg)
+        if truncated_out is not None:
+            truncated_out.append(msg)
 
 
 def _paint_direct_formatting(para, portions, temp_text, trim_start, trim_end, style=None):
@@ -214,7 +224,7 @@ def _paint_direct_formatting(para, portions, temp_text, trim_start, trim_end, st
             continue
 
 
-def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, *, include_images=False):
+def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, *, include_images=False, walk_warnings=None):
     """Export a character range to content via a hidden temp document."""
     temp_doc = None
     try:
@@ -244,7 +254,7 @@ def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc
             # Same _visible_portions walk as get_string_without_tracked_deletions so
             # paint offsets match the helper string. Still walk here (not just the
             # helper) because we need the portion objects to copy Char* properties.
-            portions = list(_visible_portions(el))
+            portions = list(_visible_portions(el, truncated_out=walk_warnings))
             para_text = "".join(chunk for _unused, chunk in portions)
             style = style or ""
             # Compute paragraph start offset
@@ -327,6 +337,7 @@ def document_to_content(
     range_end=None,
     *,
     include_images=False,
+    walk_warnings=None,
 ):
     """Export a Writer document (or part of it) as HTML.
 
@@ -363,7 +374,9 @@ def document_to_content(
         # selection path no longer names document_helpers in this file.
         start, end = format_mod._selection_range_for_export(model)
         return _done(
-            _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, include_images=include_images),
+            _range_to_content_via_temp_doc(
+                model, ctx, start, end, max_chars, config_svc,
+                include_images=include_images, walk_warnings=walk_warnings),
             "selection",
         )
 
@@ -374,7 +387,9 @@ def document_to_content(
         start = max(0, min(start, doc_len))
         end = min(end, doc_len)
         return _done(
-            _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, include_images=include_images),
+            _range_to_content_via_temp_doc(
+                model, ctx, start, end, max_chars, config_svc,
+                include_images=include_images, walk_warnings=walk_warnings),
             "range",
         )
 

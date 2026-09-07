@@ -193,6 +193,7 @@ def _visible_portions(
     *,
     abort_on_portion_error: bool = False,
     limit: int | None = None,
+    truncated_out=None,
 ):
     """Yield ``(portion, text)`` for visible text, skipping tracked deletions.
 
@@ -203,6 +204,9 @@ def _visible_portions(
     ``abort_on_portion_error=True``: a failed ``nextElement`` / portion type
     would desync character offsets, so the walk stops. The helper continues
     past a bad portion so later runs can still contribute text.
+
+    When *limit* stops the walk with more portions waiting, *truncated_out*
+    (if given) receives the seen count so the caller can warn.
     """
     try:
         portion_enum = para.createEnumeration()
@@ -212,6 +216,9 @@ def _visible_portions(
     seen = 0
     while portion_enum.hasMoreElements():
         if limit is not None and seen >= limit:
+            # Cap hit with more portions waiting — caller can warn that paint is partial.
+            if truncated_out is not None:
+                truncated_out.append(seen)
             return
         seen += 1
         try:

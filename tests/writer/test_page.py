@@ -384,6 +384,46 @@ def test_page_header_footer_schema_has_no_force_and_descriptions_say_html():
     assert "setstring" not in set_desc
 
 
+def test_scan_region_warns_when_portion_cap_is_hit(monkeypatch):
+    """A header walk that hits the cap used to drop later fields with no signal."""
+    from plugin.writer import page as pg
+
+    text_obj = MagicMock()
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([
+        _paragraph([
+            _portion("TextField", _page_number_field()),
+            _portion("TextField", _page_number_field()),
+        ]),
+    ])
+    doc = MagicMock()
+    doc.getDrawPage.return_value.getCount.return_value = 0
+    monkeypatch.setattr(pg, "_SCAN_PORTION_LIMIT", 1)
+    scan = pg._scan_region_content(doc, text_obj)
+
+    assert "warning" in scan
+    assert "cap 1" in scan["warning"]
+    assert "incomplete" in scan["warning"]
+
+
+def test_get_header_footer_surfaces_walk_cap_warning(monkeypatch):
+    from unittest.mock import patch
+
+    from plugin.writer import page as pg
+
+    text_obj = MagicMock()
+    extra = [_portion("Text") for _idx in range(3)]
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph(extra)])
+    doc, _style = _page_style_doc(text_obj)
+    monkeypatch.setattr(pg, "_SCAN_PORTION_LIMIT", 1)
+    with patch("plugin.writer.html_export.xtext_to_content", return_value="<p>plain</p>"):
+        res = PageGetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="header")
+
+    assert res["status"] == "ok"
+    assert "cap 1" in res["warning"]
+
+
 def test_first_page_region_targets_its_own_text_object():
     """A 'different first page' letterhead lives in HeaderTextFirst; the shared HeaderText never
     reaches it."""

@@ -187,6 +187,17 @@ def test_visible_portions_helper_continues_paint_aborts():
     assert "".join(chunk for _unused, chunk in _visible_portions(para)) == "later"
 
 
+def test_visible_portions_truncated_out_when_cap_hit():
+    para = _Paragraph([_Portion("a"), _Portion("b"), _Portion("c")])
+    hit = []
+    chunks = [chunk for _unused, chunk in _visible_portions(para, limit=2, truncated_out=hit)]
+    assert chunks == ["a", "b"]
+    assert hit == [2]
+    exhausted = []
+    assert [c for _u, c in _visible_portions(para, limit=3, truncated_out=exhausted)] == ["a", "b", "c"]
+    assert exhausted == []
+
+
 def test_get_full_writer_text_truncates_and_reads_prefix():
     with (
         patch("plugin.doc.text_helpers._writer_char_count", return_value=20),
