@@ -40,7 +40,7 @@ _FODT_REGION_FALLBACK = {
     "footer_left": "footer",
 }
 
-_FODT_TAG_RE_CACHE = {}
+_FODT_TAG_RE_CACHE: dict[str, re.Pattern[str]] = {}
 _FODT_MASTER_PAGE_RE = re.compile(
     r"<style:master-page\b([^>]*)>(.*?)</style:master-page>",
     re.DOTALL,
@@ -49,7 +49,7 @@ _FODT_OFFICE_TEXT_RE = re.compile(
     r"<office:text\b[^>]*>.*?</office:text>",
     re.DOTALL,
 )
-_FODT_SELF_CLOSE_RE_CACHE = {}
+_FODT_SELF_CLOSE_RE_CACHE: dict[str, re.Pattern[str]] = {}
 
 log = logging.getLogger("writeragent.writer")
 

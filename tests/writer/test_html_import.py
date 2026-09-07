@@ -16,6 +16,14 @@ def test_field_spans_to_sentinels_closed_span():
     assert "WAFIELD_page-count_WAFIELD" in out
 
 
+def test_field_spans_to_sentinels_presentation_digit():
+    """XHTML often emits the field's visible digit inside the span, not a void tag."""
+    html = '<p data-lo-style="Header">Acme LLP <span title="page-number">1</span></p>'
+    out = field_spans_to_sentinels(html)
+    assert "WAFIELD_page-number_WAFIELD" in out
+    assert '<span title="page-number">' not in out
+
+
 def test_field_spans_to_sentinels_leaves_unknown_title():
     html = '<p><span title="not-a-field"/></p>'
     assert field_spans_to_sentinels(html) == html

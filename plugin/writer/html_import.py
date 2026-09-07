@@ -31,8 +31,10 @@ XHTML_FIELD_TITLES = {
     "page-number": "PageNumber",
     "page-count": "PageCount",
 }
+# Body/header export is either self-closing or <span title="page-number">1</span>
+# (the digit is the field presentation). Inner text must not contain tags.
 _FIELD_SPAN_RE = re.compile(
-    r'<span\b[^>]*\btitle="([^"]+)"[^>]*(?:/>|>\s*</span>)',
+    r'<span\b[^>]*\btitle="([^"]+)"[^>]*(?:/>|>[^<]*</span>)',
     re.IGNORECASE,
 )
 _FIELD_SENTINEL_RE = re.compile(r"WAFIELD_([A-Za-z0-9_-]+)_WAFIELD")
