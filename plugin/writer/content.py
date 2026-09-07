@@ -86,6 +86,7 @@ class GetDocumentContent(ToolBase):
             return self._tool_error("scope 'range' requires start and end.")
 
         include_images = bool(kwargs.get("include_images", False))
+        walk_warnings: list[str] = []
         content = format_support.document_to_content(
             ctx.doc,
             ctx.ctx,
@@ -95,9 +96,12 @@ class GetDocumentContent(ToolBase):
             range_start=range_start,
             range_end=range_end,
             include_images=include_images,
+            walk_warnings=walk_warnings,
         )
         doc_len = ctx.services.document.get_document_length(ctx.doc)
         result = {"status": "ok", "content": content, "length": len(content), "document_length": doc_len}
+        if walk_warnings:
+            result["warning"] = walk_warnings[0]
         # Machine-readable truncation signal: without it the only clue was the in-band marker
         # string, which a model must know to look for. (length counts HTML chars; document_length
         # and scope='range' offsets are plain-text chars — use those for follow-up range reads.)

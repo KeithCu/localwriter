@@ -154,12 +154,15 @@ def _source_style(model, style_name, cache):
     return style
 
 
-def _visible_portions(para):
+def _visible_portions(para, limit=_COPY_PORTION_LIMIT, truncated_out=None):
     """Yield ``(portion, text)`` for a paragraph's visible text, skipping tracked deletions.
 
     Mirrors the walk in ``get_string_without_tracked_deletions`` exactly — same Redline/Delete
     toggle, same skips — so an offset taken from that string indexes into these chunks without
     drift. Any divergence here would paint one run's formatting onto another's characters.
+
+    Hitting *limit* used to stop silently, so a range read could omit later runs' Char* with
+    no signal. When the cap fires, log and append ``walk_cap_warning`` to *truncated_out*.
     """
     try:
         portion_enum = para.createEnumeration()
@@ -167,7 +170,7 @@ def _visible_portions(para):
         return
     in_delete = False
     seen = 0
-    while portion_enum.hasMoreElements() is True and seen < _COPY_PORTION_LIMIT:
+    while portion_enum.hasMoreElements() is True and seen < limit:
         seen += 1
         try:
             portion = portion_enum.nextElement()
@@ -189,6 +192,7 @@ def _visible_portions(para):
             continue
         if chunk:
             yield portion, chunk
+    format_mod.record_walk_cap(portion_enum, seen, limit, "text portions", truncated_out)
 
 
 def _paint_direct_formatting(para, portions, temp_text, trim_start, trim_end, style=None):
@@ -229,7 +233,7 @@ def _paint_direct_formatting(para, portions, temp_text, trim_start, trim_end, st
             continue
 
 
-def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, *, include_images=False):
+def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, *, include_images=False, walk_warnings=None):
     """Export a character range to content via a hidden temp document."""
     temp_doc = None
     try:
@@ -261,7 +265,7 @@ def _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc
             # with "\n", so a bold run mid-sentence used to come back as "text\nbold\ntext" —
             # spurious <br/> in the output, and offsets that no longer match the portions the
             # formatting has to be painted onto.
-            portions = list(_visible_portions(el))
+            portions = list(_visible_portions(el, truncated_out=walk_warnings))
             para_text = "".join(chunk for _unused, chunk in portions)
             style = style or ""
             # Compute paragraph start offset
@@ -344,6 +348,7 @@ def document_to_content(
     range_end=None,
     *,
     include_images=False,
+    walk_warnings=None,
 ):
     """Export a Writer document (or part of it) as HTML.
 
@@ -380,7 +385,9 @@ def document_to_content(
         # selection path no longer names document_helpers in this file.
         start, end = format_mod._selection_range_for_export(model)
         return _done(
-            _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, include_images=include_images),
+            _range_to_content_via_temp_doc(
+                model, ctx, start, end, max_chars, config_svc,
+                include_images=include_images, walk_warnings=walk_warnings),
             "selection",
         )
 
@@ -391,7 +398,9 @@ def document_to_content(
         start = max(0, min(start, doc_len))
         end = min(end, doc_len)
         return _done(
-            _range_to_content_via_temp_doc(model, ctx, start, end, max_chars, config_svc, include_images=include_images),
+            _range_to_content_via_temp_doc(
+                model, ctx, start, end, max_chars, config_svc,
+                include_images=include_images, walk_warnings=walk_warnings),
             "range",
         )
 

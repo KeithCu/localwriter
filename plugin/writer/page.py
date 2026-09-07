@@ -21,6 +21,7 @@ Page styles, margins, headers/footers, columns, and page breaks.
 
 from typing import Any
 
+from .format import record_walk_cap
 from .specialized_base import ToolWriterPageBase
 
 # region name -> (is_on property, text property)
@@ -84,6 +85,7 @@ def _scan_region_content(doc, text_obj) -> dict[str, Any]:
         para_enum = text_obj.createEnumeration()
     except Exception:
         return out
+    notes: list[str] = []
     # `is True` and the hard caps match the enumeration walk in format.py: a UNO enumeration that
     # misbehaves otherwise spins here forever.
     while para_enum.hasMoreElements() is True and out["paragraph_count"] < _SCAN_PARA_LIMIT:
@@ -114,6 +116,10 @@ def _scan_region_content(doc, text_obj) -> dict[str, Any]:
                                       "content": field.getPresentation(True)})
             except Exception:
                 out["fields"].append({"presentation": "", "content": ""})
+        record_walk_cap(portions, seen_portions, _SCAN_PORTION_LIMIT, "text portions", notes)
+    record_walk_cap(para_enum, out["paragraph_count"], _SCAN_PARA_LIMIT, "paragraphs", notes)
+    if notes:
+        out["warning"] = notes[0]
     # Images anchored in the region live on the draw page, whatever their anchor type, so they are
     # found by matching the anchor's text object rather than by walking portions.
     try:
@@ -440,6 +446,10 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
                     "This %s holds %s, which plain text cannot represent. page_set_header_footer_text "
                     "would delete them; change the wording with apply_document_content(target='search') "
                     "instead — it reaches headers and footers and keeps them." % (_region_kind(region), held))
+            if scan.get("warning"):
+                result["warning"] = (
+                    ("%s %s" % (result["warning"], scan["warning"])) if result.get("warning")
+                    else scan["warning"])
             dyn_prop, _unused_spacing, height_prop = _height_props(region)
             try:
                 result["auto_height"] = bool(style.getPropertyValue(dyn_prop))
@@ -551,6 +561,8 @@ class PageSetHeaderFooterText(ToolWriterPageBase):
                 result["paragraphs_dropped"] = dropped
             if auto_height is not None:
                 result["auto_height"] = bool(auto_height)
+            if scan.get("warning"):
+                result["warning"] = scan["warning"]
             return result
         except Exception as e:
             return self._tool_error(f"Error writing to {region} text on page style '{style_name}': {e}")

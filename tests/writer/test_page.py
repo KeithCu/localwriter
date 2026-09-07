@@ -330,6 +330,43 @@ def test_set_header_footer_force_deletes_and_says_what_it_deleted():
     text_obj.setString.assert_called_with("ESCRITORIO ZOLET")
 
 
+def test_scan_region_warns_when_portion_cap_is_hit(monkeypatch):
+    """A header walk that hits the cap used to drop later fields with no signal."""
+    from plugin.writer import page as pg
+
+    text_obj = MagicMock()
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([
+        _paragraph([
+            _portion("TextField", _page_number_field()),
+            _portion("TextField", _page_number_field()),
+        ]),
+    ])
+    doc = MagicMock()
+    doc.getDrawPage.return_value.getCount.return_value = 0
+    monkeypatch.setattr(pg, "_SCAN_PORTION_LIMIT", 1)
+    scan = pg._scan_region_content(doc, text_obj)
+
+    assert "warning" in scan
+    assert "cap 1" in scan["warning"]
+    assert "incomplete" in scan["warning"]
+
+
+def test_get_header_footer_surfaces_walk_cap_warning(monkeypatch):
+    from plugin.writer import page as pg
+
+    text_obj = MagicMock()
+    text_obj.getString.return_value = "plain"
+    extra = [_portion("Text") for _idx in range(3)]
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph(extra)])
+    doc, _style = _page_style_doc(text_obj)
+    monkeypatch.setattr(pg, "_SCAN_PORTION_LIMIT", 1)
+    res = PageGetHeaderFooterText().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"), style="Standard", region="header")
+
+    assert res["status"] == "ok"
+    assert "cap 1" in res["warning"]
+
+
 def test_set_header_footer_plain_text_still_goes_straight_through():
     """No images, no fields -> unchanged behaviour, no new friction."""
     text_obj = MagicMock()

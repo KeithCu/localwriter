@@ -259,6 +259,32 @@ def test_truncated_flag_on_get_document_content():
     assert "truncated" not in res
 
 
+def test_get_document_content_surfaces_portion_walk_warning():
+    """Range/selection paint that hits _COPY_PORTION_LIMIT must not look complete."""
+    from unittest.mock import patch
+
+    from plugin.writer import format as format_support
+    from plugin.writer.content import GetDocumentContent
+
+    ctx = MagicMock()
+    ctx.services.document.get_document_length.return_value = 800
+
+    def _fake_export(*_args, **kwargs):
+        dest = kwargs.get("walk_warnings")
+        if dest is not None:
+            dest.append(
+                "Walk stopped after 2 text portions (cap 2). Later content was not read, "
+                "so formatting may be incomplete."
+            )
+        return "<p>partial</p>"
+
+    with patch.object(format_support, "document_to_content", side_effect=_fake_export):
+        res = GetDocumentContent().execute(ctx, scope="range", start=0, end=10)
+
+    assert res["status"] == "ok"
+    assert "incomplete" in res["warning"]
+
+
 def test_get_document_content_surfaces_tracked_changes():
     from plugin.writer.content import GetDocumentContent
 
