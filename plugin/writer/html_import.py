@@ -6,6 +6,8 @@
 """HTML/StarWriter import, replace, and markup routing for Writer documents.
 
 Public entries are re-exported from ``plugin.writer.format``.
+Header/footer apply uses ``replace_xtext_with_html`` (same StarWriter
+insert as the body path, pointed at a region ``XText``).
 """
 
 import html as html_mod
@@ -15,7 +17,7 @@ from html.parser import HTMLParser
 
 from plugin.doc.text_helpers import normalize_linebreaks as _normalize
 from plugin.framework.errors import ToolExecutionError
-from plugin.framework.uno_context import get_desktop
+from plugin.framework.uno_context import get_desktop, uno_same
 from . import xhtml_style_postprocess as xhtml_post
 from . import format as format_mod
 from .math.html_math_segment import html_fragment_contains_mixed_math, segment_html_with_mixed_math
@@ -635,6 +637,139 @@ def replace_single_range_with_content(model, text_range, content, ctx, config_sv
                 ) from e
             raise
 
+
+
+# XHTML export of Writer fields (body and copied header XText) is a titled
+# span, e.g. ``<span title="page-number"/>``. StarWriter HTML import drops
+# those spans (probed: no TextField after insert). Swap in a token the
+# filter keeps, import, then replace the token with a real field.
+_FIELD_PLACEHOLDER_FMT = "[[WA-FIELD:%s]]"
+_EXPORTED_FIELD_TITLES = ("page-number", "page-count", "time", "date")
+_FIELD_SPAN_RE = re.compile(
+    r'<span\b(?=[^>]*\btitle\s*=\s*["\'](page-number|page-count|time|date)["\'])'
+    r'(?:[^>]*/>|[^>]*>.*?</span>)',
+    re.IGNORECASE | re.DOTALL,
+)
+_FIELD_TITLE_TO_SERVICE = {
+    "page-number": "com.sun.star.text.textfield.PageNumber",
+    "page-count": "com.sun.star.text.textfield.PageCount",
+    "time": "com.sun.star.text.textfield.DateTime",
+    "date": "com.sun.star.text.textfield.DateTime",
+}
+
+
+def rewrite_exported_field_spans(html):
+    """Replace XHTML field spans with placeholders the HTML import will keep."""
+    if not html or "title=" not in html:
+        return html
+
+    def _repl(match):
+        return _FIELD_PLACEHOLDER_FMT % match.group(1).lower()
+
+    return _FIELD_SPAN_RE.sub(_repl, html)
+
+
+def _insert_restored_field(model, text_range, title):
+    service = _FIELD_TITLE_TO_SERVICE.get(title)
+    if not service:
+        return False
+    try:
+        field = model.createInstance(service)
+    except Exception:
+        return False
+    if title == "page-number":
+        try:
+            from com.sun.star.text.PageNumberType import CURRENT
+
+            field.setPropertyValue("PageNumberType", CURRENT)
+        except Exception:
+            pass
+        try:
+            field.setPropertyValue("NumberingType", 4)  # Arabic
+        except Exception:
+            pass
+    elif title == "date":
+        try:
+            field.setPropertyValue("IsDate", True)
+        except Exception:
+            pass
+    elif title == "time":
+        try:
+            field.setPropertyValue("IsDate", False)
+        except Exception:
+            pass
+    try:
+        text = text_range.getText()
+        cursor = text.createTextCursorByRange(text_range)
+        cursor.setString("")
+        text.insertTextContent(cursor, field, False)
+        return True
+    except Exception:
+        log.debug("_insert_restored_field failed title=%s", title, exc_info=True)
+        return False
+
+
+def _restore_field_placeholders(model, text_obj=None):
+    """Turn ``[[WA-FIELD:…]]`` tokens back into UNO fields.
+
+    Uses document ``findFirst`` (same reach as body search: headers included).
+    When *text_obj* is set, only matches in that ``XText`` are replaced.
+    """
+    if model is None or not hasattr(model, "createSearchDescriptor"):
+        return 0
+    restored = 0
+    for title in _EXPORTED_FIELD_TITLES:
+        needle = _FIELD_PLACEHOLDER_FMT % title
+        try:
+            sd = model.createSearchDescriptor()
+            sd.SearchString = needle
+            sd.SearchRegularExpression = False
+            found = model.findFirst(sd)
+        except Exception:
+            continue
+        while found is not None:
+            in_region = True
+            if text_obj is not None:
+                try:
+                    in_region = uno_same(found.getText(), text_obj)
+                except Exception:
+                    in_region = True
+            nxt = None
+            try:
+                nxt = model.findNext(found.getEnd(), sd)
+            except Exception:
+                nxt = None
+            if in_region and _insert_restored_field(model, found, title):
+                restored += 1
+            found = nxt
+    return restored
+
+
+def replace_xtext_with_html(text_obj, html, config_svc=None, model=None):
+    """Clear *text_obj* and import *html* via the shared StarWriter path.
+
+    Field spans from ``document_to_content`` / ``xtext_to_content`` are
+    restored as live fields after import. *model* is the owning document
+    (needed to create fields and to find placeholders). Do not pass it
+    through to ``insert_html_fragment_at_cursor`` — that helper would
+    then jump the cursor to the *body* end.
+    """
+    if text_obj is None:
+        raise ToolExecutionError("No text object to import into.")
+    expanded = html if isinstance(html, str) else ("" if html is None else str(html))
+    expanded = expanded.replace("\\n", "\n").replace("\\t", "\t")
+    rewritten = rewrite_exported_field_spans(expanded)
+    prepared = _ensure_html_linebreaks(rewritten)
+    cursor = text_obj.createTextCursor()
+    cursor.gotoStart(False)
+    cursor.gotoEnd(True)
+    cursor.setString("")
+    cursor.gotoStart(False)
+    insert_html_fragment_at_cursor(
+        cursor, prepared, wrap=False, config_svc=config_svc, model=None,
+    )
+    if model is not None:
+        _restore_field_placeholders(model, text_obj)
 
 
 def content_has_markup(content):

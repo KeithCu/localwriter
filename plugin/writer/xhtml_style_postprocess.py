@@ -14,11 +14,12 @@
 #     (when supplied), else CSS fingerprint, else omitted
 #
 # v1 limitations (see docs/writer/html-style-model-plan.md#v1-limitations-shipped):
-#   - Whole-paragraph Para* overrides (center, margins, paragraph font) do not round-trip on WRITE;
-#     FODT recovers the base style NAME only. Char-level overrides via text-* spans survive
-#     (including run colour). Read REPORTS geometry + paragraph font as read-only data-lo-para,
-#     taken from the flat-ODF sidecar (see extract_autostyle_overrides_from_fodt): the XHTML CSS
-#     is flattened and cannot tell an override from an inherited value. fo:color is not mapped.
+#   - Whole-paragraph Para* overrides (center, margins, paragraph font, para colour) do not
+#     round-trip on WRITE; FODT recovers the base style NAME only. Char-level overrides via
+#     text-* spans survive (including run colour). Read REPORTS geometry, paragraph font, and
+#     fo:color as read-only data-lo-para, taken from the flat-ODF sidecar (see
+#     extract_autostyle_overrides_from_fodt): the XHTML CSS is flattened and cannot tell an
+#     override from an inherited value.
 #   - Inside <table>: paragraph-* classes stripped; no data-lo-style (cell styles out of scope).
 #   - Colliding compact tokens (two UNO names -> same token): token omitted on read.
 #
@@ -117,9 +118,10 @@ def _normalize_decl(decl):
 # values were hand-set — reporting it would present a style's own indent as a direct override. The
 # .fodt automatic style holds exactly the overrides and nothing inherited.
 #
-# Both the geometry and the paragraph-level font are reported: a .docx reused as a model carries
-# its font as a whole-paragraph override, which is precisely what makes an applied style look like
-# it did nothing.
+# Geometry, paragraph-level font, and paragraph colour are reported: a .docx reused as a model
+# carries its font as a whole-paragraph override, which is precisely what makes an applied style
+# look like it did nothing. fo:color was missing here, so Issue-1-style center+red never showed
+# red in data-lo-para (char spans could still carry colour).
 #
 # INFORMATIONAL only — the write path ignores ``data-lo-para`` (it still cannot restore Para* when
 # applying a named style), which is why it is not emitted as ``style=""``: that would round-trip
@@ -137,6 +139,7 @@ _FODT_OVERRIDE_ATTRS = (
     ("fo:font-size", "font-size"),
     ("fo:font-weight", "font-weight"),
     ("fo:font-style", "font-style"),
+    ("fo:color", "color"),
 )
 
 # ODF writes alignment relative to writing direction; the agent reads CSS.
@@ -328,7 +331,9 @@ class _SemanticTransformer(HTMLParser):
         if token:
             raw = _inject_attr(raw, ' data-lo-style="%s"' % token)
         if para_css:
-            raw = _inject_attr(raw, ' data-lo-para="%s"' % para_css)
+            # ODF values are unescaped before this (a font name can contain "). Without
+            # quote=True the injected attribute closes early and the tag is not well-formed.
+            raw = _inject_attr(raw, ' data-lo-para="%s"' % _html.escape(para_css, quote=True))
         return raw
 
     def _rewrite_span(self, raw, attrs):

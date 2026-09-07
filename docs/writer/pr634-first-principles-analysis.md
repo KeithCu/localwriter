@@ -4,7 +4,11 @@
 **Inputs:** `/workspace/pr634-followups/initial-plan.md`, merged PR [#634](https://github.com/KeithCu/writeragent/pull/634) on `master`  
 **Scope:** Research only — no product PR. Goal: proper fixes that stay **simple, robust, and easy for models**.
 
-Symbols and paths below are current `master` unless noted.
+> **Later product decision:** `apply_style` now defaults to `clear_direct='style_props'` (house font/size win, bold/italic/colour stay). `none` is an explicit opt-in. The same-style-only special case discussed in §2.7 was **not** implemented. Treat sections below that say “default is `none`” as historical.
+
+> **Header/footer write path (after #638):** HTML get + HTML import replaced refuse-on-held, `force`, and “use search instead of `page_set`.” Sections below that prescribe refuse, `force=true` wipe, or search-as-escape are historical. Get still reports `images` / `fields` / `paragraph_count` as optional scan extras — not as a write refuse gate. Do not add refuse-on-table. `page_set_style_properties` refuse-when-`header_is_on=false` while content remains is a separate feature if it lands.
+
+Symbols and paths below describe the #634-era API unless a later banner says otherwise.
 
 ---
 
@@ -345,17 +349,11 @@ Call sites still passing paragraph-ish objects: `tree.py`, `text_analytics.py`, 
 
 ### 2.9 `style_get_info` PageStyles extra hop
 
-**Today (`styles.py`)**
-
-`family == "PageStyles"` returns a tool error telling the agent to call `page_get_style_properties`. Correct functionally; burns a turn.
-
-**Recommended approach**
-
-In-process dispatch to the same implementation `page_get_style_properties` uses (shared function, not a nested LLM call). Return that payload with a clear `family: PageStyles` (or existing page-tool shape). Error redirect was a fine first cut; dispatch is the proper small fix.
+**Shipped (Option A):** `style_get_info(family=PageStyles)` dispatches in-process to `get_page_style_properties` — the same function `page_get_style_properties` uses. Both public entry points stay. Not a nested LLM call and not an error redirect. Option B (hard-merge to a single public API; winner TBD) is deferred.
 
 **Tests**
 
-- Unit/mock: `style_get_info(PageStyles, Standard)` returns margin/header fields without `status=error`.
+- Unit/mock: `style_get_info(PageStyles, Standard)` returns margin/header fields with `status=ok`.
 
 ---
 
@@ -385,13 +383,9 @@ In-process dispatch to the same implementation `page_get_style_properties` uses 
 
 ### 2.11 `_paint_direct_formatting` aborts Char* if Para* fails
 
-**Today (`html_export.py`)**
+**Fixed (`html_export.py`)**
 
-Para property copy in try/except; on failure **`return`** before the portion Char* loop. A single refused `Para*` drops the entire reason the temp-doc path exists (bold/indent visibility on range read).
-
-**Recommended approach**
-
-Catch Para* failures, log, **continue** to portion painting. Char* failures already `continue` per portion.
+Para* copy is isolated from obtaining `para_start`. A refused Para* is logged and the portion Char* loop still runs. Char* failures already `continue` per portion. Without `para_start` the function still returns (nothing to paint onto).
 
 **Tests**
 
@@ -456,7 +450,7 @@ Sequenced so UNO tests pin quirks before API behavior shifts:
 6. **`data-lo-para` escape + `fo:color` (or doc fix) + attribute-shaped `_note_read_only_attrs`**.  
 7. **`_paint_direct_formatting` don’t abort Char* on Para* failure**.  
 8. **`image_insert` + `header_first` / `footer_first`**; search-reach FakePageStyle.  
-9. **`style_get_info` → in-process page props**; regenerate scripting proxies as needed.  
+9. **`style_get_info` → in-process page props** (Option A shipped); regenerate scripting proxies as needed.  
 10. **Nits pack:** CLEARABLE single source, portion-limit warning, Asian/Complex reporting, docs (`llm-styles.md`).
 
 Parallelizable: (5)–(7) and (8)–(9) after (1)–(3) land, if staffing allows — but do not change field refuse before surgical replace exists.

@@ -47,6 +47,7 @@ else:
 from plugin.doc.visual_helpers import parse_color_to_uno_int
 from plugin.framework.tool import ToolBase as FrameworkToolBase
 from .format import CLEARABLE_PARA_PROPERTIES, apply_paragraph_style_preserving_direct_char
+from .page import get_page_style_properties
 from .specialized_base import ToolWriterStyleBase
 from .target_resolver import resolve_target_cursor
 
@@ -232,19 +233,25 @@ class StyleGetInfo(ToolWriterStyleBase):
     """Get detailed properties of a named style."""
 
     name = "style_get_info"
-    description = "Get detailed properties of a specific style (font, size, margins, etc.)."
-    parameters = {"type": "object", "properties": {"style": {"type": "string", "description": "Name of the style to inspect."}, "family": {"type": "string", "description": "Style family. Default: ParagraphStyles."}}, "required": ["style"]}
+    description = (
+        "Get detailed properties of a named style (font, size, paragraph margins). "
+        "For family=PageStyles, return the same page-style margins/header/footer "
+        "payload as page_get_style_properties so the caller does not need a second tool hop."
+    )
+    parameters = {"type": "object", "properties": {"style": {"type": "string", "description": "Name of the style to inspect."}, "family": {"type": "string", "description": "Style family. Default: ParagraphStyles. PageStyles returns the same page-style payload as page_get_style_properties."}}, "required": ["style"]}
 
     def execute(self, ctx, **kwargs):
         style_name = kwargs.get("style", "")
         family = kwargs.get("family", "ParagraphStyles")
 
-        # style_list reports PageStyles, but the property set read here is text-style shaped and
-        # would come back empty for one. Send the caller to the tool that does answer.
+        # In-process dispatch to the same reader page_get_style_properties uses — not an error
+        # bounce and not a nested LLM call. Option B (deferred): hard-merge to a single public
+        # API (winner TBD: general style_get_info vs the page toolkit).
         if family == "PageStyles":
-            return self._tool_error(
-                "style_get_info does not read page styles. Use page_get_style_properties(style='%s') "
-                "for margins, size and header/footer state." % (style_name or "Standard"))
+            result = get_page_style_properties(ctx.doc, style_name or "Standard")
+            if result.get("status") == "ok":
+                result = {**result, "family": "PageStyles"}
+            return result
 
         doc = ctx.doc
         style_family = self.get_item(doc, "getStyleFamilies", family, missing_msg="Document does not support style families.", not_found_msg="Unknown style family: %s" % family)
@@ -284,8 +291,10 @@ class ApplyStyle(FrameworkToolBase):
         "with family='CharacterStyles' to remove a character style. "
         "Use target='selection' (default), 'beginning', 'end', 'full_document', "
         "or 'search' with old_content. "
-        "If the result reports preserved_char_overrides, the target had hand-set formatting that "
-        "overrides the style and nothing changed on screen — re-apply with clear_direct='style_props'."
+        "Paragraph styles default to clear_direct='style_props': the style's font name and size "
+        "show (house font wins) and paragraph indents/alignment follow the style; bold, italic "
+        "and colour stay. Pass clear_direct='none' only to keep a hand-set font. "
+        "Re-applying a style does not keep a quote indent — LibreOffice drops direct Para*."
     )
     parameters = {
         "type": "object",
@@ -296,14 +305,16 @@ class ApplyStyle(FrameworkToolBase):
             "old_content": {"type": "string", "description": "Text to find and apply style to if target = 'search'."},
             "all_matches": {"type": "boolean", "description": "For target='search': apply to EVERY occurrence of old_content (default false = first only)."},
             "occurrence": {"type": "integer", "description": "For target='search': apply to this single 0-based occurrence instead of the first."},
-            "clear_direct": {"type": "string", "enum": ["none", "style_props", "all"], "description": (
+            "clear_direct": {"type": "string", "enum": ["none", "style_props", "all"], "default": "style_props", "description": (
                 "What to do with direct (hand-set) formatting on the target, ParagraphStyles only. "
-                "'none' (default) keeps it — but direct formatting OVERRIDES the style, so on a document "
-                "formatted by hand the style will have no visible effect. 'style_props' drops the font "
-                "name/size override and the paragraph indents/alignment so the style's own values show, "
-                "keeping bold/italic/colour. 'all' drops every direct override (Ctrl+M). "
-                "Not allowed with target='full_document' — clearing the whole document flattens the "
-                "formatting that tells one kind of paragraph from another; style each range instead.")},
+                "'style_props' (default) drops the font name/size override and the paragraph "
+                "indents/alignment so the style's own values show, keeping bold/italic/colour. "
+                "The name means 'let the style's properties win' for the font/size/indent the "
+                "style governs — not 'clear only what this style defines'. "
+                "'none' keeps a hand-set font (historical; the style can look unchanged). "
+                "'all' drops every direct override (Ctrl+M). "
+                "'all' is not allowed with target='full_document' — that would flatten emphasis "
+                "across the whole document; style each range instead.")},
         },
         "required": ["style"],
     }
@@ -313,7 +324,7 @@ class ApplyStyle(FrameworkToolBase):
     # Maps family to the UNO property that holds the style name.
     _PROPERTY_MAP = {"ParagraphStyles": "ParaStyleName", "CharacterStyles": "CharStyleName"}
 
-    def _apply_one(self, ctx, family, uno_prop, uno_value, cursor, clear_direct="none"):
+    def _apply_one(self, ctx, family, uno_prop, uno_value, cursor, clear_direct="style_props"):
         """Apply the style to one cursor. Returns the direct-formatting report (or None)."""
         if family == "ParagraphStyles":
             return apply_paragraph_style_preserving_direct_char(ctx.doc, cursor, uno_value, clear_direct)
@@ -338,13 +349,19 @@ class ApplyStyle(FrameworkToolBase):
             if rep.get("warning"):
                 # First range's walk-cap note is enough — same cap applies to every range.
                 out.setdefault("warning", rep["warning"])
-        if out.get("preserved_char_overrides"):
-            # The whole point of the echo: a style apply that changed nothing visible used to be
-            # indistinguishable from one that worked.
-            out["hint"] = ("Direct formatting on the target overrides this style, so the document "
-                           "may look unchanged. Re-apply with clear_direct='style_props' to let the "
-                           "style's font, size and indents show.")
+        # No retry hint: default is already style_props (house font shows). preserved_char_overrides
+        # is only set on the explicit none path, which the caller asked for.
         return out
+
+    @staticmethod
+    def _resolve_clear_direct(family, raw):
+        """Paragraph styles default to style_props so the house font shows without a retry.
+
+        Character styles ignore the flag (it is not implemented for them); omitted there is none.
+        """
+        if raw is None or (isinstance(raw, str) and not str(raw).strip()):
+            return "style_props" if family == "ParagraphStyles" else "none"
+        return str(raw).strip()
 
     def execute(self, ctx, **kwargs):
         style_name = str(kwargs.get("style") or "").strip()
@@ -385,20 +402,20 @@ class ApplyStyle(FrameworkToolBase):
         target = kwargs.get("target", "selection")
         old_content = kwargs.get("old_content")
 
-        clear_direct = str(kwargs.get("clear_direct") or "none").strip()
+        clear_direct = self._resolve_clear_direct(family, kwargs.get("clear_direct"))
         if clear_direct not in ("none", "style_props", "all"):
             return self._tool_error("clear_direct must be one of: none, style_props, all.")
         if clear_direct != "none":
             if family != "ParagraphStyles":
                 return self._tool_error("clear_direct only applies to family='ParagraphStyles'.")
-            if target == "full_document":
-                # Clearing the whole document erases the direct formatting that distinguishes a
-                # block quote from body text — and the caller needs that distinction to pick which
-                # style each range gets. Force the per-range path instead.
+            if clear_direct == "all" and target == "full_document":
+                # Ctrl+M on the whole document wipes emphasis as well as fonts — force the
+                # per-range path. style_props (the default) is allowed: house font/size win
+                # and bold/italic/colour stay.
                 return self._tool_error(
-                    "clear_direct is not allowed with target='full_document': it would flatten the "
-                    "whole document, including the formatting that tells body text from quotes and "
-                    "headings. Style each range separately (target='search') instead.")
+                    "clear_direct='all' is not allowed with target='full_document': it would "
+                    "flatten emphasis across the whole document. Style each range separately "
+                    "(target='search') instead, or omit clear_direct to use style_props.")
 
         # Multi-occurrence styling (target='search' only). resolve_target_cursor styles only the
         # first match; all_matches / occurrence let a defined term or repeated quote lead be

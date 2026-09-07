@@ -10,7 +10,7 @@ from plugin.writer.format import (  # noqa: E402
     _content_has_block_markup,
     insert_html_fragment_at_cursor,
 )
-from plugin.writer.html_import import _wrap_html_fragment
+from plugin.writer.html_import import _wrap_html_fragment, rewrite_exported_field_spans
 
 
 @contextmanager
@@ -119,3 +119,50 @@ def test_filter_name_starwriter():
 
     assert filter_holder["props"][0].Name == "FilterName"
     assert filter_holder["props"][0].Value == HTML_FILTER
+
+
+def test_rewrite_exported_field_spans_matches_body_xhtml():
+    """Body/header XHTML emits titled spans; import must see a token, not a dropped tag."""
+    html = (
+        '<p>Confidential | <span title="page-number"/> | '
+        '<span title="page-count">A</span> '
+        '<span title="time">17:41:00</span></p>'
+    )
+    out = rewrite_exported_field_spans(html)
+    assert "[[WA-FIELD:page-number]]" in out
+    assert "[[WA-FIELD:page-count]]" in out
+    assert "[[WA-FIELD:time]]" in out
+    assert "title=\"page-number\"" not in out
+
+
+def test_rewrite_exported_field_spans_leaves_plain_html():
+    assert rewrite_exported_field_spans("<p>Hello</p>") == "<p>Hello</p>"
+    assert rewrite_exported_field_spans("") == ""
+
+
+def test_restore_field_placeholders_scopes_region_with_uno_same():
+    """Header field restore must use UNO identity, not bare ``==`` on XText wrappers."""
+    from plugin.writer import html_import as hi
+
+    header = object()
+    found = MagicMock()
+    found.getText.return_value = object()
+    found.getEnd.return_value = MagicMock()
+    model = MagicMock()
+    model.createSearchDescriptor.return_value = MagicMock()
+    model.findFirst.return_value = found
+    model.findNext.return_value = None
+
+    with (
+        patch.object(hi, "uno_same", return_value=True),
+        patch.object(hi, "_insert_restored_field", return_value=True) as insert,
+    ):
+        assert hi._restore_field_placeholders(model, header) >= 1
+        assert insert.called
+
+    with (
+        patch.object(hi, "uno_same", return_value=False),
+        patch.object(hi, "_insert_restored_field", return_value=True) as insert,
+    ):
+        assert hi._restore_field_placeholders(model, header) == 0
+        insert.assert_not_called()

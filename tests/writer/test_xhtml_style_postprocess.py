@@ -200,6 +200,59 @@ def test_no_para_override_reported_without_the_fodt_map():
     assert "data-lo-para" not in out, out
 
 
+# Issue-1-style FODT: P2 is center + red (matches REFERENCE_XHTML's "centered red" paragraph).
+_FODT_CENTER_RED = """<office:document>
+ <style:style style:name="P2" style:family="paragraph" style:parent-style-name="Standard">
+  <style:paragraph-properties fo:text-align="center"/>
+  <style:text-properties fo:color="#ff0000"/>
+ </style:style>
+</office:document>"""
+
+
+def test_fodt_fo_color_appears_in_data_lo_para():
+    """fo:color was missing from the override map, so paragraph-level red never appeared in
+    data-lo-para (char spans could still show colour). Map it so Issue-1 center+red is honest."""
+    overrides = extract_autostyle_overrides_from_fodt(_FODT_CENTER_RED)
+    assert overrides["P2"] == "text-align:center; color:#ff0000"
+    out = xhtml_to_semantic_html(REFERENCE_XHTML, None, overrides)
+    line = next(ln for ln in out.splitlines() if "centered red whole paragraph" in ln)
+    assert 'data-lo-para="text-align:center; color:#ff0000"' in line, line
+
+
+_FODT_QUOTED_FONT = """<office:document>
+ <style:style style:name="P1" style:family="paragraph" style:parent-style-name="Standard">
+  <style:text-properties style:font-name="Times &quot;Special&quot;"/>
+ </style:style>
+</office:document>"""
+
+
+def test_quoted_font_name_emits_well_formed_data_lo_para():
+    """ODF unescapes a font name containing \"; emit must html.escape(..., quote=True) or the
+    quoted attribute closes early and the tag is not well-formed."""
+    from html.parser import HTMLParser
+
+    overrides = extract_autostyle_overrides_from_fodt(_FODT_QUOTED_FONT)
+    assert overrides["P1"] == 'font-family:Times "Special"'
+    out = xhtml_to_semantic_html(REFERENCE_XHTML, None, overrides)
+    line = next(ln for ln in out.splitlines() if "normal " in ln and "BOLD" in ln)
+    assert "font-family:Times &quot;Special&quot;" in line, line
+
+    class _AttrCatcher(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.para = None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "p" and self.para is None:
+                for key, value in attrs:
+                    if key == "data-lo-para":
+                        self.para = value
+
+    parser = _AttrCatcher()
+    parser.feed(line)
+    assert parser.para == 'font-family:Times "Special"', parser.para
+
+
 # --- Issue 2: token collision (two styles compacting to the same token) -------
 
 _COLLISION_XHTML = """<html><head><style>

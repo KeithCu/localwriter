@@ -754,9 +754,9 @@ class _PageProxy:
         """Get the column layout for a page style."""
         return _rpc_call("page_get_columns", style=style)
 
-    def get_header_footer_text(self, region: str, *, style: str | None = None) -> dict:
-        """Retrieve the text content of a page style's header or footer."""
-        return _rpc_call("page_get_header_footer_text", style=style, region=region)
+    def get_header_footer_text(self, region: str, *, style: str | None = None, include_images: bool | None = None) -> dict:
+        """Get this page-style header or footer as HTML so you can edit structure (fields, tables, logos) and send it back to page_set_header_footer_text."""
+        return _rpc_call("page_get_header_footer_text", style=style, region=region, include_images=include_images)
 
     def get_style_properties(self, *, style: str | None = None) -> dict:
         """Get dimensions, margins, and header/footer states of a page style."""
@@ -771,12 +771,12 @@ class _PageProxy:
         return _rpc_call("page_set_columns", style=style, column_count=column_count, spacing_mm=spacing_mm)
 
     def set_header_footer_text(self, region: str, content: str, *, style: str | None = None, auto_height: bool | None = None) -> dict:
-        """Set the text content of a page style's header or footer."""
+        """Replace this page-style header or footer with HTML so logos, tables, and page-number fields survive — the same StarWriter import as apply_document_content, pointed at the region's XText."""
         return _rpc_call("page_set_header_footer_text", style=style, region=region, content=content, auto_height=auto_height)
 
-    def set_style_properties(self, *, style: str | None = None, width_mm: float | None = None, height_mm: float | None = None, is_landscape: bool | None = None, left_margin_mm: float | None = None, right_margin_mm: float | None = None, top_margin_mm: float | None = None, bottom_margin_mm: float | None = None, gutter_margin_mm: float | None = None, header_is_on: bool | None = None, footer_is_on: bool | None = None, header_is_shared: bool | None = None, footer_is_shared: bool | None = None, header_height_mm: float | None = None, footer_height_mm: float | None = None, header_body_distance_mm: float | None = None, footer_body_distance_mm: float | None = None, back_color: int | None = None, back_transparent: bool | None = None, numbering_type: int | None = None, footnote_height_mm: float | None = None, register_paragraph_style: str | None = None, page_style_layout: int | None = None) -> dict:
+    def set_style_properties(self, *, style: str | None = None, width_mm: float | None = None, height_mm: float | None = None, is_landscape: bool | None = None, left_margin_mm: float | None = None, right_margin_mm: float | None = None, top_margin_mm: float | None = None, bottom_margin_mm: float | None = None, gutter_margin_mm: float | None = None, header_is_on: bool | None = None, footer_is_on: bool | None = None, header_is_shared: bool | None = None, footer_is_shared: bool | None = None, first_is_shared: bool | None = None, header_height_mm: float | None = None, footer_height_mm: float | None = None, header_body_distance_mm: float | None = None, footer_body_distance_mm: float | None = None, back_color: int | None = None, back_transparent: bool | None = None, numbering_type: int | None = None, footnote_height_mm: float | None = None, register_paragraph_style: str | None = None, page_style_layout: int | None = None) -> dict:
         """Modify dimensions, margins, and header/footer toggles of a page style."""
-        return _rpc_call("page_set_style_properties", style=style, width_mm=width_mm, height_mm=height_mm, is_landscape=is_landscape, left_margin_mm=left_margin_mm, right_margin_mm=right_margin_mm, top_margin_mm=top_margin_mm, bottom_margin_mm=bottom_margin_mm, gutter_margin_mm=gutter_margin_mm, header_is_on=header_is_on, footer_is_on=footer_is_on, header_is_shared=header_is_shared, footer_is_shared=footer_is_shared, header_height_mm=header_height_mm, footer_height_mm=footer_height_mm, header_body_distance_mm=header_body_distance_mm, footer_body_distance_mm=footer_body_distance_mm, back_color=back_color, back_transparent=back_transparent, numbering_type=numbering_type, footnote_height_mm=footnote_height_mm, register_paragraph_style=register_paragraph_style, page_style_layout=page_style_layout)
+        return _rpc_call("page_set_style_properties", style=style, width_mm=width_mm, height_mm=height_mm, is_landscape=is_landscape, left_margin_mm=left_margin_mm, right_margin_mm=right_margin_mm, top_margin_mm=top_margin_mm, bottom_margin_mm=bottom_margin_mm, gutter_margin_mm=gutter_margin_mm, header_is_on=header_is_on, footer_is_on=footer_is_on, header_is_shared=header_is_shared, footer_is_shared=footer_is_shared, first_is_shared=first_is_shared, header_height_mm=header_height_mm, footer_height_mm=footer_height_mm, header_body_distance_mm=header_body_distance_mm, footer_body_distance_mm=footer_body_distance_mm, back_color=back_color, back_transparent=back_transparent, numbering_type=numbering_type, footnote_height_mm=footnote_height_mm, register_paragraph_style=register_paragraph_style, page_style_layout=page_style_layout)
 
 page = _PageProxy()
 
@@ -1061,7 +1061,7 @@ class _StylesProxy:
         return _rpc_call("style_create", style=style, family=family, parent_style=parent_style, property_updates=property_updates, conditional_rules=conditional_rules)
 
     def get_info(self, style: str, *, family: str | None = None) -> dict:
-        """Get detailed properties of a specific style (font, size, margins, etc.)."""
+        """Get detailed properties of a named style (font, size, paragraph margins)."""
         return _rpc_call("style_get_info", style=style, family=family)
 
     def import_(self, path: str, *, overwrite: bool = True, load_paragraph_styles: bool = True, load_page_styles: bool = False, load_frame_styles: bool = False, load_numbering_styles: bool = False) -> dict:

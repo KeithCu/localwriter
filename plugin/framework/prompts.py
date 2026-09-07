@@ -283,9 +283,11 @@ WRITER_APPLY_DOCUMENT_HTML_RULES = f"""APPLY_DOCUMENT_CONTENT AND HTML (CRITICAL
 - Reach: body, table cells, text frames, headers and footers.
   Floating drawing-shape text: in place only when review is off — in record/wait it cannot become a tracked change, so the tool routes you to the shapes domain.
   Rich/block HTML in a table cell is not supported (clear error, document untouched); use plain text or inline tags.
-- Headers/footers: reword with target='search' — that keeps the letterhead logo, the fields and the formatting.
-  page_set_header_footer_text writes PLAIN TEXT over the whole region and deletes them; it refuses when it would, and page_get_header_footer_text lists the images and fields the text alone hides.
-  A "different first page" letterhead lives in header_first / footer_first (page_get_style_properties reports first_is_shared); style_list(family='PageStyles') gives the page-style names.
+- Headers/footers: edit the region with page_get_header_footer_text then page_set_header_footer_text.
+  Get returns the same XHTML as get_document_content (fields as <span title="page-number"/>, tables, logos) plus images/fields lists.
+  Set imports that HTML into the region's XText so logos, tables, and page-number fields survive.
+  page_set_style_properties header_is_on=false / footer_is_on=false refuses while the region still has content; clear with page_set_header_footer_text first, then disable. Enabling is always allowed.
+  A "different first page" letterhead lives in header_first / footer_first (page_get_style_properties reports first_is_shared); style_list(family='PageStyles') gives the page-style names, and style_get_info(family='PageStyles') returns the same margins/header/footer payload.
 - `content` is a JSON array of HTML strings (one fragment per heading/paragraph).
   We wrap in <html>/<body>.
 {HTML_FRAGMENT_RULES}
@@ -299,8 +301,8 @@ WRITER_APPLY_DOCUMENT_HTML_RULES = f"""APPLY_DOCUMENT_CONTENT AND HTML (CRITICAL
   data-lo-style applies only on target='full_document' — on 'beginning'/'end'/'selection'/'search' it is ignored because it would restyle adjacent text (use apply_style or a full_document rewrite).
   v1: whole-paragraph alignment/colour/margins and table-cell styles do not round-trip on write.
 - Hand-set formatting: `data-lo-para` (e.g. `data-lo-para="margin-left:3.25cm; font-size:12pt"`) reports what a paragraph has set directly. READ-ONLY — send it back and the result says it was ignored; it is how you tell a block quote from body text in a document formatted by hand. Reported on both scope='full' and scope='range'.
-  Direct formatting OVERRIDES styles, so there apply_style/style_update alone change nothing on screen; apply_style then echoes `preserved_char_overrides`.
-  Re-apply that range with clear_direct='style_props' to let the style's font, size and indent show (bold/italic survive). One range at a time — it is refused on target='full_document', which would erase the very formatting that tells the paragraphs apart.
+  apply_style defaults to clear_direct='style_props': the style's font name/size and paragraph indents show; bold/italic/colour stay. Pass clear_direct='none' only to keep a hand-set font. clear_direct='all' is Ctrl+M (refused on target='full_document').
+  Re-applying a style does not keep a quote indent — LibreOffice drops direct Para* (margins/alignment) when ParaStyleName is set.
 
 EXAMPLES:
 - Good: ["<h1>Title</h1>", "<p>Paragraph with <strong>bold</strong> text and \\"quotes\\".</p>"]
@@ -334,6 +336,7 @@ WRITER_NAVIGATION_RULES = """NAVIGATING LARGE DOCUMENTS (map first, then drill �
 WRITER_IMAGES_RULES = """IMAGES:
 - Image tools live in the 'images' domain: image_insert, image_delete, image_replace, image_list, image_get_info (includes crop_mm), image_download.
   Extract text and structure (layout, tables) from images with extract_structure_from_image in the 'vision' domain; inserts a high-quality representation into the document.
+- Writer letterhead logos: image_insert(target='header'|'footer'). A different first page needs page_set_style_properties(first_is_shared=false) then target='header_first' (or footer_first) — otherwise the logo lands in the shared header and repeats on every page.
 - image_set_properties resizes (width_mm/height_mm), repositions (hori_orient/vert_orient — friendly values like left/center/right/top/bottom work), and crops (crop_top_mm / crop_bottom_mm / crop_left_mm / crop_right_mm — mm trimmed per edge).
 - To actually SEE an image (vision-capable models), call get_image — by graphic name, selection=true, or page=N to render that whole page.
   For a bulk read with pictures embedded, pass include_images=true to get_document_content."""
@@ -553,47 +556,59 @@ def get_core_directives(model) -> str:
         return WRITER_CORE_DIRECTIVES
 
 
-def _catalog_entries_from_base(base_cls, *, agent_label: str | None = None, ctx=None) -> list[dict[str, str]]:
-    """Build ``[{domain, description}, …]`` for one specialized base class (delegate/MCP catalog)."""
+def _catalog_entries_from_base(base_cls, *, agent_label: str | None = None, ctx=None,
+                               for_discovery: bool = False) -> list[dict[str, str]]:
+    """Build ``[{domain, description}, …]`` for one specialized base class (delegate/MCP catalog).
+
+    ``for_discovery`` skips the exclusions that only shape a chat prompt. CALC_HIDDEN_SPECIALIZED_
+    DOMAINS keeps Python delegation out of the Calc sidebar's suggestions, but the MCP tool list
+    exposes those tools regardless — so applying it to find_tools made them callable and
+    undiscoverable at once. The sidebar-only domains stay excluded either way: the flat tool list
+    drops them too, so both modes agree without help.
+    """
     entries: list[dict[str, str]] = []
     for cls in base_cls.__subclasses__():
         domain = getattr(cls, "specialized_domain", None)
         desc = getattr(cls, "specialized_domain_description", None)
         if not domain:
             continue
-        if agent_label == "Calc" and domain in CALC_HIDDEN_SPECIALIZED_DOMAINS:
+        if agent_label == "Calc" and domain in CALC_HIDDEN_SPECIALIZED_DOMAINS and not for_discovery:
             continue
         if agent_label == "Writer" and domain in WRITER_SIDEBAR_ONLY_DOMAINS:
             continue
         if agent_label == "Draw" and domain in IMPRESS_DRAW_SIDEBAR_ONLY_DOMAINS:
             continue
-        if domain == "vision" and ctx is not None:
-            from plugin.vision.vision_availability import vision_venv_configured
+        if ctx is not None:
+            from plugin.vision.vision_availability import specialized_domain_available
 
-            if not vision_venv_configured(ctx):
+            if not specialized_domain_available(str(domain), ctx):
                 continue
         entries.append({"domain": str(domain), "description": str(desc or "")})
     return entries
 
 
-def get_specialized_domain_catalog(*, agent_label: str | None, ctx=None) -> list[dict[str, str]]:
+def get_specialized_domain_catalog(*, agent_label: str | None, ctx=None,
+                                   for_discovery: bool = False) -> list[dict[str, str]]:
     """Full specialized domain catalog — same entries as sidebar/delegate domain hints.
 
     ``agent_label`` is ``Writer`` / ``Calc`` / ``Draw`` for one app, or ``None`` to merge
     all three (e.g. MCP ``find_tools`` with no document open).
+
+    ``for_discovery`` is set by MCP ``find_tools``: it keeps the domains whose exclusion only
+    shapes a chat prompt, so discovery covers everything the flat tool list exposes.
     """
     if agent_label == "Calc":
         from plugin.calc.base import ToolCalcSpecialBase
 
-        entries = _catalog_entries_from_base(ToolCalcSpecialBase, agent_label="Calc", ctx=ctx)
+        entries = _catalog_entries_from_base(ToolCalcSpecialBase, agent_label="Calc", ctx=ctx, for_discovery=for_discovery)
     elif agent_label == "Draw":
         from plugin.draw.base import ToolDrawSpecialBase
 
-        entries = _catalog_entries_from_base(ToolDrawSpecialBase, agent_label="Draw", ctx=ctx)
+        entries = _catalog_entries_from_base(ToolDrawSpecialBase, agent_label="Draw", ctx=ctx, for_discovery=for_discovery)
     elif agent_label == "Writer":
         from plugin.writer.specialized_base import ToolWriterSpecialBase
 
-        entries = _catalog_entries_from_base(ToolWriterSpecialBase, agent_label="Writer", ctx=ctx)
+        entries = _catalog_entries_from_base(ToolWriterSpecialBase, agent_label="Writer", ctx=ctx, for_discovery=for_discovery)
     else:
         from plugin.calc.base import ToolCalcSpecialBase
         from plugin.draw.base import ToolDrawSpecialBase

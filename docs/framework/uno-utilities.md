@@ -59,6 +59,7 @@ Still [`uno_context.py`](../../plugin/framework/uno_context.py), plus the resear
 |--------|--------|---------|
 | `normalize_doc_url` | `uno_context` | Strip + drop a trailing `/` so URL identity compares. |
 | `get_runtime_uid` | `uno_context` | Per-session id (`getRuntimeUID` / attribute / property); works for untitled docs. |
+| `uno_same` | `uno_context` | UNO object identity: `is` → `==` → `uno.isSame` (unwrap viral proxy first). PyUNO wrappers, not a thread-proxy requirement. |
 | `resolve_document_by_url` | `uno_context` | Walk desktop components; match normalized URL **or** RuntimeUID; return `(model, doc_type)`. |
 | `get_open_documents` | `document_research` | List open OfficeDocuments with name/url/uid/path/type/active/modified (untitled kept). |
 | `_office_model_from_desktop_element` | `document_research` | Frame-or-model → `guard_uno(model)` for desktop walks. |
@@ -77,7 +78,7 @@ LibrePy Run Python Script, text analytics, Excel auto-open, and Writer selection
 | Symbol | Purpose |
 |--------|---------|
 | `normalize_linebreaks` | `\r\n` / `\r` → `\n` so offsets match (Windows UNO/clipboard). |
-| `get_string_without_tracked_deletions` | Skip redline Delete portions when reading a text range. |
+| `get_string_without_tracked_deletions` | Skip redline Delete portions. A paragraph concatenates visible portions without a mid-`\n`; a document or multi-para range still joins with `\n`. Shares `_visible_portions` with html_export paint (paint aborts on portion-enum failure to avoid offset drift; the helper continues). |
 | `normalize_file_url` | Repair `file:/path` → `file:///path` (legacy `urljoin`). Shared with research. |
 | `get_document_path` | `file:` URL → repair then `uno.fileUrlToSystemPath`; `None` if untitled / non-file. |
 | `get_selection_range` | Writer `(start, end)` character offsets (cursor = equal ends). |

@@ -164,7 +164,11 @@ class FindTools(ToolBase):
 
         doc = getattr(ctx, "doc", None)
         agent_label = _agent_label_for_doc_type(getattr(ctx, "doc_type", None)) if doc is not None else None
-        catalog = get_specialized_domain_catalog(agent_label=agent_label, ctx=getattr(ctx, "ctx", None))
+        # for_discovery: this catalog is what a direct_discovery client uses to find tools, so it
+        # must cover everything the flat tool list exposes. Exclusions that only shape a chat
+        # prompt would otherwise make a listed, callable tool impossible to discover.
+        catalog = get_specialized_domain_catalog(agent_label=agent_label, ctx=getattr(ctx, "ctx", None),
+                                                 for_discovery=True)
 
         if not domain:
             out: dict[str, Any] = {

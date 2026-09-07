@@ -16,6 +16,9 @@ from plugin.writer.page import (
     PageSetHeaderFooterText,
     PageSetColumns,
     PageInsertBreak,
+    _disable_blocked_by_content,
+    _region_holds_content,
+    _scan_region_content,
 )
 
 
@@ -95,6 +98,8 @@ def test_set_page_style_properties():
 
 
 def test_set_header_footer_text():
+    from unittest.mock import patch
+
     doc = MagicMock()
     families = MagicMock()
     page_styles = MagicMock()
@@ -110,21 +115,26 @@ def test_set_header_footer_text():
 
     ctx = TestingFactory.create_context(doc=doc, doc_type="writer")
     tool = PageSetHeaderFooterText()
-    res = tool.execute(
-        ctx,
-        style="Standard",
-        region="header",
-        content="My Header Content",
-        auto_height=True,
-    )
+    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
+        res = tool.execute(
+            ctx,
+            style="Standard",
+            region="header",
+            content="<p>My Header Content</p>",
+            auto_height=True,
+        )
 
     assert res["status"] == "ok"
     assert res["region"] == "header"
     assert res["auto_height"] is True
+    assert res["format"] == "html"
 
     style.setPropertyValue.assert_any_call("HeaderIsOn", True)
     style.setPropertyValue.assert_any_call("HeaderIsDynamicHeight", True)
-    header_text_obj.setString.assert_called_with("My Header Content")
+    replace_html.assert_called_once()
+    assert replace_html.call_args[0][0] is header_text_obj
+    assert replace_html.call_args[0][1] == "<p>My Header Content</p>"
+    header_text_obj.setString.assert_not_called()
 
 
 def test_set_page_columns():
@@ -249,9 +259,10 @@ def _page_number_field():
     return field
 
 
-def test_get_header_footer_reports_the_logo_and_field_text_alone_hides():
-    """getString() renders a logo as an empty line and a page-number field as its digits, so a
-    caller reading only `content` cannot see what an overwrite would destroy."""
+def test_get_header_footer_returns_html_and_still_lists_logo_and_field():
+    """content is the shared XHTML pipeline, not getString(); scan extras stay for machines."""
+    from unittest.mock import patch
+
     text_obj = MagicMock()
     text_obj.getString.return_value = "\nESCRITORIO ZOLET"
     text_obj.createEnumeration.side_effect = lambda: _enum_of([
@@ -260,74 +271,117 @@ def test_get_header_footer_reports_the_logo_and_field_text_alone_hides():
     ])
     doc, _style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
 
-    res = PageGetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"), style="Standard", region="header")
+    with patch("plugin.writer.html_export.xtext_to_content",
+               return_value='<p>ESCRITORIO ZOLET <span title="page-number"/></p>') as export:
+        res = PageGetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="header")
 
+    export.assert_called_once()
     assert res["status"] == "ok"
+    assert res["format"] == "html"
+    assert "page-number" in res["content"]
     assert res["images"] == ["TIMBRE"]
     assert res["fields"] == [{"presentation": "1", "content": "Page Number"}]
     assert res["paragraph_count"] == 2
-    assert "apply_document_content" in res["warning"]
+    assert "warning" not in res
+    assert "apply_document_content" not in str(res)
 
 
-def test_set_header_footer_refuses_to_silently_delete_a_logo():
-    """The old behaviour returned ok and destroyed the letterhead with no way back."""
-    text_obj = MagicMock()
-    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
-    doc, _style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
+def test_set_header_footer_imports_html_even_when_a_logo_is_present():
+    """HTML set with a logo must succeed — no force, no refuse-on-held."""
+    from unittest.mock import patch
 
-    res = PageSetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"),
-        style="Standard", region="header", content="ESCRITORIO ZOLET")
-
-    assert res["status"] == "error"
-    assert "TIMBRE" in res["message"]
-    assert "apply_document_content" in res["message"]
-    text_obj.setString.assert_not_called()
-
-
-def test_set_header_footer_refusal_leaves_the_document_untouched():
-    """A refusal must not have already enabled the region or resized it on the way in."""
     text_obj = MagicMock()
     text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
     doc, style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
+    html = '<p>ESCRITORIO ZOLET <img src="data:image/png;base64,xx" alt="TIMBRE"/></p>'
 
-    res = PageSetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"),
-        style="Standard", region="header", content="ESCRITORIO ZOLET", auto_height=True)
+    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
+        res = PageSetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="header", content=html)
 
-    assert res["status"] == "error"
-    style.setPropertyValue.assert_not_called()
+    assert res["status"] == "ok"
+    replace_html.assert_called_once()
+    text_obj.setString.assert_not_called()
+    style.setPropertyValue.assert_any_call("HeaderIsOn", True)
 
 
-def test_set_header_footer_skips_the_scan_when_the_region_is_off():
-    """Nothing to destroy in a region that is not on yet — enable it and write."""
+def test_set_header_footer_imports_field_html_without_force():
+    """A footer with a page-number field is a normal HTML set, not a refuse."""
+    from unittest.mock import patch
+
+    text_obj = MagicMock()
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([
+        _paragraph([_portion("Text"), _portion("TextField", _page_number_field())]),
+    ])
+    doc, _style = _page_style_doc(text_obj)
+    html = '<p>Confidential | <span title="page-number"/></p>'
+
+    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
+        res = PageSetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="footer", content=html)
+
+    assert res["status"] == "ok"
+    replace_html.assert_called_once()
+    assert replace_html.call_args[0][1] == html
+    text_obj.setString.assert_not_called()
+
+
+def test_set_header_footer_imports_table_html_without_force():
+    """Letterhead tables go through HTML import; do not add refuse-on-table."""
+    from unittest.mock import patch
+
+    text_obj = MagicMock()
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Text")])])
+    doc, _style = _page_style_doc(text_obj)
+    html = "<table><tr><td>Logo cell</td><td>Address cell</td></tr></table>"
+
+    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
+        res = PageSetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="header", content=html)
+
+    assert res["status"] == "ok"
+    replace_html.assert_called_once()
+    assert replace_html.call_args[0][1] == html
+    text_obj.setString.assert_not_called()
+
+
+def test_set_header_footer_enables_a_region_that_is_off():
+    from unittest.mock import patch
+
     text_obj = MagicMock()
     text_obj.createEnumeration.side_effect = lambda: _enum_of([])
     doc, style = _page_style_doc(text_obj)
     style.getPropertyValue.side_effect = lambda n: False if n.endswith("IsOn") else text_obj
 
-    res = PageSetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"),
-        style="Standard", region="footer", content="Rua Exemplo, 123")
+    with patch("plugin.writer.html_import.replace_xtext_with_html") as replace_html:
+        res = PageSetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="footer", content="Rua Exemplo, 123")
 
     assert res["status"] == "ok"
     style.setPropertyValue.assert_any_call("FooterIsOn", True)
-    text_obj.setString.assert_called_with("Rua Exemplo, 123")
+    replace_html.assert_called_once()
+    text_obj.setString.assert_not_called()
 
 
-def test_set_header_footer_force_deletes_and_says_what_it_deleted():
-    text_obj = MagicMock()
-    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
-    doc, _style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
-
-    res = PageSetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"),
-        style="Standard", region="header", content="ESCRITORIO ZOLET", force=True)
-
-    assert res["status"] == "ok"
-    assert res["deleted"]["images"] == ["TIMBRE"]
-    text_obj.setString.assert_called_with("ESCRITORIO ZOLET")
+def test_page_header_footer_schema_has_no_force_and_descriptions_say_html():
+    """force/refuse-on-held is gone: schema omits force; copy says get/set HTML, not wipe."""
+    get_desc = PageGetHeaderFooterText.description.lower()
+    set_desc = PageSetHeaderFooterText.description.lower()
+    assert "html" in get_desc
+    assert "html" in set_desc
+    assert "images" in get_desc and "fields" in get_desc
+    assert "force" not in PageSetHeaderFooterText.parameters["properties"]
+    assert "force" not in set_desc
+    assert "force" not in get_desc
+    assert "wipe" not in set_desc
+    assert "refuse" not in set_desc
+    assert "setstring" not in set_desc
 
 
 def test_scan_region_warns_when_portion_cap_is_hit(monkeypatch):
@@ -352,48 +406,22 @@ def test_scan_region_warns_when_portion_cap_is_hit(monkeypatch):
 
 
 def test_get_header_footer_surfaces_walk_cap_warning(monkeypatch):
+    from unittest.mock import patch
+
     from plugin.writer import page as pg
 
     text_obj = MagicMock()
-    text_obj.getString.return_value = "plain"
     extra = [_portion("Text") for _idx in range(3)]
     text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph(extra)])
     doc, _style = _page_style_doc(text_obj)
     monkeypatch.setattr(pg, "_SCAN_PORTION_LIMIT", 1)
-    res = PageGetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"), style="Standard", region="header")
+    with patch("plugin.writer.html_export.xtext_to_content", return_value="<p>plain</p>"):
+        res = PageGetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"),
+            style="Standard", region="header")
 
     assert res["status"] == "ok"
     assert "cap 1" in res["warning"]
-
-
-def test_set_header_footer_plain_text_still_goes_straight_through():
-    """No images, no fields -> unchanged behaviour, no new friction."""
-    text_obj = MagicMock()
-    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Text")])])
-    doc, _style = _page_style_doc(text_obj)
-
-    res = PageSetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"),
-        style="Standard", region="footer", content="Rua Exemplo, 123")
-
-    assert res["status"] == "ok"
-    assert "deleted" not in res
-    text_obj.setString.assert_called_with("Rua Exemplo, 123")
-
-
-def test_set_header_footer_reports_paragraphs_it_dropped():
-    """setString collapses the region to the content given; say so instead of losing a line quietly."""
-    text_obj = MagicMock()
-    text_obj.createEnumeration.side_effect = lambda: _enum_of([
-        _paragraph([_portion("Text")]), _paragraph([_portion("Text")]), _paragraph([_portion("Text")])])
-    doc, _style = _page_style_doc(text_obj)
-
-    res = PageSetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"),
-        style="Standard", region="footer", content="uma linha so")
-
-    assert res["paragraphs_dropped"] == 2
 
 
 def test_first_page_region_targets_its_own_text_object():
@@ -414,6 +442,41 @@ def test_first_page_region_uses_the_header_height_properties():
     assert _height_props("footer_left")[0] == "FooterIsDynamicHeight"
 
 
+def test_scan_sees_logo_when_pyuno_wrappers_differ():
+    """Distinct wrappers for the same header XText: bare ``!=`` would skip the logo."""
+    from unittest.mock import patch
+
+    header = MagicMock()
+    header.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    other = MagicMock()
+    assert header is not other
+    assert header != other
+    doc, _style = _page_style_doc(header, shapes=[_logo_anchored_in(other)])
+
+    with patch.object(sys.modules["uno"], "isSame", side_effect=lambda a, b: {a, b} == {header, other}, create=True):
+        scan = _scan_region_content(doc, header)
+
+    assert scan["images"] == ["TIMBRE"]
+
+
+def test_get_header_reports_logo_when_anchor_text_wrapper_differs():
+    """page_get metadata must list the image even when ``==`` on XText would miss it."""
+    from unittest.mock import patch
+
+    text_obj = MagicMock()
+    text_obj.getString.return_value = "\n"
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    other = MagicMock()
+    doc, _style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(other)])
+
+    with patch.object(sys.modules["uno"], "isSame", side_effect=lambda a, b: {a, b} == {text_obj, other}, create=True):
+        res = PageGetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"), style="Standard", region="header")
+
+    assert res["status"] == "ok"
+    assert res["images"] == ["TIMBRE"]
+
+
 def test_set_page_style_properties_writes_first_is_shared():
     doc = MagicMock()
     families, page_styles, style = MagicMock(), MagicMock(), MagicMock()
@@ -429,3 +492,119 @@ def test_set_page_style_properties_writes_first_is_shared():
     assert res["status"] == "ok"
     assert "first_is_shared" in res["updated"]
     style.setPropertyValue.assert_any_call("FirstIsShared", False)
+
+
+# --- header/footer off: refuse while the region still holds content ----------------------
+
+
+def _empty_text_obj():
+    text_obj = MagicMock()
+    text_obj.getString.return_value = ""
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([])
+    return text_obj
+
+
+def test_region_holds_content_is_false_for_empty_or_whitespace():
+    doc, _style = _page_style_doc(_empty_text_obj())
+    assert _region_holds_content(doc, None) is False
+    empty = _empty_text_obj()
+    assert _region_holds_content(doc, empty) is False
+    ws = MagicMock()
+    ws.getString.return_value = "  \n"
+    ws.createEnumeration.side_effect = lambda: _enum_of([])
+    assert _region_holds_content(doc, ws) is False
+
+
+def test_region_holds_content_sees_text_fields_images_and_tables():
+    text_obj = MagicMock()
+    text_obj.getString.return_value = "Letterhead"
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([])
+    doc, _style = _page_style_doc(text_obj)
+    assert _region_holds_content(doc, text_obj) is True
+
+    field_obj = MagicMock()
+    field_obj.getString.return_value = ""
+    field_obj.createEnumeration.side_effect = lambda: _enum_of([
+        _paragraph([_portion("TextField", _page_number_field())]),
+    ])
+    doc_f, _style_f = _page_style_doc(field_obj)
+    assert _region_holds_content(doc_f, field_obj) is True
+
+    logo_obj = MagicMock()
+    logo_obj.getString.return_value = ""
+    logo_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    doc_i, _style_i = _page_style_doc(logo_obj, shapes=[_logo_anchored_in(logo_obj)])
+    assert _region_holds_content(doc_i, logo_obj) is True
+
+    table = MagicMock()
+    table.supportsService.side_effect = lambda s: s == "com.sun.star.text.TextTable"
+    table_obj = MagicMock()
+    table_obj.getString.return_value = ""
+    table_obj.createEnumeration.side_effect = lambda: _enum_of([table])
+    doc_t, _style_t = _page_style_doc(table_obj)
+    assert _region_holds_content(doc_t, table_obj) is True
+
+
+def test_set_style_properties_refuses_header_off_while_text_remains():
+    text_obj = _empty_text_obj()
+    text_obj.getString.return_value = "Keep this letterhead"
+    doc, style = _page_style_doc(text_obj)
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", width_mm=300, header_is_on=False)
+
+    assert res["status"] == "error"
+    assert "page_set_header_footer_text" in res["message"]
+    assert "header_is_on=false" in res["message"]
+    style.setPropertyValue.assert_not_called()
+
+
+def test_set_style_properties_refuses_footer_off_while_logo_remains():
+    text_obj = MagicMock()
+    text_obj.getString.return_value = ""
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    doc, style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", footer_is_on=False)
+
+    assert res["status"] == "error"
+    assert "footer" in res["message"]
+    style.setPropertyValue.assert_not_called()
+
+
+def test_set_style_properties_allows_header_off_when_empty():
+    doc, style = _page_style_doc(_empty_text_obj())
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", header_is_on=False)
+
+    assert res["status"] == "ok"
+    style.setPropertyValue.assert_any_call("HeaderIsOn", False)
+
+
+def test_set_style_properties_allows_enable_while_content_remains():
+    text_obj = _empty_text_obj()
+    text_obj.getString.return_value = "Already there"
+    doc, style = _page_style_doc(text_obj)
+
+    res = PageSetStyleProperties().execute(
+        TestingFactory.create_context(doc=doc, doc_type="writer"),
+        style="Standard", header_is_on=True)
+
+    assert res["status"] == "ok"
+    style.setPropertyValue.assert_any_call("HeaderIsOn", True)
+
+
+def test_disable_blocked_by_content_skips_enable_and_lists_held_regions():
+    text_obj = _empty_text_obj()
+    text_obj.getString.return_value = "First-page letterhead"
+    doc, style = _page_style_doc(text_obj)
+    assert _disable_blocked_by_content(doc, style, {"header_is_on": True}) is None
+    msg = _disable_blocked_by_content(doc, style, {"header_is_on": False})
+    assert msg is not None
+    assert "header" in msg
+    assert "page_set_header_footer_text" in msg

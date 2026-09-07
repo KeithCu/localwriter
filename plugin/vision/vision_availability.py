@@ -64,6 +64,22 @@ def _probe_ready(python_exe: str) -> bool:
     return ready
 
 
+def specialized_domain_available(domain: str, ctx: Any) -> bool:
+    """Whether a specialized domain can actually run, for the exposure layers that advertise it.
+
+    Some domains need a backend the install may not have. The discovery catalog has always hidden
+    such a domain, but the MCP tool list advertised its tools anyway, so the same install offered
+    a capability in one exposure mode and not the other — and a direct_discovery client could not
+    reach a tool it had no way to learn about. One rule, consulted by both.
+
+    Unknown domains are available: the default is to advertise, and only a domain with a known
+    prerequisite opts into being gated.
+    """
+    if domain == "vision":
+        return vision_venv_configured(ctx)
+    return True
+
+
 def vision_venv_configured(ctx: Any) -> bool:
     """True when Settings venv path is set and a python executable resolves (no import probe).
 

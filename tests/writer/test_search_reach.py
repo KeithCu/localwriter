@@ -8,7 +8,8 @@ Pure control-flow tests with fakes (no LibreOffice). The UNO behavior itself (fi
 header/footer text, comments being invisible to it) was verified live; what is testable here is
 the labeling logic of _header_footer_label / describe_match_location and the matching plus
 defensiveness of comment_matches."""
-from unittest.mock import MagicMock
+import sys
+from unittest.mock import MagicMock, patch
 
 from plugin.tests.testing_utils import setup_uno_mocks
 setup_uno_mocks()
@@ -35,10 +36,15 @@ class FakeCursor:
 
 
 class FakePageStyle:
-    def __init__(self, name, header=None, footer=None, in_use=True):
+    def __init__(self, name, header=None, footer=None, in_use=True,
+                 header_first=None, footer_first=None):
         self._name = name
         self.HeaderText = header
         self.FooterText = footer
+        # Separate XText objects when FirstIsShared=False; search labels them
+        # "first-page header/footer" via getattr, so the attrs must exist.
+        self.HeaderTextFirst = header_first
+        self.FooterTextFirst = footer_first
         self._in_use = in_use
 
     def isInUse(self):
@@ -136,12 +142,47 @@ def test_footer_found_with_style_name():
     assert _header_footer_label(hf, doc) == "footer (page style 'Landscape')"
 
 
+def test_first_page_header_found_with_style_name():
+    hf = FakeHeadFootText()
+    doc = FakeDoc(styles=[FakePageStyle("Standard", header_first=hf)])
+    assert _header_footer_label(hf, doc) == "first-page header (page style 'Standard')"
+
+
+def test_first_page_footer_found_with_style_name():
+    hf = FakeHeadFootText()
+    doc = FakeDoc(styles=[FakePageStyle("Standard", footer_first=hf)])
+    assert _header_footer_label(hf, doc) == "first-page footer (page style 'Standard')"
+
+
 def test_unused_styles_are_skipped():
     hf = FakeHeadFootText()
     unused = FakePageStyle("Old", header=hf, in_use=False)
     used = FakePageStyle("Standard", footer=hf)
     doc = FakeDoc(styles=[unused, used])
     assert _header_footer_label(hf, doc) == "footer (page style 'Standard')"
+
+
+def test_header_label_when_style_text_is_a_distinct_wrapper():
+    """Page-style HeaderText can be a different PyUNO wrapper than the match's XText."""
+    class DistinctHeadFoot:
+        ImplementationName = "SwXHeadFootText"
+
+        def __eq__(self, other):
+            return False
+
+        def __hash__(self):
+            return id(self)
+
+    match_text = DistinctHeadFoot()
+    style_text = DistinctHeadFoot()
+    doc = FakeDoc(styles=[FakePageStyle("Standard", header=style_text)])
+    with patch.object(
+        sys.modules["uno"],
+        "isSame",
+        side_effect=lambda a, b: {a, b} == {match_text, style_text},
+        create=True,
+    ):
+        assert _header_footer_label(match_text, doc) == "header (page style 'Standard')"
 
 
 def test_style_walk_failure_still_labels_generically():

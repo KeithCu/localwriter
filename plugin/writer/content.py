@@ -20,6 +20,7 @@ LO findFirst / chained-regex helpers live in ``plugin.writer.search``.
 """
 
 import logging
+import re
 import threading
 import time
 
@@ -161,6 +162,8 @@ class GetDocumentContent(ToolBase):
 # so the attribute is dropped. Say so instead of accepting it and doing nothing — a silent no-op
 # is exactly the failure this tool's callers get bitten by.
 _READ_ONLY_ATTR = "data-lo-para"
+# Attribute assignment on a start tag — not body text that happens to mention the name.
+_READ_ONLY_ATTR_RE = re.compile(r"""<[A-Za-z][^>]*\bdata-lo-para\s*=""", re.IGNORECASE)
 
 
 def _note_read_only_attrs(result, content):
@@ -168,14 +171,14 @@ def _note_read_only_attrs(result, content):
     if not isinstance(result, dict) or result.get("status") != "ok":
         return result
     items = content if isinstance(content, (list, tuple)) else [content]
-    if not any(isinstance(item, str) and _READ_ONLY_ATTR in item for item in items):
+    if not any(isinstance(item, str) and _READ_ONLY_ATTR_RE.search(item) for item in items):
         return result
     result = dict(result)
     result["ignored_attributes"] = [_READ_ONLY_ATTR]
     result["message"] = (result.get("message") or "") + (
         " Note: %s in the content was ignored — it is a read-only report of a paragraph's hand-set"
-        " formatting. To change an indent or a font, apply a named style (apply_style, with"
-        " clear_direct when the paragraph is formatted by hand)." % _READ_ONLY_ATTR)
+        " formatting. To change an indent or a font, apply a named style (apply_style;"
+        " default clear_direct lets the style's font and size show)." % _READ_ONLY_ATTR)
     return result
 
 

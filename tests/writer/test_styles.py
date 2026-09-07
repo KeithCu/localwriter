@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import pytest
 from unittest.mock import MagicMock, patch
+from plugin.writer.page import PageGetStyleProperties
 from plugin.writer.styles import StyleList, StyleGetInfo, ApplyStyle, StyleCreate, StyleImport, StyleUpdate
 from plugin.tests.testing_utils import TestingFactory, WriterDocStub
 
@@ -141,6 +142,72 @@ def test_get_style_info():
     assert res["is_in_use"] is True
 
 
+def _page_style_for_info():
+    """Page-style mock with the UNO properties get_page_style_properties reads."""
+    style = MagicMock()
+    props = {
+        "Width": 21000,
+        "Height": 29700,
+        "IsLandscape": False,
+        "LeftMargin": 2000,
+        "RightMargin": 2000,
+        "TopMargin": 2500,
+        "BottomMargin": 2000,
+        "GutterMargin": 0,
+        "HeaderIsOn": True,
+        "FooterIsOn": False,
+        "HeaderIsShared": True,
+        "FooterIsShared": True,
+        "HeaderHeight": 500,
+        "FooterHeight": 500,
+        "HeaderBodyDistance": 500,
+        "FooterBodyDistance": 500,
+        "BackColor": 16777215,
+        "BackTransparent": True,
+        "NumberingType": 4,
+        "FootnoteHeight": 0,
+        "RegisterParagraphStyle": "",
+        "FirstIsShared": False,
+        "PageStyleLayout": MagicMock(value=0),
+    }
+    style.getPropertyValue.side_effect = lambda n: props[n]
+    return style
+
+
+def test_get_style_info_page_styles_returns_page_properties():
+    """style_get_info(PageStyles) must answer in-process, not error-bounce to the page tool."""
+    style = _page_style_for_info()
+    mock_ctx = _ctx_with_families(PageStyles=_style_family({"Standard": style}))
+
+    res = StyleGetInfo().execute(mock_ctx, style="Standard", family="PageStyles")
+
+    assert res["status"] == "ok"
+    assert res["family"] == "PageStyles"
+    assert res["properties"]["left_margin_mm"] == 20.0
+    assert res["properties"]["top_margin_mm"] == 25.0
+    assert res["properties"]["header_is_on"] is True
+    assert res["properties"]["footer_is_on"] is False
+    assert res["properties"]["first_is_shared"] is False
+    page = PageGetStyleProperties().execute(mock_ctx, style="Standard")
+    assert page["status"] == "ok"
+    assert page["properties"] == res["properties"]
+
+
+def test_apply_style_clear_direct_schema_default_is_style_props():
+    """Small models read the schema; default must be the house-font-wins value."""
+    schema = ApplyStyle.parameters["properties"]["clear_direct"]
+    assert schema["default"] == "style_props"
+    assert schema["enum"] == ["none", "style_props", "all"]
+
+
+def test_resolve_clear_direct_defaults():
+    assert ApplyStyle._resolve_clear_direct("ParagraphStyles", None) == "style_props"
+    assert ApplyStyle._resolve_clear_direct("ParagraphStyles", "") == "style_props"
+    assert ApplyStyle._resolve_clear_direct("ParagraphStyles", "none") == "none"
+    assert ApplyStyle._resolve_clear_direct("CharacterStyles", None) == "none"
+    assert ApplyStyle._resolve_clear_direct("CharacterStyles", "all") == "all"
+
+
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
 @patch("plugin.writer.styles.resolve_target_cursor")
 def test_apply_style_paragraph(mock_resolve, mock_preserve, mock_ctx):
@@ -152,7 +219,7 @@ def test_apply_style_paragraph(mock_resolve, mock_preserve, mock_ctx):
 
     assert res["status"] == "ok"
     assert res["family"] == "ParagraphStyles"
-    mock_preserve.assert_called_once_with(mock_ctx.doc, cursor, "Heading 1", "none")
+    mock_preserve.assert_called_once_with(mock_ctx.doc, cursor, "Heading 1", "style_props")
     cursor.setPropertyValue.assert_not_called()
 
 
@@ -178,17 +245,17 @@ def test_apply_style_clear_direct_is_forwarded(mock_resolve, mock_preserve, mock
 
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
 @patch("plugin.writer.styles.resolve_target_cursor")
-def test_apply_style_reports_preserved_overrides_with_hint(mock_resolve, mock_preserve, mock_ctx):
-    """The default path echoes the direct formatting that overrode the style — otherwise a style
-    apply that changed nothing on screen is indistinguishable from one that worked."""
+def test_apply_style_explicit_none_reports_overrides_without_retry_hint(mock_resolve, mock_preserve, mock_ctx):
+    """clear_direct='none' still echoes what was kept. No retry-with-style_props hint: that
+    dance was for the old default=none no-op; default already shows the house font."""
     mock_resolve.return_value = MagicMock()
     mock_preserve.return_value = {"direct_formatting": "preserved", "clear_direct": "none",
                                   "preserved_char_overrides": {"CharFontName": "Times New Roman", "CharHeight": 12.0}}
 
-    res = ApplyStyle().execute(mock_ctx, style="Standard", target="selection")
+    res = ApplyStyle().execute(mock_ctx, style="Standard", target="selection", clear_direct="none")
 
     assert res["preserved_char_overrides"]["CharHeight"] == 12.0
-    assert "clear_direct='style_props'" in res["hint"]
+    assert "hint" not in res
 
 
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
@@ -209,11 +276,24 @@ def test_apply_style_forwards_walk_cap_warning(mock_resolve, mock_preserve, mock
 
 @patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
 @patch("plugin.writer.styles.resolve_target_cursor")
-def test_apply_style_clear_direct_rejected_on_full_document(mock_resolve, mock_preserve, mock_ctx):
-    """Clearing the whole document erases the very formatting used to tell paragraph kinds apart."""
+def test_apply_style_default_allowed_on_full_document(mock_resolve, mock_preserve, mock_ctx):
+    """Default style_props is allowed on full_document so house font shows without a flag."""
+    mock_resolve.return_value = MagicMock()
+    mock_preserve.return_value = {"direct_formatting": "cleared", "clear_direct": "style_props"}
+
+    res = ApplyStyle().execute(mock_ctx, style="Standard", target="full_document")
+
+    assert res["status"] == "ok"
+    assert mock_preserve.call_args[0][3] == "style_props"
+
+
+@patch("plugin.writer.styles.apply_paragraph_style_preserving_direct_char")
+@patch("plugin.writer.styles.resolve_target_cursor")
+def test_apply_style_clear_direct_all_rejected_on_full_document(mock_resolve, mock_preserve, mock_ctx):
+    """Ctrl+M on the whole document would wipe emphasis; force the per-range path."""
     mock_resolve.return_value = MagicMock()
 
-    res = ApplyStyle().execute(mock_ctx, style="Standard", target="full_document", clear_direct="style_props")
+    res = ApplyStyle().execute(mock_ctx, style="Standard", target="full_document", clear_direct="all")
 
     assert res["status"] == "error"
     assert "full_document" in res["message"]
