@@ -4,6 +4,8 @@
 **Inputs:** `/workspace/pr634-followups/initial-plan.md`, merged PR [#634](https://github.com/KeithCu/writeragent/pull/634) on `master`  
 **Scope:** Research only — no product PR. Goal: proper fixes that stay **simple, robust, and easy for models**.
 
+> **Later product decision:** `apply_style` now defaults to `clear_direct='style_props'` (house font/size win, bold/italic/colour stay). `none` is an explicit opt-in. The same-style-only special case discussed in §2.7 was **not** implemented. Treat sections below that say “default is `none`” as historical.
+
 Symbols and paths below are current `master` unless noted.
 
 ---
@@ -385,13 +387,9 @@ In-process dispatch to the same implementation `page_get_style_properties` uses 
 
 ### 2.11 `_paint_direct_formatting` aborts Char* if Para* fails
 
-**Today (`html_export.py`)**
+**Fixed (`html_export.py`)**
 
-Para property copy in try/except; on failure **`return`** before the portion Char* loop. A single refused `Para*` drops the entire reason the temp-doc path exists (bold/indent visibility on range read).
-
-**Recommended approach**
-
-Catch Para* failures, log, **continue** to portion painting. Char* failures already `continue` per portion.
+Para* copy is isolated from obtaining `para_start`. A refused Para* is logged and the portion Char* loop still runs. Char* failures already `continue` per portion. Without `para_start` the function still returns (nothing to paint onto).
 
 **Tests**
 

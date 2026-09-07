@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from plugin.doc.text_helpers import (
+    _visible_portions,
     get_document_path,
     get_full_writer_text,
     get_string_without_tracked_deletions,
@@ -127,6 +128,63 @@ def test_get_string_without_tracked_deletions_skips_deleted_portions():
     )
 
     assert get_string_without_tracked_deletions(text_range) == "Keep text\nNext line"
+
+
+class _ParagraphService(_Paragraph):
+    def supportsService(self, name):
+        return name == "com.sun.star.text.Paragraph"
+
+
+def test_get_string_without_tracked_deletions_paragraph_no_mid_newline():
+    """A paragraph's children are portions (e.g. a bold run), not paragraphs."""
+    para = _Paragraph(
+        [
+            _Portion("Paragraph "),
+            _Portion("with n"),
+            _Portion("ormal and bold text"),
+        ],
+        fallback_text="Paragraph with normal and bold text",
+    )
+
+    got = get_string_without_tracked_deletions(para)
+    assert got == "Paragraph with normal and bold text"
+    assert "\n" not in got
+    assert got == "".join(chunk for _unused, chunk in _visible_portions(para))
+
+
+def test_get_string_without_tracked_deletions_paragraph_service():
+    para = _ParagraphService(
+        [_Portion("Hello "), _Portion("bold")],
+        fallback_text="Hello bold",
+    )
+    assert get_string_without_tracked_deletions(para) == "Hello bold"
+
+
+def test_visible_portions_helper_continues_paint_aborts():
+    """Paint stops on a bad portion (offset drift); the helper continues."""
+
+    class _BoomEnum:
+        def __init__(self, items):
+            self._items = list(items)
+            self._idx = 0
+
+        def hasMoreElements(self):
+            return self._idx < len(self._items)
+
+        def nextElement(self):
+            item = self._items[self._idx]
+            self._idx += 1
+            if item == "boom":
+                raise RuntimeError("portion gone")
+            return item
+
+    class _BoomPara:
+        def createEnumeration(self):
+            return _BoomEnum(["boom", _Portion("later")])
+
+    para = _BoomPara()
+    assert list(_visible_portions(para, abort_on_portion_error=True)) == []
+    assert "".join(chunk for _unused, chunk in _visible_portions(para)) == "later"
 
 
 def test_get_full_writer_text_truncates_and_reads_prefix():
