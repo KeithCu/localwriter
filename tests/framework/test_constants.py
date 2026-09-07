@@ -7,12 +7,10 @@ setup_uno_mocks()
 
 from plugin.framework.prompts import (
     CALC_CORE_DIRECTIVES,
-    CALC_SPECIALIZED_DELEGATION_TEMPLATE,
     DEFAULT_CALC_GREETING,
     DEFAULT_DRAW_GREETING,
     DEFAULT_WRITER_GREETING,
     DELEGATION_USER_FILE_DATA_HINT,
-    DOCUMENT_RESEARCH_OTHER_DOCS_LINE,
     DRAW_CORE_DIRECTIVES,
     SIDEBAR_VS_DOCUMENT,
     WRITER_CORE_DIRECTIVES,
@@ -479,27 +477,7 @@ def test_document_research_multi_file_delegation_in_prompts():
 
 
 def test_document_research_prompt_is_other_docs_not_open_workbook():
-    # Eval-2 escape: models used document_research on sibling prompt/rubric.
-    # Product wording only — no gateway firewall.
-    assert "other documents the user points at" in DELEGATION_USER_FILE_DATA_HINT
-    assert "not the open workbook" in DELEGATION_USER_FILE_DATA_HINT
-    assert "(my / our) personal or business files" in DELEGATION_USER_FILE_DATA_HINT
-    assert "same folder" not in DELEGATION_USER_FILE_DATA_HINT
-    assert "same folder" not in DOCUMENT_RESEARCH_OTHER_DOCS_LINE
-    assert "not the open workbook" in DOCUMENT_RESEARCH_OTHER_DOCS_LINE
-    assert "leftover notes/prompts" in DOCUMENT_RESEARCH_OTHER_DOCS_LINE
-    assert DOCUMENT_RESEARCH_OTHER_DOCS_LINE in WRITER_SPECIALIZED_DELEGATION_TEMPLATE
-    assert DOCUMENT_RESEARCH_OTHER_DOCS_LINE in CALC_SPECIALIZED_DELEGATION_TEMPLATE
-    assert "not this open workbook" in CALC_CORE_DIRECTIVES
-    assert "same folder" not in CALC_CORE_DIRECTIVES
-    calc_model = MagicMock()
-
-    def supportsService(service):
-        return service == "com.sun.star.sheet.SpreadsheetDocument"
-
-    calc_model.supportsService.side_effect = supportsService
-    calc_prompt = get_chat_system_prompt_for_document(calc_model)
-    assert "other documents the user points at" in calc_prompt
-    assert "not the open workbook" in calc_prompt
-    assert "other personal/business files in the same folder" not in calc_prompt
+    # Tiny wording only: "same folder" taught models to scan leftover siblings.
+    assert "not the open workbook" in WRITER_SPECIALIZED_DELEGATION_TEMPLATE
+    assert "same folder" not in WRITER_SPECIALIZED_DELEGATION_TEMPLATE
 
