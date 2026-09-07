@@ -209,6 +209,30 @@ def test_add_comment_reply_via_parent_name_skips_search():
     assert absorb is False
 
 
+def test_ensure_annotation_name_assigns_when_empty():
+    from plugin.writer.specialized.comments import _ensure_annotation_name
+
+    class FakeEnum:
+        def __init__(self, items):
+            self._items = list(items)
+        def hasMoreElements(self):
+            return bool(self._items)
+        def nextElement(self):
+            return self._items.pop(0)
+
+    existing = MagicMock()
+    existing.supportsService.return_value = True
+    existing.getPropertyValue.return_value = "__Annotation__1_1"
+    field = MagicMock()
+    field.getPropertyValue.return_value = ""
+    doc = MagicMock()
+    doc.getTextFields.return_value.createEnumeration.side_effect = lambda: FakeEnum([existing])
+    name = _ensure_annotation_name(field, doc)
+    assert name.startswith("__Annotation__")
+    assert name != "__Annotation__1_1"
+    field.setPropertyValue.assert_called_once_with("Name", name)
+
+
 def test_name_of_new_annotation_reads_back_from_doc():
     """Point-insert replies leave Name empty on the instance; read the new Name from the doc."""
     from plugin.writer.specialized.comments import _name_of_new_annotation

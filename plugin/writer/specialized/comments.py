@@ -187,6 +187,10 @@ class AddComment(ToolBase):
         reply.setPropertyValue("ParentName", parent_name)
         reply.setPropertyValue("Content", content)
         reply.setPropertyValue("Author", author)
+        # Point-insert replies (ParentName set) do not get an auto Name from Writer;
+        # the pre-insert instance and the document enumeration both stay empty.
+        # Setting Name before insert sticks (LO probe: listed ParentName + Name).
+        assigned_name = _ensure_annotation_name(reply, doc)
         _set_annotation_date(reply)
         # Same insert as CommentResolve.execute (point insert at parent anchor,
         # absorb=False). That path also sets Resolved; this one must not.
@@ -208,7 +212,7 @@ class AddComment(ToolBase):
             "message": "Reply added.",
             "author": author,
             "comment_added": True,
-            "name": _name_of_new_annotation(doc, reply, names_before),
+            "name": _annotation_name(reply) or assigned_name or _name_of_new_annotation(doc, reply, names_before),
             "parent_name": parent_name,
         }
 
@@ -582,6 +586,25 @@ def _annotation_field_names(doc):
         except Exception:
             names.append("")
     return names
+
+
+def _ensure_annotation_name(field, doc):
+    """Return *field*'s Name, assigning a unique one if Writer left it empty."""
+    name = _annotation_name(field)
+    if name:
+        return name
+    existing = set(n for n in _annotation_field_names(doc) if n)
+    stamp = int(now_aware().timestamp())
+    n = len(existing) + 1
+    candidate = "__Annotation__%d_%d" % (n, stamp)
+    while candidate in existing:
+        n += 1
+        candidate = "__Annotation__%d_%d" % (n, stamp)
+    try:
+        field.setPropertyValue("Name", candidate)
+    except Exception:
+        return ""
+    return _annotation_name(field) or candidate
 
 
 def _name_of_new_annotation(doc, field, names_before):
