@@ -52,22 +52,24 @@ These variants are exposed as the `region` values of `page_get_header_footer_tex
 
 Images in a header/footer must be anchored **`AS_CHARACTER`** (in the text flow). A floating `AT_CHARACTER` image does not contribute to line height, so even with dynamic height the region may not grow.
 
-### Writing: `setString` is destructive
+### Reading and writing: shared body HTML pipeline
 
-`XText.setString()` replaces the whole region with unformatted text, so a letterhead logo, a page-number field and every paragraph but the first are deleted with no way back. `getString()` cannot show any of that — an image reads back as an empty line and a field as its rendered digits — so the loss is invisible on both sides.
+`getString()` cannot represent a letterhead — a logo is an empty line and a page-number field is its rendered digits. `page_get_header_footer_text` therefore exports the region's `XText` through the same XHTML + postprocess stack as `get_document_content` (`xtext_to_content` in `html_export.py`): copy the region into a hidden Writer body, then `document_to_content`. Fields appear as `<span title="page-number"/>` (and `page-count` / `date` / `time`); tables and `<img>` logos are in the HTML. `include_images` defaults to **true** so a letterhead is visible. The result still lists `images` / `fields` / `paragraph_count` as machine-readable extras.
 
-`page_get_header_footer_text` therefore also reports the region's `images`, `fields` and `paragraph_count`, and `page_set_header_footer_text` refuses when either is present (`force=true` overrides, and the result then lists what it deleted). To change the wording while keeping them, edit with `apply_document_content(target='search')`: `XSearchable.findFirst` on the document reaches header and footer text, so the edit lands in place and keeps the formatting.
+`page_set_header_footer_text` imports that HTML into the same `XText` via `replace_xtext_with_html` (`html_import.py`) — StarWriter `insertDocumentFromURL`, not `setString`. Field spans are restored as live UNO fields after import (the HTML filter drops the empty span). Plain text is wrapped as a paragraph and still goes through import.
+
+There is no `force` parameter. It existed because get lied and set wiped; honest HTML get + HTML set is the edit path. `apply_document_content(target='search')` still reaches headers and footers for a surgical substring edit (document-wide `findFirst`); that reach is unchanged.
 
 ### Python Example: Enabling and Writing to a Header
 ```python
-# Enable header
+# Prefer the page tools: get returns HTML, set imports it back.
+# page_get_header_footer_text(region="header")
+# page_set_header_footer_text(region="header", content="<p>My Document Header</p>")
+
+# Low-level UNO equivalent of enabling the region (the tool does this):
 default_style.setPropertyValue("HeaderIsOn", True)
-
-# Get the text object
 header_text = default_style.getPropertyValue("HeaderText")
-
-# Clear existing content and insert new text
-header_text.setString("My Document Header")
+# Do not setString a letterhead — use replace_xtext_with_html / the page set tool.
 ```
 
 ## 3. Columns (`com.sun.star.text.TextColumns`)

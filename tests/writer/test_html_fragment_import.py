@@ -10,7 +10,7 @@ from plugin.writer.format import (  # noqa: E402
     _content_has_block_markup,
     insert_html_fragment_at_cursor,
 )
-from plugin.writer.html_import import _wrap_html_fragment
+from plugin.writer.html_import import _wrap_html_fragment, rewrite_exported_field_spans
 
 
 @contextmanager
@@ -119,3 +119,22 @@ def test_filter_name_starwriter():
 
     assert filter_holder["props"][0].Name == "FilterName"
     assert filter_holder["props"][0].Value == HTML_FILTER
+
+
+def test_rewrite_exported_field_spans_matches_body_xhtml():
+    """Body/header XHTML emits titled spans; import must see a token, not a dropped tag."""
+    html = (
+        '<p>Confidential | <span title="page-number"/> | '
+        '<span title="page-count">A</span> '
+        '<span title="time">17:41:00</span></p>'
+    )
+    out = rewrite_exported_field_spans(html)
+    assert "[[WA-FIELD:page-number]]" in out
+    assert "[[WA-FIELD:page-count]]" in out
+    assert "[[WA-FIELD:time]]" in out
+    assert "title=\"page-number\"" not in out
+
+
+def test_rewrite_exported_field_spans_leaves_plain_html():
+    assert rewrite_exported_field_spans("<p>Hello</p>") == "<p>Hello</p>"
+    assert rewrite_exported_field_spans("") == ""

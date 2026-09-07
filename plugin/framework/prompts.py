@@ -283,8 +283,10 @@ WRITER_APPLY_DOCUMENT_HTML_RULES = f"""APPLY_DOCUMENT_CONTENT AND HTML (CRITICAL
 - Reach: body, table cells, text frames, headers and footers.
   Floating drawing-shape text: in place only when review is off — in record/wait it cannot become a tracked change, so the tool routes you to the shapes domain.
   Rich/block HTML in a table cell is not supported (clear error, document untouched); use plain text or inline tags.
-- Headers/footers: reword with target='search' — that keeps the letterhead logo, the fields and the formatting.
-  page_set_header_footer_text writes PLAIN TEXT over the whole region and deletes them; it refuses when it would, and page_get_header_footer_text lists the images and fields the text alone hides.
+- Headers/footers: edit the region with page_get_header_footer_text then page_set_header_footer_text.
+  Get returns the same XHTML as get_document_content (fields as <span title="page-number"/>, tables, logos).
+  Set imports that HTML into the region's XText — not setString wipe.
+  target='search' still reaches headers and footers for a surgical substring edit.
   A "different first page" letterhead lives in header_first / footer_first (page_get_style_properties reports first_is_shared); style_list(family='PageStyles') gives the page-style names.
 - `content` is a JSON array of HTML strings (one fragment per heading/paragraph).
   We wrap in <html>/<body>.
