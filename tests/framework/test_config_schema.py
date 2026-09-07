@@ -99,6 +99,26 @@ def test_module_yaml_defaults_bind_from_manifest_modules() -> None:
     assert schema.MODULES is schema._DEFAULT_MODULES
 
 
+def test_max_tool_rounds_schema_allows_150() -> None:
+    """Eval-2 headed trials may set 150; schema max used to clamp that to 50."""
+    from plugin.framework import config_schema as schema
+
+    assert schema.MODULES, "empty MODULES; run make manifest"
+    for key in ("chatbot.max_tool_rounds", "max_tool_rounds"):
+        field = get_config_schema(key)
+        assert field is not None, key
+        assert field["min"] == 1
+        assert field["max"] == 150
+        assert field["default"] == 15
+        assert clamp_schema_value(key, 150) == 150
+        assert clamp_schema_value(key, 151) == 150
+        assert clamp_schema_value(key, 15) == 15
+
+    cfg = WriterAgentConfig.from_dict({"endpoint": "http://x", "chatbot.max_tool_rounds": 150})
+    cfg.validate(coerce_out_of_range=True)
+    assert cfg._extra_config["chatbot.max_tool_rounds"] == 150
+
+
 def test_config_schema_has_no_forbidden_imports() -> None:
     source = _SCHEMA_PATH.read_text(encoding="utf-8")
     imported = _imported_modules(ast.parse(source))
