@@ -147,6 +147,23 @@ def test_apply_field_html_creates_live_field(ctx, doc):
 
 @native_test
 @with_native_doc("writer")
+def test_apply_letterhead_field_html_creates_live_fields(ctx, doc):
+    """apply→get: letterhead XHTML titles restore as live UNO fields."""
+    html = (
+        '<p><span title="chapter"/> | <span title="author-name"/> | '
+        '<span title="file-name"/> | <span title="title"/> | '
+        '<span title="subject"/></p>'
+    )
+    applied = _set(doc, ctx, "header", html)
+    assert applied["status"] == "ok"
+    contents = _field_contents(doc, "header")
+    assert len(contents) >= 5, (
+        "chapter/author-name/file-name/title/subject must restore: %r" % contents
+    )
+
+
+@native_test
+@with_native_doc("writer")
 def test_table_letterhead_html_roundtrip(ctx, doc):
     style, _name = _style(doc)
     style.setPropertyValue("HeaderIsOn", True)

@@ -643,11 +643,44 @@ def replace_single_range_with_content(model, text_range, content, ctx, config_sv
 # span, e.g. ``<span title="page-number"/>``. StarWriter HTML import drops
 # those spans (probed: no TextField after insert). Swap in a token the
 # filter keeps, import, then replace the token with a real field.
+#
+# LO's XHTML filter (filter/source/xslt/odf2xhtml/export/xhtml/body.xsl)
+# sets ``title`` to ``local-name()`` of the ODF field element. Full list
+# LO can emit (kept here so widening the map is a one-place edit):
+#   author-initials, author-name, chapter, character-count, creation-date,
+#   creation-time, creator, date, description, editing-cycles,
+#   editing-duration, file-name, image-count, initial-creator, keywords,
+#   modification-date, modification-time, object-count, page-continuation,
+#   page-count, page-number, paragraph-count, print-date, print-time,
+#   printed-by, sender-city, sender-company, sender-country, sender-email,
+#   sender-fax, sender-firstname, sender-initials, sender-lastname,
+#   sender-phone-private, sender-phone-work, sender-position,
+#   sender-postal-code, sender-state-or-province, sender-street,
+#   sender-title, sheet-name, subject, table-count, time, title,
+#   user-defined, word-count
+#
+# Restore only a letterhead-useful subset for now (page/date plus chapter,
+# author, file name, doc title/subject). Extending ``_EXPORTED_FIELD_TITLES``
+# / ``_FIELD_TITLE_TO_SERVICE`` is intentional and easy when a real bug
+# arrives. GetReference / cross-ref is a separate loss class (different
+# markup, not this XSLT ``title=`` path).
 _FIELD_PLACEHOLDER_FMT = "[[WA-FIELD:%s]]"
-_EXPORTED_FIELD_TITLES = ("page-number", "page-count", "time", "date")
+_EXPORTED_FIELD_TITLES = (
+    "page-number",
+    "page-count",
+    "time",
+    "date",
+    "chapter",
+    "author-name",
+    "author-initials",
+    "file-name",
+    "title",
+    "subject",
+)
+# Built from the tuple so the span regex and restore loop stay in sync.
 _FIELD_SPAN_RE = re.compile(
-    r'<span\b(?=[^>]*\btitle\s*=\s*["\'](page-number|page-count|time|date)["\'])'
-    r'(?:[^>]*/>|[^>]*>.*?</span>)',
+    r'<span\b(?=[^>]*\btitle\s*=\s*["\'](%s)["\'])'
+    r'(?:[^>]*/>|[^>]*>.*?</span>)' % "|".join(_EXPORTED_FIELD_TITLES),
     re.IGNORECASE | re.DOTALL,
 )
 _FIELD_TITLE_TO_SERVICE = {
@@ -655,6 +688,12 @@ _FIELD_TITLE_TO_SERVICE = {
     "page-count": "com.sun.star.text.textfield.PageCount",
     "time": "com.sun.star.text.textfield.DateTime",
     "date": "com.sun.star.text.textfield.DateTime",
+    "chapter": "com.sun.star.text.textfield.Chapter",
+    "author-name": "com.sun.star.text.textfield.Author",
+    "author-initials": "com.sun.star.text.textfield.Author",
+    "file-name": "com.sun.star.text.textfield.FileName",
+    "title": "com.sun.star.text.textfield.docinfo.Title",
+    "subject": "com.sun.star.text.textfield.docinfo.Subject",
 }
 
 
@@ -696,6 +735,17 @@ def _insert_restored_field(model, text_range, title):
     elif title == "time":
         try:
             field.setPropertyValue("IsDate", False)
+        except Exception:
+            pass
+    elif title == "author-name":
+        # Same Author service as initials; FullName selects the display form.
+        try:
+            field.setPropertyValue("FullName", True)
+        except Exception:
+            pass
+    elif title == "author-initials":
+        try:
+            field.setPropertyValue("FullName", False)
         except Exception:
             pass
     try:

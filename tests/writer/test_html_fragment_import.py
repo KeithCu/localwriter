@@ -10,7 +10,14 @@ from plugin.writer.format import (  # noqa: E402
     _content_has_block_markup,
     insert_html_fragment_at_cursor,
 )
-from plugin.writer.html_import import _wrap_html_fragment, rewrite_exported_field_spans
+from plugin.writer.html_import import (
+    _EXPORTED_FIELD_TITLES,
+    _FIELD_TITLE_TO_SERVICE,
+    _insert_restored_field,
+    _restore_field_placeholders,
+    _wrap_html_fragment,
+    rewrite_exported_field_spans,
+)
 
 
 @contextmanager
@@ -138,6 +145,103 @@ def test_rewrite_exported_field_spans_matches_body_xhtml():
 def test_rewrite_exported_field_spans_leaves_plain_html():
     assert rewrite_exported_field_spans("<p>Hello</p>") == "<p>Hello</p>"
     assert rewrite_exported_field_spans("") == ""
+
+
+def test_rewrite_exported_field_spans_letterhead_subset():
+    """Chapter / author / file / DocInfo titles become the same placeholder tokens."""
+    html = (
+        '<p><span title="chapter"/> '
+        '<span title="author-name">Ada</span> '
+        '<span title="author-initials">AL</span> '
+        '<span title="file-name"/> '
+        '<span title="title"/> '
+        '<span title="subject"/></p>'
+    )
+    out = rewrite_exported_field_spans(html)
+    for title in (
+        "chapter", "author-name", "author-initials", "file-name", "title", "subject",
+    ):
+        assert "[[WA-FIELD:%s]]" % title in out
+        assert 'title="%s"' % title not in out
+
+
+def test_rewrite_exported_field_spans_leaves_unmapped_titles():
+    """Titles outside the restore subset stay as spans (easy to widen later)."""
+    html = '<p><span title="word-count"/> <span title="keywords"/></p>'
+    assert rewrite_exported_field_spans(html) == html
+
+
+def _mock_field_range():
+    field = MagicMock()
+    model = MagicMock()
+    model.createInstance.return_value = field
+    text = MagicMock()
+    cursor = MagicMock()
+    text.createTextCursorByRange.return_value = cursor
+    text_range = MagicMock()
+    text_range.getText.return_value = text
+    return model, text_range, field, text
+
+
+def test_insert_restored_field_letterhead_services():
+    """Restore maps the new titles to the matching UNO services (defaults OK)."""
+    expected = {
+        "chapter": "com.sun.star.text.textfield.Chapter",
+        "file-name": "com.sun.star.text.textfield.FileName",
+        "title": "com.sun.star.text.textfield.docinfo.Title",
+        "subject": "com.sun.star.text.textfield.docinfo.Subject",
+    }
+    for title, service in expected.items():
+        model, text_range, field, text = _mock_field_range()
+        assert _insert_restored_field(model, text_range, title) is True
+        model.createInstance.assert_called_once_with(service)
+        text.insertTextContent.assert_called_once()
+        field.setPropertyValue.assert_not_called()
+
+
+def test_insert_restored_field_author_fullname_flag():
+    """author-name and author-initials share Author; FullName selects the form."""
+    model, text_range, field, text = _mock_field_range()
+    assert _insert_restored_field(model, text_range, "author-name") is True
+    model.createInstance.assert_called_once_with("com.sun.star.text.textfield.Author")
+    field.setPropertyValue.assert_any_call("FullName", True)
+
+    model, text_range, field, text = _mock_field_range()
+    assert _insert_restored_field(model, text_range, "author-initials") is True
+    model.createInstance.assert_called_once_with("com.sun.star.text.textfield.Author")
+    field.setPropertyValue.assert_any_call("FullName", False)
+
+
+def test_restore_field_placeholders_creates_mapped_services():
+    """Placeholder search walks every mapped title and inserts that service."""
+    created = []
+
+    def create_instance(svc):
+        created.append(svc)
+        return MagicMock()
+
+    def find_first(sd):
+        rng = MagicMock()
+        text = MagicMock()
+        text.createTextCursorByRange.return_value = MagicMock()
+        rng.getText.return_value = text
+        rng.getEnd.return_value = MagicMock()
+        return rng
+
+    model = MagicMock()
+    model.createInstance.side_effect = create_instance
+    model.findFirst.side_effect = find_first
+    model.findNext.return_value = None
+
+    restored = _restore_field_placeholders(model)
+    assert restored == len(_EXPORTED_FIELD_TITLES)
+    assert set(created) == set(_FIELD_TITLE_TO_SERVICE.values())
+    # Author is shared by name + initials; DocInfo title/subject must both land.
+    assert created.count("com.sun.star.text.textfield.Author") == 2
+    assert "com.sun.star.text.textfield.Chapter" in created
+    assert "com.sun.star.text.textfield.FileName" in created
+    assert "com.sun.star.text.textfield.docinfo.Title" in created
+    assert "com.sun.star.text.textfield.docinfo.Subject" in created
 
 
 def test_restore_field_placeholders_scopes_region_with_uno_same():
