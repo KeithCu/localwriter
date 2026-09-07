@@ -642,6 +642,10 @@ class ImageInsert(ToolWriterImageBase):
         "Insert an image from local path or URL into the document. URLs are auto-downloaded first. "
         "For Writer letterheads, pass target='header' or 'footer' (optionally style) to insert "
         "into the page header/footer with auto-height so the logo does not overlap the body. "
+        "A different-first-page letterhead logo needs first_is_shared=false on the page style "
+        "(page_set_style_properties) so HeaderTextFirst is its own text object, then "
+        "target='header_first' (or footer_first) — otherwise the image lands in the shared "
+        "header and repeats on every page. "
         "On Draw/Impress, optional page (0-based) and x_mm/y_mm place the image; omitted x/y centers it. "
         "Sizes and positions are millimetres (not 1/100 mm)."
     )
@@ -658,8 +662,12 @@ class ImageInsert(ToolWriterImageBase):
             "height_mm": {"type": "integer", "description": "Height in millimetres (default: 80)."},
             "target": {
                 "type": "string",
-                "enum": ["body", "header", "footer"],
-                "description": "Writer insertion target (default: body). header/footer write into the page style region.",
+                "enum": ["body", "header", "footer", "header_first", "footer_first"],
+                "description": (
+                    "Writer insertion target (default: body). header/footer write the shared "
+                    "page-style region. header_first/footer_first write the first-page letterhead "
+                    "(set first_is_shared=false first, or the first page still shares HeaderText)."
+                ),
             },
             "style": {
                 "type": "string",
@@ -668,7 +676,8 @@ class ImageInsert(ToolWriterImageBase):
             "auto_height": {
                 "type": "boolean",
                 "description": (
-                    "When target is header/footer, grow the region with the image (default: true). "
+                    "When target is a header/footer region, grow the region with the image "
+                    "(default: true) so a taller logo does not overlap the body. "
                     "Set false to keep a fixed header/footer height."
                 ),
             },
@@ -695,7 +704,7 @@ class ImageInsert(ToolWriterImageBase):
         if not os.path.isfile(image_path):
             return self._tool_error(f"File not found: {image_path}", code="FILE_NOT_FOUND", path=image_path)
 
-        if target in ("header", "footer"):
+        if target in ("header", "footer", "header_first", "footer_first"):
             if visual_helpers.get_visual_doc_type(doc) not in ("writer", "web"):
                 return self._tool_error(
                     "target='%s' is only supported for Writer documents." % target,

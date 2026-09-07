@@ -35,10 +35,15 @@ class FakeCursor:
 
 
 class FakePageStyle:
-    def __init__(self, name, header=None, footer=None, in_use=True):
+    def __init__(self, name, header=None, footer=None, in_use=True,
+                 header_first=None, footer_first=None):
         self._name = name
         self.HeaderText = header
         self.FooterText = footer
+        # Separate XText objects when FirstIsShared=False; search labels them
+        # "first-page header/footer" via getattr, so the attrs must exist.
+        self.HeaderTextFirst = header_first
+        self.FooterTextFirst = footer_first
         self._in_use = in_use
 
     def isInUse(self):
@@ -134,6 +139,18 @@ def test_footer_found_with_style_name():
     hf = FakeHeadFootText()
     doc = FakeDoc(styles=[FakePageStyle("Landscape", footer=hf)])
     assert _header_footer_label(hf, doc) == "footer (page style 'Landscape')"
+
+
+def test_first_page_header_found_with_style_name():
+    hf = FakeHeadFootText()
+    doc = FakeDoc(styles=[FakePageStyle("Standard", header_first=hf)])
+    assert _header_footer_label(hf, doc) == "first-page header (page style 'Standard')"
+
+
+def test_first_page_footer_found_with_style_name():
+    hf = FakeHeadFootText()
+    doc = FakeDoc(styles=[FakePageStyle("Standard", footer_first=hf)])
+    assert _header_footer_label(hf, doc) == "first-page footer (page style 'Standard')"
 
 
 def test_unused_styles_are_skipped():

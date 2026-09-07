@@ -228,6 +228,12 @@ def insert_image_into_header_footer(
     Anchors ``AS_CHARACTER`` so the image contributes to line height. A
     floating ``AT_CHARACTER`` image does not grow the region, so a logo
     taller than the fixed header height overlaps the body text.
+
+    ``region`` is a ``_REGION_PROPS`` key (``header``, ``footer``,
+    ``header_first``, ``footer_first``, and the left variants). A
+    different-first-page letterhead logo belongs in ``header_first`` /
+    ``footer_first`` after ``FirstIsShared=False`` — those are separate
+    ``XText`` objects; writing the shared ``header`` never reaches them.
     """
     from plugin.writer.page import (
         _REGION_PROPS,
@@ -236,7 +242,7 @@ def insert_image_into_header_footer(
     )
 
     if region not in _REGION_PROPS:
-        raise ValueError("region must be 'header' or 'footer'")
+        raise ValueError("region must be one of: %s" % ", ".join(_REGION_PROPS))
 
     style, resolved = resolve_page_style(model, style_name)
     is_on_prop, text_prop = _REGION_PROPS[region]
