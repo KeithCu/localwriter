@@ -8,6 +8,7 @@ Usage:
   .venv/bin/python scripts/eval_2_headed.py
   .venv/bin/python scripts/eval_2_headed.py --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
+  .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
 """
 from __future__ import annotations
 
@@ -176,11 +177,21 @@ def main(argv: list[str] | None = None) -> int:
         help="Start soffice --calc with the AFC Population fixture when present",
     )
     parser.add_argument(
+        "--score",
+        type=Path,
+        default=None,
+        help="Score a saved trial workbook (ODS/XLSX). Ignores chat Ready; does not write config.",
+    )
+    parser.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help="Optional command to run as the session (prefix with --)",
     )
     args = parser.parse_args(argv)
+    if args.score is not None:
+        from eval_2_ods_oracle import main as score_main
+
+        return score_main([str(args.score)])
     command = list(args.command)
     if command and command[0] == "--":
         command = command[1:]
