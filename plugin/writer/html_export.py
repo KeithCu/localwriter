@@ -5,7 +5,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """XHTML/FODT export and image stripping for Writer documents.
 
-Public entry: ``document_to_content`` (also re-exported from ``plugin.writer.format``).
+Public entries: ``document_to_content`` and ``xtext_to_content``
+(also re-exported from ``plugin.writer.format``).
 """
 
 import logging
@@ -451,5 +452,316 @@ def document_to_content(
         log.exception("document_to_content (full) failed")
         return _done("", "failed")
 
+
+def _supports_service(obj, name):
+    try:
+        return bool(obj.supportsService(name))
+    except Exception:
+        return False
+
+
+def _xtext_has_tables(text_obj):
+    try:
+        enum = text_obj.createEnumeration()
+    except Exception:
+        return False
+    while enum.hasMoreElements() is True:
+        try:
+            el = enum.nextElement()
+        except Exception:
+            break
+        if _supports_service(el, "com.sun.star.text.TextTable"):
+            return True
+    return False
+
+
+def _whole_xtext_range(text_obj):
+    cursor = text_obj.createTextCursor()
+    cursor.gotoStart(False)
+    cursor.gotoEnd(True)
+    return cursor
+
+
+def _goto_doc_end(doc):
+    try:
+        doc.getCurrentController().getViewCursor().gotoEnd(False)
+    except Exception:
+        pass
+
+
+def _paste_range(src_doc, rng, dest_doc):
+    """Copy a range via the document transferable (fields, images, char format).
+
+    Selecting a header/footer *table* and pasting this way drops the table
+    (probed: ``insertTransferable`` yields an empty dest). Paragraphs,
+    page-number fields, and AS_CHARACTER images survive.
+    """
+    try:
+        src_ctrl = src_doc.getCurrentController()
+        src_ctrl.select(rng)
+        xfer = src_ctrl.getTransferable()
+        dest_ctrl = dest_doc.getCurrentController()
+        _goto_doc_end(dest_doc)
+        dest_ctrl.insertTransferable(xfer)
+        return True
+    except Exception:
+        log.debug("_paste_range failed", exc_info=True)
+        return False
+
+
+def _copy_field_into(dest_doc, dest_text, dest_cursor, src_field):
+    """Recreate *src_field* in *dest_doc* (used for table-cell fields)."""
+    services = []
+    try:
+        services = [
+            s for s in src_field.getSupportedServiceNames()
+            if str(s).startswith("com.sun.star.text.textfield.")
+        ]
+    except Exception:
+        return False
+    if not services:
+        return False
+    svc = sorted(services, key=len)[-1]
+    try:
+        new_field = dest_doc.createInstance(svc)
+    except Exception:
+        return False
+    for prop in ("NumberingType", "PageNumberType", "IsDate", "IsFixed", "Format"):
+        try:
+            new_field.setPropertyValue(prop, src_field.getPropertyValue(prop))
+        except Exception:
+            pass
+    try:
+        dest_text.insertTextContent(dest_cursor, new_field, False)
+        return True
+    except Exception:
+        log.debug("_copy_field_into failed", exc_info=True)
+        return False
+
+
+def _copy_cell_xtext(src_doc, src_cell, dest_doc, dest_cell):
+    """Copy one table cell: text + fields. Images in cells are not copied here."""
+    dest_text = dest_cell
+    try:
+        dest_cell.setString("")
+    except Exception:
+        pass
+    dest_cursor = dest_text.createTextCursor()
+    dest_cursor.gotoStart(False)
+    try:
+        para_enum = src_cell.createEnumeration()
+    except Exception:
+        dest_cell.setString(src_cell.getString())
+        return
+    first_para = True
+    while para_enum.hasMoreElements() is True:
+        try:
+            para = para_enum.nextElement()
+        except Exception:
+            break
+        if _supports_service(para, "com.sun.star.text.TextTable"):
+            continue
+        if not first_para:
+            try:
+                dest_text.insertControlCharacter(dest_cursor, _PARAGRAPH_BREAK, False)
+                dest_cursor.gotoNextParagraph(False)
+            except Exception:
+                pass
+        first_para = False
+        try:
+            portions = para.createEnumeration()
+        except Exception:
+            try:
+                dest_text.insertString(dest_cursor, para.getString(), False)
+            except Exception:
+                pass
+            continue
+        while portions.hasMoreElements() is True:
+            try:
+                portion = portions.nextElement()
+                kind = portion.getPropertyValue("TextPortionType")
+            except Exception:
+                break
+            if kind == "TextField":
+                try:
+                    field = portion.getPropertyValue("TextField")
+                except Exception:
+                    continue
+                _copy_field_into(dest_doc, dest_text, dest_cursor, field)
+            else:
+                try:
+                    chunk = portion.getString()
+                except Exception:
+                    chunk = ""
+                if chunk:
+                    dest_text.insertString(dest_cursor, chunk, False)
+
+
+def _copy_table(src_doc, src_table, dest_doc):
+    try:
+        rows = int(src_table.getRows().getCount())
+        cols = int(src_table.getColumns().getCount())
+    except Exception:
+        return
+    if rows < 1 or cols < 1:
+        return
+    dest_table = dest_doc.createInstance("com.sun.star.text.TextTable")
+    dest_table.initialize(rows, cols)
+    dest_text = dest_doc.getText()
+    dest_text.insertTextContent(dest_text.getEnd(), dest_table, False)
+    for row in range(rows):
+        for col in range(cols):
+            try:
+                src_cell = src_table.getCellByPosition(col, row)
+                dest_cell = dest_table.getCellByPosition(col, row)
+            except Exception:
+                continue
+            _copy_cell_xtext(src_doc, src_cell, dest_doc, dest_cell)
+    _goto_doc_end(dest_doc)
+
+
+def _copy_xtext_by_portions(src_doc, src_text, dest_doc):
+    """Copy paragraphs/fields without the view transferable.
+
+    Needed when ``select()`` on ``HeaderText`` pastes nothing because the
+    view is on the first page (``FirstIsShared=False``).
+    """
+    dest_text = dest_doc.getText()
+    dest_text.setString("")
+    dest_cursor = dest_text.createTextCursor()
+    dest_cursor.gotoStart(False)
+    try:
+        enum = src_text.createEnumeration()
+    except Exception:
+        dest_text.setString(src_text.getString() if src_text else "")
+        return
+    first_para = True
+    while enum.hasMoreElements() is True:
+        try:
+            el = enum.nextElement()
+        except Exception:
+            break
+        if _supports_service(el, "com.sun.star.text.TextTable"):
+            _copy_table(src_doc, el, dest_doc)
+            _goto_doc_end(dest_doc)
+            dest_cursor = dest_text.createTextCursor()
+            dest_cursor.gotoEnd(False)
+            first_para = False
+            continue
+        if not first_para:
+            try:
+                dest_text.insertControlCharacter(dest_cursor, _PARAGRAPH_BREAK, False)
+                dest_cursor.gotoNextParagraph(False)
+            except Exception:
+                pass
+        first_para = False
+        try:
+            portions = el.createEnumeration()
+        except Exception:
+            try:
+                dest_text.insertString(dest_cursor, el.getString(), False)
+            except Exception:
+                pass
+            continue
+        while portions.hasMoreElements() is True:
+            try:
+                portion = portions.nextElement()
+                kind = portion.getPropertyValue("TextPortionType")
+            except Exception:
+                break
+            if kind == "TextField":
+                try:
+                    field = portion.getPropertyValue("TextField")
+                except Exception:
+                    continue
+                _copy_field_into(dest_doc, dest_text, dest_cursor, field)
+            else:
+                try:
+                    chunk = portion.getString()
+                except Exception:
+                    chunk = ""
+                if chunk:
+                    dest_text.insertString(dest_cursor, chunk, False)
+
+
+def _copy_xtext_into_doc(src_doc, src_text, dest_doc):
+    """Copy *src_text* (body, header, footer, cell) into *dest_doc*'s body.
+
+    Paragraphs use the transferable so fields and AS_CHARACTER images survive.
+    Tables are recreated — LO's transferable drops a header table (probed).
+    When the view is on the first page, ``select(HeaderText)`` pastes empty;
+    fall back to a portion walk so shared vs first-page regions still export.
+    """
+    dest_doc.getText().setString("")
+    src_plain = (src_text.getString() if src_text else "") or ""
+    if not _xtext_has_tables(src_text):
+        pasted = _paste_range(src_doc, _whole_xtext_range(src_text), dest_doc)
+        dest_plain = dest_doc.getText().getString() or ""
+        if pasted and dest_plain.strip():
+            return
+        if src_plain.strip():
+            _copy_xtext_by_portions(src_doc, src_text, dest_doc)
+        return
+    try:
+        enum = src_text.createEnumeration()
+    except Exception:
+        dest_doc.getText().setString(src_plain)
+        return
+    while enum.hasMoreElements() is True:
+        try:
+            el = enum.nextElement()
+        except Exception:
+            break
+        if _supports_service(el, "com.sun.star.text.TextTable"):
+            _copy_table(src_doc, el, dest_doc)
+        else:
+            if not _paste_range(src_doc, el, dest_doc):
+                try:
+                    dest_doc.getText().insertString(dest_doc.getText().getEnd(), el.getString(), False)
+                except Exception:
+                    pass
+    dest_plain = dest_doc.getText().getString() or ""
+    if not dest_plain.strip() and src_plain.strip():
+        _copy_xtext_by_portions(src_doc, src_text, dest_doc)
+
+
+def _open_hidden_writer(ctx):
+    desktop = get_desktop(ctx)
+    load_props = (format_mod.create_property_value("Hidden", True),)
+    return desktop.loadComponentFromURL("private:factory/swriter", "_blank", 0, load_props)
+
+
+def xtext_to_content(text_obj, model, ctx, services=None, *, include_images=True, max_chars=None):
+    """Export an ``XText`` (header, footer, body, cell) via ``document_to_content``.
+
+    Full-document XHTML omits page-style headers/footers, so the region is
+    copied into a hidden Writer body's text and run through the same
+    XHTML + postprocess stack as ``get_document_content``.
+    """
+    if text_obj is None:
+        return ""
+    temp_doc = None
+    try:
+        temp_doc = _open_hidden_writer(ctx)
+        if not temp_doc or not hasattr(temp_doc, "getText"):
+            return ""
+        _copy_xtext_into_doc(model, text_obj, temp_doc)
+        return document_to_content(
+            temp_doc,
+            ctx,
+            services,
+            max_chars=max_chars,
+            scope="full",
+            include_images=include_images,
+        )
+    except Exception:
+        log.exception("xtext_to_content failed")
+        return ""
+    finally:
+        if temp_doc is not None:
+            try:
+                temp_doc.close(True)
+            except Exception:
+                pass
 
 

@@ -486,6 +486,11 @@ def document_to_content(model, ctx, services, max_chars=None, scope="full", rang
     return impl(model, ctx, services, max_chars, scope, range_start, range_end, include_images=include_images)
 
 
+def xtext_to_content(text_obj, model, ctx, services=None, *, include_images=True, max_chars=None):
+    from .html_export import xtext_to_content as impl
+    return impl(text_obj, model, ctx, services, include_images=include_images, max_chars=max_chars)
+
+
 def _ensure_html_linebreaks(content):  # pyright: ignore[reportUnusedFunction]
     from .html_import import _ensure_html_linebreaks as impl
     return impl(content)
@@ -534,6 +539,16 @@ def replace_full_document(model, ctx, content, config_svc=None):
 def replace_single_range_with_content(model, text_range, content, ctx, config_svc=None):
     from .html_import import replace_single_range_with_content as impl
     return impl(model, text_range, content, ctx, config_svc)
+
+
+def replace_xtext_with_html(text_obj, html, config_svc=None, model=None):
+    from .html_import import replace_xtext_with_html as impl
+    return impl(text_obj, html, config_svc, model)
+
+
+def rewrite_exported_field_spans(html):
+    from .html_import import rewrite_exported_field_spans as impl
+    return impl(html)
 
 
 def content_has_markup(content):
