@@ -86,8 +86,11 @@ def _region_has_table(text_obj) -> bool:
 def _region_holds_content(doc, text_obj) -> bool:
     """True if the header/footer XText still holds text, fields, images, or tables.
 
-    Do not treat a missing ``IsOn`` as empty: LibreOffice may keep ``HeaderText``
-    after ``HeaderIsOn=false`` (F5). A ``None`` text object is the only true absence.
+    F5: disabling the region (``HeaderIsOn`` / ``FooterIsOn`` = false) *clears*
+    its content. A ``None`` text object is the usual off-state absence. The
+    #646 refuse uses this so ``*_is_on=false`` does not silently wipe — same
+    idea as LibreOffice's delete-header prompt. Clear via ``page_set`` first,
+    then turn off.
     ``getString()`` misses logos and can hide tables; the #638 region scan plus a
     table walk covers those.
     """
@@ -107,6 +110,11 @@ def _region_holds_content(doc, text_obj) -> bool:
 
 def _disable_blocked_by_content(doc, style, kwargs: dict[str, Any]) -> str | None:
     """Error text if ``header_is_on=false`` / ``footer_is_on=false`` would wipe content.
+
+    F5: turning the region off *clears* its content (not "LO keeps HeaderText").
+    Refuse ``*_is_on=false`` while content remains so we don't silently wipe —
+    same idea as LibreOffice's delete-header prompt. Clear via ``page_set``
+    first, then turn off.
 
     ``HeaderIsOn`` / ``FooterIsOn`` are the only toggles (no first/left IsOn props).
     Turning one off drops every variant of that kind, so all matching regions are
@@ -392,8 +400,9 @@ class PageSetStyleProperties(ToolWriterPageBase):
         except Exception as e:
             return self._tool_error(f"Error accessing page style '{style_name}': {e}")
 
-        # Refuse HeaderIsOn/FooterIsOn=false before any write: LO UI asks
-        # "delete header?" rather than silently wiping leftover content.
+        # F5: HeaderIsOn/FooterIsOn=false *clears* content. Refuse while
+        # content remains so we don't silently wipe (same idea as LO's
+        # delete-header prompt). Clear via page_set first, then turn off.
         blocked = _disable_blocked_by_content(doc, style, kwargs)
         if blocked:
             return self._tool_error(blocked)
@@ -540,8 +549,8 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
         try:
             is_on_prop, text_prop = _REGION_PROPS[region]
             is_on = bool(style.getPropertyValue(is_on_prop))
-            # LO keeps HeaderText when HeaderIsOn is false — leftover letterhead is
-            # still there. Export it so a later set is not a surprise.
+            # F5: disabling the region *clears* HeaderText — typically None
+            # while off. Still export if a text object is present.
             text_obj = None
             try:
                 text_obj = style.getPropertyValue(text_prop)
