@@ -371,17 +371,25 @@ def test_read_cell_range_tool_truncates_large_range():
     assert result["rows"] == 500
     assert result["columns"] == 8
     assert result["preview_range"] == "A1:H10"
-    assert result["message"] == _READ_CELL_RANGE_TRUNCATED_MSG
+    assert result["message"] == _READ_CELL_RANGE_TRUNCATED_MSG.format(
+        rows=500, columns=8, cells=4000
+    )
     assert "overload" in result["message"]
+    assert "500 rows" in result["message"]
+    assert "8 columns" in result["message"]
+    assert "4000 cells" in result["message"]
+    assert "peek only" in result["message"]
+    assert "pass this A1 address to =PY instead of re-reading" not in result["message"]
+    assert "write_formula_range" in result["message"]
+    assert "fill-down" in result["message"]
     inspector_cls.return_value.read_range.assert_called_once_with("A1:H10", include_format_info=True)
 
 
-def test_read_cell_range_min_over_cap_steers_to_py():
-    """9×9 fixture (81 cells) is the smallest range-too-large repro; message steers to =PY.
+def test_read_cell_range_min_over_cap_steers_fill_down_not_hard_py():
+    """9×9 fixture (81 cells) is the smallest range-too-large repro.
 
-    Chat `read_cell_range` caps at 80 cells. Models then follow the steer instead of
-    chunked native Calc. This binds that wire to a committed ODS without opening
-    Population or running a headed eval.
+    Chat `read_cell_range` caps at 80 cells. Message names size + peek and
+    steers row-wise work to ordinary fill-down, not a hard =PY funnel.
     """
     from plugin.calc.cells import (
         ReadCellRange,
@@ -415,9 +423,17 @@ def test_read_cell_range_min_over_cap_steers_to_py():
     assert result["rows"] == 9
     assert result["columns"] == 9
     assert result["range"] == range_name
-    assert result["message"] == _READ_CELL_RANGE_TRUNCATED_MSG
-    assert "=PY" in result["message"]
-    assert "pass this A1 address to =PY instead of re-reading" in result["message"]
+    assert result["message"] == _READ_CELL_RANGE_TRUNCATED_MSG.format(
+        rows=9, columns=9, cells=81
+    )
+    assert "9 rows" in result["message"]
+    assert "9 columns" in result["message"]
+    assert "81 cells" in result["message"]
+    assert "peek only" in result["message"]
+    assert "pass this A1 address to =PY instead of re-reading" not in result["message"]
+    assert "write_formula_range" in result["message"]
+    assert "fill-down" in result["message"]
+    assert result["message"].index("write_formula_range") < result["message"].index("=PY")
     # Preview clips rows to 10; 9 data rows stay A1:I9 but still mark truncated.
     assert result["preview_range"] == "A1:I9"
     inspector_cls.return_value.read_range.assert_called_once_with("A1:I9", include_format_info=True)
@@ -454,6 +470,72 @@ def test_preview_if_large_keeps_sheet_prefix():
     preview = _preview_if_large(bridge, "'Data Sheet'!A1:H500")
     assert preview is not None
     assert preview["preview_range"] == "'Data Sheet'!A1:H10"
+
+
+def test_column_distinct_peek_lists_low_cardinality_and_skips_phone_book():
+    from plugin.calc.cells import (
+        _DISTINCT_PEEK_HIGH_CARDINALITY,
+        _column_distinct_peek,
+    )
+
+    rows = [("Country", "Phone")]
+    for i in range(_DISTINCT_PEEK_HIGH_CARDINALITY + 5):
+        # Two countries, unique phones — phone book must not be listed.
+        rows.append(("US" if i % 2 == 0 else "UK", f"555-{i:04d}"))
+    peek = _column_distinct_peek(tuple(rows), start_column=0)
+    assert peek[0]["column"] == "Country"
+    assert peek[0]["unique_count"] == 2
+    assert peek[0]["values"] == ["US", "UK"]
+    assert peek[1]["column"] == "Phone"
+    assert peek[1]["unique_count"] == f"{_DISTINCT_PEEK_HIGH_CARDINALITY}+"
+    assert peek[1]["skipped"] == "high cardinality"
+    assert "values" not in peek[1]
+
+    # Repeats of a mid-size set must not inflate the count past the true cardinality.
+    mid = [("Code",)] + [(f"C{i % 20}",) for i in range(200)]
+    mid_peek = _column_distinct_peek(tuple(mid), start_column=2)
+    assert mid_peek[0]["column"] == "Code"
+    assert mid_peek[0]["unique_count"] == 20
+    assert mid_peek[0]["skipped"] == "high cardinality"
+    assert "values" not in mid_peek[0]
+
+
+def test_read_cell_range_truncated_attaches_column_distincts():
+    from plugin.calc.cells import ReadCellRange
+
+    ctx = SimpleNamespace(doc=MagicMock())
+    sample = [[{"value": "Country"}] * 2]
+    data = (
+        ("Country", "Code"),
+        ("US", "1"),
+        ("UK", "44"),
+        ("US", "1"),
+    )
+    mock_range = _range_addr(start_col=0, end_col=1, start_row=0, end_row=99)
+    mock_range.getDataArray.return_value = data
+    with (
+        patch("plugin.calc.cells.CalcBridge") as bridge_cls,
+        patch("plugin.calc.cells.CellInspector") as inspector_cls,
+    ):
+        # 2×100 is over the 80-cell cap.
+        bridge_cls.return_value.resolve_range_or_address.return_value = mock_range
+        inspector_cls.return_value.read_range.return_value = sample
+        result = ReadCellRange().execute(ctx, range=["A1:B100"])
+
+    assert result["truncated"] is True
+    assert result["column_distincts"] == [
+        {"column": "Country", "unique_count": 2, "values": ["US", "UK"]},
+        {"column": "Code", "unique_count": 2, "values": ["1", "44"]},
+    ]
+
+
+def test_read_cell_range_description_not_hard_py_first():
+    from plugin.calc.cells import ReadCellRange
+
+    desc = ReadCellRange.description
+    assert "write =PY(..., DataRange) instead of reading the block" not in desc
+    assert "write_formula_range (fill-down)" in desc
+    assert desc.index("write_formula_range") < desc.index("=PY")
 
 
 def test_set_style_rejects_mistyped_bold():

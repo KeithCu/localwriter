@@ -311,7 +311,7 @@ class _CalcProxy:
         return _rpc_call("set_style", range=range_name, bold=bold, italic=italic, font_size=font_size, bg_color=bg_color, font_color=font_color, h_align=h_align, v_align=v_align, wrap_text=wrap_text, border_color=border_color, number_format=number_format)
 
     def write_formula_range(self, range_name: list, values: str) -> dict:
-        """To run Python on sheet data, write =PY(\"result = …\"; DataRange) into one empty cell outside DataRange (e.g."""
+        """Writes formulas or values to a cell range(s) efficiently."""
         return _rpc_call("write_formula_range", range=range_name, values=values)
 
 calc = _CalcProxy()

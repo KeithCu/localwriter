@@ -363,6 +363,11 @@ def test_write_formula_range_description_owns_py_dest_and_spill():
     from plugin.calc.cells import WriteCellRange
 
     desc = WriteCellRange.description
+    fill_at = desc.find("fill-down")
+    py_at = desc.find('=PY("result = …"; DataRange)')
+    assert fill_at != -1
+    assert py_at != -1
+    assert fill_at < py_at
     assert "J1" in desc
     assert "new sheet" in desc
     assert "circular" in desc
@@ -370,6 +375,11 @@ def test_write_formula_range_description_owns_py_dest_and_spill():
     assert "small peek" in desc
     assert "do not dump the input or full spill" in desc
     assert "do not write =PY onto DataRange" in desc
+    # Anti-husk paragraph stays verbatim after the =PY spill block.
+    assert 'Tables (headers, mixed types): =PY("result = data.to_pandas().drop_duplicates()"; DataRange).' in desc
+    assert "Always use data.to_pandas() rather than pd.DataFrame(data) because to_pandas() uses row 0 as column headers;" in desc
+    assert "pd.DataFrame(data) treats headers as data and generates synthetic numeric columns (0..N) that spill as a junk top row." in desc
+    assert "np.unique on mixed rows fails — NumPy object arrays cannot compare/hash mixed cell types." in desc
     assert "data.to_pandas().drop_duplicates()" in desc
     assert "mixed cell types" in desc
     assert "multiline CSV from a start cell" in desc
@@ -415,7 +425,11 @@ def test_calc_workflow_warns_large_range_overloads_context():
 
     assert "overloads the model context" in CALC_WORKFLOW
     assert "get_sheet_summary" in CALC_WORKFLOW
-    assert "pass the A1 address to =PY" in CALC_WORKFLOW
+    assert "pass the A1 address to =PY" not in CALC_WORKFLOW
+    assert "peek only" in CALC_WORKFLOW
+    assert "write_formula_range (fill-down adjusts relative refs)" in CALC_WORKFLOW
+    assert "=PY into one empty cell outside the data" in CALC_WORKFLOW
+    assert CALC_WORKFLOW.index("write_formula_range") < CALC_WORKFLOW.index("=PY into one empty cell")
     assert "create_sheet makes an empty tab (no cells copied)" in CALC_WORKFLOW
     assert "write_formula_range with source and dest range" in CALC_WORKFLOW
 

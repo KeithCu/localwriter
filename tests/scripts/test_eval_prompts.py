@@ -61,9 +61,8 @@ _CALC_HAS_HEADER = (
     "When row 1 is labels, pass has_header=true — otherwise labels sort as values."
 )
 _CALC_RELATIVE_FORMULA = (
-    "Do write each row's formula with that row's cells because copying one "
-    "prototype pins cell refs to the first row (e.g. Banana row uses B3, not a "
-    "stamped B2)."
+    "Write one ordinary formula into a 1-column (or 1-row) destination — "
+    "write_formula_range fill-down adjusts relative refs ($ stays absolute)."
 )
 _SORT_RANGE_HAS_HEADER = (
     "Do pass has_header=true when row 1 is labels because otherwise labels "

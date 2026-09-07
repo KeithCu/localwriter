@@ -39,10 +39,22 @@ from plugin.calc.manipulator import CellManipulator
 # Inspector.read_range stays uncapped for UNO tests and internal callers.
 _READ_CELL_RANGE_MAX_CELLS = 80
 _READ_CELL_RANGE_PREVIEW_ROWS = 10
+# Size + peek + fill-down first; =PY only for small reductions (not a hard =PY funnel).
 _READ_CELL_RANGE_TRUNCATED_MSG = (
-    "Range is too large to load into chat (would overload the model context). "
-    "The sample below is a peek only — pass this A1 address to =PY instead of re-reading."
+    "Range is too large to load into chat (would overload the model context): "
+    "{rows} rows × {columns} columns ({cells} cells). "
+    "The sample below is a peek only — do not re-read the full range. "
+    "Row-wise ordinary Calc formulas: write_formula_range into a 1-column "
+    "(or 1-row) destination; fill-down adjusts relative refs. "
+    "Reductions that spill a small result: write =PY into one empty cell "
+    "outside the data."
 )
+# Truncated-path distinct peek only (not a public tool). High-unique columns
+# are summarized, not listed — no phone book in chat.
+_DISTINCT_PEEK_MAX_COLUMNS = 8
+_DISTINCT_PEEK_MAX_ROWS = 2000
+_DISTINCT_PEEK_LIST_CAP = 12
+_DISTINCT_PEEK_HIGH_CARDINALITY = 40
 
 from plugin.doc.visual_helpers import parse_color_to_uno_int
 from plugin.framework.deal_shim import deal
@@ -101,9 +113,91 @@ def _preview_if_large(bridge, range_name: str) -> dict[str, Any] | None:
             "columns": cols,
             "cells": cells,
             "preview_range": _format_sheet_address(range_name, local),
+            "start_column": int(addr.StartColumn),
+            "start_row": int(addr.StartRow),
         }
     except Exception:
         log.exception("Could not size range %s for read_cell_range cap; reading in full", range_name)
+        return None
+
+
+def _distinct_display(val: Any) -> str | None:
+    """Stable chat label for one getDataArray cell; skip blanks."""
+    if val is None or val == "":
+        return None
+    if isinstance(val, float) and abs(val) < 1e15 and val.is_integer():
+        return str(int(val))
+    return str(val)
+
+
+def _column_distinct_peek(data_array: Any, *, start_column: int = 0) -> list[dict[str, Any]]:
+    """Cardinality-capped distincts per column from a getDataArray grid.
+
+    First row is the header when it looks like text; high-unique columns
+    report a count only (no value list).
+    """
+    if not isinstance(data_array, (list, tuple)) or not data_array:
+        return []
+    header_row = data_array[0]
+    if not isinstance(header_row, (list, tuple)):
+        return []
+    n_cols = min(len(header_row), _DISTINCT_PEEK_MAX_COLUMNS)
+    if n_cols <= 0:
+        return []
+    body = data_array[1:]
+    out: list[dict[str, Any]] = []
+    for col_i in range(n_cols):
+        raw_header = header_row[col_i]
+        header = raw_header.strip() if isinstance(raw_header, str) and raw_header.strip() else None
+        label = header or index_to_column(start_column + col_i)
+        # Track every distinct for the count; only the first LIST_CAP go in the payload.
+        seen: set[str] = set()
+        listed: list[str] = []
+        overflow = False
+        for row in body:
+            if not isinstance(row, (list, tuple)) or col_i >= len(row):
+                continue
+            key = _distinct_display(row[col_i])
+            if key is None or key in seen:
+                continue
+            seen.add(key)
+            if len(listed) < _DISTINCT_PEEK_LIST_CAP:
+                listed.append(key)
+            if len(seen) > _DISTINCT_PEEK_HIGH_CARDINALITY:
+                overflow = True
+                break
+        entry: dict[str, Any] = {"column": label}
+        if overflow:
+            entry["unique_count"] = f"{_DISTINCT_PEEK_HIGH_CARDINALITY}+"
+            entry["skipped"] = "high cardinality"
+        else:
+            entry["unique_count"] = len(seen)
+            if len(seen) > _DISTINCT_PEEK_LIST_CAP:
+                entry["skipped"] = "high cardinality"
+            else:
+                entry["values"] = listed
+        out.append(entry)
+    return out
+
+
+def _try_column_distinct_peek(bridge, range_name: str, preview: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Scan a clipped window of the oversized range via getDataArray. Fail-soft."""
+    try:
+        start_col = int(preview["start_column"])
+        start_row = int(preview["start_row"])
+        cols = int(preview["columns"])
+        rows = int(preview["rows"])
+        end_col = start_col + min(cols, _DISTINCT_PEEK_MAX_COLUMNS) - 1
+        end_row = start_row + min(rows, _DISTINCT_PEEK_MAX_ROWS) - 1
+        local = f"{index_to_column(start_col)}{start_row + 1}:{index_to_column(end_col)}{end_row + 1}"
+        clipped = _format_sheet_address(range_name, local)
+        cell_range = bridge.resolve_range_or_address(clipped)
+        if not hasattr(cell_range, "getDataArray"):
+            return None
+        peek = _column_distinct_peek(cell_range.getDataArray(), start_column=start_col)
+        return peek or None
+    except Exception:
+        log.exception("Could not compute column distinct peek for %s", range_name)
         return None
 
 
@@ -197,8 +291,10 @@ class ReadCellRange(ToolBase):
     name = "read_cell_range"
     description = (
         "Reads values from the specified cell range(s). Inspection only — keep ranges small "
-        "(headers or a few dozen cells). A large dump overloads chat context; for bulk work "
-        "write =PY(..., DataRange) instead of reading the block. Date/time-formatted numeric "
+        "(headers or a few dozen cells). A large dump overloads chat context; oversized reads "
+        "return a peek plus size only. Row-wise transforms use write_formula_range (fill-down); "
+        "reductions that spill a small result use =PY into one empty cell outside the data. "
+        "Date/time-formatted numeric "
         "cells return an ISO 8601 string in `value` with `type` and `format_category` of date, "
         "time, or datetime, plus `format_code` (Calc FormatString, observability only). "
         "Elapsed/stopwatch formats (`[HH]:MM:SS`, …) return `PTnHnMnS` (e.g. PT30H) with "
@@ -246,10 +342,12 @@ class ReadCellRange(ToolBase):
             grid = inspector.read_range(range_name, include_format_info=True)
             return {"status": "ok", "result": [grid]}
         grid = inspector.read_range(preview["preview_range"], include_format_info=True)
-        return {
+        payload: dict[str, Any] = {
             "status": "ok",
             "truncated": True,
-            "message": _READ_CELL_RANGE_TRUNCATED_MSG,
+            "message": _READ_CELL_RANGE_TRUNCATED_MSG.format(
+                rows=preview["rows"], columns=preview["columns"], cells=preview["cells"]
+            ),
             "range": range_name,
             "preview_range": preview["preview_range"],
             "rows": preview["rows"],
@@ -257,6 +355,10 @@ class ReadCellRange(ToolBase):
             "cells": preview["cells"],
             "result": [grid],
         }
+        distincts = _try_column_distinct_peek(bridge, range_name, preview)
+        if distincts:
+            payload["column_distincts"] = distincts
+        return payload
 
 
 class WriteCellRange(ToolBase):
@@ -264,7 +366,18 @@ class WriteCellRange(ToolBase):
 
     name = "write_formula_range"
     description = (
-        'To run Python on sheet data, write =PY("result = …"; DataRange) into one empty cell '
+        "Writes formulas or values to a cell range(s) efficiently. Single string fills entire range; "
+        "JSON array must match range size exactly (one value per cell); or multiline CSV from a start "
+        "cell. Use an empty string or empty array to clear contents. Supports lists for non-contiguous "
+        "areas. A single ordinary Calc formula into a 1-column or 1-row range fill-down/across "
+        "adjusts relative A1 refs ($ stays absolute). Prefer plain values/ISO "
+        "dates for static cells; use an '=' formula only when the cell must stay live (e.g. TODAY(), "
+        "computed duration). Dates and times: use ISO 8601 only — YYYY-MM-DD, HH:MM[:SS], or "
+        "YYYY-MM-DDTHH:MM[:SS]. These become real Calc date/time values. Elapsed/stopwatch values: "
+        "use PTnHnMnS (e.g. PT30H, PT1H30M); these become duration serials with elapsed formatting. "
+        "Do not include a timezone offset or Z, and do not use locale forms like 08/05/2026; those "
+        "are stored as text. Prefix with an apostrophe ('2026-08-08) to force text. "
+        'Reductions that spill a small result: write =PY("result = …"; DataRange) into one empty cell '
         "outside DataRange (e.g. J1 for A1:H500, or a new sheet). That cell spills the 2D result "
         "(values are in the neighbors). A small peek of the origin or headers is enough — do not "
         "dump the input or full spill into chat; do not write =PY onto DataRange (circular). If "
@@ -273,16 +386,6 @@ class WriteCellRange(ToolBase):
         'Always use data.to_pandas() rather than pd.DataFrame(data) because to_pandas() uses row 0 as column headers; '
         'pd.DataFrame(data) treats headers as data and generates synthetic numeric columns (0..N) that spill as a junk top row. '
         "np.unique on mixed rows fails — NumPy object arrays cannot compare/hash mixed cell types. "
-        "Writes formulas or values to a cell range(s) efficiently. Single string fills entire range; "
-        "JSON array must match range size exactly (one value per cell); or multiline CSV from a start "
-        "cell. Use an empty string or empty array to clear contents. Supports lists for non-contiguous "
-        "areas. Prefer plain values/ISO "
-        "dates for static cells; use an '=' formula only when the cell must stay live (e.g. TODAY(), "
-        "computed duration). Dates and times: use ISO 8601 only — YYYY-MM-DD, HH:MM[:SS], or "
-        "YYYY-MM-DDTHH:MM[:SS]. These become real Calc date/time values. Elapsed/stopwatch values: "
-        "use PTnHnMnS (e.g. PT30H, PT1H30M); these become duration serials with elapsed formatting. "
-        "Do not include a timezone offset or Z, and do not use locale forms like 08/05/2026; those "
-        "are stored as text. Prefix with an apostrophe ('2026-08-08) to force text. "
         "DO: to copy a block onto another sheet or place, pass source and dest range; do not pass "
         "values. Dest is the top-left (or a matching range whose start is used); the copied size is "
         "the source extent. Relative formula refs adjust for the dest offset; $ stay."

@@ -45,7 +45,7 @@ Keep these separate so a later PR does not reintroduce specialized postcondition
 
 **Verified**
 
-- Cap 80; truncated msg: “pass this A1 address to =PY instead of re-reading” (`cells.py`).  
+- Cap 80; truncated msg now names size + peek and steers fill-down first (`cells.py`).  
 - `WriteCellRange.description` **opens** with `=PY(...; DataRange)` and includes deliberate anti-husk guidance (`to_pandas()` vs `pd.DataFrame`, `np.unique` mixed types) — **preserve that paragraph when reordering**.  
 - Descriptions teach cross-sheet as `Sheet1.A1` (dot), never Excel `!`.
 
