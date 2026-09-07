@@ -22,6 +22,7 @@ from typing import Any, Literal, overload
 
 from plugin.doc.text_helpers import get_string_without_tracked_deletions, normalize_linebreaks
 from plugin.framework.tool import ToolBase, ToolBaseDummy
+from plugin.framework.uno_context import uno_same
 
 
 log = logging.getLogger("writeragent.writer")
@@ -438,7 +439,7 @@ def _header_footer_label(text_obj, doc=None, label_cache=None):
                     ("FooterTextFirst", "first-page footer"),
                 ):
                     try:
-                        if getattr(st, attr, None) == text_obj:
+                        if uno_same(getattr(st, attr, None), text_obj):
                             name = _safe_name(st)
                             result = "%s (page style '%s')" % (region, name) if name else region
                             break

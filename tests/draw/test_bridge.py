@@ -154,6 +154,23 @@ def test_get_slide_for_tool_reraises_disposed():
             DrawBridge.get_slide_for_tool("doc", 0)
 
 
+def test_get_active_page_index_matches_via_uno_same():
+    from plugin.draw.bridge import DrawBridge
+
+    pages = MagicMock()
+    pages.getCount.return_value = 2
+    first, second = object(), object()
+    pages.getByIndex.side_effect = lambda i: (first, second)[i]
+
+    class Doc:
+        def getDrawPages(self):
+            return pages
+
+    bridge = DrawBridge(Doc())
+    with patch.object(bridge, "get_active_page", return_value=second):
+        assert bridge.get_active_page_index() == 1
+
+
 def test_get_slide_for_tool_wraps_other_errors():
     from plugin.draw.bridge import DrawBridge
     from plugin.framework.errors import ToolExecutionError

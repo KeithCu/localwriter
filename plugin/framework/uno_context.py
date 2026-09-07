@@ -602,6 +602,59 @@ def get_runtime_uid(model):
     return ""
 
 
+def uno_same(a: Any, b: Any) -> bool:
+    """True when *a* and *b* are the same underlying UNO object.
+
+    PyUNO often hands out **distinct Python wrappers** for one UNO identity.
+    Bare ``is`` / ``==`` / ``!=`` can then miss that a draw shape's
+    ``shape.getAnchor().getText()`` is the same header ``XText`` as
+    ``style.getPropertyValue("HeaderText")``. That false miss hid logos from
+    ``_scan_region_content`` (get/metadata wrong; historically a wipe could
+    look "safe").
+
+    This is **not** a requirement of the debug viral UNO thread proxy
+    (``_UnoThreadGuardProxy`` in ``thread_guard.py``). That proxy is a
+    separate GUARD_ON tool; release OXTs stub it off. The flaky identity is a
+    LibreOffice / PyUNO wrapper issue and exists with the proxy stripped.
+
+    It still works when proxying is on: ``_UnoThreadGuardProxy.__eq__``
+    unwraps ``_target`` and compares ``self._target == _unwrap_uno(other)``
+    (see ``thread_guard.py``), so step 2 (``==``) succeeds for
+    proxy↔unwrapped. ``uno.isSame`` is a UNO/C++ identity test and must see
+    real PyUNO objects, so step 3 unwraps via ``_unwrap_uno`` first.
+
+    Ladder (a false miss is still wrong for get/metadata, and was the
+    disaster when wipe used this scan as a refuse gate):
+
+    1. ``a is b``
+    2. try ``a == b`` (covers viral-proxy ``__eq__`` unwrap when GUARD_ON)
+    3. try ``uno.isSame`` on unwrapped objects when the function exists
+       (not all LibreOffice Python-UNO builds ship it; same fallback as
+       ``_page_index_for`` historically)
+    4. else False
+    """
+    if a is b:
+        return True
+    try:
+        if a == b:
+            return True
+    except Exception:
+        pass
+    try:
+        import uno
+
+        is_same = getattr(uno, "isSame", None)
+        if not callable(is_same):
+            return False
+        from plugin.framework.thread_guard import _unwrap_uno
+
+        # ``is True``: mocked ``uno.isSame`` (unit tests) returns a MagicMock,
+        # which is truthy. Real PyUNO returns a bool.
+        return is_same(_unwrap_uno(a), _unwrap_uno(b)) is True
+    except Exception:
+        return False
+
+
 @main_thread_only
 def resolve_document_by_url(ctx, url):
     """Resolve an open document by URL or RuntimeUID. Must be called on the UNO main thread.

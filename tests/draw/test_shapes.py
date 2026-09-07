@@ -139,3 +139,17 @@ def test_shape_upsert_octagon_sets_geometry_before_page_add():
     # Double-apply after add is the crashy swap; fill/line may still set after add.
     assert not any(i > add_idx for i in engine_idxs), events
     assert not any(i > add_idx for i in geom_idxs), events
+
+
+def test_page_index_for_uses_uno_same_ladder():
+    from plugin.draw.shapes import _page_index_for
+
+    first, second = object(), object()
+    pages = MagicMock()
+    pages.getCount.return_value = 2
+    pages.getByIndex.side_effect = lambda i: (first, second)[i]
+    bridge = MagicMock()
+    bridge.get_pages.return_value = pages
+    assert _page_index_for(bridge, second) == 1
+    assert _page_index_for(bridge, first) == 0
+    assert _page_index_for(bridge, object()) == 0

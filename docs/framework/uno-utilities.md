@@ -59,6 +59,7 @@ Still [`uno_context.py`](../../plugin/framework/uno_context.py), plus the resear
 |--------|--------|---------|
 | `normalize_doc_url` | `uno_context` | Strip + drop a trailing `/` so URL identity compares. |
 | `get_runtime_uid` | `uno_context` | Per-session id (`getRuntimeUID` / attribute / property); works for untitled docs. |
+| `uno_same` | `uno_context` | UNO object identity: `is` → `==` → `uno.isSame` (unwrap viral proxy first). PyUNO wrappers, not a thread-proxy requirement. |
 | `resolve_document_by_url` | `uno_context` | Walk desktop components; match normalized URL **or** RuntimeUID; return `(model, doc_type)`. |
 | `get_open_documents` | `document_research` | List open OfficeDocuments with name/url/uid/path/type/active/modified (untitled kept). |
 | `_office_model_from_desktop_element` | `document_research` | Frame-or-model → `guard_uno(model)` for desktop walks. |

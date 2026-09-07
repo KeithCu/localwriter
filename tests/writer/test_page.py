@@ -18,6 +18,7 @@ from plugin.writer.page import (
     PageInsertBreak,
     _disable_blocked_by_content,
     _region_holds_content,
+    _scan_region_content,
 )
 
 
@@ -399,6 +400,41 @@ def test_first_page_region_uses_the_header_height_properties():
 
     assert _height_props("header_first")[0] == "HeaderIsDynamicHeight"
     assert _height_props("footer_left")[0] == "FooterIsDynamicHeight"
+
+
+def test_scan_sees_logo_when_pyuno_wrappers_differ():
+    """Distinct wrappers for the same header XText: bare ``!=`` would skip the logo."""
+    from unittest.mock import patch
+
+    header = MagicMock()
+    header.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    other = MagicMock()
+    assert header is not other
+    assert header != other
+    doc, _style = _page_style_doc(header, shapes=[_logo_anchored_in(other)])
+
+    with patch.object(sys.modules["uno"], "isSame", side_effect=lambda a, b: {a, b} == {header, other}, create=True):
+        scan = _scan_region_content(doc, header)
+
+    assert scan["images"] == ["TIMBRE"]
+
+
+def test_get_header_reports_logo_when_anchor_text_wrapper_differs():
+    """page_get metadata must list the image even when ``==`` on XText would miss it."""
+    from unittest.mock import patch
+
+    text_obj = MagicMock()
+    text_obj.getString.return_value = "\n"
+    text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
+    other = MagicMock()
+    doc, _style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(other)])
+
+    with patch.object(sys.modules["uno"], "isSame", side_effect=lambda a, b: {a, b} == {text_obj, other}, create=True):
+        res = PageGetHeaderFooterText().execute(
+            TestingFactory.create_context(doc=doc, doc_type="writer"), style="Standard", region="header")
+
+    assert res["status"] == "ok"
+    assert res["images"] == ["TIMBRE"]
 
 
 def test_set_page_style_properties_writes_first_is_shared():

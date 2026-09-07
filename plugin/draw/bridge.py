@@ -274,13 +274,13 @@ class DrawBridge:
                     except Exception:
                         pass
                 
-                # Fallback: compare pages by identity or index
-                import uno
+                # Fallback: compare pages by UNO identity (PyUNO wrappers can differ).
+                from plugin.framework.uno_context import uno_same
+
                 pages = self.get_pages()
                 count = pages.getCount()
                 for i in range(count):
-                    p = pages.getByIndex(i)
-                    if p == page or (hasattr(uno, "areSame") and getattr(uno, "areSame")(p, page)):
+                    if uno_same(pages.getByIndex(i), page):
                         return i
         except Exception:
             log.debug("get_active_page_index failed", exc_info=True)
