@@ -20,3 +20,5 @@ Unified diff of the two prompt files should show only those lines.
 - Gold rubric, `task.json`, `meta.txt`, Population fixture, Sample gold workbook
 
 The gold rubric still describes a separate Excel file named `Sample`. This variant is for iterating WriterAgent/Calc in-workbook behavior; do not treat gold rubric items about a separate deliverable filename as automatically rewritten.
+
+Harness pass/fail for this variant is [`rubric.eval2.md`](rubric.eval2.md) (fixture + in-workbook oracle), not a letter-shift of `rubric_pretty.txt`.

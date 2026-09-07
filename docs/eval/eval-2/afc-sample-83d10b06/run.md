@@ -26,4 +26,10 @@ Create `runs/<stamp>-gpt-oss-120b/` (example: `runs/20260906-1530-gpt-oss-120b/`
 | `final_workbook.ods` | Workbook after the agent finished |
 | `notes.txt` | Observer notes: failures, extra files created, rubric mismatches, timing |
 
-Leave gold under `gold/` and this `run.md` unchanged when adding a trial.
+Then score the saved workbook. Ready / STREAM_DONE is ignored — an empty Sample fails:
+
+```bash
+.venv/bin/python scripts/eval_2_headed.py --score runs/<stamp>-gpt-oss-120b/final_workbook.ods
+```
+
+See [`rubric.eval2.md`](rubric.eval2.md). Leave gold under `gold/` and this `run.md` unchanged when adding a trial.

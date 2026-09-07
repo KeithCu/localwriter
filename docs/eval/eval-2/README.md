@@ -7,3 +7,11 @@ Each subdirectory is one experiment. First: `afc-sample-83d10b06/` (GDPval audit
 See each task’s `run.md` for how to execute a trial.
 
 Headed GDPval/AFC: run `scripts/eval_2_headed.py` (writes `chatbot.max_tool_rounds` to 50, restores when done). Do not hand-edit `writeragent.json`. Everyday default stays 15.
+
+After a trial, score the saved workbook (not chat Ready):
+
+```bash
+.venv/bin/python scripts/eval_2_headed.py --score docs/eval/eval-2/afc-sample-83d10b06/runs/<stamp>/final_workbook.ods
+```
+
+Oracle: [`scripts/eval_2_ods_oracle.py`](../../scripts/eval_2_ods_oracle.py). Rubric: [`afc-sample-83d10b06/rubric.eval2.md`](afc-sample-83d10b06/rubric.eval2.md).
