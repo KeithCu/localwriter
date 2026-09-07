@@ -387,13 +387,9 @@ In-process dispatch to the same implementation `page_get_style_properties` uses 
 
 ### 2.11 `_paint_direct_formatting` aborts Char* if Para* fails
 
-**Today (`html_export.py`)**
+**Fixed (`html_export.py`)**
 
-Para property copy in try/except; on failure **`return`** before the portion Char* loop. A single refused `Para*` drops the entire reason the temp-doc path exists (bold/indent visibility on range read).
-
-**Recommended approach**
-
-Catch Para* failures, log, **continue** to portion painting. Char* failures already `continue` per portion.
+Para* copy is isolated from obtaining `para_start`. A refused Para* is logged and the portion Char* loop still runs. Char* failures already `continue` per portion. Without `para_start` the function still returns (nothing to paint onto).
 
 **Tests**
 

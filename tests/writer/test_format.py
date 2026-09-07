@@ -535,6 +535,36 @@ def test_copy_properties_continues_past_one_the_target_refuses():
     assert [c.args[0] for c in dst.setPropertyValue.call_args_list] == ["CharPosture", "CharWeight"]
 
 
+def test_paint_direct_formatting_still_paints_char_when_para_copy_raises():
+    """A refused Para* must not skip the portion Char* loop — that paint is why the
+    temp-doc path exists (bold/colour on a range read)."""
+    from unittest.mock import MagicMock, patch
+    from plugin.writer import html_export as hx
+
+    portion = MagicMock()
+    para = MagicMock()
+    para_start = MagicMock(name="para_start")
+    para_cursor = MagicMock()
+    para_cursor.getStart.return_value = para_start
+    run = MagicMock()
+    temp_text = MagicMock()
+    temp_text.createTextCursor.return_value = para_cursor
+    temp_text.createTextCursorByRange.return_value = run
+
+    def copy_side_effect(src, dst, names, style=None):
+        if names is hx._COPIED_PARA_PROPERTIES:
+            raise RuntimeError("refused Para*")
+
+    with patch.object(hx, "_copy_properties", side_effect=copy_side_effect) as copy:
+        hx._paint_direct_formatting(para, [(portion, "bold")], temp_text, 0, 4)
+
+    names_seen = [c.args[2] for c in copy.call_args_list]
+    assert hx._COPIED_PARA_PROPERTIES in names_seen
+    assert hx._COPIED_CHAR_PROPERTIES in names_seen
+    char_call = next(c for c in copy.call_args_list if c.args[2] is hx._COPIED_CHAR_PROPERTIES)
+    assert char_call.args[0] is portion
+
+
 def test_source_style_is_cached_and_tolerates_a_missing_style():
     from unittest.mock import MagicMock
     from plugin.writer import html_export as hx

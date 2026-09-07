@@ -185,11 +185,17 @@ def _paint_direct_formatting(para, portions, temp_text, trim_start, trim_end, st
         para_cursor.gotoEnd(False)
         para_cursor.gotoStartOfParagraph(False)
         para_start = para_cursor.getStart()
+    except Exception:
+        log.debug("_paint_direct_formatting: paragraph start skipped", exc_info=True)
+        return
+
+    try:
         para_cursor.gotoEndOfParagraph(True)
         _copy_properties(para, para_cursor, _COPIED_PARA_PROPERTIES, style)
     except Exception:
+        # A refused Para* used to return here and skip the Char* loop, dropping bold/colour
+        # for the whole range — the reason the temp-doc path exists. Log and keep painting.
         log.debug("_paint_direct_formatting: paragraph properties skipped", exc_info=True)
-        return
 
     offset = 0  # position within the visible (tracked-deletions removed) paragraph text
     for portion, chunk in portions:
