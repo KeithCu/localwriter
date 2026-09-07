@@ -691,7 +691,7 @@ The mutating edit tools return **structured, machine-readable fields** alongside
 
 **`apply_style`** — `applied` (bool), `target`, and `matched` (only when `target="search"`; a search miss returns `status:"error"`, `applied:false`, `matched:false`).
 
-**`add_comment`** — `matched` (anchor found) and `comment_added`; an anchor miss returns `status:"error"`. `anchor_text` is echoed on success.
+**`add_comment`** — `matched` (anchor found) and `comment_added`; an anchor miss returns `status:"error"`. `anchor_text` is echoed on success. Success also returns `name` (LibreOffice annotation Name) so a later call can reply. Optional `parent_name` (the `name` from `comment_list`) creates a threaded reply at that **immediate** parent — not coerced to the thread root — and skips `search` / `occurrence`. The parent stays unresolved; `comment_resolve` is the reply-and-resolve path. A reply success payload includes `parent_name`.
 
 These fields are intended for clients to avoid parsing message strings; branch on `replaced_count` / `applied` / `comment_added`. Search no-ops now return `status:"error"` so clients do not treat missed edits as successful mutations.
 
