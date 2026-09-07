@@ -297,33 +297,15 @@ def _log_create_shape_page_context(doc, bridge, page) -> None:
 def _page_index_for(bridge, page):
     """Index of ``page`` in the document's draw pages collection.
 
-    ``uno.isSame`` is not available in all LibreOffice Python-UNO builds; fall back to
-    identity and ``==`` (many UNO bindings implement equality for the same underlying object).
+    Uses ``uno_same`` (``is`` → ``==`` → ``uno.isSame``). PyUNO can hand distinct
+    wrappers for one draw page; ``uno.isSame`` is also missing on some builds.
     """
+    from plugin.framework.uno_context import uno_same
+
     pages = bridge.get_pages()
-    is_same = None
-    try:
-        import uno
-
-        is_same = getattr(uno, "isSame", None)
-    except ImportError:
-        pass
-
     for i in range(pages.getCount()):
-        p = pages.getByIndex(i)
-        if p is page:
+        if uno_same(pages.getByIndex(i), page):
             return i
-        try:
-            if p == page:
-                return i
-        except Exception:
-            pass
-        if callable(is_same):
-            try:
-                if is_same(p, page):
-                    return i
-            except Exception:
-                pass
     return 0
 
 

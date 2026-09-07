@@ -52,6 +52,8 @@ These variants are exposed as the `region` values of `page_get_header_footer_tex
 
 Images in a header/footer must be anchored **`AS_CHARACTER`** (in the text flow). A floating `AT_CHARACTER` image does not contribute to line height, so even with dynamic height the region may not grow.
 
+Region membership (is this draw-page shape or search hit in *this* header `XText`?) uses [`uno_same`](../framework/uno-utilities.md) (`is` → `==` → `uno.isSame`). PyUNO often returns distinct Python wrappers for the same UNO object, so bare `==` / `!=` can miss a letterhead logo in `page_get_header_footer_text` metadata. That is a LibreOffice / PyUNO wrapper issue, not the debug UNO thread proxy. A false miss is still wrong for get/scan; historically it also made a wipe look safe.
+
 ### Reading and writing: shared body HTML pipeline
 
 `getString()` cannot represent a letterhead — a logo is an empty line and a page-number field is its rendered digits. `page_get_header_footer_text` therefore exports the region's `XText` through the same XHTML + postprocess stack as `get_document_content` (`xtext_to_content` in `html_export.py`): copy the region into a hidden Writer body, then `document_to_content`. Fields appear as `<span title="page-number"/>` (and `page-count` / `date` / `time`); tables and `<img>` logos are in the HTML. `include_images` defaults to **true** so a letterhead is visible. The result still lists `images` / `fields` / `paragraph_count` as machine-readable extras.

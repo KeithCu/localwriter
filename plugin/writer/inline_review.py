@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 from typing import Any, NamedTuple
 
+from plugin.framework.uno_context import uno_same
 from plugin.writer import review_scan as _review_scan
 
 log = logging.getLogger(__name__)
@@ -597,7 +598,7 @@ def _span_has_redline(model: Any, text: Any, span: Any, consider) -> bool:
             rl_span.gotoRange(e, True)
         except Exception:
             try:
-                in_other_text = (s.getText() != text)
+                in_other_text = not uno_same(s.getText(), text)
             except Exception:
                 in_other_text = False
             if in_other_text:

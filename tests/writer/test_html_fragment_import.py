@@ -138,3 +138,31 @@ def test_rewrite_exported_field_spans_matches_body_xhtml():
 def test_rewrite_exported_field_spans_leaves_plain_html():
     assert rewrite_exported_field_spans("<p>Hello</p>") == "<p>Hello</p>"
     assert rewrite_exported_field_spans("") == ""
+
+
+def test_restore_field_placeholders_scopes_region_with_uno_same():
+    """Header field restore must use UNO identity, not bare ``==`` on XText wrappers."""
+    from plugin.writer import html_import as hi
+
+    header = object()
+    found = MagicMock()
+    found.getText.return_value = object()
+    found.getEnd.return_value = MagicMock()
+    model = MagicMock()
+    model.createSearchDescriptor.return_value = MagicMock()
+    model.findFirst.return_value = found
+    model.findNext.return_value = None
+
+    with (
+        patch.object(hi, "uno_same", return_value=True),
+        patch.object(hi, "_insert_restored_field", return_value=True) as insert,
+    ):
+        assert hi._restore_field_placeholders(model, header) >= 1
+        assert insert.called
+
+    with (
+        patch.object(hi, "uno_same", return_value=False),
+        patch.object(hi, "_insert_restored_field", return_value=True) as insert,
+    ):
+        assert hi._restore_field_placeholders(model, header) == 0
+        insert.assert_not_called()

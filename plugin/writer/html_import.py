@@ -17,7 +17,7 @@ from html.parser import HTMLParser
 
 from plugin.doc.text_helpers import normalize_linebreaks as _normalize
 from plugin.framework.errors import ToolExecutionError
-from plugin.framework.uno_context import get_desktop
+from plugin.framework.uno_context import get_desktop, uno_same
 from . import xhtml_style_postprocess as xhtml_post
 from . import format as format_mod
 from .math.html_math_segment import html_fragment_contains_mixed_math, segment_html_with_mixed_math
@@ -731,7 +731,7 @@ def _restore_field_placeholders(model, text_obj=None):
             in_region = True
             if text_obj is not None:
                 try:
-                    in_region = found.getText() == text_obj
+                    in_region = uno_same(found.getText(), text_obj)
                 except Exception:
                     in_region = True
             nxt = None

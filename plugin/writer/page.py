@@ -22,6 +22,7 @@ Page styles, margins, headers/footers, columns, and page breaks.
 from typing import Any
 
 from plugin.framework.errors import make_tool_error
+from plugin.framework.uno_context import uno_same
 
 from .specialized_base import ToolWriterPageBase
 
@@ -187,7 +188,11 @@ def _scan_region_content(doc, text_obj) -> dict[str, Any]:
         for i in range(min(int(draw_page.getCount()), _SCAN_SHAPE_LIMIT)):
             shape = draw_page.getByIndex(i)
             try:
-                if shape.getAnchor().getText() != text_obj:
+                # Distinct PyUNO wrappers for the same header XText used to make
+                # ``!=`` skip the logo (false miss). uno_same is the identity
+                # ladder; a miss here is still wrong for get/metadata (and was
+                # the disaster when wipe used this scan as a refuse gate).
+                if not uno_same(shape.getAnchor().getText(), text_obj):
                     continue
             except Exception:
                 continue

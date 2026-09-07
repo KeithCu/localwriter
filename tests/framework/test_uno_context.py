@@ -362,3 +362,99 @@ def test_install_attaches_leave_controls_when_trackers_already_exist():
         query.addFocusListener.assert_not_called()
     finally:
         uc._stream_focus_trackers[:] = saved
+
+
+# ---- uno_same --------------------------------------------------------------
+
+
+class _NeverEq:
+    """Two instances compare unequal so the helper must fall through ``is`` / ``==``."""
+
+    def __eq__(self, other: object) -> bool:
+        return False
+
+
+def test_uno_same_identity():
+    from plugin.framework.uno_context import uno_same
+
+    obj = object()
+    assert uno_same(obj, obj) is True
+    assert uno_same(None, None) is True
+    assert uno_same(None, object()) is False
+
+
+def test_uno_same_eq_when_not_same_ref():
+    from plugin.framework.uno_context import uno_same
+
+    class AlwaysEq:
+        def __eq__(self, other: object) -> bool:
+            return True
+
+        def __hash__(self) -> int:
+            return 0
+
+    assert uno_same(AlwaysEq(), AlwaysEq()) is True
+
+
+def test_uno_same_issame_when_is_and_eq_fail():
+    from plugin.framework.uno_context import uno_same
+
+    a, b = _NeverEq(), _NeverEq()
+    with patch.object(sys.modules["uno"], "isSame", return_value=True, create=True):
+        assert uno_same(a, b) is True
+
+
+def test_uno_same_false_when_all_paths_differ():
+    from plugin.framework.uno_context import uno_same
+
+    a, b = _NeverEq(), _NeverEq()
+    with patch.object(sys.modules["uno"], "isSame", return_value=False, create=True):
+        assert uno_same(a, b) is False
+
+
+def test_uno_same_false_when_issame_missing():
+    from plugin.framework.uno_context import uno_same
+
+    a, b = _NeverEq(), _NeverEq()
+    with patch.object(sys.modules["uno"], "isSame", None, create=True):
+        assert uno_same(a, b) is False
+
+
+def test_uno_same_mocked_issame_is_not_treated_as_true():
+    """A session-wide MagicMock ``uno.isSame`` is truthy; must not collapse every pair to same."""
+    from plugin.framework.uno_context import uno_same
+
+    a, b = _NeverEq(), _NeverEq()
+    with patch.object(sys.modules["uno"], "isSame", MagicMock(), create=True):
+        assert uno_same(a, b) is False
+
+
+def test_uno_same_proxy_eq_unwraps_target():
+    """GUARD_ON proxy ``__eq__`` unwraps ``_target`` so proxy↔unwrapped is same (step 2)."""
+    from plugin.framework import thread_guard as tg
+    from plugin.framework.uno_context import uno_same
+
+    real = object()
+    proxy = tg._UnoThreadGuardProxy(real)
+    assert proxy is not real
+    assert uno_same(proxy, real) is True
+    assert uno_same(real, proxy) is True
+
+
+def test_uno_same_issame_unwraps_proxy_first():
+    """``uno.isSame`` must see the real PyUNO target, not the viral proxy wrapper."""
+    from plugin.framework import thread_guard as tg
+    from plugin.framework.uno_context import uno_same
+
+    real_a, real_b = object(), object()
+    proxy_a = tg._UnoThreadGuardProxy(real_a)
+    seen: list[tuple[object, object]] = []
+
+    def _issame(left: object, right: object) -> bool:
+        seen.append((left, right))
+        return left is real_a and right is real_b
+
+    with patch.object(sys.modules["uno"], "isSame", _issame, create=True):
+        # ``==`` is False (distinct objects / proxy target ≠ other), so ladder hits isSame.
+        assert uno_same(proxy_a, real_b) is True
+    assert seen == [(real_a, real_b)]

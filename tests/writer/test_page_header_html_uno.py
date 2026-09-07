@@ -262,4 +262,6 @@ def test_search_still_reaches_header_after_html_set(ctx, doc):
     found = doc.findFirst(sd)
     assert found is not None, "findFirst must still see header text"
     header = _region_text(doc, "header")
-    assert found.getText() == header or token in header.getString()
+    from plugin.framework.uno_context import uno_same
+
+    assert uno_same(found.getText(), header) or token in header.getString()
