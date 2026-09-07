@@ -239,10 +239,10 @@ are exactly the direct overrides. `extract_autostyle_overrides_from_fodt()` read
 same export (no extra `storeToURL`) and `_rewrite_block` emits them as `data-lo-para`, e.g.
 `<p data-lo-style="Standard" data-lo-para="margin-left:3.25cm; font-size:12pt">`.
 
-Geometry (margins, indent, alignment, line height) and the paragraph-level font are both reported:
-a `.docx` reused as a model carries its font as a whole-paragraph override, which is what makes an
-applied style look like it did nothing. Nothing is reported when the sidecar is unavailable, rather
-than guessing from the flattened CSS.
+Geometry (margins, indent, alignment, line height), the paragraph-level font, and paragraph
+colour (`fo:color` → `color`) are reported: a `.docx` reused as a model carries its font as a
+whole-paragraph override, which is what makes an applied style look like it did nothing.
+Nothing is reported when the sidecar is unavailable, rather than guessing from the flattened CSS.
 
 The range read reports it too. `_range_to_content_via_temp_doc` used to copy plain text plus the
 paragraph style name, so every override — `data-lo-para` and character runs alike — was already

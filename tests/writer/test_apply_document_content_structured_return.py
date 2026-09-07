@@ -118,3 +118,15 @@ def test_plain_string_content_is_accepted():
     res = _note_read_only_attrs({"status": "ok"}, '<p data-lo-para="text-align:center">x</p>')
 
     assert res["ignored_attributes"] == ["data-lo-para"]
+
+
+def test_body_text_mentioning_data_lo_para_is_not_a_false_positive():
+    """Substring 'data-lo-para' in body text is not the attribute; do not flag ignored_attributes."""
+    from plugin.writer.content import _note_read_only_attrs
+
+    original = {"status": "ok", "message": "Replaced entire document."}
+    res = _note_read_only_attrs(
+        original, ["<p>The words data-lo-para describe a read-only report.</p>"])
+
+    assert res == original
+    assert "ignored_attributes" not in res
