@@ -85,3 +85,28 @@ def test_get_sheet_error_lists_available_sheets():
         assert "No sheet named 'NonExistent'" in str(e)
         assert "Available: Summary, Sources, Data" in str(e)
 
+
+def test_get_sheet_error_omits_leading_underscore_sheets():
+    from plugin.calc.bridge import is_agent_visible_sheet
+
+    doc = MagicMock()
+    sheets = MagicMock()
+    sheets.hasByName.return_value = False
+    sheets.getElementNames.return_value = (
+        "Summary",
+        "_foo",
+        "__Anonymous_Sheet_DB__0",
+        "Data",
+    )
+    doc.getSheets.return_value = sheets
+
+    bridge = CalcBridge(doc)
+    try:
+        bridge.get_sheet("NonExistent")
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "Available: Summary, Data" in str(e)
+        assert "_foo" not in str(e)
+        assert "__Anonymous_Sheet_DB__0" not in str(e)
+    assert not is_agent_visible_sheet("__Anonymous_Sheet_DB__0")
+

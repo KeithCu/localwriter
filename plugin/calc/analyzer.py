@@ -24,6 +24,7 @@ import logging
 
 from plugin.framework.errors import ToolExecutionError, UnoObjectError, check_disposed, safe_call
 from plugin.framework.thread_guard import main_thread_only
+from plugin.calc.bridge import filter_agent_sheet_names, is_agent_visible_sheet
 
 log = logging.getLogger("writeragent.calc")
 
@@ -138,8 +139,14 @@ def get_calc_context_for_chat(model, max_context=8000, ctx=None):
 
         ctx_str = f"Spreadsheet Document: {model.getURL() or 'Untitled'}\n"
         sheets = model.getSheets()
-        sheet_names = list(sheets.getElementNames())
+        # Omit LO internals (leading '_', e.g. __Anonymous_Sheet_DB__0) from chat.
+        sheet_names = filter_agent_sheet_names(sheets.getElementNames())
         ctx_str += f"Sheets: {sheet_names}\n"
+        if not is_agent_visible_sheet(summary["sheet_name"]):
+            if sheet_names:
+                summary = analyzer.get_sheet_summary(sheet_name=sheet_names[0])
+            else:
+                return ctx_str + "No user-visible sheets.\n"
         ctx_str += f"Active Sheet: {summary['sheet_name']}\n"
         ctx_str += f"Used Range: {summary['used_range']} ({summary['row_count']} rows x {summary['col_count']} columns)\n"
         ctx_str += f"Columns: {', '.join([str(h) for h in summary['headers'] if h])}\n"
@@ -187,6 +194,11 @@ def get_full_calc_text(model, max_chars=8000):
     bridge = CalcBridge(model)
     analyzer = SheetAnalyzer(bridge)
     summary = analyzer.get_sheet_summary()
+    if not is_agent_visible_sheet(summary["sheet_name"]):
+        visible = filter_agent_sheet_names(model.getSheets().getElementNames())
+        if not visible:
+            return "No user-visible sheets.\n"
+        summary = analyzer.get_sheet_summary(sheet_name=visible[0])
     text = f"Sheet: {summary['sheet_name']}\nUsed Range: {summary['used_range']}\n"
     text += f"Columns: {', '.join(filter(None, summary['headers']))}\n"
     return text
