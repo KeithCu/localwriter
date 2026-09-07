@@ -68,6 +68,30 @@ MCP_DELEGATE_EXCLUDE_TIERS = frozenset({"specialized", "specialized_control"})
 MCP_DIRECT_FLAT_EXCLUDE_TIERS = frozenset({"specialized_control"})
 
 
+def drop_unavailable_domains(schemas, registry, ctx):
+    """Remove tools whose specialized domain cannot run on this install.
+
+    The discovery catalog has always hidden such a domain; without this the flat tool list
+    advertised its tools anyway, so the same install offered a capability in one exposure mode and
+    not the other. Only domains with a known prerequisite are affected — everything else passes
+    through untouched.
+    """
+    if ctx is None:
+        return schemas
+    from plugin.vision.vision_availability import specialized_domain_available
+    kept = []
+    for schema in schemas:
+        name = schema.get("name") if isinstance(schema, dict) else None
+        domain = None
+        if name:
+            tool = registry.get(name)
+            domain = getattr(tool, "specialized_domain", None) if tool is not None else None
+        if domain and not specialized_domain_available(str(domain), ctx):
+            continue
+        kept.append(schema)
+    return kept
+
+
 @dataclass
 class _PreparedMcpCall:
     """Main-thread document resolve + ToolContext. Safe to hand to a worker with precomputed echo."""
@@ -591,6 +615,18 @@ class MCPProtocolHandler:
                 exclude_tiers=exclude_tiers,
                 **doc_filter,
             )
+
+            # A domain whose backend is not configured is hidden from the discovery catalog; the
+            # flat list has to agree, or the same install advertises a capability in one exposure
+            # mode and not the other. This block already runs on the main thread, which get_ctx
+            # requires.
+            from plugin.framework.uno_context import get_ctx
+
+            try:
+                uno_ctx = get_ctx()
+            except Exception:
+                uno_ctx = None  # no context to ask -> advertise, same as the catalog does
+            schemas = drop_unavailable_domains(schemas, self.tool_registry, uno_ctx)
 
             if mode == "direct_flat":
                 # Keep Writer sidebar-only flows (brainstorming, writing_plan) out of the flat
