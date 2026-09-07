@@ -143,6 +143,17 @@ def test_python_specialized_sub_agent_calc_plot_hint():
     assert "Do not call image_insert" in hint
 
 
+def test_venv_policy_does_not_advertise_duckdb():
+    """Default =PY / Calc policy blurbs must not steer agents toward DuckDB."""
+    compact = format_venv_import_policy_for_prompt(compact=True)
+    full = format_venv_import_policy_for_prompt(compact=False)
+    for policy in (compact, full):
+        assert "query_folder_sql" not in policy
+        assert "session_duckdb" not in policy
+        assert "run_sql" not in policy
+        assert "DuckDB" not in policy
+
+
 def test_format_units_helper_hint():
     hint = format_units_helper_hint()
     assert "Units Helpers" in hint

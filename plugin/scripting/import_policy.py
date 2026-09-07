@@ -159,9 +159,10 @@ def format_venv_import_policy_for_prompt(*, compact: bool = False) -> str:
         f"Pre-imported (do not write import lines): {aliases}. "
         "When =PY has data range args, xl(\"%Pn%\") is also injected (binding-only Excel bridge; not a live sheet read). "
         f"DO NOT import {do_not_import}. "
-        "Prefer np/sp/pd/st and scipy over hand-rolled Python; use dt for dates, plt for charts. "
-        "For folder SQL analytics over CSV/Parquet use the trusted query_folder_sql (or run_sql / session_duckdb) helper when available; results cap at 200 rows and say so when truncated. "
-        "In shared kernel, session_duckdb() reuses one DuckDB connection and registered tables until Reset Python Session."
+        # DuckDB / query_folder_sql / session_duckdb stay implemented but are
+        # omitted from this default =PY blurb until that path is product-ready
+        # (eval-2 §2.7). Do not re-advertise them here.
+        "Prefer np/sp/pd/st and scipy over hand-rolled Python; use dt for dates, plt for charts."
     )
     blocked_security = _join_modules(tuple(sorted(DANGEROUS_MODULES)))
     blocked_network = _join_modules(
