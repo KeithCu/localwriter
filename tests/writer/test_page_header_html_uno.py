@@ -1,12 +1,12 @@
-# Live UNO: header/footer HTML get → apply → get (and apply → get) roundtrips.
+# Live UNO: header/footer HTML get → set → get (and set → get) roundtrips.
 
 import os
 
 from plugin.testing_runner import native_test
 from plugin.tests.testing_utils import TestingFactory, with_native_doc
 from plugin.writer.page import (
-    PageApplyHeaderFooterContent,
     PageGetHeaderFooterText,
+    PageSetHeaderFooterText,
     PageSetStyleProperties,
     _scan_region_content,
 )
@@ -52,8 +52,8 @@ def _get_html(tctx, region, include_images=False):
     )
 
 
-def _apply_html(tctx, region, content, auto_height=True):
-    return PageApplyHeaderFooterContent().execute(
+def _set_html(tctx, region, content, auto_height=True):
+    return PageSetHeaderFooterText().execute(
         tctx,
         style=_style_name(tctx.doc),
         region=region,
@@ -130,14 +130,14 @@ def test_plain_header_and_footer_html_roundtrip(ctx, doc):
     got_h = _get_html(tctx, "header")
     assert got_h["status"] == "ok", got_h
     assert "Plain Header Line" in got_h["content"]
-    apply_h = _apply_html(tctx, "header", got_h["content"])
-    assert apply_h["status"] == "ok", apply_h
+    set_h = _set_html(tctx, "header", got_h["content"])
+    assert set_h["status"] == "ok", set_h
     got_h2 = _get_html(tctx, "header")
     assert "Plain Header Line" in got_h2["content"]
     assert "Plain Header Line" in header.getString()
 
-    apply_f = _apply_html(tctx, "footer", "<p>Applied Footer</p>")
-    assert apply_f["status"] == "ok", apply_f
+    set_f = _set_html(tctx, "footer", "<p>Applied Footer</p>")
+    assert set_f["status"] == "ok", set_f
     got_f = _get_html(tctx, "footer")
     assert got_f["status"] == "ok", got_f
     assert "Applied Footer" in got_f["content"]
@@ -163,12 +163,12 @@ def test_header_page_number_field_survives_html_roundtrip(ctx, doc):
         "got=%r" % got["content"][:400]
     )
 
-    apply = _apply_html(tctx, "header", got["content"])
-    assert apply["status"] == "ok", apply
+    set_res = _set_html(tctx, "header", got["content"])
+    assert set_res["status"] == "ok", set_res
     header2 = _region_text(doc, "header")
     assert "Acme LLP" in header2.getString()
     assert _has_field(header2), (
-        "apply dropped the page-number field (silent drop is forbidden). html=%r"
+        "set dropped the page-number field (silent drop is forbidden). html=%r"
         % got["content"][:400]
     )
     got2 = _get_html(tctx, "header")
@@ -177,17 +177,17 @@ def test_header_page_number_field_survives_html_roundtrip(ctx, doc):
 
 @native_test
 @with_native_doc("writer")
-def test_footer_page_number_field_apply_then_get(ctx, doc):
+def test_footer_page_number_field_set_then_get(ctx, doc):
     tctx = _tool_ctx(doc, ctx)
     style = _style_name(doc)
     PageSetStyleProperties().execute(tctx, style=style, footer_is_on=True)
     html = '<p>Confidential <span title="page-number"/> end</p>'
-    apply = _apply_html(tctx, "footer", html)
-    assert apply["status"] == "ok", apply
+    set_res = _set_html(tctx, "footer", html)
+    assert set_res["status"] == "ok", set_res
     footer = _region_text(doc, "footer")
     assert "Confidential" in footer.getString()
     assert "end" in footer.getString()
-    assert _has_field(footer), "apply of title=page-number span must recreate a field"
+    assert _has_field(footer), "set of title=page-number span must recreate a field"
     got = _get_html(tctx, "footer")
     assert 'title="page-number"' in got["content"]
     assert "Confidential" in got["content"]
@@ -200,8 +200,8 @@ def test_header_table_letterhead_roundtrip(ctx, doc):
     style = _style_name(doc)
     PageSetStyleProperties().execute(tctx, style=style, header_is_on=True)
     table_html = "<table><tr><td>LogoCell</td><td>AddrCell</td></tr></table>"
-    apply = _apply_html(tctx, "header", table_html)
-    assert apply["status"] == "ok", apply
+    set_res = _set_html(tctx, "header", table_html)
+    assert set_res["status"] == "ok", set_res
     header = _region_text(doc, "header")
     assert _has_table(header), "1x2 table did not land in header"
     assert "LogoCell" in header.getString()
@@ -213,8 +213,8 @@ def test_header_table_letterhead_roundtrip(ctx, doc):
     assert "LogoCell" in got["content"]
     assert "AddrCell" in got["content"]
 
-    apply2 = _apply_html(tctx, "header", got["content"])
-    assert apply2["status"] == "ok", apply2
+    set2 = _set_html(tctx, "header", got["content"])
+    assert set2["status"] == "ok", set2
     header2 = _region_text(doc, "header")
     assert _has_table(header2)
     assert "LogoCell" in header2.getString()
@@ -244,11 +244,11 @@ def test_header_as_character_logo_roundtrip(ctx, doc):
         "include_images=true must keep the embedded logo. got=%r" % got["content"][:200]
     )
 
-    apply = _apply_html(tctx, "header", got["content"])
-    assert apply["status"] == "ok", apply
+    set_res = _set_html(tctx, "header", got["content"])
+    assert set_res["status"] == "ok", set_res
     header2 = _region_text(doc, "header")
     scan2 = _scan_region_content(doc, header2)
-    assert scan2["images"], "apply of logo HTML dropped the image (silent drop is forbidden)"
+    assert scan2["images"], "set of logo HTML dropped the image (silent drop is forbidden)"
     got2 = _get_html(tctx, "header", include_images=True)
     assert "<img" in got2["content"]
 
@@ -274,8 +274,8 @@ def test_first_page_header_html_roundtrip(ctx, doc):
     assert "First-page letterhead" not in got_shared["content"]
     assert "Shared header" not in got_first["content"]
 
-    apply = _apply_html(tctx, "header_first", got_first["content"])
-    assert apply["status"] == "ok", apply
+    set_res = _set_html(tctx, "header_first", got_first["content"])
+    assert set_res["status"] == "ok", set_res
     assert "First-page letterhead" in _region_text(doc, "header_first").getString()
     assert "Shared header" in _region_text(doc, "header").getString()
     got_first2 = _get_html(tctx, "header_first")
@@ -295,7 +295,7 @@ def test_footer_first_html_roundtrip(ctx, doc):
     got = _get_html(tctx, "footer_first")
     assert got["status"] == "ok", got
     assert "First-page footer" in got["content"]
-    apply = _apply_html(tctx, "footer_first", "<p>First-page footer applied</p>")
-    assert apply["status"] == "ok", apply
+    set_res = _set_html(tctx, "footer_first", "<p>First-page footer applied</p>")
+    assert set_res["status"] == "ok", set_res
     assert "First-page footer applied" in _region_text(doc, "footer_first").getString()
     assert "Shared footer" in _region_text(doc, "footer").getString()

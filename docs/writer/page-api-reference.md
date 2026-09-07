@@ -48,23 +48,23 @@ Headers and footers are also controlled via the Page Style properties. Each page
 - **`HeaderTextLeft`** / **`HeaderTextRight`** / **`FooterTextLeft`** / **`FooterTextRight`**: Used when left and right pages have different headers/footers (i.e., when `HeaderIsShared` is False).
 - **`FirstIsShared`** (`bool`): If false, the first page has its own header/footer — the usual setup for a letterhead. Its content then lives in **`HeaderTextFirst`** / **`FooterTextFirst`**, which are separate text objects: `HeaderText` does not reach them.
 
-These variants are exposed as the `region` values of `page_get_header_footer_text` / `page_set_header_footer_text` / `page_apply_header_footer_content`: `header`, `footer`, `header_first`, `footer_first`, `header_left`, `footer_left`. When the matching `*IsShared` flag is on, the variant mirrors the shared text, so asking for it is always safe. `page_get_style_properties` reports `first_is_shared`, and `page_set_style_properties` writes it.
+These variants are exposed as the `region` values of `page_get_header_footer_text` / `page_set_header_footer_text`: `header`, `footer`, `header_first`, `footer_first`, `header_left`, `footer_left`. When the matching `*IsShared` flag is on, the variant mirrors the shared text, so asking for it is always safe. `page_get_style_properties` reports `first_is_shared`, and `page_set_style_properties` writes it.
 
 Images in a header/footer must be anchored **`AS_CHARACTER`** (in the text flow). A floating `AT_CHARACTER` image does not contribute to line height, so even with dynamic height the region may not grow.
 
-### HTML get / apply (structure-preserving)
+### HTML get / set (structure-preserving)
 
 `page_get_header_footer_text(format='html')` exports that region's `SwXHeadFootText` through the same XHTML + postprocess stack as `get_document_content`. The XHTML filter skips headers when run on the source document, so the read copies the region's flat-ODF fragment (`style:header` / `style:footer` / `style:header-first` / …) into a temporary Writer body and then runs `_export_xhtml` + `xhtml_to_semantic_html`. That is how tables, a page-number field (`<span title="page-number"/>`, the same marker the body export emits), and logos survive the read.
 
-`page_apply_header_footer_content` is the matching write: it imports that HTML into the region's `XText` with the same `insertDocumentFromURL` path as body apply (`model=None` so the cursor never jumps to the document body). StarWriter import drops the field span, so apply turns known `title="page-number"` / `page-count` spans into real UNO fields after import. Pass `include_images=true` on the html get when a logo must round-trip (`data:image`).
+`page_set_header_footer_text` is the matching write when `content` is HTML/markup: it imports that HTML into the region's `XText` with the same `insertDocumentFromURL` path as body apply (`model=None` so the cursor never jumps to the document body). StarWriter import drops the field span, so set turns known `title="page-number"` / `page-count` spans into real UNO fields after import. Pass `include_images=true` on the html get when a logo must round-trip (`data:image`).
 
-This is the normal edit path for anything richer than a single plain-text line.
+This is the normal edit path for anything richer than a single plain-text line. There is no separate apply tool.
 
-### Writing: `setString` is destructive
+### Writing: plain `setString` is destructive
 
 `XText.setString()` replaces the whole region with unformatted text, so a letterhead logo, a page-number field and every paragraph but the first are deleted with no way back. `getString()` cannot show any of that — an image reads back as an empty line and a field as its rendered digits — so the loss is invisible on both sides.
 
-`page_get_header_footer_text` therefore also reports the region's `images`, `fields` and `paragraph_count`, and `page_set_header_footer_text` refuses when either is present (`force=true` overrides, and the result then lists what it deleted). Prefer `page_apply_header_footer_content` for HTML. `apply_document_content(target='search')` still reaches header and footer text for a short in-place wording change (`XSearchable.findFirst`); that reach is intentional and is not filtered.
+`page_get_header_footer_text` therefore also reports the region's `images`, `fields` and `paragraph_count`. `page_set_header_footer_text` uses `setString` only for plain (no-markup) content, and refuses when the region holds images or fields — get `format='html'` and set that HTML instead. There is no `force` override: `force` existed to paper over a lying plain get plus a nuke set. `apply_document_content(target='search')` still reaches header and footer text for a short in-place wording change (`XSearchable.findFirst`); that reach is intentional and is not filtered.
 
 ### Python Example: Enabling and Writing to a Header
 ```python

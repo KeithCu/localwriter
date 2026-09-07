@@ -384,7 +384,7 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
         "Read a page-style header or footer. format='plain' (default) is getString plus a "
         "scan of images/fields the text hides. format='html' exports the region through the "
         "same XHTML stack as get_document_content (tables, <span title=\"page-number\"/> field "
-        "markers, images) so page_apply_header_footer_content can round-trip it. Use html when "
+        "markers, images) so page_set_header_footer_text can round-trip it. Use html when "
         "the region is more than a single plain-text line."
     )
     parameters = {
@@ -469,7 +469,7 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
             # content is plain text: a logo shows up as an empty line and a page-number field as
             # its rendered digits. Report both so the caller knows what is really in there before
             # deciding how to edit it. format='html' already carries those structures; the scan
-            # still names them so a caller can choose apply vs wipe without parsing the HTML.
+            # still names them so a caller can choose HTML set vs leave it without parsing the HTML.
             scan = _scan_region_content(ctx.doc, text_obj)
             result["paragraph_count"] = scan["paragraph_count"]
             if scan["fields"]:
@@ -480,10 +480,10 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
             if held and fmt == "plain":
                 result["warning"] = (
                     "This %s holds %s, which plain text cannot represent. Use "
-                    "page_get_header_footer_text(format='html') and page_apply_header_footer_content "
-                    "to read/write the region without flattening them. page_set_header_footer_text "
-                    "would delete them. apply_document_content(target='search') still reaches "
-                    "headers for a short in-place wording change." % (_region_kind(region), held))
+                    "page_get_header_footer_text(format='html') and page_set_header_footer_text "
+                    "with that HTML to read/write the region without flattening them. "
+                    "apply_document_content(target='search') still reaches headers for a short "
+                    "in-place wording change." % (_region_kind(region), held))
             dyn_prop, _unused_spacing, height_prop = _height_props(region)
             try:
                 result["auto_height"] = bool(style.getPropertyValue(dyn_prop))
@@ -501,16 +501,16 @@ class PageGetHeaderFooterText(ToolWriterPageBase):
 
 
 class PageSetHeaderFooterText(ToolWriterPageBase):
-    """Set the text content of a page style's header or footer."""
+    """Set the text or HTML content of a page style's header or footer."""
 
     name = "page_set_header_footer_text"
     description = (
-        "Replace a header or footer with PLAIN TEXT (XText.setString wipe). "
-        "Refuses when the region holds images or fields, because that delete is silent "
-        "and permanent — use page_apply_header_footer_content for HTML (tables, "
-        "page-number field spans, logos). force=true is the deliberate wipe. "
-        "Enables the region if it is off. Pass auto_height=true so taller content "
-        "grows the region instead of overlapping the body."
+        "Replace a header or footer. HTML/markup (tables, <span title=\"page-number\"/>, "
+        "logos) uses the same structure-preserving import as apply_document_content. "
+        "Plain text uses setString and is refused when the region holds images or fields "
+        "— get format='html' and set that HTML instead. Enables the region if it is off. "
+        "Pass auto_height=true so taller content grows the region instead of overlapping "
+        "the body."
     )
     parameters = {
         "type": "object",
@@ -526,119 +526,11 @@ class PageSetHeaderFooterText(ToolWriterPageBase):
                     "Which region to set. 'header'/'footer' are the shared ones; '_first' targets a "
                     "'different first page' letterhead and '_left' the left-hand pages."),
             },
-            "content": {"type": "string", "description": "The text to insert into the header or footer."},
-            "auto_height": {
-                "type": "boolean",
-                "description": (
-                    "Let the region grow with its content so taller content is not clipped "
-                    "and does not overlap the body. Left unchanged when omitted."
-                ),
-            },
-            "force": {
-                "type": "boolean",
-                "description": (
-                    "Overwrite even when the region holds images or fields that plain text cannot "
-                    "carry. Without it such a call is refused, because the replacement is silent "
-                    "and permanent."),
-            },
-        },
-        "required": ["region", "content"],
-    }
-    is_mutation = True
-
-    def execute(self, ctx, **kwargs):
-        style_name = kwargs.get("style", "Standard")
-        region = kwargs.get("region")
-        content = kwargs.get("content", "")
-
-        if region not in _REGION_PROPS:
-            return self._tool_error("region is required, one of: %s." % ", ".join(_REGIONS))
-
-        try:
-            style, style_name = resolve_page_style(ctx.doc, style_name)
-        except Exception as e:
-            return self._tool_error(f"Error accessing page style '{style_name}': {e}")
-
-        try:
-            is_on_prop, text_prop = _REGION_PROPS[region]
-
-            # setString replaces the whole region with unformatted text: a letterhead logo and any
-            # field (page number, date) are destroyed with no way back and no sign in the result.
-            # Refuse rather than report ok, and point at the edit that keeps them. Checked BEFORE
-            # the region is enabled or resized, so a refusal leaves the document untouched.
-            scan = _empty_scan()
-            if style.getPropertyValue(is_on_prop):
-                existing = style.getPropertyValue(text_prop)
-                if existing:
-                    scan = _scan_region_content(ctx.doc, existing)
-            held = _describe_region_contents(scan)
-            if held and not kwargs.get("force"):
-                return self._tool_error(
-                    "This %s holds %s. Writing plain text would delete them permanently. Put HTML "
-                    "(tables, <span title=\"page-number\"/>, images) with page_apply_header_footer_content "
-                    "— that is the structure-preserving write. apply_document_content(target='search') "
-                    "still reaches headers for a short in-place wording change. Pass force=true only "
-                    "if deleting them is what you want." % (_region_kind(region), held))
-
-            style.setPropertyValue(is_on_prop, True)
-            auto_height = kwargs.get("auto_height")
-            if auto_height is not None:
-                set_header_footer_auto_height(style, region, auto_height)
-
-            text_obj = style.getPropertyValue(text_prop)
-            if not text_obj:
-                return self._tool_error(f"Could not retrieve text object for {region} on style '{style_name}'.")
-
-            text_obj.setString(content)
-            result: dict[str, Any] = {"status": "ok", "style_name": style_name, "region": region, "updated": True}
-            if held:
-                result["deleted"] = {"images": scan["images"], "fields": [f["content"] for f in scan["fields"]]}
-            dropped = scan["paragraph_count"] - (content.count("\n") + 1)
-            if dropped > 0:
-                result["paragraphs_dropped"] = dropped
-            if auto_height is not None:
-                result["auto_height"] = bool(auto_height)
-            return result
-        except Exception as e:
-            return self._tool_error(f"Error writing to {region} text on page style '{style_name}': {e}")
-
-
-# ------------------------------------------------------------------
-# PageApplyHeaderFooterContent
-# ------------------------------------------------------------------
-
-
-class PageApplyHeaderFooterContent(ToolWriterPageBase):
-    """Apply HTML to a page-style header or footer (structure-preserving)."""
-
-    name = "page_apply_header_footer_content"
-    description = (
-        "Apply HTML to one header or footer region (structure-preserving full-region replace). "
-        "Use this — not page_set_header_footer_text — to put tables, page-number field spans "
-        "(<span title=\"page-number\"/>, same marker get_document_content emits), or images "
-        "into the region. Enables the region. page_set_header_footer_text remains the "
-        "plain-text wipe (refuses when it would delete images/fields unless force=true)."
-    )
-    parameters = {
-        "type": "object",
-        "properties": {
-            "style": {
-                "type": "string",
-                "description": "The name of the page style (e.g., 'Standard' or 'Default Style'). Defaults to 'Standard'.",
-            },
-            "region": {
-                "type": "string",
-                "enum": list(_REGIONS),
-                "description": (
-                    "Which region to write. 'header'/'footer' are the shared ones; '_first' "
-                    "targets a 'different first page' letterhead and '_left' the left-hand pages."),
-            },
             "content": {
-                "type": "array",
-                "items": {"type": "string"},
+                "type": "string",
                 "description": (
-                    "HTML fragments (or one string) for the region. Same XHTML dialect as "
-                    "get_document_content / page_get_header_footer_text(format='html')."),
+                    "Plain text, or HTML in the same dialect as "
+                    "page_get_header_footer_text(format='html') / get_document_content."),
             },
             "auto_height": {
                 "type": "boolean",
@@ -660,6 +552,8 @@ class PageApplyHeaderFooterContent(ToolWriterPageBase):
         if region not in _REGION_PROPS:
             return self._tool_error("region is required, one of: %s." % ", ".join(_REGIONS))
 
+        # Folded from the rejected page_apply_* tool: a list of fragments is the same
+        # payload apply_document_content already accepts.
         if isinstance(content, (list, tuple)):
             content = "\n".join(str(item) for item in content)
         elif content is None:
@@ -667,6 +561,9 @@ class PageApplyHeaderFooterContent(ToolWriterPageBase):
         else:
             content = str(content)
 
+        from . import format as format_support
+        use_html = format_support.content_has_markup(content)
+
         try:
             style, style_name = resolve_page_style(ctx.doc, style_name)
         except Exception as e:
@@ -674,6 +571,25 @@ class PageApplyHeaderFooterContent(ToolWriterPageBase):
 
         try:
             is_on_prop, text_prop = _REGION_PROPS[region]
+
+            # force=true used to paper over a lying getString + setString wipe. Honest HTML
+            # get/set is the edit path; plain setString is only for a region that is already
+            # plain text. Refuse before enable/resize so a refusal leaves the document untouched.
+            scan = _empty_scan()
+            if not use_html:
+                if style.getPropertyValue(is_on_prop):
+                    existing = style.getPropertyValue(text_prop)
+                    if existing:
+                        scan = _scan_region_content(ctx.doc, existing)
+                held = _describe_region_contents(scan)
+                if held:
+                    return self._tool_error(
+                        "This %s holds %s. Writing plain text would delete them permanently. "
+                        "Get format='html' and pass that HTML to page_set_header_footer_text "
+                        "(tables, <span title=\"page-number\"/>, images). "
+                        "apply_document_content(target='search') still reaches headers for a "
+                        "short in-place wording change." % (_region_kind(region), held))
+
             style.setPropertyValue(is_on_prop, True)
             auto_height = kwargs.get("auto_height")
             if auto_height is not None:
@@ -683,22 +599,22 @@ class PageApplyHeaderFooterContent(ToolWriterPageBase):
             if not text_obj:
                 return self._tool_error(f"Could not retrieve text object for {region} on style '{style_name}'.")
 
-            from . import format as format_support
-            config_svc = ctx.services.get("config") if ctx.services else None
-            format_support.apply_html_to_xtext(ctx.doc, ctx.ctx, text_obj, content, config_svc)
-
-            result: dict[str, Any] = {
-                "status": "ok",
-                "style_name": style_name,
-                "region": region,
-                "updated": True,
-                "format": "html",
-            }
+            result: dict[str, Any] = {"status": "ok", "style_name": style_name, "region": region, "updated": True}
+            if use_html:
+                config_svc = ctx.services.get("config") if ctx.services else None
+                format_support.apply_html_to_xtext(ctx.doc, ctx.ctx, text_obj, content, config_svc)
+                result["format"] = "html"
+            else:
+                text_obj.setString(content)
+                result["format"] = "plain"
+                dropped = scan["paragraph_count"] - (content.count("\n") + 1)
+                if dropped > 0:
+                    result["paragraphs_dropped"] = dropped
             if auto_height is not None:
                 result["auto_height"] = bool(auto_height)
             return result
         except Exception as e:
-            return self._tool_error(f"Error applying HTML to {region} on page style '{style_name}': {e}")
+            return self._tool_error(f"Error writing to {region} text on page style '{style_name}': {e}")
 
 
 # ------------------------------------------------------------------

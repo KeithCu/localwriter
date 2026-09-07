@@ -10,7 +10,6 @@ import sys
 setattr(sys.modules["com.sun.star.style.BreakType"], "PAGE_BEFORE", 4)
 
 from plugin.writer.page import (
-    PageApplyHeaderFooterContent,
     PageGetHeaderFooterText,
     PageGetStyleProperties,
     PageSetStyleProperties,
@@ -269,7 +268,8 @@ def test_get_header_footer_reports_the_logo_and_field_text_alone_hides():
     assert res["images"] == ["TIMBRE"]
     assert res["fields"] == [{"presentation": "1", "content": "Page Number"}]
     assert res["paragraph_count"] == 2
-    assert "page_apply_header_footer_content" in res["warning"]
+    assert "page_set_header_footer_text" in res["warning"]
+    assert "format='html'" in res["warning"]
     assert "apply_document_content" in res["warning"]
 
 
@@ -285,7 +285,8 @@ def test_set_header_footer_refuses_to_silently_delete_a_logo():
 
     assert res["status"] == "error"
     assert "TIMBRE" in res["message"]
-    assert "page_apply_header_footer_content" in res["message"]
+    assert "page_set_header_footer_text" in res["message"]
+    assert "format='html'" in res["message"]
     assert "apply_document_content" in res["message"]
     text_obj.setString.assert_not_called()
 
@@ -320,18 +321,22 @@ def test_set_header_footer_skips_the_scan_when_the_region_is_off():
     text_obj.setString.assert_called_with("Rua Exemplo, 123")
 
 
-def test_set_header_footer_force_deletes_and_says_what_it_deleted():
+def test_set_header_footer_html_replaces_a_logo_without_force():
+    """HTML content is the honest replace — no force flag. Plain set still refuses."""
     text_obj = MagicMock()
     text_obj.createEnumeration.side_effect = lambda: _enum_of([_paragraph([_portion("Frame")])])
     doc, _style = _page_style_doc(text_obj, shapes=[_logo_anchored_in(text_obj)])
-
-    res = PageSetHeaderFooterText().execute(
-        TestingFactory.create_context(doc=doc, doc_type="writer"),
-        style="Standard", region="header", content="ESCRITORIO ZOLET", force=True)
-
+    ctx = TestingFactory.create_context(doc=doc, doc_type="writer")
+    from unittest.mock import patch
+    with patch("plugin.writer.format.apply_html_to_xtext") as apply_html:
+        res = PageSetHeaderFooterText().execute(
+            ctx, style="Standard", region="header", content="<p>ESCRITORIO ZOLET</p>")
     assert res["status"] == "ok"
-    assert res["deleted"]["images"] == ["TIMBRE"]
-    text_obj.setString.assert_called_with("ESCRITORIO ZOLET")
+    assert res["format"] == "html"
+    apply_html.assert_called_once()
+    assert apply_html.call_args.args[2] is text_obj
+    assert apply_html.call_args.args[3] == "<p>ESCRITORIO ZOLET</p>"
+    text_obj.setString.assert_not_called()
 
 
 def test_set_header_footer_plain_text_still_goes_straight_through():
@@ -408,14 +413,14 @@ def test_get_header_footer_rejects_unknown_format():
     assert "format" in res["message"]
 
 
-def test_apply_header_footer_content_imports_html():
+def test_set_header_footer_html_imports_via_shared_path():
     text_obj = MagicMock()
     text_obj.createEnumeration.side_effect = lambda: _enum_of([])
     doc, style = _page_style_doc(text_obj)
     ctx = TestingFactory.create_context(doc=doc, doc_type="writer")
     from unittest.mock import patch
     with patch("plugin.writer.format.apply_html_to_xtext") as apply_html:
-        res = PageApplyHeaderFooterContent().execute(
+        res = PageSetHeaderFooterText().execute(
             ctx, style="Standard", region="footer", content=["<p>Hi</p>"], auto_height=True)
     assert res["status"] == "ok"
     assert res["format"] == "html"
@@ -427,20 +432,21 @@ def test_apply_header_footer_content_imports_html():
     assert apply_html.call_args.args[3] == "<p>Hi</p>"
 
 
-def test_apply_header_footer_content_rejects_bad_region():
+def test_set_header_footer_rejects_bad_region():
     text_obj = MagicMock()
     doc, _style = _page_style_doc(text_obj)
-    res = PageApplyHeaderFooterContent().execute(
+    res = PageSetHeaderFooterText().execute(
         TestingFactory.create_context(doc=doc, doc_type="writer"),
         region="sidebar", content="<p>x</p>")
     assert res["status"] == "error"
 
 
-def test_set_header_footer_description_leads_with_wipe():
+def test_set_header_footer_description_teaches_html_on_the_same_verb():
     desc = PageSetHeaderFooterText.description
-    assert "PLAIN TEXT" in desc
-    assert "page_apply_header_footer_content" in desc
-    assert "force=true" in desc
+    assert "page_apply_header_footer_content" not in desc
+    assert "force" not in desc
+    assert "format='html'" in desc
+    assert "setString" in desc
 
 
 def test_set_page_style_properties_writes_first_is_shared():
