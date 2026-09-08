@@ -21,6 +21,7 @@ Product overview lives in the root [README](../README.md). This page maps each a
 | Reviewable edits | [writer/reviewable-agent-edits.md](writer/reviewable-agent-edits.md) |
 | Rich-text sidebar | [chat/rich-text-control-sidebar.md](chat/rich-text-control-sidebar.md) |
 | Chat sidebar | [chat/sidebar-implementation.md](chat/sidebar-implementation.md) · slash `/` popup (commands mostly stubs): [chat/slash-commands.md](chat/slash-commands.md) |
+| Peer messaging (design) | [chat/peer-messaging.md](chat/peer-messaging.md) — Writer ↔ Calc ↔ Draw `ask_peer_agent` |
 
 ## Calc
 
@@ -83,7 +84,7 @@ Contracts and RPC: [calc/analysis-tools.md](calc/analysis-tools.md).
 
 | Topic | Docs |
 |-------|------|
-| Specialized toolsets | [draw/impress-specialized-toolsets.md](draw/impress-specialized-toolsets.md) |
+| Specialized toolsets | [draw/impress-specialized-toolsets.md](draw/impress-specialized-toolsets.md) · peer-ask (design): [chat/peer-messaging.md](chat/peer-messaging.md) |
 | Shapes | [draw/shape-support.md](draw/shape-support.md) |
 | PPT-Master | [ppt-master-integration-plan.md](ppt-master-integration-plan.md) |
 
