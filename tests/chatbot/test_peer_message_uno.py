@@ -212,6 +212,10 @@ def test_peer_busy_queues_then_starts(ctx):
 
 @native_test
 def test_peer_unique_name_and_self_reject(ctx):
+    import tempfile
+
+    import uno
+
     reset_peer_queues()
     reset_live_panels()
     writer = None
@@ -219,14 +223,24 @@ def test_peer_unique_name_and_self_reject(ctx):
     try:
         writer = _load(ctx, "private:factory/swriter")
         calc = _load(ctx, "private:factory/scalc")
+        from plugin.doc.peer_message import list_v1_peers
+
         writer_uid = get_runtime_uid(writer)
         model, code, _msg = resolve_peer_target(ctx, writer, writer_uid)
         assert model is None
         assert code == "PEER_SELF"
-        calc_name = calc.getTitle()
-        model, code, _msg = resolve_peer_target(ctx, writer, calc_name)
-        assert code is None
-        assert get_runtime_uid(model) == get_runtime_uid(calc)
+        # Untitled Writer + Calc both catalog as "Untitled"; save Calc so the
+        # display name is unique and document_url-as-name can resolve.
+        calc_path = tempfile.mkdtemp() + "/BudgetPeer.ods"
+        calc.storeAsURL(uno.systemPathToFileUrl(calc_path), ())
+        peers = list_v1_peers(ctx, writer)
+        calc_uid = get_runtime_uid(calc)
+        rec = next((p for p in peers if p.get("uid") == calc_uid), None)
+        assert rec is not None, peers
+        assert rec["name"] == "BudgetPeer.ods"
+        model, code, _msg = resolve_peer_target(ctx, writer, rec["name"])
+        assert code is None, _msg
+        assert get_runtime_uid(model) == calc_uid
     finally:
         _close(calc)
         _close(writer)

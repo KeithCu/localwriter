@@ -367,6 +367,8 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
         self._approval_ui_backup = None
         self._approval_query_for_engine = None
         self._dispatch_reenter: list[Any] | None = None
+        self._extracted_peer_query = ""
+        self._extracted_peer_already_appended = False
         self.slash_popup = None
         self.clear_listener = None
         self.rich_text_widget = None

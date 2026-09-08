@@ -441,9 +441,15 @@ def filter_peer_message_schemas(
 def _peer_not_chat_mode(listener: Any) -> bool:
     """True when the target sidebar is not in Chat mode (do not flip librarian/image)."""
     try:
-        from plugin.chatbot.chat_sidebar_mode import CHAT_MODE_CHAT, mode_from_selector_with_flags
+        from plugin.chatbot.chat_sidebar_mode import (
+            CHAT_MODE_CHAT,
+            SidebarModeFlags,
+            mode_from_selector_with_flags,
+        )
 
         flags = getattr(listener, "sidebar_mode_flags", None)
+        if not isinstance(flags, SidebarModeFlags):
+            flags = SidebarModeFlags()
         selector = getattr(listener, "chat_mode_selector", None)
         if selector is None:
             return False

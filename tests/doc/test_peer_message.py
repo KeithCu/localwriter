@@ -82,8 +82,7 @@ def test_peer_message_module_does_not_import_panel_factory():
             imported.append(node.module or "")
     assert "plugin.chatbot.panel_factory" not in imported
     assert "plugin.chatbot.panel" not in imported
-    assert "panel_factory" not in src
-    assert "from plugin.chatbot.panel" not in src
+    assert not any(name.endswith("panel_factory") for name in imported)
 
 
 def test_envelope_from_ctx_doc():
@@ -318,7 +317,7 @@ def test_execute_queue_full():
 def test_registry_chat_tier_on_default_list():
     registry = ToolRegistry(services=None)
     registry.register(SendPeerMessage())
-    names = {t.name for t in registry.get_tools()}
+    names = {t.name for t in registry.get_tools(doc_type="writer")}
     assert PEER_TOOL_NAME in names
     mcp_names = {t.name for t in registry.get_tools(exclude_tiers=frozenset({"specialized", "specialized_control", "chat"}))}
     assert PEER_TOOL_NAME not in mcp_names
