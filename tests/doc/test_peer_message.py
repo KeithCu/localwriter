@@ -554,7 +554,7 @@ def test_prompts_outer_thin_inner_choice():
     # Conditional reply: data/result inbound is local work only.
     assert "only when the peer asked for work that needs an answer back" in PEER_OUTER_DELEGATE_HINT
     assert "Do not delegate an ack specialize" in PEER_OUTER_DELEGATE_HINT
-    assert "KPI table" in PEER_OUTER_DELEGATE_HINT
+    assert "result table or HTML payload" in PEER_OUTER_DELEGATE_HINT
     assert SendPeerMessage.parameters["properties"]["message"]["type"] == "string"
 
     writer = MagicMock()

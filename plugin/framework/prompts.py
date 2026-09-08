@@ -524,7 +524,7 @@ PEER_OUTER_DELEGATE_HINT = (
     "Do {delegate}(domain=\"document_research\") to send a peer reply only when the peer asked for work that needs an answer back "
     "(one string: envelope uid or url, peer_ask_id, and the HTML or result — not a JSON array). "
     "Why: only that inner agent can send the peer reply; do not narrate an answer-back only in this sidebar.\n"
-    "If this envelope is already a data/result reply to our earlier ask (for example a KPI table to insert): "
+    "If this envelope is already a data/result reply to our earlier ask (for example a result table or HTML payload to insert): "
     "apply or insert locally and stop. Do not delegate an ack specialize. "
     "Why: the peer did not ask for more work."
 )
