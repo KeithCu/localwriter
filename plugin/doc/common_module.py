@@ -24,6 +24,7 @@ class CommonModule(ModuleBase):
             document_research_specialized,
             document_research_tools,
             find_tools_tool,
+            peer_message,
             print_doc,
             undo,
         )
@@ -38,6 +39,7 @@ class CommonModule(ModuleBase):
             document_research_fts_tool,
             document_research_specialized,
             find_tools_tool,
+            peer_message,
             print_doc,
             undo,
         )

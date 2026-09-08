@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 import threading
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -33,6 +33,9 @@ _drain_lock = threading.Lock()
 _active_owner_name: str | None = None
 _drain_depth: int = 0
 _suppressed_vcl_count: int = 0
+# Peer messaging (and similar): start queued work only after the pump is free.
+# Callbacks must not start a drain on this stack when ``post`` would run inline.
+_drain_idle_callbacks: list[Callable[[], None]] = []
 
 
 class NestedDrainOwnerError(RuntimeError):
@@ -57,6 +60,7 @@ def drain_owner_scope(owner_name: str) -> Generator[None, None, None]:
         _active_owner_name = owner_name
         _drain_depth += 1
 
+    became_idle = False
     try:
         yield
     finally:
@@ -64,8 +68,11 @@ def drain_owner_scope(owner_name: str) -> Generator[None, None, None]:
             _drain_depth -= 1
             if _drain_depth == 0:
                 _active_owner_name = None
+                became_idle = True
             else:
                 _active_owner_name = previous_owner
+        if became_idle:
+            _notify_drain_idle()
 
 
 # Sentry alias for backward compatibility
@@ -118,6 +125,21 @@ def reset_suppressed_vcl_pump_count() -> None:
     global _suppressed_vcl_count
     with _drain_lock:
         _suppressed_vcl_count = 0
+
+
+def add_drain_idle_callback(fn: Callable[[], None]) -> None:
+    """Register *fn* to run when drain depth hits 0 (outside the sentry lock)."""
+    if fn not in _drain_idle_callbacks:
+        _drain_idle_callbacks.append(fn)
+
+
+def _notify_drain_idle() -> None:
+    """Invoke idle callbacks. Never raise into the drain ``finally``."""
+    for cb in list(_drain_idle_callbacks):
+        try:
+            cb()
+        except Exception:
+            log.exception("drain idle callback failed")
 
 
 def reset_sentry_state() -> None:

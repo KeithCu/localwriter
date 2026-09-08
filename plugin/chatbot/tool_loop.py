@@ -180,7 +180,7 @@ class ToolCallingMixin:
     def rerender_rich_text_session(self: ToolLoopHost) -> None:
         """Re-render session with HTML formatting. Overridden in SendButtonListener."""
 
-    def _do_send_chat_with_tools(self: ToolLoopHost, query_text: str, model: Any, doc_type_str: str) -> None:
+    def _do_send_chat_with_tools(self: ToolLoopHost, query_text: str, model: Any, doc_type_str: str, skip_append_user: bool = False) -> None:
         try:
             log.debug("_do_send: importing core modules...")
             from plugin.main import get_tools
@@ -215,6 +215,7 @@ class ToolCallingMixin:
                 uno_services_supported=getattr(self, "cached_uno_services", None),
                 active_domain=active_domain,
                 ctx=self.ctx,
+                doc=model,
             )
             execute_fn = build_tool_execute_fn(self, doc_type_str, active_domain, python_tool_domain, set_active_domain)
 
@@ -313,22 +314,29 @@ class ToolCallingMixin:
             self._set_status("Error")
             return
 
-        # Check for vision capability and selected image base64
-        # Note: `model` here is the UNO document object, not the model ID string.
-        # The text model ID is in api_config["text_model"].
-        b64_image = None
-        from plugin.framework.client.model_fetcher import has_native_vision
-        text_model_id = api_config.get("text_model", "")
-        if has_native_vision(text_model_id, client._endpoint()):
-            doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
-            if doc:
-                try:
-                    from plugin.writer.images.image_tools import get_selected_image_base64
-                    b64_image = get_selected_image_base64(doc, self.ctx)
-                except Exception as e:
-                    log.debug("Failed to get selected image base64: %s", e)
+        # Peer extracted send already appended the envelope + body once.
+        # Calling add_user_message again would double-post that turn.
+        if skip_append_user:
+            b64_image = None
+        else:
+            # Check for vision capability and selected image base64
+            # Note: `model` here is the UNO document object, not the model ID string.
+            # The text model ID is in api_config["text_model"].
+            b64_image = None
+            from plugin.framework.client.model_fetcher import has_native_vision
+            text_model_id = api_config.get("text_model", "")
+            if has_native_vision(text_model_id, client._endpoint()):
+                doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
+                if doc:
+                    try:
+                        from plugin.writer.images.image_tools import get_selected_image_base64
+                        b64_image = get_selected_image_base64(doc, self.ctx)
+                    except Exception as e:
+                        log.debug("Failed to get selected image base64: %s", e)
 
-        if b64_image or self.audio_wav_path:
+        if skip_append_user:
+            pass
+        elif b64_image or self.audio_wav_path:
             content_list: list[dict[str, Any]] = []
             if query_text:
                 content_list.append({"type": "text", "text": query_text})
@@ -394,12 +402,14 @@ class ToolCallingMixin:
             from plugin.main import get_tools
 
             active_domain = getattr(self.session, "active_specialized_domain", None) if hasattr(self, "session") and self.session else None
+            refresh_doc = self._get_document_model() if hasattr(self, "_get_document_model") else None
             self._active_tools = get_tools().get_schemas(
                 "openai",
                 doc_type=getattr(self, "cached_doc_type", None),
                 uno_services_supported=getattr(self, "cached_uno_services", None),
                 active_domain=active_domain,
                 ctx=getattr(self, "ctx", None),
+                doc=refresh_doc,
             )
         except Exception as e:
             log.warning("Failed to refresh active tools: %s", e)

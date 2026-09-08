@@ -1,0 +1,573 @@
+# WriterAgent - AI Writing Assistant for LibreOffice
+# Copyright (c) 2026 KeithCu
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Sidebar-only A1 peer send: ``send_peer_message``.
+
+Queues a user-equivalent turn on another already-open Writer/Calc/Draw
+sidebar and returns immediately. See ``docs/chat/peer-messaging.md``.
+
+This module must not import ``plugin.chatbot.panel`` or
+``plugin.chatbot.panel_factory`` (cycle: CommonModule → tool → panel →
+``get_tools()``).
+"""
+
+from __future__ import annotations
+
+import copy
+import logging
+import os
+import uuid
+import weakref
+from collections import deque
+from dataclasses import dataclass
+from typing import Any
+from weakref import WeakKeyDictionary
+
+from plugin.framework.async_drain_guard import add_drain_idle_callback, get_drain_owner
+from plugin.framework.tool import ToolBase, ToolContext
+
+log = logging.getLogger("writeragent.doc.peer_message")
+
+PEER_TOOL_NAME = "send_peer_message"
+PEER_QUEUE_CAP = 8
+
+_TEXT_SERVICE = "com.sun.star.text.TextDocument"
+_CALC_SERVICE = "com.sun.star.sheet.SpreadsheetDocument"
+_DRAW_SERVICE = "com.sun.star.drawing.DrawingDocument"
+_IMPRESS_SERVICE = "com.sun.star.presentation.PresentationDocument"
+
+_BASE_DESCRIPTION = (
+    "Send a natural-language turn to another already-open Writer, Calc, or Draw "
+    "sidebar (not Impress). Returns immediately {status: ok, accepted: true, "
+    "peer_ask_id}. The peer runs after this sidebar Readys; the reply arrives "
+    "later as a follow-up user turn — do not wait in this loop. "
+    "document_url is the one target argument: a file URL, RuntimeUID, or a "
+    "display name that matches exactly one open peer. Required on every call. "
+    "Never put your own path, uid, or URL in message — the gateway inserts "
+    "[Peer from: name | uid | url | peer_ask_id]. On replies, pass peer_ask_id "
+    "copied from the inbound envelope. Never invent the other app's write tools."
+)
+
+
+@dataclass
+class PeerPendingTurn:
+    """One queued extracted send on a listener."""
+
+    wrapped_text: str
+    already_appended: bool
+    peer_ask_id: str
+
+
+_listener_queues: WeakKeyDictionary[Any, deque[PeerPendingTurn]] = WeakKeyDictionary()
+_global_fifo: deque[tuple[weakref.ref[Any], PeerPendingTurn]] = deque()
+_idle_kick_scheduled = False
+
+
+def _supports_service(model: Any, service: str) -> bool:
+    try:
+        supports = getattr(model, "supportsService", None)
+        if not callable(supports):
+            return False
+        return bool(supports(service))
+    except Exception:
+        return False
+
+
+def is_v1_peer_model(model: Any) -> bool:
+    """True for Writer / Calc / Draw. Impress is out of v1 — check the model.
+
+    Catalog ``doc_type: "draw"`` includes Impress. Reject PresentationDocument
+    first; Impress also supports DrawingDocument so a Draw-only check is not enough.
+    """
+    if model is None:
+        return False
+    if _supports_service(model, _IMPRESS_SERVICE):
+        return False
+    return (
+        _supports_service(model, _TEXT_SERVICE)
+        or _supports_service(model, _CALC_SERVICE)
+        or _supports_service(model, _DRAW_SERVICE)
+    )
+
+
+def v1_peer_type_label(model: Any) -> str | None:
+    """``writer`` / ``calc`` / ``draw``, or None if unsupported (including Impress)."""
+    if model is None or _supports_service(model, _IMPRESS_SERVICE):
+        return None
+    if _supports_service(model, _TEXT_SERVICE):
+        return "writer"
+    if _supports_service(model, _CALC_SERVICE):
+        return "calc"
+    if _supports_service(model, _DRAW_SERVICE):
+        return "draw"
+    return None
+
+
+def identity_from_doc(doc: Any) -> dict[str, str]:
+    """Sender fields from ``ToolContext.doc`` (not authored in ``message``)."""
+    from plugin.framework.uno_context import get_runtime_uid
+
+    uid = ""
+    url = ""
+    name = "Untitled"
+    if doc is None:
+        return {"name": name, "uid": uid, "url": url}
+    try:
+        uid = get_runtime_uid(doc) or ""
+    except Exception:
+        uid = ""
+    try:
+        raw_url = doc.getURL() if hasattr(doc, "getURL") else ""
+        url = str(raw_url or "")
+    except Exception:
+        url = ""
+    if url:
+        try:
+            from plugin.doc.document_research import _system_path_from_url
+
+            path = _system_path_from_url(url) or ""
+            base = os.path.basename(path) if path else ""
+            if base:
+                name = base
+        except Exception:
+            pass
+    if name == "Untitled":
+        try:
+            title = doc.getTitle() if hasattr(doc, "getTitle") else None
+            if title:
+                name = str(title)
+        except Exception:
+            pass
+    return {"name": name, "uid": uid, "url": url}
+
+
+def format_peer_envelope(*, name: str, uid: str, url: str, peer_ask_id: str, message: str) -> str:
+    """Code-inserted wrapper. ``message`` is the body only."""
+    header = f"[Peer from: {name} | uid={uid} | url={url} | peer_ask_id={peer_ask_id}]"
+    body = message if message.endswith("\n") else message
+    return f"{header}\n\n{body}"
+
+
+def format_peer_catalog(peers: list[dict[str, str]]) -> str:
+    """Short open-peer list for the tool description / prompt block."""
+    if not peers:
+        return ""
+    parts = []
+    for p in peers:
+        parts.append(
+            f"{p.get('name') or 'Untitled'} (uid={p.get('uid') or ''}, "
+            f"url={p.get('url') or ''}, type={p.get('type') or ''})"
+        )
+    return "Open peers: " + "; ".join(parts) + "."
+
+
+def list_v1_peers(uno_ctx: Any, self_doc: Any) -> list[dict[str, str]]:
+    """Resolvable other v1 peers (distinct uid, supported model, addressable)."""
+    from plugin.doc.document_research import get_open_documents
+    from plugin.framework.uno_context import get_runtime_uid, resolve_document_by_url
+
+    self_uid = ""
+    if self_doc is not None:
+        try:
+            self_uid = get_runtime_uid(self_doc) or ""
+        except Exception:
+            self_uid = ""
+    peers: list[dict[str, str]] = []
+    try:
+        catalog = get_open_documents(uno_ctx, self_doc)
+    except Exception:
+        log.debug("list_v1_peers: get_open_documents failed", exc_info=True)
+        return []
+    seen: set[str] = set()
+    for rec in catalog:
+        uid = str(rec.get("uid") or "")
+        url = str(rec.get("url") or "")
+        if not uid or uid == self_uid or uid in seen:
+            continue
+        model = None
+        try:
+            model, _unused_type = resolve_document_by_url(uno_ctx, uid)
+        except Exception:
+            model = None
+        if model is None and url:
+            try:
+                model, _unused_type = resolve_document_by_url(uno_ctx, url)
+            except Exception:
+                model = None
+        label = v1_peer_type_label(model)
+        if label is None:
+            continue
+        seen.add(uid)
+        peers.append(
+            {
+                "name": str(rec.get("name") or "Untitled"),
+                "uid": uid,
+                "url": url,
+                "type": label,
+            }
+        )
+    return peers
+
+
+def resolve_peer_target(
+    uno_ctx: Any,
+    self_doc: Any,
+    document_url: str,
+) -> tuple[Any | None, str | None, str]:
+    """Resolve *document_url* as file URL, RuntimeUID, or unique display name.
+
+    Returns ``(model, error_code, error_message)``. Success: ``(model, None, "")``.
+    """
+    from plugin.framework.uno_context import get_runtime_uid, resolve_document_by_url
+
+    target = (document_url or "").strip()
+    if not target:
+        return None, "VALIDATION_ERROR", "document_url is required."
+
+    self_uid = ""
+    if self_doc is not None:
+        try:
+            self_uid = get_runtime_uid(self_doc) or ""
+        except Exception:
+            self_uid = ""
+
+    model = None
+    try:
+        model, _unused_type = resolve_document_by_url(uno_ctx, target)
+    except Exception:
+        model = None
+
+    if model is None:
+        peers = list_v1_peers(uno_ctx, self_doc)
+        name_hits = [p for p in peers if p.get("name") == target]
+        if len(name_hits) > 1:
+            return (
+                None,
+                "PEER_AMBIGUOUS",
+                f"document_url {target!r} matches more than one open peer; use a uid or file URL.",
+            )
+        if len(name_hits) == 1:
+            try:
+                model, _unused_type = resolve_document_by_url(uno_ctx, name_hits[0]["uid"])
+            except Exception:
+                model = None
+
+    if model is None:
+        return None, "PEER_NOT_FOUND", f"No open Writer, Calc, or Draw peer matches {target!r}."
+
+    peer_uid = ""
+    try:
+        peer_uid = get_runtime_uid(model) or ""
+    except Exception:
+        peer_uid = ""
+    if self_uid and peer_uid and self_uid == peer_uid:
+        return None, "PEER_SELF", "Cannot send a peer message to the same document."
+
+    if _supports_service(model, _IMPRESS_SERVICE):
+        return None, "PEER_UNSUPPORTED", "Impress is not a v1 peer. Open a Writer, Calc, or Draw document."
+    if not is_v1_peer_model(model):
+        return None, "PEER_UNSUPPORTED", "Target is not a Writer, Calc, or Draw document."
+    return model, None, ""
+
+
+def listener_is_busy(listener: Any) -> bool:
+    """Busy if the send FSM, active stream queue, or cancellation scope is live."""
+    if listener is None:
+        return True
+    state = getattr(listener, "sidebar_state", None)
+    send = getattr(state, "send", None) if state is not None else None
+    if send is not None and bool(getattr(send, "is_busy", False)):
+        return True
+    if getattr(listener, "_active_q", None) is not None:
+        return True
+    if getattr(listener, "_send_cancellation", None) is not None:
+        return True
+    return False
+
+
+def listener_queue_len(listener: Any) -> int:
+    q = _listener_queues.get(listener)
+    return len(q) if q is not None else 0
+
+
+def enqueue_peer_turn(listener: Any, turn: PeerPendingTurn) -> str | None:
+    """Queue *turn*. Returns ``PEER_QUEUE_FULL`` or None."""
+    q = _listener_queues.get(listener)
+    if q is None:
+        q = deque()
+        _listener_queues[listener] = q
+    if len(q) >= PEER_QUEUE_CAP:
+        return "PEER_QUEUE_FULL"
+    q.append(turn)
+    _global_fifo.append((weakref.ref(listener), turn))
+    return None
+
+
+def drop_listener_queue(listener: Any) -> None:
+    """Stop / dispose: drop that listener's pending injects only."""
+    global _global_fifo
+    if listener is None:
+        return
+    q = _listener_queues.pop(listener, None)
+    if q is not None:
+        q.clear()
+    _global_fifo = deque(item for item in _global_fifo if item[0]() is not listener)
+
+
+def reset_peer_queues() -> None:
+    """Test hook: clear all pending turns."""
+    global _global_fifo, _idle_kick_scheduled
+    _listener_queues.clear()
+    _global_fifo.clear()
+    _idle_kick_scheduled = False
+
+
+def kick_pending_peer_starts() -> None:
+    """Start at most one queued extracted send when the process drain is idle."""
+    global _idle_kick_scheduled
+    _idle_kick_scheduled = False
+    if get_drain_owner() is not None:
+        return
+    skipped: list[tuple[weakref.ref[Any], PeerPendingTurn]] = []
+    started = False
+    while _global_fifo and not started:
+        ref, turn = _global_fifo.popleft()
+        listener = ref()
+        if listener is None:
+            continue
+        q = _listener_queues.get(listener)
+        if q is None:
+            continue
+        try:
+            q.remove(turn)
+        except ValueError:
+            continue
+        if listener_is_busy(listener) or get_drain_owner() is not None:
+            q.appendleft(turn)
+            skipped.append((ref, turn))
+            continue
+        start_fn = getattr(listener, "start_extracted_peer_send", None)
+        if not callable(start_fn):
+            continue
+        started = True
+        start_fn(turn.wrapped_text, already_appended=turn.already_appended)
+    for item in reversed(skipped):
+        _global_fifo.appendleft(item)
+
+
+def _on_drain_idle() -> None:
+    """Schedule a kick after the current stack unwinds.
+
+    Starting the peer drain inside ``drain_owner_scope``'s ``finally`` would
+    run it before the caller’s ``SEND_COMPLETED`` (Ready). ``QueueExecutor.post``
+    is inline under ``WRITERAGENT_TESTING=1``, so we never start here — only
+    mark that a kick is due. Production posts to the next VCL tick.
+    """
+    global _idle_kick_scheduled
+    if get_drain_owner() is not None:
+        return
+    if not _global_fifo:
+        return
+    _idle_kick_scheduled = True
+    try:
+        from plugin.framework.queue_executor import default_executor
+
+        if not default_executor._should_run_inline():
+            default_executor.post(kick_pending_peer_starts)
+    except Exception:
+        log.debug("peer drain-idle schedule failed", exc_info=True)
+
+
+add_drain_idle_callback(_on_drain_idle)
+
+
+def schedule_peer_turn(listener: Any, turn: PeerPendingTurn) -> str | None:
+    """Enqueue and start now only when the process drain owner is unset."""
+    err = enqueue_peer_turn(listener, turn)
+    if err:
+        return err
+    # Never start from caller execute() while a drain owns the pump (accidental A2).
+    if get_drain_owner() is None and not listener_is_busy(listener):
+        kick_pending_peer_starts()
+    return None
+
+
+def _schema_function_name(schema: dict[str, Any]) -> str:
+    fn = schema.get("function")
+    if isinstance(fn, dict):
+        return str(fn.get("name") or "")
+    return str(schema.get("name") or "")
+
+
+def filter_peer_message_schemas(
+    schemas: list[dict[str, Any]],
+    ctx: Any,
+    doc: Any = None,
+) -> list[dict[str, Any]]:
+    """Hide ``send_peer_message`` unless a resolvable other v1 peer exists.
+
+    When shown, bake the open-peer catalog into the tool description.
+    """
+    if not any(_schema_function_name(s) == PEER_TOOL_NAME for s in schemas):
+        return schemas
+    peers: list[dict[str, str]] = []
+    if ctx is not None and doc is not None:
+        try:
+            peers = list_v1_peers(ctx, doc)
+        except Exception:
+            log.debug("filter_peer_message_schemas: catalog failed", exc_info=True)
+            peers = []
+    if not peers:
+        return [s for s in schemas if _schema_function_name(s) != PEER_TOOL_NAME]
+    catalog = format_peer_catalog(peers)
+    out: list[dict[str, Any]] = []
+    for schema in schemas:
+        if _schema_function_name(schema) != PEER_TOOL_NAME:
+            out.append(schema)
+            continue
+        enriched = copy.deepcopy(schema)
+        fn = enriched.get("function")
+        if isinstance(fn, dict):
+            desc = str(fn.get("description") or "")
+            fn["description"] = (desc + " " + catalog).strip()
+        elif "description" in enriched:
+            enriched["description"] = (str(enriched.get("description") or "") + " " + catalog).strip()
+        out.append(enriched)
+    return out
+
+
+def _peer_not_chat_mode(listener: Any) -> bool:
+    """True when the target sidebar is not in Chat mode (do not flip librarian/image)."""
+    try:
+        from plugin.chatbot.chat_sidebar_mode import CHAT_MODE_CHAT, mode_from_selector_with_flags
+
+        flags = getattr(listener, "sidebar_mode_flags", None)
+        selector = getattr(listener, "chat_mode_selector", None)
+        if selector is None:
+            return False
+        mode = mode_from_selector_with_flags(selector, flags)
+        return mode != CHAT_MODE_CHAT
+    except Exception:
+        return False
+
+
+def _inject_on_listener(listener: Any, wrapped: str) -> None:
+    session = getattr(listener, "session", None)
+    if session is not None and hasattr(session, "add_user_message"):
+        session.add_user_message(wrapped)
+    append = getattr(listener, "_append_response", None)
+    if callable(append):
+        append(wrapped, role="user")
+
+
+class SendPeerMessage(ToolBase):
+    """Chat-only async inject onto another live sidebar."""
+
+    name = PEER_TOOL_NAME
+    description = _BASE_DESCRIPTION
+    tier = "chat"
+    is_mutation = False
+    uno_services = [_TEXT_SERVICE, _CALC_SERVICE, _DRAW_SERVICE]
+    parameters = {
+        "type": "object",
+        "properties": {
+            "document_url": {
+                "type": "string",
+                "description": (
+                    "The one target argument: file URL, RuntimeUID, or a display name "
+                    "that matches exactly one open peer. Required on every call "
+                    "(including replies). Never omit it; never put your own identity here."
+                ),
+            },
+            "message": {
+                "type": "string",
+                "description": (
+                    "Natural-language task body only. Do not paste your own path, uid, or URL — "
+                    "the gateway inserts the [Peer from: …] envelope."
+                ),
+            },
+            "peer_ask_id": {
+                "type": "string",
+                "description": (
+                    "Correlation id from the inbound envelope. Required by protocol on replies; "
+                    "the host does not default the target from it."
+                ),
+            },
+        },
+        "required": ["document_url", "message"],
+    }
+
+    def is_async(self) -> bool:
+        return False
+
+    def execute(self, ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
+        if getattr(ctx, "caller", "") != "chat":
+            return self._tool_error(
+                "send_peer_message is sidebar chat only.",
+                code="PEER_CHAT_ONLY",
+            )
+        document_url = str(kwargs.get("document_url") or "").strip()
+        message = str(kwargs.get("message") or "")
+        if not document_url:
+            return self._tool_error("document_url is required.", code="VALIDATION_ERROR")
+        if not message.strip():
+            return self._tool_error("message is required.", code="VALIDATION_ERROR")
+
+        inbound_id = str(kwargs.get("peer_ask_id") or "").strip()
+        peer_ask_id = inbound_id or uuid.uuid4().hex
+
+        model, err_code, err_msg = resolve_peer_target(ctx.ctx, ctx.doc, document_url)
+        if err_code or model is None:
+            return self._tool_error(err_msg, code=err_code or "PEER_NOT_FOUND")
+
+        from plugin.doc.live_panels import get_live_panel
+        from plugin.framework.uno_context import get_runtime_uid
+
+        uid = get_runtime_uid(model) or ""
+        if not uid:
+            return self._tool_error(
+                "Peer document has no RuntimeUID.",
+                code="PEER_NOT_FOUND",
+            )
+        panel = get_live_panel(uid)
+        listener = getattr(panel, "send_listener", None) if panel is not None else None
+        if listener is None:
+            return self._tool_error(
+                "Open the peer sidebar once so a live chat panel exists. "
+                "Peer messaging cannot start a second agent loop.",
+                code="PEER_SIDEBAR_NOT_OPEN",
+            )
+        if _peer_not_chat_mode(listener):
+            return self._tool_error(
+                "The peer sidebar must be in Chat mode (not Librarian, Image, or a sub-agent).",
+                code="PEER_NOT_CHAT_MODE",
+            )
+
+        sender = identity_from_doc(ctx.doc)
+        wrapped = format_peer_envelope(
+            name=sender["name"],
+            uid=sender["uid"],
+            url=sender["url"],
+            peer_ask_id=peer_ask_id,
+            message=message,
+        )
+
+        busy = listener_is_busy(listener)
+        already_appended = not busy
+        if already_appended:
+            _inject_on_listener(listener, wrapped)
+
+        turn = PeerPendingTurn(
+            wrapped_text=wrapped,
+            already_appended=already_appended,
+            peer_ask_id=peer_ask_id,
+        )
+        overflow = schedule_peer_turn(listener, turn)
+        if overflow:
+            return self._tool_error(
+                f"Peer sidebar queue is full (max {PEER_QUEUE_CAP} pending turns).",
+                code="PEER_QUEUE_FULL",
+            )
+        return {"status": "ok", "accepted": True, "peer_ask_id": peer_ask_id}

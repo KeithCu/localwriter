@@ -377,7 +377,8 @@ class ToolBase(ABC):
         tier:        Main chat and MCP default lists use ``"core"``. Nested
                      specialized toolsets use ``"specialized"`` or
                      ``"specialized_control"`` (hidden from default lists via
-                     ``exclude_tiers``). Default ``"core"``.
+                     ``exclude_tiers``). Sidebar-only tools use ``"chat"``
+                     (on the chat wire; hidden from MCP). Default ``"core"``.
         intent:      Optional group label (e.g. "navigate", "edit", "review",
                      "media") for ``get_tools(intent=...)`` filtering.
         is_mutation:  Whether the tool mutates the document.  ``None``
@@ -834,6 +835,9 @@ class ToolRegistry:
                 from plugin.vision.vision_availability import filter_vision_delegate_schemas
 
                 schemas = filter_vision_delegate_schemas(schemas, ctx)
+            from plugin.doc.peer_message import filter_peer_message_schemas
+
+            schemas = filter_peer_message_schemas(schemas, ctx, doc=kwargs.get("doc"))
             return schemas
         elif protocol == "mcp":
             return [to_mcp_schema(t, doc_type=doc_type) for t in tools]

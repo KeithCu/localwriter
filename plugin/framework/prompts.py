@@ -505,6 +505,13 @@ DRAW_SPECIALIZED_DELEGATION_TEMPLATE = (
 )
 
 
+# Shown only when send_peer_message is on the wire (another v1 peer is open).
+PEER_MESSAGING_RULES = """PEER SIDEBARS: Need writes in another already-open Writer, Calc, or Draw window? Call send_peer_message(document_url=<peer uid, file URL, or unique display name from the tool description>, message=<task>). Do not put your own path, uid, or URL in message — the gateway inserts [Peer from: name | uid | url | peer_ask_id]. Need a file fact only? document_research.
+After status ok/accepted, finish any local work then Ready. The reply arrives later as a follow-up user turn with a peer envelope — do not wait in this loop.
+When you receive a peer envelope: do the work with your tools; then send_peer_message(document_url=<uid or url from the envelope>, message=<result>, peer_ask_id=<id from the envelope>). Say what you completed. Never omit document_url.
+Never invent the other app's write tools on this loop."""
+
+
 DEFAULT_DRAW_CHAT_SYSTEM_PROMPT_TEMPLATE = """You are a LibreOffice Draw/Impress assistant who creates polished, professional, and colorful visual content.
 Do not explain - do the operation directly using tools. Perform as many steps as needed in one turn when possible.
 
@@ -548,6 +555,21 @@ DEFAULT_DRAW_GREETING = "AI: I can help you create and edit polished, colorful s
 DEFAULT_CHAT_SYSTEM_PROMPT = ""
 DEFAULT_CALC_CHAT_SYSTEM_PROMPT = ""
 DEFAULT_DRAW_CHAT_SYSTEM_PROMPT = ""
+
+
+def get_peer_messaging_prompt_block(model, ctx) -> str:
+    """Short peer-send rules plus open-peer catalog when a v1 peer is visible."""
+    if ctx is None or model is None:
+        return ""
+    try:
+        from plugin.doc.peer_message import format_peer_catalog, list_v1_peers
+
+        peers = list_v1_peers(ctx, model)
+        if not peers:
+            return ""
+        return PEER_MESSAGING_RULES + "\n" + format_peer_catalog(peers)
+    except Exception:
+        return ""
 
 
 def get_core_directives(model) -> str:
@@ -758,6 +780,10 @@ def get_chat_system_prompt_for_document(model, additional_instructions="", ctx=N
     vision_directive = get_vision_core_directive(model, ctx)
     if vision_directive:
         base += "\n\n" + vision_directive
+
+    peer_block = get_peer_messaging_prompt_block(model, ctx)
+    if peer_block:
+        base += "\n\n" + peer_block
 
     if ctx:
         try:
