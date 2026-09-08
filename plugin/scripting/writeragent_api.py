@@ -174,6 +174,7 @@ DOMAIN_TOOLS = {   'bookmark': [   'bookmark_cleanup',
     'shape': [   'align_shapes',
                  'create_diagram',
                  'distribute_shapes',
+                 'fill_draw_fields',
                  'shape_connect',
                  'shape_delete',
                  'shape_group',
@@ -614,21 +615,21 @@ class _FormsProxy:
         """Creates a single interactive form control (checkbox, text field, radio button, date field, combobox, or button)."""
         return _rpc_call("form_create_control", control=control, label=label, name=name, group_name=group_name, items=items, placeholder=placeholder, default_value=default_value, width=width, height=height)
 
-    def delete_control(self, index: int) -> dict:
-        """Deletes a form control by index (Calc: active sheet draw page)."""
-        return _rpc_call("form_delete_control", index=index)
+    def delete_control(self, index: int | None = None, *, name: str | None = None, page: int | None = None) -> dict:
+        """Delete a live form widget by name (preferred) or draw-page index."""
+        return _rpc_call("form_delete_control", index=index, name=name, page=page)
 
-    def edit_control(self, index: int, *, name: str | None = None, label: str | None = None, text: str | None = None, items: list | None = None, x: int | None = None, y: int | None = None, width: int | None = None, height: int | None = None) -> dict:
-        """Modifies an existing form control by index (from form_list_controls)."""
-        return _rpc_call("form_edit_control", index=index, name=name, label=label, text=text, items=items, x=x, y=y, width=width, height=height)
+    def edit_control(self, index: int | None = None, *, name: str | None = None, new_name: str | None = None, label: str | None = None, text: str | None = None, state: int | None = None, items: list | None = None, x: int | None = None, y: int | None = None, width: int | None = None, height: int | None = None, page: int | None = None) -> dict:
+        """Edit a live form widget by name (preferred) or draw-page index from form_list_controls."""
+        return _rpc_call("form_edit_control", index=index, name=name, new_name=new_name, label=label, text=text, state=state, items=items, x=x, y=y, width=width, height=height, page=page)
 
     def generate(self, description: str) -> dict:
         """Generates a document or sheet layout with interactive form fields from a description."""
         return _rpc_call("form_generate", description=description)
 
-    def list_controls(self) -> dict:
-        """Lists interactive form controls (checkboxes, text fields, etc.) with indices and values."""
-        return _rpc_call("form_list_controls")
+    def list_controls(self, *, page: int | None = None) -> dict:
+        """List live form widgets (ControlShapes) with name, type, current text/State, and draw-page index."""
+        return _rpc_call("form_list_controls", page=page)
 
 forms = _FormsProxy()
 
@@ -906,6 +907,10 @@ class _ShapeProxy:
         """Evenly distribute three or more shapes between the first and last along an axis."""
         return _rpc_call("distribute_shapes", page=page, indices=indices, axis=axis)
 
+    def fill_draw_fields(self, fields: list, *, page: int | None = None) -> dict:
+        """Fill existing empty text boxes (paper-form fields) or ControlShape values on a Draw/Impress page."""
+        return _rpc_call("fill_draw_fields", page=page, fields=fields)
+
     def group(self, indices: list, *, page: int | None = None) -> dict:
         """Groups multiple shapes together on the same page."""
         return _rpc_call("shape_group", indices=indices, page=page)
@@ -914,9 +919,9 @@ class _ShapeProxy:
         """Returns a summary of shapes on the active or specified page."""
         return _rpc_call("shape_summary", page=page)
 
-    def upsert(self, action: str, *, index: int | None = None, page: int | None = None, shape_type: str | None = None, x: int | None = None, y: int | None = None, width: int | None = None, height: int | None = None, text: str | None = None, fill_color: str | None = None, fill_style: str | None = None, line_color: str | None = None, line_width: int | None = None, text_color: str | None = None, font_size: float | None = None, font_name: str | None = None, rotation_angle: float | None = None) -> dict:
-        """Creates a new shape or modifies an existing shape on a page."""
-        return _rpc_call("shape_upsert", action=action, index=index, page=page, shape_type=shape_type, x=x, y=y, width=width, height=height, text=text, fill_color=fill_color, fill_style=fill_style, line_color=line_color, line_width=line_width, text_color=text_color, font_size=font_size, font_name=font_name, rotation_angle=rotation_angle)
+    def upsert(self, action: str, *, index: int | None = None, name: str | None = None, page: int | None = None, shape_type: str | None = None, x: int | None = None, y: int | None = None, width: int | None = None, height: int | None = None, text: str | None = None, fill_color: str | None = None, fill_style: str | None = None, line_color: str | None = None, line_width: int | None = None, text_color: str | None = None, font_size: float | None = None, font_name: str | None = None, rotation_angle: float | None = None) -> dict:
+        """Create or edit a shape on a page."""
+        return _rpc_call("shape_upsert", action=action, index=index, name=name, page=page, shape_type=shape_type, x=x, y=y, width=width, height=height, text=text, fill_color=fill_color, fill_style=fill_style, line_color=line_color, line_width=line_width, text_color=text_color, font_size=font_size, font_name=font_name, rotation_angle=rotation_angle)
 
 shape = _ShapeProxy()
 
