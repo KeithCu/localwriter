@@ -243,7 +243,12 @@ show_window: bool = False
 use_user_profile: bool = False
 
 # Only these modules run under ``--user-profile`` (and they are skipped otherwise).
-_USER_PROFILE_ONLY_UNO = frozenset({"test_mock_llm_sidebar_uno.py"})
+_USER_PROFILE_ONLY_UNO = frozenset(
+    {
+        "test_mock_llm_sidebar_uno.py",
+        "test_mock_llm_peer_sidebar_uno.py",
+    }
+)
 
 
 def _parse_cli_args(argv: Sequence[str]) -> list[str]:
@@ -1238,8 +1243,9 @@ def main() -> int:
         python -m plugin.testing_runner tests/chatbot/test_mock_llm_sidebar_uno.py E
         python -m plugin.testing_runner --user-profile …/test_mock_llm_sidebar_uno.py f3a
 
-    Extra tokens select tests: packet letter (``B``/``C``/``D``/``E``/``F``), case id
-    (``f3a``), or full ``test_*`` name. Prefer ``make test-mock-sidebar FILTER=E``.
+    Extra tokens select tests: packet letter (``B``/``C``/``D``/``E``/``F``/``G``/``P``), case id
+    (``f3a`` / ``p1``), or full ``test_*`` name. Prefer ``make test-mock-sidebar FILTER=P``
+    for the dual-sidebar peer Packet.
 
     The import of officehelper/uno is done lazily so that this module
     can still be imported inside LibreOffice without pulling them in.

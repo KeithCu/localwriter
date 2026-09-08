@@ -8,9 +8,9 @@ Visual rendering, scroll pin, theme, resize, and “watch the sidebar” cases a
 
 ## 1. Executive Status Dashboard
 
-Packets **B through G** run via `testing_runner`. There is no Packet A or H.
+Packets **B through G** plus **P** (dual-sidebar peer) run via `testing_runner`. There is no Packet A or H.
 
-This plan is **finished**. Mouse Stop, HITL Change dialog, live DuckDuckGo, and F11/F18 wait mismatches are dropped — not a backlog.
+This plan is **finished**. Mouse Stop, HITL Change dialog, live DuckDuckGo, and F11/F18 wait mismatches are dropped — not a backlog. Packet P (dual Writer+Calc peer) uses the same `open_calc_document` helper as E12/G17.
 
 | Packet | Focus Area | Mode | Status |
 |:------:|------------|:----:|--------|
@@ -20,6 +20,7 @@ This plan is **finished**. Mouse Stop, HITL Change dialog, live DuckDuckGo, and 
 | **[Packet E](#packet-e--tools-delegate-hitl-context-refresh)** | Tool loop, nested delegate, HITL, context refresh | Automated (CI) | **Done.** 18 Landed (incl. E12 Calc). |
 | **[Packet F](#packet-f--http--sse-errors-and-hangs)** | HTTP 4xx/5xx errors, socket hangs, SSE quirks | Automated (CI) | **Done.** 15 Landed. |
 | **[Packet G](#packet-g--mocked-audio-and-stt)** | Mocked Record / Stop Rec, `input_audio`, STT | Automated (CI) | **Done.** 21 Landed (incl. G17 Calc deck). |
+| **[Packet P](#packet-p--dual-sidebar-peer-673)** | Writer+Calc mock peer round-trip (specialized-inner #673) | Automated (`FILTER=P`) | **Landed** (unit scripts always; live dual deck uses `open_calc_document`). |
 
 
 
@@ -69,6 +70,8 @@ The mock server matches incoming user queries (case-insensitive, first match win
 | `two tools` / `in parallel` | Calls `search_in_document` + `get_document_tree` in a single round. |
 | `insert filler` / `append a paragraph` | Calls `apply_document_content` to mutate the document end. |
 | `list sheets` / `list pages` | Calls Calc/Draw list tools (`list_sheets` / `list_pages`) when advertised. |
+| `ask the budget workbook` / `add a Total row` / `peer total` | Packet P: outer delegates `document_research`; inner `send_peer_message` then `specialized_workflow_finished` immediately. Calc envelope → `write_formula_range` then reply via specialized. |
+| `wait after accepted` / `do not finish peer` | Packet P hang lock: inner sends then never finishes (peer does not start). |
 | `crash the stream` / `error 500` | Returns HTTP 500 JSON error payload. |
 | `rate limit` / `error 429` | Returns HTTP 429 Rate Limit error. |
 | `error 401` / `unauthorized` | Returns HTTP 401 Unauthorized error. |
@@ -87,18 +90,22 @@ The mock server matches incoming user queries (case-insensitive, first match win
 Run scripted tests using `make test-mock-sidebar`. Tests run out-of-process against a live LibreOffice instance via URP.
 
 ```bash
-make test-mock-sidebar                 # Run all automated packets (F, B, C, D, E, G)
+make test-mock-sidebar                 # Run all automated packets (F, B, C, D, E, G, P)
 make test-mock-sidebar FILTER=B        # Run Packet B (Stop & Send/Record FSM)
 make test-mock-sidebar FILTER=C        # Run Packet C (Empty/truncated responses)
 make test-mock-sidebar FILTER=D        # Run Packet D (Reasoning vs content)
 make test-mock-sidebar FILTER=E        # Run Packet E (Tools & HITL)
 make test-mock-sidebar FILTER=F        # Run Packet F (HTTP/SSE errors)
 make test-mock-sidebar FILTER=G        # Run Packet G (Mocked audio & STT)
+make test-mock-sidebar FILTER=P        # Packet P only (dual Writer+Calc peer, not the whole soak)
+make test-mock-sidebar FILTER=p1       # Single peer case
 make test-mock-sidebar FILTER=b13      # Run a single case by ID
 make test-mock-sidebar FILTER=e12      # Calc list_sheets (opens Calc after Writer deck)
 make test-mock-sidebar FILTER=g17      # Calc deck native audio (same open helper as E12)
 make test-mock-sidebar FILTER="B E"    # Run multiple packets
 ```
+
+`FILTER=P` loads only `tests/chatbot/test_mock_llm_peer_sidebar_uno.py` (`test_p1_*` / `test_p2_*`). It does not run Packets B–G.
 
 #### GitHub Actions (PR CI option)
 
@@ -130,7 +137,7 @@ Debug test hooks live in [`plugin/chatbot/sidebar_test_hooks.py`](../../plugin/c
 
 | Hook | Description | Target Use Case |
 |------|-------------|-----------------|
-| `sidebar_panel()` / `send_listener()` | Retrieves active `SendButtonListener` after deck initialization | Base listener access |
+| `sidebar_panel()` / `send_listener()` | Retrieves active `SendButtonListener` after deck initialization. `send_listener(frame)` / `send_listener_for_doc(doc)` pick a dual-deck listener | Base listener access; Packet P |
 | `set_query_text(s)` | Sets query text (`Text = s`) and fires `TEXT_UPDATED` | Initiating sends |
 | `press_send()` | Dispatches `SEND_CLICKED` / Send button action | Starting chat stream |
 | `press_stop()` | Dispatches `STOP_CLICKED` (ActionEvent path) | Cancelling stream (Windows/standard) |
@@ -371,6 +378,22 @@ Every test must satisfy:
 - **G23–G24 (Corrupt / 0-byte WAV):** Folded into G14.
 - **G25–G26 (Late WAV timing races):** Flaky over URP; covered by unit tests.
 - **G30 (Stale WAV cleanup):** Covered by G16.
+
+---
+
+### Packet P — Dual-sidebar peer (#673)
+
+- **Focus:** Writer + Calc sidebars sharing one process-global mock OpenAI server. Scripts branch on advertised tools, `[Peer from:]` envelopes, and the specialized-inner wire.
+- **Mode:** Automated (`make test-mock-sidebar FILTER=P`). Unit scripts always run in `make pytest` (`tests/scripts/test_mock_llm_server.py`).
+- **Protocol locked:** outer main delegates `document_research` (never advertises `send_peer_message`); inner `send_peer_message` then `specialized_workflow_finished` immediately; Calc does `write_formula_range` then delegates to reply with `peer_ask_id`.
+- **Calc open:** same `open_calc_document` / `adopt_chat_sidebar` helper as E12/G17 (VCL-posted `factory/scalc` + `_blank`; keep Writer open). Never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck. If dual decks cannot be wired, P1/P2 SkipTest — the unit scripts still lock finish-after-accepted vs `peer_wait`.
+
+| ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
+|:--:|:----:|----------------|-----------------|------------------------|:--------------:|
+| **P1** | mock-sidebar | `Ask the budget workbook to add a Total row` | Dual decks; Writer send | Both Ready; Calc wrote Total; Writer saw reply; finish immediately after accepted; no outer `send_peer_message` | **Landed** (SkipTest if Calc deck cannot open) |
+| **P2** | mock-sidebar | `wait after accepted then hang` | Writer send; short wait | Writer still busy or Calc has no envelope; no finish-after-accepted | **Landed** (same skip) |
+
+See [peer-messaging.md](../chat/peer-messaging.md#dual-mock-peer-tests).
 
 ---
 

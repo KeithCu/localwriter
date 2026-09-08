@@ -114,6 +114,9 @@ _SCENARIO_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ping", re.compile(r"\bsse pings\b", re.IGNORECASE)),
     ("list_sheets", re.compile(r"\blist sheets\b", re.IGNORECASE)),
     ("list_pages", re.compile(r"\blist pages\b", re.IGNORECASE)),
+    # Packet P: specialized-inner peer (#673). peer_wait locks the Scrolly hang.
+    ("peer_wait", re.compile(r"\b(wait after accepted|do not finish peer)\b", re.IGNORECASE)),
+    ("peer_total", re.compile(r"\b(add a total row|ask the budget workbook|peer total)\b", re.IGNORECASE)),
 )
 
 # Packet F HTTP/SSE faults that apply on the user turn (not tool follow-ups).
@@ -164,11 +167,24 @@ SCENARIO_IDS = frozenset(
         "ping",
         "list_sheets",
         "list_pages",
+        "peer_total",
+        "peer_wait",
     }
 )
 FAIL_MODES = ("none", "http500", "http429", "hang")
 
 _DELEGATE_WRITER = "delegate_to_specialized_writer_toolset"
+_DELEGATE_CALC = "delegate_to_specialized_calc_toolset"
+_DELEGATE_DRAW = "delegate_to_specialized_draw_toolset"
+_PEER_TOOL = "send_peer_message"
+_PEER_ENVELOPE_RE = re.compile(
+    r"\[Peer from:\s*(?P<name>[^|\]]+?)\s*\|\s*uid=(?P<uid>[^|\]]*?)\s*\|\s*"
+    r"url=(?P<url>[^|\]]*?)\s*\|\s*peer_ask_id=(?P<ask>[^|\]]+?)\s*\]",
+    re.IGNORECASE,
+)
+_PEER_CATALOG_RE = re.compile(
+    r"(?P<name>[^;(]+?)\s*\(uid=(?P<uid>[^,)]*),\s*url=(?P<url>[^,)]*),\s*type=(?P<type>[^)]*)\)"
+)
 
 
 @dataclass
@@ -197,6 +213,12 @@ class MockLLMConfig:
     # Packet E oracles (E1 CURRENT QUERY, E5 doc length, E6/E7 tool names).
     captures: list[dict[str, Any]] = field(default_factory=list)
     _capture_lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+    # Packet P: first-match scripted completions (Writer vs Calc on one process-global mock).
+    rules: list[Any] = field(default_factory=list)
+    # Optional ``(payload, config) -> Completion | None``. None falls through to decide_completion.
+    decide_hook: Any = field(default=None, repr=False, compare=False)
+    # When True, specialized inner never finishes after send_peer_message (Scrolly hang).
+    peer_wait_after_accepted: bool = False
 
 
 def response_delay_s(config: MockLLMConfig, *, stream: bool) -> float:
@@ -225,6 +247,30 @@ class Completion:
     # Packet F stream quirks (not HTTP status): handled in do_POST.
     # event_ping | two_dones | malformed | truncated | empty_body | connection_reset
     sse_quirk: str | None = None
+
+
+@dataclass
+class CompletionRule:
+    """First-match scripted completion. Unset match fields are ignored (AND of the rest).
+
+    Lets Writer and Calc share one mock OpenAI server while taking different
+    tool paths from advertised tools, envelope text, or system catalog.
+    """
+
+    tools_any: tuple[str, ...] | None = None
+    tools_all: tuple[str, ...] | None = None
+    user_contains: str | None = None
+    system_contains: str | None = None
+    last_role: str | None = None
+    called_contains: str | None = None
+    not_called_contains: str | None = None
+    envelope: bool | None = None
+    specialized: bool | None = None
+    tool_name: str | None = None
+    tool_args: dict[str, Any] | None = None
+    extra_tool_calls: list[tuple[str, dict[str, Any]]] | None = None
+    content: str | None = None
+    finish_reason: str | None = None
 
 
 def completion_tool_calls(completion: Completion) -> list[tuple[str, dict[str, Any]]]:
@@ -351,6 +397,148 @@ def _as_text(content: Any) -> str:
                 parts.append(item)
         return "\n".join(parts)
     return str(content)
+
+
+def parse_peer_envelope(text: str) -> dict[str, str] | None:
+    """Parse the code-inserted ``[Peer from: …]`` header, or None."""
+    match = _PEER_ENVELOPE_RE.search(text or "")
+    if match is None:
+        return None
+    return {
+        "name": (match.group("name") or "").strip(),
+        "uid": (match.group("uid") or "").strip(),
+        "url": (match.group("url") or "").strip(),
+        "peer_ask_id": (match.group("ask") or "").strip(),
+    }
+
+
+def parse_peer_catalog(text: str) -> list[dict[str, str]]:
+    """Parse ``Open peers: Name (uid=…, url=…, type=…).`` from prompts/tool descriptions."""
+    peers: list[dict[str, str]] = []
+    for match in _PEER_CATALOG_RE.finditer(text or ""):
+        peers.append(
+            {
+                "name": (match.group("name") or "").strip(),
+                "uid": (match.group("uid") or "").strip(),
+                "url": (match.group("url") or "").strip(),
+                "type": (match.group("type") or "").strip(),
+            }
+        )
+    return peers
+
+
+def _system_text(messages: list[Any]) -> str:
+    parts: list[str] = []
+    for msg in messages:
+        if isinstance(msg, dict) and msg.get("role") == "system":
+            parts.append(_as_text(msg.get("content")))
+    return "\n".join(parts)
+
+
+def _tools_description_blob(tools: Any) -> str:
+    parts: list[str] = []
+    if not isinstance(tools, list):
+        return ""
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        fn = tool.get("function")
+        if isinstance(fn, dict):
+            parts.append(str(fn.get("description") or ""))
+            parts.append(str(fn.get("name") or ""))
+        else:
+            parts.append(str(tool.get("description") or ""))
+            parts.append(str(tool.get("name") or ""))
+    return "\n".join(parts)
+
+
+def _last_user_raw(messages: list[Any]) -> str:
+    """Last user content without ``### CURRENT QUERY:`` slicing (keeps the envelope)."""
+    for msg in reversed(messages):
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            return _as_text(msg.get("content"))
+    return ""
+
+
+def _delegate_for_tools(tool_names: set[str]) -> str | None:
+    for name in (_DELEGATE_WRITER, _DELEGATE_CALC, _DELEGATE_DRAW):
+        if name in tool_names:
+            return name
+    return None
+
+
+def _pick_catalog_target(peers: list[dict[str, str]], *, prefer_type: str = "") -> str:
+    """Return uid, url, or display name from the catalog. Prefer *prefer_type*."""
+    ordered = list(peers)
+    if prefer_type:
+        typed = [p for p in peers if (p.get("type") or "") == prefer_type]
+        if typed:
+            ordered = typed + [p for p in peers if p not in typed]
+    for peer in ordered:
+        for key in ("uid", "url", "name"):
+            value = (peer.get(key) or "").strip()
+            if value:
+                return value
+    return "BudgetPeer.ods"
+
+
+def completion_from_rule(rule: CompletionRule) -> Completion:
+    if rule.tool_name:
+        return Completion(
+            tool_name=rule.tool_name,
+            tool_args=dict(rule.tool_args or {}),
+            extra_tool_calls=list(rule.extra_tool_calls or []),
+            finish_reason=rule.finish_reason or "tool_calls",
+            content=rule.content,
+        )
+    return Completion(content=rule.content, finish_reason=rule.finish_reason or "stop")
+
+
+def match_completion_rule(rule: CompletionRule, payload: dict[str, Any]) -> Completion | None:
+    """Return a Completion when *rule* matches *payload*, else None."""
+    messages = payload.get("messages") if isinstance(payload.get("messages"), list) else []
+    tools = payload.get("tools")
+    tool_names = _tool_names(tools)
+    user_text = _last_user_raw(messages)
+    system_text = _system_text(messages)
+    last_role = _last_role(messages)
+    called = _called_tool_names(messages)
+    specialized = _is_specialized_inner(tool_names)
+    envelope = parse_peer_envelope(user_text) is not None
+    if rule.tools_any and not (tool_names & set(rule.tools_any)):
+        return None
+    if rule.tools_all and not set(rule.tools_all).issubset(tool_names):
+        return None
+    if rule.user_contains is not None and rule.user_contains.lower() not in user_text.lower():
+        return None
+    if rule.system_contains is not None and rule.system_contains.lower() not in system_text.lower():
+        return None
+    if rule.last_role is not None and last_role != rule.last_role:
+        return None
+    if rule.called_contains is not None and rule.called_contains not in called:
+        return None
+    if rule.not_called_contains is not None and rule.not_called_contains in called:
+        return None
+    if rule.envelope is not None and envelope != rule.envelope:
+        return None
+    if rule.specialized is not None and specialized != rule.specialized:
+        return None
+    return completion_from_rule(rule)
+
+
+def apply_scripted_rules(payload: dict[str, Any], config: MockLLMConfig) -> Completion | None:
+    hook = getattr(config, "decide_hook", None)
+    if callable(hook):
+        hooked = hook(payload, config)
+        if hooked is not None:
+            return hooked
+    for rule in list(getattr(config, "rules", None) or []):
+        if not isinstance(rule, CompletionRule):
+            continue
+        hit = match_completion_rule(rule, payload)
+        if hit is not None:
+            return hit
+    return None
 
 
 def canned_transcript(config: MockLLMConfig) -> str:
@@ -540,6 +728,9 @@ def _is_main_chat(tool_names: set[str]) -> bool:
             "search_in_document",
             "get_document_tree",
             _DELEGATE_WRITER,
+            _DELEGATE_CALC,
+            _DELEGATE_DRAW,
+            "write_formula_range",
             "list_sheets",
             "list_pages",
         }
@@ -790,11 +981,119 @@ def _specialized_inner_discovery(tool_names: set[str]) -> Completion | None:
     return None
 
 
+def _peer_phrase(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(add a total row|ask the budget workbook|peer total|wait after accepted|do not finish peer)\b",
+            text or "",
+            re.IGNORECASE,
+        )
+    )
+
+
+def _should_script_peer_inner(
+    messages: list[Any],
+    tool_names: set[str],
+    config: MockLLMConfig | None,
+) -> bool:
+    """True when this specialized POST should send_peer_message / finish-after-accepted."""
+    if _PEER_TOOL in tool_names:
+        return True
+    forced = config.scenario if config is not None else "none"
+    if forced in {"peer_total", "peer_wait"}:
+        return True
+    if config is not None and getattr(config, "peer_wait_after_accepted", False):
+        return True
+    user_raw = _last_user_raw(messages)
+    if parse_peer_envelope(user_raw) is not None:
+        return True
+    return _peer_phrase(_current_query(messages, user_raw))
+
+
+def _peer_specialized_inner(
+    messages: list[Any],
+    tool_names: set[str],
+    config: MockLLMConfig | None,
+) -> Completion:
+    """#673: send_peer_message then specialized_workflow_finished immediately.
+
+    ``peer_wait`` / ``peer_wait_after_accepted`` skips finish so the peer
+    never starts — that is the Scrolly hang lock.
+    """
+    called = _called_tool_names(messages)
+    finish_name = "final_answer" if "final_answer" in tool_names else "specialized_workflow_finished"
+    user_raw = _last_user_raw(messages)
+    forced = config.scenario if config is not None else "none"
+    scenario = detect_scenario(_current_query(messages, user_raw), forced)
+    wait = scenario == "peer_wait" or bool(config and getattr(config, "peer_wait_after_accepted", False))
+
+    if _PEER_TOOL in called:
+        if wait:
+            disc = _specialized_inner_discovery(tool_names)
+            if disc is not None:
+                return disc
+            name = _SPECIALIZED_INNER_PRE_FINISH[0]
+            return Completion(
+                tool_name=name,
+                tool_args=_specialized_inner_args(name),
+                finish_reason="tool_calls",
+            )
+        return Completion(
+            tool_name=finish_name,
+            tool_args={"answer": "Peer message accepted; finished immediately so the peer can run."},
+            finish_reason="tool_calls",
+        )
+
+    env = parse_peer_envelope(user_raw)
+    catalog_text = _system_text(messages)
+    peers = parse_peer_catalog(catalog_text)
+    query = _current_query(messages, user_raw)
+    if env:
+        target = env["uid"] or env["url"] or env["name"] or "peer"
+        args: dict[str, Any] = {
+            "document_url": target,
+            "message": "Total row written at A4:B4 (Amount =SUM(B2:B3)).",
+        }
+        if env["peer_ask_id"]:
+            args["peer_ask_id"] = env["peer_ask_id"]
+    else:
+        # Delegate task may cite document_url / peer_ask_id without the header.
+        ask_m = re.search(r"peer_ask_id[=:\s]+([A-Za-z0-9_-]+)", query)
+        url_m = re.search(r"document_url[=:\s]+(\S+)", query)
+        if ask_m:
+            target = (url_m.group(1).rstrip(".,;") if url_m else "") or _pick_catalog_target(
+                peers, prefer_type="writer"
+            )
+            args = {
+                "document_url": target,
+                "message": "Total row written at A4:B4 (Amount =SUM(B2:B3)).",
+                "peer_ask_id": ask_m.group(1),
+            }
+        else:
+            target = _pick_catalog_target(peers, prefer_type="calc")
+            args = {
+                "document_url": target,
+                "message": (
+                    "Add a Total row under the numbers (label Total and =SUM of the amount "
+                    "column) and reply with the range and peer_ask_id."
+                ),
+            }
+    if _PEER_TOOL in tool_names:
+        return Completion(tool_name=_PEER_TOOL, tool_args=args, finish_reason="tool_calls")
+    return Completion(
+        tool_name=finish_name,
+        tool_args={"answer": "No send_peer_message on this inner wire."},
+        finish_reason="tool_calls",
+    )
+
+
 def _specialized_inner_completion(
     messages: list[Any],
     tool_names: set[str],
     config: MockLLMConfig | None = None,
 ) -> Completion:
+    if _should_script_peer_inner(messages, tool_names, config):
+        return _peer_specialized_inner(messages, tool_names, config)
     called = _called_tool_names(messages)
     finish_name = "final_answer" if "final_answer" in tool_names else "specialized_workflow_finished"
     user_text = _last_user_text(messages)
@@ -983,6 +1282,19 @@ def _scenario_user_turn(
         return _tool_or_html(tool_names, name, {}, user_text, turn)
     if scenario == "list_pages":
         return _tool_or_html(tool_names, "list_pages", {}, user_text, turn)
+    if scenario in {"peer_total", "peer_wait"}:
+        delegate = _delegate_for_tools(tool_names)
+        if delegate:
+            return _tool_or_html(
+                tool_names,
+                delegate,
+                {
+                    "domain": "document_research",
+                    "task": user_text or "Add a Total row and reply via send_peer_message.",
+                },
+                user_text,
+                turn,
+            )
     if scenario == "tree":
         return _specialized_inner_completion(messages, tool_names, config) if _is_specialized_inner(tool_names) else Completion(
             content=_html_chat(user_text, turn), reasoning=reasoning
@@ -992,12 +1304,17 @@ def _scenario_user_turn(
 
 def decide_completion(payload: dict[str, Any], config: MockLLMConfig, turns: _TurnState | None = None) -> Completion:
     """Scripted main-chat / smol-research / soak-scenario policy. No real model."""
+    scripted = apply_scripted_rules(payload, config)
+    if scripted is not None:
+        return scripted
     messages = payload.get("messages") if isinstance(payload.get("messages"), list) else []
     tool_names = _tool_names(payload.get("tools"))
     user_text = _last_user_text(messages)
+    user_raw = _last_user_raw(messages)
     last_role = _last_role(messages)
     called = _assistant_tool_names(messages)
     scenario = detect_scenario(user_text, config.scenario)
+    envelope = parse_peer_envelope(user_raw)
 
     if _is_smol_research(tool_names):
         return _smol_research_completion(messages, tool_names, config, user_text)
@@ -1017,6 +1334,23 @@ def decide_completion(payload: dict[str, Any], config: MockLLMConfig, turns: _Tu
 
     if _is_main_chat(tool_names) and last_role == "tool":
         last_called_tool = called[-1] if called else ""
+        # Calc peer turn: after the Total formula, delegate document_research to reply.
+        if last_called_tool == "write_formula_range" and (
+            envelope or scenario in {"peer_total", "peer_wait"}
+        ):
+            delegate = _delegate_for_tools(tool_names) or _DELEGATE_CALC
+            env = envelope or {}
+            task = (
+                "Reply to the peer envelope with send_peer_message: document_url=%s "
+                "peer_ask_id=%s message=<one HTML/result string> then finish immediately."
+                % (env.get("uid") or env.get("url") or "writer", env.get("peer_ask_id") or "")
+            )
+            return Completion(
+                reasoning=reasoning,
+                tool_name=delegate,
+                tool_args={"domain": "document_research", "task": task},
+                finish_reason="tool_calls",
+            )
         if last_called_tool == "add_comment":
             return Completion(
                 content="<p>Comment inserted successfully.</p>",
@@ -1044,6 +1378,24 @@ def decide_completion(payload: dict[str, Any], config: MockLLMConfig, turns: _Tu
         )
 
     if last_role != "tool":
+        # Calc receives a peer task: local formula work first, then (on the
+        # tool-follow-up) document_research to send the reply. Writer follow-up
+        # applies the HTML reply. Do this before phrase-triggered delegate.
+        if envelope and "write_formula_range" in tool_names:
+            return Completion(
+                reasoning=reasoning,
+                tool_name="write_formula_range",
+                tool_args={"range": ["A4:B4"], "values": '["Total","=SUM(B2:B3)"]'},
+                finish_reason="tool_calls",
+            )
+        if envelope and "apply_document_content" in tool_names:
+            body = user_raw.split("\n\n", 1)[-1].strip() or "Peer reply."
+            return Completion(
+                reasoning=reasoning,
+                tool_name="apply_document_content",
+                tool_args={"target": "end", "content": ["<p>%s</p>" % html.escape(body[:400])]},
+                finish_reason="tool_calls",
+            )
         soak = _scenario_user_turn(scenario, tool_names, user_text, messages, turn, config)
         if soak is not None:
             if config.sse_comments:

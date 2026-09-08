@@ -47,6 +47,9 @@ def test_function_name_matches_packet_letter() -> None:
     assert _function_name_matches("test_d1_think_out_loud_thinking_then_html", ["D"]) is True
     assert _function_name_matches("test_foo_bar", ["F"]) is False
     assert _function_name_matches("test_e7_outline_delegate", ["B"]) is False
+    assert _function_name_matches("test_p1_total_row_peer_roundtrip", ["P"]) is True
+    assert _function_name_matches("test_p2_wait_after_accepted_deadlocks_peer", ["p"]) is True
+    assert _function_name_matches("test_panel_factory", ["P"]) is False
 
 
 def test_function_name_matches_case_id_no_prefix_bleed() -> None:
