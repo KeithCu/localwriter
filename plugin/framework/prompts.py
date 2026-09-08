@@ -505,12 +505,15 @@ DRAW_SPECIALIZED_DELEGATION_TEMPLATE = (
 )
 
 
-# Outer main chat only — no send_peer_message, no read-vs-peer. #672 put the full
-# PEER SIDEBARS choice block here; this experiment keeps the outer turn thin.
+# Outer main chat only — no send_peer_message on this loop. {delegate} is the
+# Writer/Calc/Draw specialized gateway. Shown when a v1 peer is open.
 PEER_OUTER_DELEGATE_HINT = (
-    "Open sibling Writer/Calc/Draw documents: keep this turn high-level and "
-    'delegate document_research for that work. Why: the inner agent chooses a '
-    "silent read vs asking the peer sidebar; this loop must not invent the other app's tools."
+    "Do {delegate}(domain=\"document_research\") for sibling Writer/Calc/Draw work. "
+    "Why: the inner agent chooses a silent read vs asking the peer sidebar; this loop must not invent the other app's tools.\n"
+    "When this turn is a [Peer from: …] envelope: do the local work with your tools, then "
+    "Do {delegate}(domain=\"document_research\") with a task to reply to that peer "
+    "(include the envelope uid or url, peer_ask_id, and the HTML or result). "
+    "Why: only that inner agent can send the peer reply; do not narrate the result only in this sidebar."
 )
 
 # document_research specialized only. Short DO+why; catalog is appended when peers exist.
@@ -519,8 +522,11 @@ PEER_INNER_CHOICE_RULES = (
     "when an Open peers entry is listed and that sidebar must change, compute, write, or run as an agent. "
     "Why: only that sidebar has the peer's write tools.\n"
     "Do delegate_read_document when you only need a silent file fact.\n"
-    "After ok/accepted, call specialized_workflow_finished — do not wait for the reply. "
-    "On a received peer envelope, send_peer_message back with that document_url and peer_ask_id."
+    "When tasked to reply to a [Peer from: …] envelope you MUST send_peer_message("
+    "document_url=<uid or url from the envelope>, message=<HTML/result>, peer_ask_id=<id from the envelope>). "
+    "Why: the caller only sees the reply as a later user turn.\n"
+    "After ok/accepted you MUST call specialized_workflow_finished immediately. "
+    "Why: the peer runs after this loop exits; waiting deadlocks the reply."
 )
 
 
@@ -569,8 +575,24 @@ DEFAULT_CALC_CHAT_SYSTEM_PROMPT = ""
 DEFAULT_DRAW_CHAT_SYSTEM_PROMPT = ""
 
 
+def peer_outer_delegate_tool_name(model) -> str:
+    """Writer / Calc / Draw specialized gateway used for document_research peer work."""
+    from plugin.doc.doc_type import is_calc, is_draw
+
+    if is_calc(model):
+        return "delegate_to_specialized_calc_toolset"
+    if is_draw(model):
+        return "delegate_to_specialized_draw_toolset"
+    return "delegate_to_specialized_writer_toolset"
+
+
+def format_peer_outer_delegate_hint(model) -> str:
+    """Outer DO+why with the matching specialized gateway name."""
+    return PEER_OUTER_DELEGATE_HINT.format(delegate=peer_outer_delegate_tool_name(model))
+
+
 def get_peer_messaging_prompt_block(model, ctx) -> str:
-    """Thin outer pointer when a v1 peer is open. No send_peer_message teaching."""
+    """Thin outer pointer when a v1 peer is open. No send_peer_message on this loop."""
     if ctx is None or model is None:
         return ""
     try:
@@ -579,7 +601,7 @@ def get_peer_messaging_prompt_block(model, ctx) -> str:
         peers = list_v1_peers(ctx, model)
         if not peers:
             return ""
-        return PEER_OUTER_DELEGATE_HINT
+        return format_peer_outer_delegate_hint(model)
     except Exception:
         return ""
 

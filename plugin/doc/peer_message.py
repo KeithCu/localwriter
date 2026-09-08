@@ -48,13 +48,20 @@ _IMPRESS_SERVICE = "com.sun.star.presentation.PresentationDocument"
 _BASE_DESCRIPTION = (
     "Send a natural-language turn to another already-open Writer, Calc, or Draw "
     "sidebar (not Impress). Returns immediately {status: ok, accepted: true, "
-    "peer_ask_id}. The peer runs after this sidebar Readys; the reply arrives "
-    "later as a follow-up user turn — do not wait in this loop. "
+    "peer_ask_id}. After ok/accepted you MUST call specialized_workflow_finished "
+    "immediately — the peer runs after this loop exits; waiting deadlocks the reply. "
     "document_url is the one target argument: a file URL, RuntimeUID, or a "
     "display name that matches exactly one open peer. Required on every call. "
     "Never put your own path, uid, or URL in message — the gateway inserts "
     "[Peer from: name | uid | url | peer_ask_id]. On replies, pass peer_ask_id "
     "copied from the inbound envelope. Never invent the other app's write tools."
+)
+
+# Reinforces the prompt: specialized agents must exit after accepted.
+PEER_ACCEPTED_FINISH_HINT = (
+    "Queued. You MUST call specialized_workflow_finished immediately. "
+    "Why: the reply arrives later as a follow-up user turn on the caller sidebar; "
+    "waiting in this loop blocks the peer."
 )
 
 
@@ -654,4 +661,9 @@ class SendPeerMessage(ToolBase):
                 f"Peer sidebar queue is full (max {PEER_QUEUE_CAP} pending turns).",
                 code="PEER_QUEUE_FULL",
             )
-        return {"status": "ok", "accepted": True, "peer_ask_id": peer_ask_id}
+        return {
+            "status": "ok",
+            "accepted": True,
+            "peer_ask_id": peer_ask_id,
+            "message": PEER_ACCEPTED_FINISH_HINT,
+        }

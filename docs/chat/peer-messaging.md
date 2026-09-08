@@ -31,7 +31,7 @@ Recorded 2026-09-08. Implement these; do not implement the older “don’t Read
 
 **Shipped on master (#672):** A1 inject / queue / envelope / live panels / Ready-after-accepted / explicit `document_url` / chat execute path. That main-wire stays on `master`.
 
-**This experiment (specialized-inner):** outer/main schemas never list `send_peer_message` (even when peers are open). Outer prompt is a thin “delegate `document_research` for sibling docs” line — no PEER SIDEBARS choice block, no read-vs-peer teaching. The document_research subagent sees the tool (when a resolvable peer is open) plus silent-read tools, and chooses: change/compute/write/agent work → `send_peer_message`; silent fact → `delegate_read_document`. Execute + inject work when that specialized loop calls (not only a naive `caller=="chat"` if the subagent context is tagged `document_research`). MCP stays refused.
+**This experiment (specialized-inner):** outer/main schemas never list `send_peer_message` (even when peers are open). Outer prompt is a thin DO: delegate `document_research` for sibling work, and after local work on a `[Peer from: …]` envelope delegate again to **send the peer reply** (task includes envelope uid/url, `peer_ask_id`, and the HTML/result). The document_research subagent is the only loop that calls `send_peer_message`. After `ok`/`accepted` it **must** `specialized_workflow_finished` immediately — waiting deadlocks the peer. MCP stays refused.
 
 **Still later (kept, not v1):** A2 blocking `ask_*` / silent fallback; multiplexed drain + mid-loop `PEER_REPLY`; waiting chrome; last-sender default; MCP exposure; Impress; spawn; PDF/AcroForm. See [§3](#3-candidate-designs) and [§3.1](#31-alternatives-considered--kept). Do **not** sneak Ready-hold back in — that deadlocks the queue.
 
@@ -306,10 +306,10 @@ Suggested error codes: `PEER_NOT_FOUND`, `PEER_SIDEBAR_NOT_OPEN`, `PEER_UNSUPPOR
 
 **Extracted send:** see [§4.9](#49-implementation-map). Envelope visible in that transcript.
 
-**Prompts** (shorter than #672’s main-wire `PEER_MESSAGING_RULES`; no duplication of read-vs-peer on the outer loop):
+**Prompts** (shorter than #672’s main-wire `PEER_MESSAGING_RULES`; outer never names `send_peer_message`):
 
-- **Outer / main chat** (`PEER_OUTER_DELEGATE_HINT`): when a v1 peer is open, one thin line — keep the turn high-level and delegate `document_research`. Do **not** teach `send_peer_message` or read-vs-peer on the outer prompt. No Open-peers catalog on the outer loop.
-- **Inner document_research** (`PEER_INNER_CHOICE_RULES` + catalog): Do `send_peer_message` when an Open peers entry is listed and that sidebar must change / compute / write / run as an agent. Why: only that sidebar has the peer’s write tools. Do `delegate_read_document` for a silent file fact. After `ok`/`accepted`, `specialized_workflow_finished` (do not wait). On a received peer envelope, send back with that `document_url` and `peer_ask_id`.
+- **Outer / main chat** (`PEER_OUTER_DELEGATE_HINT`, per-app `{delegate}` = `delegate_to_specialized_writer_toolset` / `_calc_` / `_draw_`): when a v1 peer is open — Do `{delegate}(domain="document_research")` for sibling work. When this turn is a `[Peer from: …]` envelope: do local work, then the same delegate with a task to **reply** (envelope uid/url, `peer_ask_id`, HTML/result). Why: only the inner agent can send the peer reply; do not narrate only in this sidebar. No Open-peers catalog on the outer loop.
+- **Inner document_research** (`PEER_INNER_CHOICE_RULES` + catalog): Do `send_peer_message` when an Open peers entry is listed and that sidebar must change / compute / write / run as an agent. Do `delegate_read_document` for a silent file fact. When tasked to reply to a `[Peer from: …]` envelope you **must** `send_peer_message` with that `document_url` and `peer_ask_id`. After `ok`/`accepted` you **must** `specialized_workflow_finished` immediately (tool result repeats this). Why: waiting deadlocks the peer.
 
 **Undo:** peer edits use the peer document’s undo. `WriterCompoundUndo` only if the peer is Writer.
 
@@ -354,16 +354,16 @@ The Draw sidebar fills the stand-in with Draw tools (`get_draw_tree` marks empty
 1. Writer **outer** schemas stay Writer-only and do **not** list `send_peer_message`. The outer turn stays high-level and delegates `document_research`.
 2. The document_research subagent sees `send_peer_message` because the budget `.ods` is a resolvable other peer; it calls `send_peer_message(document_url=<budget uid>, message="Compute Q4 revenue by region and reply with an HTML table plus the ranges you used.")` → `{ok, accepted, peer_ask_id}`. It does **not** put the Writer URL in `message`.
 3. Gateway prepends `[Peer from: Risk memo.odt | uid=… | url=… | peer_ask_id=…]` on the **Calc** session. The inner agent finishes (`specialized_workflow_finished`); Writer Readys. Caller drain exits.
-4. Calc extracted send uses Calc tools / `delegate_to_specialized_calc_toolset` / `write_formula_range` **on the Calc model only**.
-5. Calc `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<table + ranges>, peer_ask_id=…)`. Host wraps with Calc’s `ctx.doc` envelope and queues/injects onto **Writer**.
+4. Calc **main** sees the `[Peer from: …]` envelope, does the local work (`write_formula_range` / Total row) **on the Calc model only**, then `delegate_to_specialized_calc_toolset(domain="document_research")` with a task to reply (Writer uid/url, `peer_ask_id`, HTML/table). Calc main does **not** call `send_peer_message`.
+5. Calc document_research calls `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<table + ranges>, peer_ask_id=…)`, then **must** `specialized_workflow_finished` immediately. Host wraps with Calc’s `ctx.doc` envelope and queues/injects onto **Writer**.
 6. Writer follow-up turn: `apply_document_content` on the Writer doc.
 
 **GMP-style (Writer ↔ Draw), staged form.** Writer risk memo open; harness pre-opened the **editable Draw stand-in** (not the gold PDF as the write target). User opened the Draw sidebar once.
 
 1. Writer drafts the memo with Writer tools.
-2. `send_peer_message(document_url=<stand-in uid>, message="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{ok, accepted, peer_ask_id}`. Writer Readys.
-3. Draw sidebar sees the Writer envelope, runs `get_draw_tree` then `fill_draw_fields` (or `shape_upsert` by name) **on the Draw model only**. Empty text boxes are the fill targets; use the name from the tree. `form_*` is only for live ControlShapes.
-4. Draw `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<confirmation>, peer_ask_id=…)`. Writer follow-up cites the form in the memo.
+2. Writer document_research `send_peer_message(document_url=<stand-in uid>, message="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{ok, accepted, peer_ask_id}` then `specialized_workflow_finished`. Writer Readys.
+3. Draw **main** sees the Writer envelope, runs `get_draw_tree` then `fill_draw_fields` (or `shape_upsert` by name) **on the Draw model only**, then `delegate_to_specialized_draw_toolset(domain="document_research")` to reply. Empty text boxes are the fill targets; use the name from the tree. `form_*` is only for live ControlShapes.
+4. Draw document_research `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<confirmation>, peer_ask_id=…)` then `specialized_workflow_finished`. Writer follow-up cites the form in the memo.
 
 Reverse (Draw asks Writer for a paragraph) is the same tool with a Writer uid.
 

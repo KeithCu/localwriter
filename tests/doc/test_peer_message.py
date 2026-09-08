@@ -155,17 +155,21 @@ def test_list_v1_peers_magicmock_ctx_does_not_hang():
 
 
 def test_outer_prompt_with_peers_has_no_send_peer_message():
-    from plugin.framework.prompts import PEER_OUTER_DELEGATE_HINT, get_chat_system_prompt_for_document
+    from plugin.framework.prompts import format_peer_outer_delegate_hint, get_chat_system_prompt_for_document
 
     model = MagicMock()
     model.supportsService.side_effect = lambda s: s == "com.sun.star.text.TextDocument"
     peers = [{"name": "Budget.ods", "uid": "u2", "url": "", "type": "calc"}]
     with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
         prompt = get_chat_system_prompt_for_document(model, ctx=MagicMock())
-    assert PEER_OUTER_DELEGATE_HINT in prompt
+    outer = format_peer_outer_delegate_hint(model)
+    assert outer in prompt
+    assert "delegate_to_specialized_writer_toolset" in prompt
     assert "send_peer_message" not in prompt
     assert "PEER SIDEBARS" not in prompt
     assert "PEER vs READ" not in prompt
+    assert "[Peer from:" in prompt
+    assert "peer_ask_id" in prompt
 
 
 def test_visibility_filter_alone_hides_tool():
@@ -331,6 +335,7 @@ def test_execute_status_ok_accepted():
     assert result["status"] == "ok"
     assert result["accepted"] is True
     assert result["peer_ask_id"]
+    assert "specialized_workflow_finished immediately" in result["message"]
     assert listener.session.add_user_message.called
     assert listener.appended
 
@@ -471,24 +476,38 @@ def test_prompts_outer_thin_inner_choice():
     from plugin.framework.prompts import (
         PEER_INNER_CHOICE_RULES,
         PEER_OUTER_DELEGATE_HINT,
+        format_peer_outer_delegate_hint,
         get_peer_inner_choice_block,
         get_peer_messaging_prompt_block,
+        peer_outer_delegate_tool_name,
     )
 
     assert "send_peer_message" not in PEER_OUTER_DELEGATE_HINT
     assert "PEER SIDEBARS" not in PEER_OUTER_DELEGATE_HINT
     assert "document_research" in PEER_OUTER_DELEGATE_HINT
+    assert "[Peer from:" in PEER_OUTER_DELEGATE_HINT
     assert "send_peer_message" in PEER_INNER_CHOICE_RULES
     assert "delegate_read_document" in PEER_INNER_CHOICE_RULES
-    assert "do not wait" in PEER_INNER_CHOICE_RULES.lower()
+    assert "specialized_workflow_finished immediately" in PEER_INNER_CHOICE_RULES
+    assert "you MUST send_peer_message" in PEER_INNER_CHOICE_RULES
     assert "PEER SIDEBARS" not in PEER_INNER_CHOICE_RULES
 
+    writer = MagicMock()
+    writer.supportsService.side_effect = lambda s: s == "com.sun.star.text.TextDocument"
+    calc = MagicMock()
+    calc.supportsService.side_effect = lambda s: s == "com.sun.star.sheet.SpreadsheetDocument"
+    draw = MagicMock()
+    draw.supportsService.side_effect = lambda s: s == "com.sun.star.drawing.DrawingDocument"
+    assert peer_outer_delegate_tool_name(writer) == "delegate_to_specialized_writer_toolset"
+    assert peer_outer_delegate_tool_name(calc) == "delegate_to_specialized_calc_toolset"
+    assert peer_outer_delegate_tool_name(draw) == "delegate_to_specialized_draw_toolset"
+
     peers = [{"name": "Budget.ods", "uid": "u2", "url": "", "type": "calc"}]
-    model = MagicMock()
     with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
-        outer = get_peer_messaging_prompt_block(model, ctx=object())
+        outer = get_peer_messaging_prompt_block(calc, ctx=object())
         inner = get_peer_inner_choice_block(object(), doc=object())
-    assert outer == PEER_OUTER_DELEGATE_HINT
+    assert outer == format_peer_outer_delegate_hint(calc)
+    assert "delegate_to_specialized_calc_toolset" in outer
     assert "send_peer_message" not in outer
     assert "Budget.ods" in inner
     assert "uid=u2" in inner
