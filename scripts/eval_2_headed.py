@@ -12,17 +12,25 @@ clean trial directory (default ``$TMP/writeragent-eval2-afc``) so
 
 ``--task tenant-retention --launch`` copies the renewal letter ODT and exit
 survey XLSX into ``$TMP/writeragent-eval2-tenant``, writes a blank
-``Tenant Retention Strategy.odt``, and opens Writer. Do not open
-``fixtures/`` or the task folder.
+``Tenant Retention Strategy.odt``, and opens Writer.
+
+``--task cadaver-proposal --launch`` copies ``Cadaver Budget.xlsx`` into
+``$TMP/writeragent-eval2-cadaver``, writes a blank
+``Collaborative Cadaver Program Proposal.odt``, and opens Writer. The
+budget is research-only — do not treat it as a second write.
+
+Do not open ``fixtures/`` or the task folder.
 
 Usage:
   .venv/bin/python scripts/eval_2_headed.py
   .venv/bin/python scripts/eval_2_headed.py --launch
   .venv/bin/python scripts/eval_2_headed.py --launch --trial-dir /tmp/my-afc
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
+  .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
+  .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score path/to/final_proposal.odt
 """
 from __future__ import annotations
 
@@ -44,10 +52,13 @@ DEFAULT_MAX_TOOL_ROUNDS = 15
 EVAL_2_MAX_TOOL_ROUNDS = 50
 _AFC_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "afc-sample-83d10b06"
 _TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14c"
+_CADAVER_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "cadaver-proposal-61b0946a"
 POPULATION_ODS_NAME = "Population v2.ods"
 LETTER_ODT_NAME = "Current Renewal Letter.odt"
 SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
 TENANT_MEMO_NAME = "Tenant Retention Strategy.odt"
+CADAVER_BUDGET_XLSX_NAME = "Cadaver Budget.xlsx"
+CADAVER_PROPOSAL_NAME = "Collaborative Cadaver Program Proposal.odt"
 _FIXTURE_ODS = _AFC_DIR / "fixtures" / POPULATION_ODS_NAME
 _FIXTURE_CANDIDATES = (
     _FIXTURE_ODS,
@@ -55,11 +66,14 @@ _FIXTURE_CANDIDATES = (
 )
 _TENANT_LETTER_ODT = _TENANT_DIR / "fixtures" / LETTER_ODT_NAME
 _TENANT_SURVEY_XLSX = _TENANT_DIR / "fixtures" / SURVEY_XLSX_NAME
+_CADAVER_BUDGET_XLSX = _CADAVER_DIR / "fixtures" / CADAVER_BUDGET_XLSX_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
 DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
+DEFAULT_CADAVER_TRIAL_DIR_NAME = "writeragent-eval2-cadaver"
 TASK_AFC = "afc"
 TASK_TENANT = "tenant-retention"
-TASK_CHOICES = (TASK_AFC, TASK_TENANT)
+TASK_CADAVER = "cadaver-proposal"
+TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -186,12 +200,16 @@ def find_afc_population_ods() -> Path:
 
 
 def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
-    name = DEFAULT_TENANT_TRIAL_DIR_NAME if task == TASK_TENANT else DEFAULT_TRIAL_DIR_NAME
+    names = {
+        TASK_TENANT: DEFAULT_TENANT_TRIAL_DIR_NAME,
+        TASK_CADAVER: DEFAULT_CADAVER_TRIAL_DIR_NAME,
+    }
+    name = names.get(task, DEFAULT_TRIAL_DIR_NAME)
     return Path(tempfile.gettempdir()) / name
 
 
 def _task_dirs() -> tuple[Path, ...]:
-    return (_AFC_DIR.resolve(), _TENANT_DIR.resolve())
+    return (_AFC_DIR.resolve(), _TENANT_DIR.resolve(), _CADAVER_DIR.resolve())
 
 
 def _is_protected_trial_dest(dest_dir: Path, source: Path) -> bool:
@@ -294,6 +312,22 @@ def stage_tenant_trial(dest_dir: Path) -> Path:
     return write_blank_writer_odt(dest_dir / TENANT_MEMO_NAME)
 
 
+def find_cadaver_budget() -> Path:
+    if not _CADAVER_BUDGET_XLSX.is_file():
+        raise FileNotFoundError(
+            f"Missing {_CADAVER_BUDGET_XLSX}. Convert the budget fixture; "
+            "do not open fixtures/ (siblings leak)."
+        )
+    return _CADAVER_BUDGET_XLSX
+
+
+def stage_cadaver_trial(dest_dir: Path) -> Path:
+    """Budget xlsx + blank proposal. Gold/prompt stay outside the trial dir."""
+    budget = find_cadaver_budget()
+    stage_clean_trial_files([budget], dest_dir, label="Cadaver")
+    return write_blank_writer_odt(dest_dir / CADAVER_PROPOSAL_NAME)
+
+
 def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
@@ -328,12 +362,12 @@ def main(argv: list[str] | None = None) -> int:
         "--task",
         choices=TASK_CHOICES,
         default=TASK_AFC,
-        help="Experiment to launch or score (default: afc). tenant-retention is Writer.",
+        help="Experiment to launch or score (default: afc). tenant-retention and cadaver-proposal are Writer.",
     )
     parser.add_argument(
         "--launch",
         action="store_true",
-        help="Stage a clean trial dir, then soffice (Calc for AFC, Writer for tenant-retention)",
+        help="Stage a clean trial dir, then soffice (Calc for AFC, Writer for tenant-retention / cadaver-proposal)",
     )
     parser.add_argument(
         "--trial-dir",
@@ -341,8 +375,9 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=(
             "Directory that will contain only the staged refs "
-            f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME} or "
-            f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME})"
+            f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, or "
+            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
@@ -359,8 +394,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.score is not None:
         suffix = args.score.suffix.lower()
-        use_tenant = args.task == TASK_TENANT or suffix in {".odt", ".docx"}
-        if use_tenant:
+        if args.task == TASK_CADAVER:
+            from eval_2_cadaver_oracle import main as score_main
+        elif args.task == TASK_TENANT or suffix in {".odt", ".docx"}:
             from eval_2_tenant_oracle import main as score_main
         else:
             from eval_2_ods_oracle import main as score_main
@@ -381,6 +417,11 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 if args.task == TASK_TENANT:
                     trial_doc = stage_tenant_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in trial_doc.parent.iterdir()))
+                    print(f"Staged clean trial dir {trial_doc.parent} ({staged})")
+                    launch_office("writer", trial_doc)
+                elif args.task == TASK_CADAVER:
+                    trial_doc = stage_cadaver_trial(trial_dir)
                     staged = ", ".join(sorted(p.name for p in trial_doc.parent.iterdir()))
                     print(f"Staged clean trial dir {trial_doc.parent} ({staged})")
                     launch_office("writer", trial_doc)

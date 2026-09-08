@@ -10,6 +10,7 @@ Each subdirectory is one experiment:
 |------------|-----|-----------|-------|
 | [`afc-sample-83d10b06/`](afc-sample-83d10b06/) | Calc | `83d10b06-26d1-4636-a32c-23f92c57f30b` | [`run.md`](afc-sample-83d10b06/run.md) |
 | [`tenant-retention-ed2bc14c/`](tenant-retention-ed2bc14c/) | Writer | `ed2bc14c-99ac-4a2a-8467-482a1a5d67f3` | [`run.md`](tenant-retention-ed2bc14c/run.md) |
+| [`cadaver-proposal-61b0946a/`](cadaver-proposal-61b0946a/) | Writer | `61b0946a-5c1c-4bf6-8607-84d7c7e0dfe0` | [`run.md`](cadaver-proposal-61b0946a/run.md) |
 
 Headed helper: `scripts/eval_2_headed.py` writes `chatbot.max_tool_rounds`
 to **50** and restores when done. Everyday default stays **15**. Schema
@@ -26,16 +27,26 @@ cannot list prompt/rubric/gold.
 # Writer / Tenant Retention
 .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
 .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score docs/eval/eval-2/tenant-retention-ed2bc14c/runs/<stamp>/final_memo.odt
+
+# Writer / Collaborative Cadaver Program Proposal
+.venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
+.venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score docs/eval/eval-2/cadaver-proposal-61b0946a/runs/<stamp>/final_proposal.odt
 ```
 
 AFC `--launch` still copies **only** `Population v2.ods` into
 `$TMP/writeragent-eval2-afc`. Tenant `--launch` copies the renewal letter
 `.odt` + exit-survey `.xlsx` into `$TMP/writeragent-eval2-tenant` and
-opens a blank `Tenant Retention Strategy.odt`.
+opens a blank `Tenant Retention Strategy.odt`. Cadaver `--launch` copies
+`Cadaver Budget.xlsx` into `$TMP/writeragent-eval2-cadaver` and opens a
+blank `Collaborative Cadaver Program Proposal.odt` (budget is
+research-only).
 
 Oracles: [`scripts/eval_2_ods_oracle.py`](../../scripts/eval_2_ods_oracle.py)
-(AFC workbook) and
+(AFC workbook),
 [`scripts/eval_2_tenant_oracle.py`](../../scripts/eval_2_tenant_oracle.py)
-(Writer memo). Rubrics:
+(Writer memo), and
+[`scripts/eval_2_cadaver_oracle.py`](../../scripts/eval_2_cadaver_oracle.py)
+(Writer proposal). Rubrics:
 [`afc-sample-83d10b06/rubric.eval2.md`](afc-sample-83d10b06/rubric.eval2.md),
-[`tenant-retention-ed2bc14c/rubric.eval2.md`](tenant-retention-ed2bc14c/rubric.eval2.md).
+[`tenant-retention-ed2bc14c/rubric.eval2.md`](tenant-retention-ed2bc14c/rubric.eval2.md),
+[`cadaver-proposal-61b0946a/rubric.eval2.md`](cadaver-proposal-61b0946a/rubric.eval2.md).
