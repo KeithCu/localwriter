@@ -506,7 +506,9 @@ DRAW_SPECIALIZED_DELEGATION_TEMPLATE = (
 
 
 # Shown only when send_peer_message is on the wire (another v1 peer is open).
-PEER_MESSAGING_RULES = """PEER SIDEBARS: Need writes in another already-open Writer, Calc, or Draw window? Call send_peer_message(document_url=<peer uid, file URL, or unique display name from the tool description>, message=<task>). Do not put your own path, uid, or URL in message — the gateway inserts [Peer from: name | uid | url | peer_ask_id]. Need a file fact only? document_research.
+PEER_MESSAGING_RULES = """PEER SIDEBARS: Do call send_peer_message(document_url=<that peer’s uid, file URL, or unique display name from the Open peers list>, message=<the task for that sidebar>) when an Open peers entry is listed and the task is aimed at that peer’s app — compute, fill, write, or “ask the budget workbook / Draw form agent”. Why: only that sidebar has the peer’s tools; this loop must not invent them, and “take numbers from the open budget” is a peer send, not a silent read.
+Do not put your own path, uid, or URL in message — the gateway inserts [Peer from: name | uid | url | peer_ask_id]. There is no reply=true; every send needs an explicit document_url.
+document_research is only for a silent file fact when you do not need the peer sidebar to run (no peer agent work, no peer write). Do not use document_research as the default for an Open peers Writer/Calc/Draw document.
 After status ok/accepted, finish any local work then Ready. The reply arrives later as a follow-up user turn with a peer envelope — do not wait in this loop.
 When you receive a peer envelope: do the work with your tools; then send_peer_message(document_url=<uid or url from the envelope>, message=<result>, peer_ask_id=<id from the envelope>). Say what you completed. Never omit document_url.
 Never invent the other app's write tools on this loop."""

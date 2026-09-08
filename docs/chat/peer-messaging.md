@@ -303,7 +303,8 @@ Suggested error codes: `PEER_NOT_FOUND`, `PEER_SIDEBAR_NOT_OPEN`, `PEER_UNSUPPOR
 
 **Prompts** (short block next to Writer / Calc / Draw specialized-delegation templates in [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py)):
 
-- Need the other **open** app’s writes? `send_peer_message(document_url=<peer uid or url from the tool description>, message=<task>)`. Do **not** put your own path, uid, or URL in `message` — the gateway inserts `[Peer from: …]`. Need a **file** fact only? `document_research`.
+- Do `send_peer_message(document_url=<peer uid, file URL, or unique display name from the Open peers list>, message=<task>)` when that peer is listed and the task is aimed at that app (compute / fill / write / “ask the budget workbook agent”). Why: only the peer sidebar has those tools. Do **not** put your own path, uid, or URL in `message` — the gateway inserts `[Peer from: …]`. No `reply=true`; every send needs `document_url`.
+- `document_research` is only a silent file fact when you do **not** need the peer sidebar to run. Do not use it as the default for an Open peers Writer/Calc/Draw document.
 - After `ok`/`accepted`, finish local work if any, then **Ready**. The reply arrives as a later user turn with a peer envelope.
 - When you **receive** a peer envelope: do the work with **your** tools; then `send_peer_message(document_url=<uid or url from the envelope>, message=<result>, peer_ask_id=<id from the envelope>)`. Say what you completed. Never omit `document_url`.
 - Never invent the other app’s write tools on this loop.

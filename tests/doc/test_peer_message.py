@@ -354,6 +354,26 @@ def test_prompts_ready_after_accepted_not_wait():
     assert "do not wait" in PEER_MESSAGING_RULES.lower()
     assert "don't Ready" not in PEER_MESSAGING_RULES
     assert "do not Ready" not in PEER_MESSAGING_RULES
+    assert "Need a file fact only?" not in PEER_MESSAGING_RULES
+    assert "Do call send_peer_message" in PEER_MESSAGING_RULES
+    assert "Do not use document_research as the default" in PEER_MESSAGING_RULES
+    assert "reply=true" in PEER_MESSAGING_RULES
+
+
+def test_summarize_peer_tool_on_wire():
+    from plugin.doc.peer_message import log_peer_tool_on_wire, summarize_peer_tool_on_wire
+
+    assert summarize_peer_tool_on_wire([{"function": {"name": "undo"}}]) == (False, 0)
+    schemas = [
+        {
+            "function": {
+                "name": PEER_TOOL_NAME,
+                "description": "base Open peers: Budget.ods (uid=u2, url=, type=calc).",
+            }
+        }
+    ]
+    assert summarize_peer_tool_on_wire(schemas) == (True, 1)
+    log_peer_tool_on_wire(schemas)
 
 
 def test_chat_tier_excluded_from_mcp_frozensets():

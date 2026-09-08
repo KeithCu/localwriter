@@ -401,6 +401,23 @@ def _schema_function_name(schema: dict[str, Any]) -> str:
     return str(schema.get("name") or "")
 
 
+def summarize_peer_tool_on_wire(schemas: list[dict[str, Any]]) -> tuple[bool, int]:
+    """Whether ``send_peer_message`` is advertised, plus Open-peers count from the catalog."""
+    for schema in schemas:
+        if _schema_function_name(schema) != PEER_TOOL_NAME:
+            continue
+        fn = schema.get("function")
+        desc = str(fn.get("description") or "") if isinstance(fn, dict) else str(schema.get("description") or "")
+        return True, desc.count("uid=")
+    return False, 0
+
+
+def log_peer_tool_on_wire(schemas: list[dict[str, Any]]) -> None:
+    """Headed dig: prove the tool was on the chat wire (vs the model not calling it)."""
+    on_wire, peer_count = summarize_peer_tool_on_wire(schemas)
+    log.info("peer tools: send_peer_message on_wire=%s peer_count=%d", on_wire, peer_count)
+
+
 def filter_peer_message_schemas(
     schemas: list[dict[str, Any]],
     ctx: Any,

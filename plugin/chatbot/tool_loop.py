@@ -217,6 +217,9 @@ class ToolCallingMixin:
                 ctx=self.ctx,
                 doc=model,
             )
+            from plugin.doc.peer_message import log_peer_tool_on_wire
+
+            log_peer_tool_on_wire(active_tools)
             execute_fn = build_tool_execute_fn(self, doc_type_str, active_domain, python_tool_domain, set_active_domain)
 
         except Exception as e:
@@ -411,6 +414,9 @@ class ToolCallingMixin:
                 ctx=getattr(self, "ctx", None),
                 doc=refresh_doc,
             )
+            from plugin.doc.peer_message import log_peer_tool_on_wire
+
+            log_peer_tool_on_wire(self._active_tools)
         except Exception as e:
             log.warning("Failed to refresh active tools: %s", e)
 
