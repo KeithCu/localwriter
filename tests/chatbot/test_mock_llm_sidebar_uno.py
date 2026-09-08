@@ -1607,13 +1607,68 @@ def test_e11_filler_then_comment_two_sends(ctx):
     _hello_ok()
 
 
+def _adopt_calc_sidebar(ctx, calc):
+    """Bind the Calc WriterAgent deck after :func:`open_calc_document`."""
+    from plugin.chatbot.sidebar_test_hooks import (
+        adopt_chat_sidebar,
+        ensure_sidebar_chat_mode,
+    )
+
+    controls, sl = adopt_chat_sidebar(ctx, calc)
+    if sl is None and controls is None:
+        raise AssertionError("Calc WriterAgent chat sidebar not wired after OPEN_CALC")
+    ensure_sidebar_chat_mode(controls, doc_type="calc")
+    assert _session is not None
+    _session.controls = controls
+    _session.listener = sl
+
+
+def _restore_writer_after_calc(ctx, writer, calc, saved_controls, saved_listener) -> None:
+    """Close the E12/G17 Calc window and point the shared session back at Writer."""
+    from plugin.chatbot.sidebar_test_hooks import (
+        adopt_runtime_send_listeners,
+        close_component,
+        wait_for_chat_dialog_controls,
+    )
+
+    close_component(calc)
+    if writer is not None:
+        wait_for_chat_dialog_controls(ctx, timeout=15.0, doc=writer)
+    adopt_runtime_send_listeners()
+    if _session is not None:
+        _session.controls = saved_controls
+        _session.listener = saved_listener
+
+
 @native_test
 def test_e12_calc_list_sheets(ctx):
-    # Isolated FILTER=e12 still hangs (2026-08-30): after setup's Writer deck,
-    # desktop.loadComponentFromURL("private:factory/scalc", "_default", …) never
-    # returns over URP (120s timeout; last mock log was GET /v1/models). Not a
-    # "two GUI windows" bug — File→New Spreadsheet by hand is a different path.
-    raise unittest.SkipTest("E12 URP hang on factory/scalc after Writer deck; isolate later")
+    from plugin.chatbot.sidebar_test_hooks import current_component, open_calc_document
+
+    _reset_mock_runtime()
+    writer = current_component(ctx)
+    saved_controls = getattr(_session, "controls", None)
+    saved_listener = getattr(_session, "listener", None)
+    calc = None
+    try:
+        calc = open_calc_document(ctx)
+        _adopt_calc_sidebar(ctx, calc)
+        _send_and_wait("list sheets", timeout=60.0)
+        snaps = _captures()
+        decided: list[str] = []
+        advertised: list[str] = []
+        for row in snaps:
+            decided.extend(row.get("decided_tools") or [])
+            advertised.extend(row.get("advertised_tools") or [])
+        assert "write_formula_range" in advertised or "get_sheet_summary" in advertised, (
+            "E12 expected Calc-deck tools, advertised=%r" % advertised
+        )
+        # list_sheets is specialized-tier; main Calc chat uses get_sheet_summary.
+        assert "list_sheets" in decided or "get_sheet_summary" in decided, (
+            "E12 expected a Calc list tool, decided=%r snaps=%r" % (decided, snaps[-5:])
+        )
+        _hello_ok()
+    finally:
+        _restore_writer_after_calc(ctx, writer, calc, saved_controls, saved_listener)
 
 
 @native_test
@@ -2141,8 +2196,30 @@ def test_g16_second_take_replaces_audio(ctx):
 
 
 @native_test
-def test_g17_calc_deck_skipped(ctx):
-    raise unittest.SkipTest("G17 Calc deck: isolate like E12; do not open Calc from Packet G")
+def test_g17_calc_deck_native_audio(ctx):
+    from plugin.chatbot.sidebar_test_hooks import audio_status, current_component, open_calc_document
+
+    writer = current_component(ctx)
+    saved_controls = getattr(_session, "controls", None)
+    saved_listener = getattr(_session, "listener", None)
+    calc = None
+    try:
+        calc = open_calc_document(ctx)
+        _adopt_calc_sidebar(ctx, calc)
+        sl = _g_prep()
+        _g_record_and_stop(sl, _WAV_1S)
+        body = _transcript().lower()
+        assert "mock microphone" in body or "mock transcript" in body, (
+            "G17 expected canned transcript on Calc deck: %r" % _transcript()[-500:]
+        )
+        snaps = _captures()
+        assert any(row.get("has_input_audio") for row in snaps), (
+            "G17 expected input_audio on chat POST, snaps=%r" % snaps[-5:]
+        )
+        assert audio_status(listener=sl)["has_audio"] is False
+        _hello_ok()
+    finally:
+        _restore_writer_after_calc(ctx, writer, calc, saved_controls, saved_listener)
 
 
 @native_test

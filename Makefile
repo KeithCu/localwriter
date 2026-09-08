@@ -262,7 +262,7 @@ help:
 	@echo "  make test-uno               UNO tests only via testing_runner (serial live soffice)"
 	@echo "  make test-uno FILTER=…      Same; FILTER=path or test_* name (native runner)"
 	@echo "  make test-mock-sidebar      Packet F+B+C+D+E+G mock-LLM sidebar (visible soffice, your user profile)"
-	@echo "  make test-mock-sidebar FILTER=E   Packet letter (B/C/D/E/F/G), case id (f3a), or test_* name"
+	@echo "  make test-mock-sidebar FILTER=E   Packet letter (B/C/D/E/F/G), case id (e12 / g17), or test_* name"
 	@echo "  make excel-py-roundtrip     Excel↔DAG sample fidelity over PythonExcelSamples/"
 	@echo ""
 	@echo "Benchmarks (prompt optimization / eval):"

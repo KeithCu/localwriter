@@ -977,7 +977,10 @@ def _scenario_user_turn(
             turn,
         )
     if scenario == "list_sheets":
-        return _tool_or_html(tool_names, "list_sheets", {}, user_text, turn)
+        # list_sheets is specialized-tier (sheets domain). Main Calc chat
+        # advertises get_sheet_summary instead — E12 uses that fallback.
+        name = "list_sheets" if "list_sheets" in tool_names else "get_sheet_summary"
+        return _tool_or_html(tool_names, name, {}, user_text, turn)
     if scenario == "list_pages":
         return _tool_or_html(tool_names, "list_pages", {}, user_text, turn)
     if scenario == "tree":

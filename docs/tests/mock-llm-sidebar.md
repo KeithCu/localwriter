@@ -10,16 +10,16 @@ Visual rendering, scroll pin, theme, resize, and “watch the sidebar” cases a
 
 Packets **B through G** run via `testing_runner`. There is no Packet A or H.
 
-This plan is **finished** except one optional follow-up: **Calc deck URP hang** (E12 / G17). Mouse Stop, HITL Change dialog, live DuckDuckGo, and F11/F18 wait mismatches are dropped — not a backlog.
+This plan is **finished**. Mouse Stop, HITL Change dialog, live DuckDuckGo, and F11/F18 wait mismatches are dropped — not a backlog.
 
 | Packet | Focus Area | Mode | Status |
 |:------:|------------|:----:|--------|
 | **[Packet B](#packet-b--stop-drain-loop-sendrecord-fsm)** | Stop button, drain loop, Send/Record FSM | Automated (CI) | **Done.** 16 Landed (incl. B13). |
 | **[Packet C](#packet-c--empty--truncated-model)** | Empty / truncated model responses & banners | Automated (CI) | **Done.** 4 Landed. |
 | **[Packet D](#packet-d--reasoning-vs-content)** | Reasoning deltas (`[Thinking]`) vs HTML content | Automated (CI) | **Done.** 4 Landed. |
-| **[Packet E](#packet-e--tools-delegate-hitl-context-refresh)** | Tool loop, nested delegate, HITL, context refresh | Automated (CI) | **Done.** 17 Landed. Optional: E12 Calc hang. |
+| **[Packet E](#packet-e--tools-delegate-hitl-context-refresh)** | Tool loop, nested delegate, HITL, context refresh | Automated (CI) | **Done.** 18 Landed (incl. E12 Calc). |
 | **[Packet F](#packet-f--http--sse-errors-and-hangs)** | HTTP 4xx/5xx errors, socket hangs, SSE quirks | Automated (CI) | **Done.** 15 Landed. |
-| **[Packet G](#packet-g--mocked-audio-and-stt)** | Mocked Record / Stop Rec, `input_audio`, STT | Automated (CI) | **Done.** 20 Landed. Optional: G17 same Calc hang as E12. |
+| **[Packet G](#packet-g--mocked-audio-and-stt)** | Mocked Record / Stop Rec, `input_audio`, STT | Automated (CI) | **Done.** 21 Landed (incl. G17 Calc deck). |
 
 
 
@@ -95,6 +95,8 @@ make test-mock-sidebar FILTER=E        # Run Packet E (Tools & HITL)
 make test-mock-sidebar FILTER=F        # Run Packet F (HTTP/SSE errors)
 make test-mock-sidebar FILTER=G        # Run Packet G (Mocked audio & STT)
 make test-mock-sidebar FILTER=b13      # Run a single case by ID
+make test-mock-sidebar FILTER=e12      # Calc list_sheets (opens Calc after Writer deck)
+make test-mock-sidebar FILTER=g17      # Calc deck native audio (same open helper as E12)
 make test-mock-sidebar FILTER="B E"    # Run multiple packets
 ```
 
@@ -120,6 +122,7 @@ Linux starts a virtual framebuffer (`xvfb-run` + `dbus-run-session`) because `te
 - **Sidebar Deck Activation:** Tests dispatch `.uno:SidebarDeck.WriterAgentDeck` to show the deck. When already visible, `showDecks` / `XDeck.activate` is used to prevent accidental toggling.
 - **Thread Guard:** Dev builds set `WRITERAGENT_UNO_THREAD_GUARD=0` in the child process so URP deck dispatch can initialize `ChatPanel`.
 - **Out-of-Process URP:** Live `SendButtonListener` runs inside `soffice`. Tests drive actions via `uno_click`, query text manipulation, and polling `Enabled` properties. Do not call `processEventsToIdle()` directly on the URP bridge.
+- **Opening Calc after a Writer deck:** Do **not** call `desktop.loadComponentFromURL("private:factory/scalc", …)` from the URP test process. After setup shows the Writer deck, that call never returns (120s watchdog; last mock log is often `GET /v1/models`). File→New Spreadsheet by hand is a different path — it starts on VCL. Use `open_calc_document(ctx)` in [`sidebar_test_hooks.py`](../../plugin/chatbot/sidebar_test_hooks.py): it dispatches `chatbot.debug_sidebar.OPEN_CALC`, which posts `factory/scalc` + `_blank` onto soffice `QueueExecutor` (force-marshal; same Dummy-thread rule as Packet G). The URP client polls `XDesktop.getComponents()` until a Calc model appears. Then `adopt_chat_sidebar(ctx, calc)` shows WriterAgentDeck on that frame. Dual-peer tests must keep Writer open (`_blank`, never `_default`) and close Calc in `finally` if later cases expect the Writer session. Isolated: `make test-mock-sidebar FILTER=e12` (or `FILTER=g17`).
 
 ### 2.4. Test Harness & Hooks Reference
 
@@ -144,6 +147,8 @@ Debug test hooks live in [`plugin/chatbot/sidebar_test_hooks.py`](../../plugin/c
 | `stub_recorder_child()` | Fakes IPC: `{"status":"ready"}` without opening hardware device. `hang_ready=True` never emits ready (G21 timeout) | Audio init vs recording state |
 | `set_audio_supported(bool)` | Overrides `SendButtonState.audio_supported` | Audio support gating (G8, STT) |
 | `audio_status()` | Returns `AudioRecorderState.status` and `has_audio` | Audio state assertions |
+| `open_calc_document(ctx)` | Posts `factory/scalc` onto soffice VCL (`OPEN_CALC`); polls until a Calc model exists | E12 / G17 / dual-peer Writer+Calc |
+| `adopt_chat_sidebar(ctx, doc)` | Show WriterAgentDeck on *doc*; return `(controls, send_listener)` | Bind Calc (or Writer) deck after open |
 | `press_accept()` | Fires Send action when label is `Accept` | HITL approval |
 | `press_change()` / `press_reject()` | Fires Stop listener `Change` / `Reject` branch | HITL change / rejection |
 | `approval_active()` | Checks if `_approval_event is not None` | HITL state verification |
@@ -245,8 +250,7 @@ Every test must satisfy:
 - **Focus:** Executing UNO mutations on the UI thread during drain, nested agent delegation, Human-in-the-Loop (HITL) approval, document context refresh.
 - **Mode:** Automated (`make test-mock-sidebar FILTER=E`).
 - **Status Summary:**
-  - **Landed:** E1, E3, E4, E5, E6, E7, E8a, E9, E9a, E9b, E9e, E10, E11, E13, E14, E15, E17, E21, E22.
-  - **Optional later:** E12 (Calc URP hang — same as G17).
+  - **Landed:** E1, E3, E4, E5, E6, E7, E8a, E9, E9a, E9b, E9e, E10, E11, E12, E13, E14, E15, E17, E21, E22.
   - **Dropped:** E2 (live net), E8b/E9d (mouse), E9c (Change dialog), E16, E18, E19, E20, E23, E24.
 
 | ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
@@ -268,7 +272,7 @@ Every test must satisfy:
 | **E9e** | CI | E9 state | Call `press_stop()` ActionEvent | Dispatches Change/Reject branch, NOT `StopSendEffect` | **OK / Landed** |
 | **E10** | CI | Tool follow-up returning 500 | Send tool query | Tool error displayed in transcript; returns to idle; `next_hello_ok()` | **OK / Landed** |
 | **E11** | CI | `insert filler` then `add a comment` | Send as two sequential turns | Both mutations applied; context refreshed between turns; `next_hello_ok()` | **OK / Landed** |
-| **E12** | CI | Calc doc, `list sheets` | Send in Calc sidebar | `list_sheets` executes; HTML wrap-up | **Optional** (URP hang on `factory/scalc` even isolated `FILTER=e12`; GUI two-window Calc chat does not repro) |
+| **E12** | CI | Calc doc, `list sheets` | `open_calc_document` + Calc deck send | Calc tools advertised; `get_sheet_summary` (or `list_sheets` if specialized is on the wire); HTML wrap-up; Writer session restored | **OK / Landed** |
 | **E13** | CI | `add_comment` with mock tool delay | Call `press_stop()` during tool execution | Partial/no mutation; not stuck busy; no UI freeze; `next_hello_ok()` | **OK / Landed** |
 | **E14** | CI | `outline this` | Run delegate twice in succession | Nested agent functions repeatedly without stale session leaks; `next_hello_ok()` | **OK / Landed** |
 | **E15** | CI | `insert filler` | Stop after tool result queued, before HTML | Mutation applied; UI returns to idle; no double drain; `next_hello_ok()` | **OK / Landed** |
@@ -331,8 +335,7 @@ Every test must satisfy:
 - **Focus:** Dual state machines (`SendButtonState` vs `AudioRecorderState`), mock audio child process via IPC stub (`/tmp/writeragent_stub_recorder.json`), native `input_audio` chat completions, fallback to `/v1/audio/transcriptions` STT.
 - **Mode:** Automated (`make test-mock-sidebar FILTER=G`).
 - **Status Summary:**
-  - **Landed:** G1–G16, G21, G27, G28, G29.
-  - **Optional later:** G17 (same Calc URP hang as E12).
+  - **Landed:** G1–G17, G21, G27, G28, G29.
   - **Dropped:** G18 (HITL Record), G19–G26, G30.
 
 | ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
@@ -353,7 +356,7 @@ Every test must satisfy:
 | **G14** | CI | Missing / 0-byte WAV | Record → Stop Rec with missing WAV | Send aborted or error surfaced; returns to idle; `next_hello_ok()` | **OK / Landed** |
 | **G15** | CI | Active recording | Call `press_send()` while recording | FSM ignores Send; recording continues; Stop Rec then send succeeds | **OK / Landed** |
 | **G16** | CI | Rapid retake | Record → Stop Rec → immediately Record again | Second recording replaces previous audio; single in-flight capture | **OK / Landed** |
-| **G17** | CI | Calc deck | G1 flow in Calc sidebar | Native audio path functions on Calc deck | **Optional** (same Calc URP hang as E12) |
+| **G17** | CI | Calc deck | G1 flow after `open_calc_document` | Native audio path functions on Calc deck; Writer session restored | **OK / Landed** |
 | **G18** | CI | HITL active | Call `press_record()` during HITL approval | Record ignored (approval owns button states); E9 flow remains valid | **Dropped** (HITL; E9 covers approval buttons) |
 | **G21** | CI | Stub hang (`hang_ready`) | Record with child that never reports `ready` | Init timeout fires; `audio_status` error; returns to idle Send; `next_hello_ok()` | **OK / Landed** |
 | **G27** | CI | STT empty text | STT returns empty string from valid WAV | Query stays empty; no chat send; returns to idle; `next_hello_ok()` | **OK / Landed** |

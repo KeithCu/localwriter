@@ -387,7 +387,7 @@ Concrete touch points so this is implementable without rediscovering the review.
 **Tests (required):**
 
 - Unit: envelope from `ctx.doc` (untitled url empty); visibility (main hides even with peers; specialized shows catalog; Impress rejected); addressing (self, missing, ambiguous); queue policy (FIFO, cap, overflow error, Stop drops); `status: ok` + `accepted`; `execute` allows specialized `document_research` and refuses MCP; no `panel_factory` import from the tool module.
-- UNO: two live sidebars — inject, defer-until-idle, busy queue, missing deck error, Impress reject. Follow `tests/chatbot/test_hamburger_menu_uno.py` style (`@native_test`, `ctx`).
+- UNO: two live sidebars — inject, defer-until-idle, busy queue, missing deck error, Impress reject. Follow `tests/chatbot/test_hamburger_menu_uno.py` style (`@native_test`, `ctx`). Mock-sidebar / user-profile URP must open Calc with `open_calc_document` in [`sidebar_test_hooks.py`](../../plugin/chatbot/sidebar_test_hooks.py) (`_blank`, VCL-posted factory load) — never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck (E12 hang). Then `adopt_chat_sidebar(ctx, calc)` for the live Calc deck. Headless `make test-uno` hidden `_blank` factory loads stay fine.
 
 ---
 

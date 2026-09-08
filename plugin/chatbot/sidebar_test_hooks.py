@@ -150,19 +150,30 @@ def _read_debug_snapshot() -> dict[str, Any]:
 
 
 def handle_debug_sidebar_command(command: str) -> None:
-    """Run inside soffice (protocol handler). Packet G URP FSM ops.
+    """Run inside soffice (protocol handler). Packet G URP FSM ops + OPEN_CALC.
 
     ``DispatchHandler`` runs on the URP thread. ``WRITERAGENT_TESTING=1`` makes
     ``QueueExecutor.post`` inline, so Stop Rec used to start ``_do_send`` off
     the VCL thread and freeze on ``Getting document...``. Marshal FSM work onto
     the listener's executor (VCL) before StartSendEffect posts the drain.
+    ``OPEN_CALC`` uses the same post-to-VCL rule: factory ``scalc`` over URP
+    after a Writer deck never returns.
     """
     _require_debug()
     adopt_runtime_send_listeners()
-    rest = command[len(_DEBUG_SIDEBAR_PREFIX) :].lstrip(".")
+    # DispatchHandler joins Path+Query with ``.``, but LO often leaves the op
+    # in Path as ``chatbot.debug_sidebar?OPEN_CALC`` (Query empty). Strip both.
+    rest = command[len(_DEBUG_SIDEBAR_PREFIX) :].lstrip(".?")
     op = (rest or "SNAPSHOT").upper().replace("-", "_")
     sl = _listener_with_slash_popup(send_listener())
     if op == "SNAPSHOT":
+        _write_debug_snapshot(sl)
+        return
+    # Factory scalc over URP after a Writer deck never returns (Dummy-thread
+    # load vs VCL). Post the load onto soffice VCL; the URP client polls.
+    if op == "OPEN_CALC":
+        log.info("debug_sidebar OPEN_CALC posting factory/scalc to VCL sl=%s", sl is not None)
+        _post_to_soffice_vcl(_load_visible_calc_factory, sl=sl)
         _write_debug_snapshot(sl)
         return
     # Slash ops only touch the Ask ListBox. Run inline like SNAPSHOT —
@@ -358,6 +369,146 @@ def desktop_from_ctx(ctx: Any) -> Any:
 def current_component(ctx: Any) -> Any:
     _require_debug()
     return desktop_from_ctx(ctx).getCurrentComponent()
+
+
+def component_is_calc(doc: Any) -> bool:
+    """``supportsService`` over URP. Do not use ``is_calc`` (``@main_thread_only``)."""
+    _require_debug()
+    if doc is None:
+        return False
+    try:
+        return bool(doc.supportsService("com.sun.star.sheet.SpreadsheetDocument"))
+    except Exception:
+        return False
+
+
+def iter_desktop_components(ctx: Any) -> list[Any]:
+    """Open models from ``XDesktop.getComponents()`` (URP-safe enumeration)."""
+    _require_debug()
+    desktop = desktop_from_ctx(ctx)
+    comps = getattr(desktop, "getComponents", lambda: None)()
+    if comps is None or not hasattr(comps, "createEnumeration"):
+        return []
+    enum = comps.createEnumeration()
+    out: list[Any] = []
+    while True:
+        try:
+            if not enum.hasMoreElements():
+                break
+            out.append(enum.nextElement())
+        except Exception:
+            break
+    return out
+
+
+def find_calc_component(ctx: Any) -> Any:
+    """First open Calc model, or None. Does not load a document."""
+    _require_debug()
+    for doc in iter_desktop_components(ctx):
+        if component_is_calc(doc):
+            return doc
+    return None
+
+
+def close_component(doc: Any) -> None:
+    """Close *doc* if it is still alive. Swallows dispose-after-close."""
+    _require_debug()
+    if doc is None:
+        return
+    try:
+        if hasattr(doc, "close"):
+            doc.close(True)
+        elif hasattr(doc, "dispose"):
+            doc.dispose()
+    except Exception:
+        pass
+
+
+def _load_visible_calc_factory() -> None:
+    """Create a visible Calc on soffice VCL. ``_blank`` keeps the Writer window.
+
+    URP ``loadComponentFromURL('private:factory/scalc')`` after a Writer deck
+    never returns (120s watchdog; File→New Spreadsheet on VCL is fine). This
+    job must run via :func:`_post_to_soffice_vcl`, not on the Dummy URP thread.
+    """
+    from plugin.framework.uno_context import get_ctx, get_desktop
+
+    try:
+        desktop = get_desktop(get_ctx())
+        desktop.loadComponentFromURL("private:factory/scalc", "_blank", 0, ())
+        log.info("OPEN_CALC: loaded factory/scalc _blank on VCL")
+    except Exception:
+        log.exception("OPEN_CALC: factory/scalc _blank failed")
+        raise
+
+
+def _post_to_soffice_vcl(fn: Callable[[], None], *, sl: Any = None) -> None:
+    """Enqueue *fn* on soffice VCL. Do not run it inline on the URP Dummy thread.
+
+    ``WRITERAGENT_TESTING=1`` makes ``QueueExecutor.post`` inline. Force-marshal
+    so AsyncCallback runs the work on VCL. ``execute()`` from URP dispatch
+    deadlocks (office idle, tests wait forever) — same as Packet G FSM ops.
+    """
+    qe = getattr(sl, "queue_executor", None) if sl is not None else None
+    if qe is None:
+        from plugin.framework.queue_executor import default_executor
+
+        qe = default_executor
+    # force_marshal skips _get_async_callback inside post(); without a prior
+    # init, _poke_main_thread is a no-op and the factory load never runs
+    # (E12 2026-09-08: "poke skipped (no AsyncCallback)" after OPEN_CALC).
+    init_cb = getattr(qe, "_get_async_callback", None)
+    if callable(init_cb):
+        try:
+            init_cb()
+        except Exception:
+            log.exception("debug_sidebar: AsyncCallback init failed")
+    from plugin.framework.queue_executor import set_force_marshal_mode
+
+    set_force_marshal_mode(True)
+    try:
+        qe.post(fn)
+    finally:
+        set_force_marshal_mode(False)
+
+
+def open_calc_document(ctx: Any, *, timeout: float = 30.0) -> Any:
+    """Open a visible Calc after a Writer deck without blocking URP on factory/scalc.
+
+    Dual-peer / E12 / G17 recipe: keep Writer open, call this, then
+    :func:`adopt_chat_sidebar` on the returned model. Never call
+    ``desktop.loadComponentFromURL('private:factory/scalc', …)`` from the
+    URP test process after ``show_writeragent_chat_deck``.
+    """
+    _require_debug()
+    existing = find_calc_component(ctx)
+    if existing is not None:
+        return existing
+    execute_debug_sidebar_op("OPEN_CALC", ctx=ctx)
+    deadline = time.monotonic() + max(0.0, timeout)
+    while time.monotonic() <= deadline:
+        found = find_calc_component(ctx)
+        if found is not None:
+            return found
+        time.sleep(0.25)
+    raise RuntimeError(
+        "Calc did not appear after OPEN_CALC (factory/scalc was posted to VCL; "
+        "do not loadComponentFromURL factory/scalc over URP after a Writer deck)"
+    )
+
+
+def adopt_chat_sidebar(ctx: Any, doc: Any, *, timeout: float = 20.0) -> tuple[Any, Any]:
+    """Show WriterAgentDeck on *doc* and return ``(controls, send_listener)``."""
+    _require_debug()
+    controls = wait_for_chat_dialog_controls(ctx, timeout=timeout, doc=doc)
+    adopt_runtime_send_listeners()
+    frame = None
+    try:
+        if doc is not None:
+            frame = doc.getCurrentController().getFrame()
+    except Exception:
+        frame = None
+    return controls, send_listener(frame)
 
 
 def uno_click(control: Any) -> None:
@@ -670,8 +821,14 @@ def show_writeragent_chat_deck(ctx: Any, doc: Any) -> None:
     _activate_writeragent_deck(provider)
 
 
-def wait_for_chat_dialog_controls(ctx: Any, timeout: float = 20.0) -> dict[str, Any] | None:
-    """Show WriterAgentDeck until query+send exist. Does not pump VCL over URP."""
+def wait_for_chat_dialog_controls(
+    ctx: Any, timeout: float = 20.0, *, doc: Any = None
+) -> dict[str, Any] | None:
+    """Show WriterAgentDeck until query+send exist. Does not pump VCL over URP.
+
+    Pass *doc* to target a specific model (Calc after :func:`open_calc_document`).
+    Default is ``current_component``.
+    """
     global _HOOK_CTX
     _HOOK_CTX = ctx
     _require_debug()
@@ -679,9 +836,9 @@ def wait_for_chat_dialog_controls(ctx: Any, timeout: float = 20.0) -> dict[str, 
     last: dict[str, Any] | None = None
     while time.monotonic() <= deadline:
         try:
-            doc = current_component(ctx)
-            show_writeragent_chat_deck(ctx, doc)
-            last = chat_dialog_controls(ctx, doc)
+            target = doc if doc is not None else current_component(ctx)
+            show_writeragent_chat_deck(ctx, target)
+            last = chat_dialog_controls(ctx, target)
             if last is not None:
                 return last
         except Exception:
@@ -702,7 +859,9 @@ def control_enabled(control: Any) -> bool | None:
         return None
 
 
-def ensure_sidebar_chat_mode(controls: dict[str, Any] | None) -> None:
+def ensure_sidebar_chat_mode(
+    controls: dict[str, Any] | None, *, doc_type: str = "writer"
+) -> None:
     """Select main Chat (not Librarian) so Packet F hits the chat completions path."""
     _require_debug()
     if not controls:
@@ -715,7 +874,7 @@ def ensure_sidebar_chat_mode(controls: dict[str, Any] | None) -> None:
             sidebar_mode_flags_for_doc_type,
         )
 
-        set_selector_mode_with_flags(sel, CHAT_MODE_CHAT, sidebar_mode_flags_for_doc_type("writer"))
+        set_selector_mode_with_flags(sel, CHAT_MODE_CHAT, sidebar_mode_flags_for_doc_type(doc_type))
     sl = send_listener()
     if sl is not None:
         apply_fn = getattr(sl, "_apply_sidebar_mode_fn", None)
