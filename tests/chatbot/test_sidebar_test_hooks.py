@@ -25,7 +25,6 @@ from plugin.chatbot.sidebar_state import SidebarCompositeState
 from plugin.chatbot.sidebar_test_hooks import (
     approval_active,
     audio_status,
-    handle_debug_sidebar_command,
     chat_dialog_controls,
     control_enabled,
     debug_hooks_available,
@@ -60,6 +59,12 @@ from plugin.chatbot.sidebar_test_hooks import (
     transcript_text,
     wait_controls_send_finished,
     wait_idle,
+    adopt_chat_sidebar,
+    close_component,
+    component_is_calc,
+    find_calc_component,
+    handle_debug_sidebar_command,
+    open_calc_document,
 )
 from tests.chatbot.mock_llm_harness import mock_config
 
@@ -772,3 +777,150 @@ def test_wait_controls_send_finished_wait_for_ignores_prior_turns(monkeypatch) -
         before=prior,
     )
     assert ok is False
+
+
+def test_component_is_calc_uses_supports_service() -> None:
+    calc = SimpleNamespace(
+        supportsService=lambda name: name == "com.sun.star.sheet.SpreadsheetDocument"
+    )
+    writer = SimpleNamespace(supportsService=lambda name: False)
+    assert component_is_calc(calc) is True
+    assert component_is_calc(writer) is False
+    assert component_is_calc(None) is False
+
+
+def test_find_calc_component_scans_desktop(monkeypatch) -> None:
+    calc = SimpleNamespace(
+        supportsService=lambda name: name == "com.sun.star.sheet.SpreadsheetDocument"
+    )
+    writer = SimpleNamespace(supportsService=lambda name: False)
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.iter_desktop_components",
+        lambda _ctx: [writer, calc],
+    )
+    assert find_calc_component(object()) is calc
+
+
+def test_open_calc_document_reuses_existing(monkeypatch) -> None:
+    calc = SimpleNamespace(
+        supportsService=lambda name: name == "com.sun.star.sheet.SpreadsheetDocument"
+    )
+    dispatched: list[str] = []
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.find_calc_component", lambda _ctx: calc
+    )
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.execute_debug_sidebar_op",
+        lambda op, ctx=None: dispatched.append(op),
+    )
+    assert open_calc_document(object()) is calc
+    assert dispatched == []
+
+
+def test_open_calc_document_posts_open_calc_and_polls(monkeypatch) -> None:
+    calc = SimpleNamespace(
+        supportsService=lambda name: name == "com.sun.star.sheet.SpreadsheetDocument"
+    )
+    calls = {"n": 0, "ops": []}
+
+    def fake_find(_ctx):
+        calls["n"] += 1
+        return calc if calls["n"] >= 2 else None
+
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.find_calc_component", fake_find)
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.execute_debug_sidebar_op",
+        lambda op, ctx=None: calls["ops"].append(op),
+    )
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.time.sleep", lambda _s: None)
+    assert open_calc_document(object(), timeout=5.0) is calc
+    assert calls["ops"] == ["OPEN_CALC"]
+
+
+def test_open_calc_document_times_out(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.find_calc_component", lambda _ctx: None
+    )
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.execute_debug_sidebar_op",
+        lambda op, ctx=None: {},
+    )
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.time.sleep", lambda _s: None)
+    times = iter([0.0, 0.0, 10.0])
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.time.monotonic",
+        lambda: next(times),
+    )
+    with pytest.raises(RuntimeError, match="OPEN_CALC"):
+        open_calc_document(object(), timeout=1.0)
+
+
+def test_handle_debug_sidebar_open_calc_posts_to_queue(fake_listener, monkeypatch) -> None:
+    posted: list = []
+    fake_listener.queue_executor = SimpleNamespace(post=lambda fn, *a, **k: posted.append(fn))
+    loaded: list[bool] = []
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.adopt_runtime_send_listeners", lambda: 0)
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.send_listener", lambda frame=None: fake_listener
+    )
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks._load_visible_calc_factory",
+        lambda: loaded.append(True),
+    )
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks._write_debug_snapshot", lambda sl: {}
+    )
+    handle_debug_sidebar_command("chatbot.debug_sidebar.OPEN_CALC")
+    assert posted
+    posted[0]()
+    assert loaded == [True]
+
+
+def test_adopt_chat_sidebar_shows_deck_on_doc(monkeypatch) -> None:
+    doc = SimpleNamespace(
+        getCurrentController=lambda: SimpleNamespace(getFrame=lambda: "calc-frame")
+    )
+    shown: list = []
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.wait_for_chat_dialog_controls",
+        lambda ctx, timeout=20.0, doc=None: shown.append(doc) or {"query": 1, "send": 1},
+    )
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.adopt_runtime_send_listeners", lambda: 0)
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.send_listener",
+        lambda frame=None: "sl-%s" % frame,
+    )
+    controls, sl = adopt_chat_sidebar(object(), doc)
+    assert shown == [doc]
+    assert controls == {"query": 1, "send": 1}
+    assert sl == "sl-calc-frame"
+
+
+def test_load_visible_calc_factory_uses_blank_target(monkeypatch) -> None:
+    """Dual-peer needs Writer to stay open — factory load must use ``_blank``."""
+    calls: list[tuple] = []
+
+    class _Desktop:
+        def loadComponentFromURL(self, url, target, _flags, _props):
+            calls.append((url, target))
+            return "calc"
+
+    monkeypatch.setattr(
+        "plugin.framework.uno_context.get_ctx", lambda: object()
+    )
+    monkeypatch.setattr(
+        "plugin.framework.uno_context.get_desktop", lambda _ctx: _Desktop()
+    )
+    from plugin.chatbot.sidebar_test_hooks import _load_visible_calc_factory
+
+    _load_visible_calc_factory()
+    assert calls == [("private:factory/scalc", "_blank")]
+
+
+def test_close_component_swallows_errors() -> None:
+    class _Boom:
+        def close(self, _unused: bool) -> None:
+            raise RuntimeError("disposed")
+
+    close_component(None)
+    close_component(_Boom())
