@@ -14,8 +14,12 @@ from plugin.calc.sheets import ListSheets
 from plugin.calc.specialized import DelegateToSpecializedCalc
 from plugin.chatbot.smol_agent import SmolToolAdapter
 from plugin.contrib.smolagents.memory import FinalAnswerStep
+from plugin.doc.document_research import get_document_research_workflow_hint
+from plugin.doc.peer_message import SendPeerMessage
 from plugin.framework import thread_guard as tg
+from plugin.framework.prompts import get_peer_inner_choice_block
 from plugin.framework.tool import ToolBase, ToolContext, ToolRegistry
+from plugin.framework.uno_context import get_runtime_uid
 from plugin.framework.worker_pool import run_in_background
 from plugin.tests.testing_utils import setup_uno_mocks
 from plugin.writer.specialized.footnotes import FootnotesList
@@ -334,12 +338,157 @@ def test_writer_delegate_marshals_document_research_scaffolding(
 
     assert result["status"] == "ok"
     mock_enqueue_index.assert_called_once_with(ctx.ctx, ctx.services, mock_doc)
-    # Open-docs context plus list_v1_peers (peer catalog / inner PEER vs READ hint).
+    # Open-docs context plus list_v1_peers (peer catalog / inner PEER vs READ hint),
+    # both gathered on the main thread with get_tools.
     assert mock_get_open_docs.call_count >= 1
     mock_get_open_docs.assert_called_with(ctx.ctx, mock_doc)
     instructions = mock_agent_class.call_args.kwargs["instructions"]
     assert "[OPEN DOCUMENTS CONTEXT]" in instructions
     assert "/tmp/a.odt" in instructions
+
+
+_PEER_HINT_PEERS = [{"name": "Budget.ods", "uid": "u2", "url": "", "type": "calc"}]
+
+
+def _list_v1_peers_touching_runtime_uid(uno_ctx, self_doc):
+    """Stand-in for list_v1_peers that reproduces the #673 UNO touch."""
+    get_runtime_uid(self_doc)
+    return list(_PEER_HINT_PEERS)
+
+
+def test_document_research_hint_off_main_does_not_touch_runtime_uid():
+    """Regression: get_peer_inner_choice_block called getRuntimeUID on the specialize worker."""
+    session = start_uno_thread_safety_session()
+    was_guard = tg.GUARD_ON
+    tg.GUARD_ON = True
+    err: BaseException | None = None
+    hint: str | None = None
+    inner: str | None = None
+    try:
+        raw_doc = MagicMock()
+        raw_doc.getRuntimeUID.return_value = "uid-self"
+        doc = session.make_mock(raw_doc, name="writer-doc")
+        uno_ctx = MagicMock()
+
+        def worker():
+            nonlocal err, hint, inner
+            try:
+                with patch(
+                    "plugin.doc.peer_message.list_v1_peers",
+                    side_effect=_list_v1_peers_touching_runtime_uid,
+                ):
+                    hint = get_document_research_workflow_hint(uno_ctx, doc)
+                    inner = get_peer_inner_choice_block(uno_ctx, doc)
+            except BaseException as e:
+                err = e
+
+        t = run_in_background(
+            worker, name="tool-async-delegate_to_specialized_writer_toolset", daemon=False
+        )
+        t.join(timeout=5.0)
+    finally:
+        tg.GUARD_ON = was_guard
+        session.close()
+
+    assert err is None, f"UNO touch from worker: {err}"
+    assert hint and "Budget.ods" in hint
+    assert "send_peer_message" in hint
+    assert "PEER vs READ" in hint
+    assert inner and "Budget.ods" in inner
+    assert "uid=u2" in inner
+
+
+@patch("plugin.doc.specialized_base.USE_SUB_AGENT", True)
+@patch(
+    "plugin.chatbot.smol_agent.get_config_int",
+    side_effect=lambda key: 25 if key == "chatbot.max_tool_rounds" else 1024,
+)
+@patch("plugin.chatbot.smol_agent.get_api_config", create=True, return_value={"model": "test/model"})
+@patch("plugin.chatbot.smol_agent.ToolCallingAgent")
+@patch("plugin.chatbot.smol_agent.WriterAgentSmolModel")
+@patch("plugin.chatbot.smol_agent.LlmClient")
+@patch("plugin.doc.document_research.get_open_documents")
+@patch("plugin.embeddings.embeddings_indexer.enqueue_folder_index")
+def test_document_research_delegate_off_main_does_not_touch_runtime_uid(
+    mock_enqueue_index,
+    mock_get_open_docs,
+    _mock_llm,
+    _mock_smol_model,
+    mock_agent_class,
+    _mock_get_config,
+    _mock_get_config_int,
+):
+    """Regression: specialized execute built the #673 peer catalog on the async worker.
+
+    Writer/Calc/Draw gateways share DelegateToSpecializedBase.execute.
+    """
+    mock_get_open_docs.return_value = []
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run.return_value = [FinalAnswerStep(output="done")]
+    mock_agent_class.return_value = mock_agent_instance
+
+    registry = ToolRegistry(MagicMock())
+    registry.register(_DummyDocResearchTool())
+    registry.register(SendPeerMessage())
+    registry.register(DelegateToSpecializedWriter())
+
+    session = start_uno_thread_safety_session()
+    was_guard = tg.GUARD_ON
+    tg.GUARD_ON = True
+    err: BaseException | None = None
+    result: dict | None = None
+    try:
+        raw_doc = MagicMock()
+        raw_doc.supportsService.return_value = True
+        raw_doc.getRuntimeUID.return_value = "uid-self"
+        proxied_doc = tg._UnoThreadGuardProxy(raw_doc)
+
+        ctx = MagicMock()
+        ctx.services = {"tools": registry}
+        ctx.doc = proxied_doc
+        ctx.ctx = MagicMock()
+        ctx.doc_type = "writer"
+        ctx.stop_checker = lambda: False
+        ctx.active_domain = None
+
+        gateway = registry.get("delegate_to_specialized_writer_toolset")
+        with patch.object(tg, "_notify_thread_violation"):
+            with patch(
+                "plugin.doc.peer_message.list_v1_peers",
+                side_effect=_list_v1_peers_touching_runtime_uid,
+            ):
+
+                def worker():
+                    nonlocal err, result
+                    try:
+                        result = gateway.execute_safe(
+                            ctx, domain="document_research", task="Get Q4 from the open budget"
+                        )
+                    except BaseException as e:
+                        err = e
+
+                t = run_in_background(
+                    worker,
+                    name="tool-async-delegate_to_specialized_writer_toolset",
+                    daemon=False,
+                )
+                t.join(timeout=5.0)
+    finally:
+        tg.GUARD_ON = was_guard
+        session.close()
+
+    assert err is None, f"UNO touch from worker: {err}"
+    assert result is not None and result.get("status") == "ok"
+    instructions = mock_agent_class.call_args.kwargs["instructions"]
+    assert "Budget.ods" in instructions
+    assert "send_peer_message" in instructions
+    assert "PEER vs READ" in instructions
+    smol_tools = mock_agent_class.call_args.kwargs.get("tools", [])
+    names = {t.name for t in smol_tools}
+    assert "send_peer_message" in names
+    peer_adapter = next(t for t in smol_tools if t.name == "send_peer_message")
+    assert "Budget.ods" in peer_adapter.description
+    mock_enqueue_index.assert_called_once()
 
 
 def test_writer_smol_adapter_marshals_sync_footnotes_tool():

@@ -607,16 +607,29 @@ def get_peer_messaging_prompt_block(model, ctx) -> str:
 
 
 def get_peer_inner_choice_block(uno_ctx, doc) -> str:
-    """Short inner read-vs-peer rules plus catalog. Empty when no v1 peer is open."""
+    """Short inner read-vs-peer rules plus catalog. Empty when no v1 peer is open.
+
+    ``list_v1_peers`` reads RuntimeUID and the desktop catalog (UNO). Specialized
+    execute runs on a tool-async worker, so this marshals when called off-main.
+    """
     if uno_ctx is None:
         return ""
-    try:
+
+    def _build() -> str:
         from plugin.doc.peer_message import format_peer_catalog, list_v1_peers
 
         peers = list_v1_peers(uno_ctx, doc)
         if not peers:
             return ""
         return PEER_INNER_CHOICE_RULES + "\n" + format_peer_catalog(peers)
+
+    try:
+        from plugin.framework.queue_executor import execute_on_main_thread
+        from plugin.framework.thread_guard import on_main_thread
+
+        if on_main_thread():
+            return _build()
+        return execute_on_main_thread(_build)
     except Exception:
         return ""
 

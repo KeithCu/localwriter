@@ -381,7 +381,7 @@ Concrete touch points so this is implementable without rediscovering the review.
 | MCP hide | [`plugin/mcp/mcp_protocol.py`](../../plugin/mcp/mcp_protocol.py) | Add `"chat"` to both MCP exclude frozensets. |
 | Extracted send | `SendButtonListener` / `ToolCallingMixin` | New method: set peer busy FSM + **new** `SendCancellation` + `agent_session`; `refresh_document_context`; `add_user_message` **once** (or skip append if already injected); `_append_response` user line; force chat-with-tools; **do not** read/clear Ask, `setFocus`, or route librarian/image (error if peer mode is not chat). |
 | Pending start | [`async_drain_guard.py`](../../plugin/framework/async_drain_guard.py) or drain `finally` | When depth hits 0, start next scheduled extracted send. Never `post(_run_send_drain)` while owned. |
-| Prompts | [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py) | Outer: thin `PEER_OUTER_DELEGATE_HINT`. Inner: short `PEER_INNER_CHOICE_RULES`. No #672 PEER SIDEBARS dump on main. |
+| Prompts | [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py) | Outer: thin `PEER_OUTER_DELEGATE_HINT`. Inner: short `PEER_INNER_CHOICE_RULES`. No #672 PEER SIDEBARS dump on main. Inner catalog (`list_v1_peers` / `getRuntimeUID`) is gathered on the UI thread before the async specialize worker builds the smol prompt (`specialized_base._fetch_domain_tools`); `get_peer_inner_choice_block` also marshals if called off-main. |
 | Errors | `self._tool_error(...)` | Codes in [§4.4](#44-addressing). |
 
 **Tests (required):**
