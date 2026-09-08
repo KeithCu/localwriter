@@ -161,7 +161,9 @@ def handle_debug_sidebar_command(command: str) -> None:
     """
     _require_debug()
     adopt_runtime_send_listeners()
-    rest = command[len(_DEBUG_SIDEBAR_PREFIX) :].lstrip(".")
+    # DispatchHandler joins Path+Query with ``.``, but LO often leaves the op
+    # in Path as ``chatbot.debug_sidebar?OPEN_CALC`` (Query empty). Strip both.
+    rest = command[len(_DEBUG_SIDEBAR_PREFIX) :].lstrip(".?")
     op = (rest or "SNAPSHOT").upper().replace("-", "_")
     sl = _listener_with_slash_popup(send_listener())
     if op == "SNAPSHOT":
@@ -170,6 +172,7 @@ def handle_debug_sidebar_command(command: str) -> None:
     # Factory scalc over URP after a Writer deck never returns (Dummy-thread
     # load vs VCL). Post the load onto soffice VCL; the URP client polls.
     if op == "OPEN_CALC":
+        log.info("debug_sidebar OPEN_CALC posting factory/scalc to VCL sl=%s", sl is not None)
         _post_to_soffice_vcl(_load_visible_calc_factory, sl=sl)
         _write_debug_snapshot(sl)
         return
@@ -451,6 +454,15 @@ def _post_to_soffice_vcl(fn: Callable[[], None], *, sl: Any = None) -> None:
         from plugin.framework.queue_executor import default_executor
 
         qe = default_executor
+    # force_marshal skips _get_async_callback inside post(); without a prior
+    # init, _poke_main_thread is a no-op and the factory load never runs
+    # (E12 2026-09-08: "poke skipped (no AsyncCallback)" after OPEN_CALC).
+    init_cb = getattr(qe, "_get_async_callback", None)
+    if callable(init_cb):
+        try:
+            init_cb()
+        except Exception:
+            log.exception("debug_sidebar: AsyncCallback init failed")
     from plugin.framework.queue_executor import set_force_marshal_mode
 
     set_force_marshal_mode(True)

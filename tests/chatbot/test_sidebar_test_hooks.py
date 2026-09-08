@@ -876,6 +876,43 @@ def test_handle_debug_sidebar_open_calc_posts_to_queue(fake_listener, monkeypatc
     assert loaded == [True]
 
 
+def test_handle_debug_sidebar_open_calc_accepts_query_form(fake_listener, monkeypatch) -> None:
+    """LO often delivers Path as ``chatbot.debug_sidebar?OPEN_CALC`` (Query empty)."""
+    posted: list = []
+    fake_listener.queue_executor = SimpleNamespace(post=lambda fn, *a, **k: posted.append(fn))
+    loaded: list[bool] = []
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.adopt_runtime_send_listeners", lambda: 0)
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks.send_listener", lambda frame=None: fake_listener
+    )
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks._load_visible_calc_factory",
+        lambda: loaded.append(True),
+    )
+    monkeypatch.setattr(
+        "plugin.chatbot.sidebar_test_hooks._write_debug_snapshot", lambda sl: {}
+    )
+    handle_debug_sidebar_command("chatbot.debug_sidebar?OPEN_CALC")
+    assert posted
+    posted[0]()
+    assert loaded == [True]
+
+
+def test_post_to_soffice_vcl_inits_async_callback(monkeypatch) -> None:
+    inited: list[bool] = []
+    posted: list = []
+    qe = SimpleNamespace(
+        _get_async_callback=lambda: inited.append(True),
+        post=lambda fn, *a, **k: posted.append(fn),
+    )
+    sl = SimpleNamespace(queue_executor=qe)
+    from plugin.chatbot.sidebar_test_hooks import _post_to_soffice_vcl
+
+    _post_to_soffice_vcl(lambda: None, sl=sl)
+    assert inited == [True]
+    assert posted
+
+
 def test_adopt_chat_sidebar_shows_deck_on_doc(monkeypatch) -> None:
     doc = SimpleNamespace(
         getCurrentController=lambda: SimpleNamespace(getFrame=lambda: "calc-frame")
