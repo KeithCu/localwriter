@@ -608,34 +608,35 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
 
     deadline = time.monotonic() + 60.0
     calc_replied = False
+    injected_mid = False
+    saw_mid = False
+    writer_txt = busy_txt
     while time.monotonic() <= deadline:
+        writer_txt = _transcript("writer")
+        finished = "word199" in writer_txt
+        # Dialog getText is often a tail — do not require word0.
+        mid = (not finished) and ("word" in writer_txt)
+        if mid:
+            saw_mid = True
+            if "Total row written" in writer_txt or writer_txt.count("[Peer from:") > busy_txt.count("[Peer from:"):
+                injected_mid = True
+                break
         sends = sum(1 for row in _capture_tools() for name in row if name == "send_peer_message")
         if sends > sends_at_ready:
             calc_replied = True
-            break
-        time.sleep(0.2)
-    try:
-        assert calc_replied, "Calc never sent the reply: decided=%r" % _capture_tools()
-        # Decide is before sync_delay execute. Poll while ramble is still
-        # painting (word0.. not yet word199). Idle inject after word199 is
-        # correct and is not this lock.
-        injected_mid = False
-        saw_mid = False
-        poll_until = time.monotonic() + max(1.5, ((_session.config.sync_delay_ms or 0) / 1000.0) + 0.8)
-        writer_txt = _transcript("writer")
-        while time.monotonic() <= poll_until:
-            writer_txt = _transcript("writer")
-            mid = "word0" in writer_txt and "word199" not in writer_txt
-            if mid:
-                saw_mid = True
-                if "Total row written" in writer_txt or writer_txt.count("[Peer from:") > busy_txt.count(
-                    "[Peer from:"
+            if injected_mid or finished or saw_mid:
+                # Give execute a beat after decide, but do not wait past word199.
+                time.sleep(0.35)
+                writer_txt = _transcript("writer")
+                if (not finished) and "word" in writer_txt and (
+                    "Total row written" in writer_txt
+                    or writer_txt.count("[Peer from:") > busy_txt.count("[Peer from:")
                 ):
                     injected_mid = True
-                    break
-            elif "word199" in writer_txt:
                 break
-            time.sleep(0.12)
+        time.sleep(0.12)
+    try:
+        assert calc_replied, "Calc never sent the reply: decided=%r" % _capture_tools()
         assert saw_mid, "Writer ramble never painted mid-stream: %r" % writer_txt[-300:]
         assert not injected_mid, (
             "Calc reply injected while Writer ramble was still streaming: %r" % writer_txt[-300:]
