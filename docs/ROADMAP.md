@@ -52,7 +52,7 @@ Open work already has a topic doc. Do not copy those Open lists here.
 | Doc | Remaining (one line) |
 |-----|----------------------|
 | [chat/multi-document-dev-plan.md](chat/multi-document-dev-plan.md) | Prompt integration, hidden-open hardening, `@` mentions |
-| [chat/peer-messaging.md](chat/peer-messaging.md) | A1 shipped (`send_peer_message`); later: A2 / multiplex / waiting chrome / Impress |
+| [chat/peer-messaging.md](chat/peer-messaging.md) | A1 on master; specialized-inner experiment (document_research only); later: A2 / multiplex / waiting chrome / Impress |
 | [chat/responses-api-plan.md](chat/responses-api-plan.md) | Opt-in Responses API + `previous_response_id` (unstarted) |
 | [scripting/monaco-editor-dev-plan.md](scripting/monaco-editor-dev-plan.md) | Syntax squiggles, range picker, Flatpak extra windows |
 | [eval/eval-dev-plan.md](eval/eval-dev-plan.md) | Live 17-task ranking run; multimodal eval; LO ranking still out of scope |

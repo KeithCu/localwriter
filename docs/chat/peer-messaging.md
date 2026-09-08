@@ -1,7 +1,7 @@
 # Cross-app sidebar peer messaging (Writer ↔ Calc ↔ Draw)
 
-**Status:** Implemented (A1 v1). Decisions below match the shipped code; alternate designs stay in [§3](#3-candidate-designs) if we change our mind.  
-**One-liner:** three peers, A1 async `send_peer_message` (user-send equivalence), chat-only, pre-open only, GMP via a staged Draw/Writer form (not a PDF product claim), no spawn.
+**Status:** A1 inject/queue/envelope shipped on `master` (#672). **This branch is the specialized-inner experiment** — outer chat no longer advertises `send_peer_message`.  
+**One-liner:** three peers, A1 async `send_peer_message` (user-send equivalence), **document_research specialized only** (not outer chat, not MCP), pre-open only, GMP via a staged Draw/Writer form (not a PDF product claim), no spawn.
 
 **Assumption:** Writer, Calc, and Draw documents are already open in **one LibreOffice process** / one WriterAgent extension. Talk-to-already-open is enough for SAR/floorstand (Writer ↔ Calc) and GMP (Writer ↔ Draw). Creating or spawning a peer mid-session is later product polish.
 
@@ -16,7 +16,7 @@ Recorded 2026-09-08. Implement these; do not implement the older “don’t Read
 | Decision | Current v1 |
 | -------- | ---------- |
 | **Name** | `send_peer_message` (not `send_peer_agent`, not `ask_peer_*`). |
-| **Surface** | Sidebar chat only. New tool tier `"chat"` (see [§4.5](#45-call-sites--prompts--registration)). Hidden from MCP `tools/list` / `find_tools`. `execute()` refuses `ctx.caller != "chat"`. |
+| **Surface** | **Experiment:** `document_research` specialized only (not outer/main schemas). Tier `"chat"` still hides MCP `tools/list` / `find_tools`. `execute()` allows sidebar `caller=="chat"` **or** `active_domain=="document_research"`; MCP/script stay refused. Master/#672 advertised the tool on main chat — do not restore that as this experiment’s default. |
 | **Shape** | `send_peer_message(document_url=target, message=body)` plus `peer_ask_id` on replies. Required `document_url` every call. `document_url` is the **one** target arg: file URL, RuntimeUID, or a display `name` that matches **exactly one** open peer. No separate `name` parameter. No `reply=true`, no `last_peer_from`. |
 | **Return** | `{"status": "ok", "accepted": true, "peer_ask_id": "…"}`. FSM success is `status == "ok"`; do **not** return `status: "accepted"` alone. `is_mutation = False`. |
 | **Sender** | Derived from `ToolContext.doc` (`get_runtime_uid`, display name, file URL). Not authored in `message`. `ToolContext` has no frame. |
@@ -29,7 +29,9 @@ Recorded 2026-09-08. Implement these; do not implement the older “don’t Read
 | **Lock** | No extra per-doc lock in v1. Sidebar chat does not take MCP’s uid gate. |
 | **Focus** | No `toFront`, no `query.setFocus` on the extracted send. |
 
-**Shipped in this v1:** `send_peer_message` (`plugin/doc/peer_message.py`, tier `"chat"`); live-panel `WeakValueDictionary` (`plugin/doc/live_panels.py`); schema-time visibility + peer catalog; MCP hide + `execute()` chat-only guard; `ctx.doc` envelope; inject-now / start-later + per-listener queue (cap 8); extracted send (no Ask / setFocus / librarian); Ready-after-accepted prompts.
+**Shipped on master (#672):** A1 inject / queue / envelope / live panels / Ready-after-accepted / explicit `document_url` / chat execute path. That main-wire stays on `master`.
+
+**This experiment (specialized-inner):** outer/main schemas never list `send_peer_message` (even when peers are open). Outer prompt is a thin DO: delegate `document_research` for sibling work, and after local work on a `[Peer from: …]` envelope delegate again to **send the peer reply** (task includes envelope uid/url, `peer_ask_id`, and the HTML/result). The document_research subagent is the only loop that calls `send_peer_message`. After `ok`/`accepted` it **must** `specialized_workflow_finished` immediately — waiting deadlocks the peer. MCP stays refused.
 
 **Still later (kept, not v1):** A2 blocking `ask_*` / silent fallback; multiplexed drain + mid-loop `PEER_REPLY`; waiting chrome; last-sender default; MCP exposure; Impress; spawn; PDF/AcroForm. See [§3](#3-candidate-designs) and [§3.1](#31-alternatives-considered--kept). Do **not** sneak Ready-hold back in — that deadlocks the queue.
 
@@ -193,7 +195,7 @@ Reviewed against the current send/drain code. Not v1; do not delete — we may r
 
 ## 4. Recommended approach (A1 async)
 
-**Product:** a chat-tier **peer-send** tool on Writer, Calc, and Draw main chats, **only when** a resolvable other v1 peer is open. The caller queues a user-equivalent turn on the peer sidebar and **Readys**. The peer replies with the same tool; that injects as a follow-up turn. The caller loop never grows foreign write tools.
+**Product (this experiment):** a chat-tier **peer-send** tool on the **document_research** specialized loop (Writer / Calc / Draw), **only when** a resolvable other v1 peer is open. Outer chat stays thin and delegates. The inner agent queues a user-equivalent turn on the peer sidebar and finishes so the outer can **Ready**. The peer replies with the same tool; that injects as a follow-up user turn. No loop grows foreign write tools.
 
 **Implementation center:** production live-panel map + envelope injection + extracted non-click send + pending-start / per-listener queue. Do not build a bus. Do not rebind the caller’s `ToolContext`.
 
@@ -216,7 +218,7 @@ Layout: `[Peer from: Name | uid=… | url=… | peer_ask_id=…]\n\n` + `message
 
 **Outbound `execute` (immediate, RED, `is_async=False`):**
 
-1. Refuse `ctx.caller != "chat"`.
+1. Refuse MCP/script. Allow `caller=="chat"` or `active_domain=="document_research"`.
 2. Resolve **target** from required `document_url`. Fail if missing / none / ambiguous / unsupported ([§4.2](#42-tool-visibility), [§4.4](#44-addressing)). Do not default to a last sender.
 3. Look up the live panel by uid. Missing → error: open the peer sidebar once. No A2.
 4. Allocate `peer_ask_id` (opaque string; unique per accepted send). Needed for concurrent peers and re-asks — the **model** cites it; the host does not attach it to the originating tool row.
@@ -235,7 +237,9 @@ Layout: `[Peer from: Name | uid=… | url=… | peer_ask_id=…]\n\n` + `message
 
 ### 4.2 Tool visibility
 
-Advertise `send_peer_message` on chat `get_schemas` **iff** `get_open_documents` has at least one **resolvable other v1 peer**:
+**Experiment visibility:** advertise `send_peer_message` on `get_schemas` **only** when `active_domain` is `document_research` **and** `get_open_documents` has at least one **resolvable other v1 peer**. Outer/main (`active_domain` empty) never lists the tool. Specialized `get_tools` uses the same peer-exists gate (`filter_peer_tools_for_specialized`).
+
+Peer-exists rules (unchanged from #672):
 
 - Different RuntimeUID than self (not two views of the same model).
 - Supported v1 service on the **resolved model**: `TextDocument` / `SpreadsheetDocument` / `DrawingDocument` **and not** `PresentationDocument`.
@@ -292,22 +296,20 @@ Suggested error codes: `PEER_NOT_FOUND`, `PEER_SIDEBAR_NOT_OPEN`, `PEER_UNSUPPOR
 
 - `name = "send_peer_message"`
 - `tier = "chat"` — **not** `"core"`. Inverse of `tier = "mcp"`:
-  - Chat `_DEFAULT_EXCLUDE_TIERS` stays `{specialized, specialized_control, mcp}` so `"chat"` stays on the sidebar wire.
-  - Add `"chat"` to `MCP_DELEGATE_EXCLUDE_TIERS` and `MCP_DIRECT_FLAT_EXCLUDE_TIERS` in [`plugin/mcp/mcp_protocol.py`](../../plugin/mcp/mcp_protocol.py).
-  - `execute()`: if `ctx.caller != "chat"` → error, no inject (`find_tools` uses `exclude_tiers=()`; MCP can `tools/call` an unlisted name).
+  - Chat `_DEFAULT_EXCLUDE_TIERS` stays `{specialized, specialized_control, mcp}` so `"chat"` is not an MCP tier. **Experiment:** outer `get_schemas` still **strips** this name (`filter_peer_message_schemas` without `document_research`).
+  - `specialized_domain = "document_research"` + `specialized_cross_cutting` so Writer/Calc/Draw inner loops can see it.
+  - Add `"chat"` to `MCP_DELEGATE_EXCLUDE_TIERS` and `MCP_DIRECT_FLAT_EXCLUDE_TIERS` in [`plugin/mcp/mcp_protocol.py`](../../plugin/mcp/mcp_protocol.py). MCP `get_schemas` also strips the name (including `find_tools(domain=document_research)`).
+  - `execute()`: refuse MCP/script (`PEER_CHAT_ONLY`). Allow `caller=="chat"` (specialized inherits the parent chat context) **or** `active_domain=="document_research"` so a specialized `ToolContext` is not blocked if it is not tagged `chat`.
 - `uno_services` = Writer + Calc + Draw only (`TextDocument`, `SpreadsheetDocument`, `DrawingDocument`). Do **not** copy Draw specialized’s PresentationDocument union.
 - `is_mutation = False`, `is_async() = False`, not `long_running`.
 - Parameters: required `document_url`, required `message`; optional `peer_ask_id` (required by protocol on replies; host does not default the target from it).
 
 **Extracted send:** see [§4.9](#49-implementation-map). Envelope visible in that transcript.
 
-**Prompts** (short block next to Writer / Calc / Draw specialized-delegation templates in [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py)):
+**Prompts** (shorter than #672’s main-wire `PEER_MESSAGING_RULES`; outer never names `send_peer_message`):
 
-- Do `send_peer_message(document_url=<peer uid, file URL, or unique display name from the Open peers list>, message=<task>)` when that peer is listed and the task is aimed at that app (compute / fill / write / “ask the budget workbook agent”). Why: only the peer sidebar has those tools. Do **not** put your own path, uid, or URL in `message` — the gateway inserts `[Peer from: …]`. No `reply=true`; every send needs `document_url`.
-- `document_research` is only a silent file fact when you do **not** need the peer sidebar to run. Do not use it as the default for an Open peers Writer/Calc/Draw document.
-- After `ok`/`accepted`, finish local work if any, then **Ready**. The reply arrives as a later user turn with a peer envelope.
-- When you **receive** a peer envelope: do the work with **your** tools; then `send_peer_message(document_url=<uid or url from the envelope>, message=<result>, peer_ask_id=<id from the envelope>)`. Say what you completed. Never omit `document_url`.
-- Never invent the other app’s write tools on this loop.
+- **Outer / main chat** (`PEER_OUTER_DELEGATE_HINT`, per-app `{delegate}` = `delegate_to_specialized_writer_toolset` / `_calc_` / `_draw_`): when a v1 peer is open — Do `{delegate}(domain="document_research")` for sibling work. When this turn is a `[Peer from: …]` envelope: do local work, then the same delegate with a task to **reply** (envelope uid/url, `peer_ask_id`, HTML/result). Why: only the inner agent can send the peer reply; do not narrate only in this sidebar. No Open-peers catalog on the outer loop.
+- **Inner document_research** (`PEER_INNER_CHOICE_RULES` + catalog): Do `send_peer_message` when an Open peers entry is listed and that sidebar must change / compute / write / run as an agent. Do `delegate_read_document` for a silent file fact. When tasked to reply to a `[Peer from: …]` envelope you **must** `send_peer_message` with that `document_url` and `peer_ask_id`. `message` and the outer `task` stay **one string** (HTML table as one string; Writer later uses `apply_document_content`). After `ok`/`accepted` you **must** `specialized_workflow_finished` immediately (tool result repeats this). Why: waiting deadlocks the peer.
 
 **Undo:** peer edits use the peer document’s undo. `WriterCompoundUndo` only if the peer is Writer.
 
@@ -349,19 +351,19 @@ The Draw sidebar fills the stand-in with Draw tools (`get_draw_tree` marks empty
 
 **SAR / floorstand (Writer ↔ Calc).** User (Writer): “Take Q4 revenue from the open budget workbook and add a table here.”
 
-1. Writer schemas stay Writer-only. `send_peer_message` is visible because the budget `.ods` is a resolvable other peer; the schema lists its name/uid/url.
-2. `send_peer_message(document_url=<budget uid>, message="Compute Q4 revenue by region and reply with an HTML table plus the ranges you used.")` → `{ok, accepted, peer_ask_id}`. Writer does **not** put its own URL in `message`.
-3. Gateway prepends `[Peer from: Risk memo.odt | uid=… | url=… | peer_ask_id=…]` on the **Calc** session. Writer Readys (optional local draft first). Caller drain exits.
-4. Calc extracted send uses Calc tools / `delegate_to_specialized_calc_toolset` / `write_formula_range` **on the Calc model only**.
-5. Calc `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<table + ranges>, peer_ask_id=…)`. Host wraps with Calc’s `ctx.doc` envelope and queues/injects onto **Writer**.
+1. Writer **outer** schemas stay Writer-only and do **not** list `send_peer_message`. The outer turn stays high-level and delegates `document_research`.
+2. The document_research subagent sees `send_peer_message` because the budget `.ods` is a resolvable other peer; it calls `send_peer_message(document_url=<budget uid>, message="Compute Q4 revenue by region and reply with an HTML table plus the ranges you used.")` → `{ok, accepted, peer_ask_id}`. It does **not** put the Writer URL in `message`.
+3. Gateway prepends `[Peer from: Risk memo.odt | uid=… | url=… | peer_ask_id=…]` on the **Calc** session. The inner agent finishes (`specialized_workflow_finished`); Writer Readys. Caller drain exits.
+4. Calc **main** sees the `[Peer from: …]` envelope, does the local work (`write_formula_range` / Total row) **on the Calc model only**, then `delegate_to_specialized_calc_toolset(domain="document_research")` with a task to reply (Writer uid/url, `peer_ask_id`, HTML/table). Calc main does **not** call `send_peer_message`.
+5. Calc document_research calls `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<table + ranges>, peer_ask_id=…)`, then **must** `specialized_workflow_finished` immediately. Host wraps with Calc’s `ctx.doc` envelope and queues/injects onto **Writer**.
 6. Writer follow-up turn: `apply_document_content` on the Writer doc.
 
 **GMP-style (Writer ↔ Draw), staged form.** Writer risk memo open; harness pre-opened the **editable Draw stand-in** (not the gold PDF as the write target). User opened the Draw sidebar once.
 
 1. Writer drafts the memo with Writer tools.
-2. `send_peer_message(document_url=<stand-in uid>, message="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{ok, accepted, peer_ask_id}`. Writer Readys.
-3. Draw sidebar sees the Writer envelope, runs `get_draw_tree` then `fill_draw_fields` (or `shape_upsert` by name) **on the Draw model only**. Empty text boxes are the fill targets; use the name from the tree. `form_*` is only for live ControlShapes.
-4. Draw `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<confirmation>, peer_ask_id=…)`. Writer follow-up cites the form in the memo.
+2. Writer document_research `send_peer_message(document_url=<stand-in uid>, message="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{ok, accepted, peer_ask_id}` then `specialized_workflow_finished`. Writer Readys.
+3. Draw **main** sees the Writer envelope, runs `get_draw_tree` then `fill_draw_fields` (or `shape_upsert` by name) **on the Draw model only**, then `delegate_to_specialized_draw_toolset(domain="document_research")` to reply. Empty text boxes are the fill targets; use the name from the tree. `form_*` is only for live ControlShapes.
+4. Draw document_research `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<confirmation>, peer_ask_id=…)` then `specialized_workflow_finished`. Writer follow-up cites the form in the memo.
 
 Reverse (Draw asks Writer for a paragraph) is the same tool with a Writer uid.
 
@@ -375,16 +377,16 @@ Concrete touch points so this is implementable without rediscovering the review.
 | ---- | ----- | ----- |
 | Tool class | `plugin/doc/peer_message.py` (illustrative) | `ToolBase`, `tier="chat"`, `uno_services` Writer+Calc+Draw. Add module to the `discovery_modules` tuple in [`common_module.py`](../../plugin/doc/common_module.py). |
 | Live map | `plugin/doc/live_panels.py` (illustrative) | `WeakValueDictionary` uid → panel handle. Register in `panel_factory._wire_buttons`; lookup from the tool. |
-| Schema hide + catalog | [`plugin/framework/tool.py`](../../plugin/framework/tool.py) `get_schemas` | Vision-style post-filter. Hide if no other v1 peer. When shown, put peer list in the tool description. |
+| Schema hide + catalog | [`plugin/framework/tool.py`](../../plugin/framework/tool.py) `get_schemas` | Experiment: hide on outer always. Show on `document_research` only if a v1 peer exists; catalog goes in that description. |
 | MCP hide | [`plugin/mcp/mcp_protocol.py`](../../plugin/mcp/mcp_protocol.py) | Add `"chat"` to both MCP exclude frozensets. |
 | Extracted send | `SendButtonListener` / `ToolCallingMixin` | New method: set peer busy FSM + **new** `SendCancellation` + `agent_session`; `refresh_document_context`; `add_user_message` **once** (or skip append if already injected); `_append_response` user line; force chat-with-tools; **do not** read/clear Ask, `setFocus`, or route librarian/image (error if peer mode is not chat). |
 | Pending start | [`async_drain_guard.py`](../../plugin/framework/async_drain_guard.py) or drain `finally` | When depth hits 0, start next scheduled extracted send. Never `post(_run_send_drain)` while owned. |
-| Prompts | [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py) | Block next to `WRITER_` / `CALC_` / `DRAW_SPECIALIZED_DELEGATION_TEMPLATE` and core directives. Ready-after-accepted, not wait. |
+| Prompts | [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py) | Outer: thin `PEER_OUTER_DELEGATE_HINT`. Inner: short `PEER_INNER_CHOICE_RULES`. No #672 PEER SIDEBARS dump on main. |
 | Errors | `self._tool_error(...)` | Codes in [§4.4](#44-addressing). |
 
 **Tests (required):**
 
-- Unit: envelope from `ctx.doc` (untitled url empty); visibility (alone / two Writer / Impress rejected / catalog `draw` is not enough); addressing (self, missing, ambiguous); queue policy (FIFO, cap, overflow error, Stop drops); `status: ok` + `accepted`; `execute` refuses `caller != "chat"`; no `panel_factory` import from the tool module.
+- Unit: envelope from `ctx.doc` (untitled url empty); visibility (main hides even with peers; specialized shows catalog; Impress rejected); addressing (self, missing, ambiguous); queue policy (FIFO, cap, overflow error, Stop drops); `status: ok` + `accepted`; `execute` allows specialized `document_research` and refuses MCP; no `panel_factory` import from the tool module.
 - UNO: two live sidebars — inject, defer-until-idle, busy queue, missing deck error, Impress reject. Follow `tests/chatbot/test_hamburger_menu_uno.py` style (`@native_test`, `ctx`).
 
 ---
@@ -395,7 +397,7 @@ Concrete touch points so this is implementable without rediscovering the review.
 | ----- | ------ |
 | **Who initiates** | Decided: any of the three. Symmetric tool. No supervisor. |
 | **A1 vs A2** | Decided: A1 is v1. A2 later / explicit only. No silent fallback. |
-| **Chat vs MCP** | Decided: chat-only. Tier `"chat"` + execute guard. |
+| **Chat vs MCP** | Decided: not MCP. Experiment: specialized-inner schemas only; execute allows chat or `document_research`. |
 | **Correlation** | Decided: `peer_ask_id` on every accept and every reply. Model copies it. Host does not splice onto the originating tool row. |
 | **Reply must land** | Decided: inject + queue + follow-up turn. Fail the design if replies only exist in the peer transcript. |
 | **Ready before reply** | Decided: **Ready** after accepted. “Don’t Ready” deadlocks the queue. |

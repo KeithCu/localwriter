@@ -837,10 +837,18 @@ class ToolRegistry:
                 schemas = filter_vision_delegate_schemas(schemas, ctx)
             from plugin.doc.peer_message import filter_peer_message_schemas
 
-            schemas = filter_peer_message_schemas(schemas, ctx, doc=kwargs.get("doc"))
+            schemas = filter_peer_message_schemas(
+                schemas, ctx, doc=kwargs.get("doc"), active_domain=active_domain
+            )
             return schemas
         elif protocol == "mcp":
-            return [to_mcp_schema(t, doc_type=doc_type) for t in tools]
+            # Never advertise send_peer_message on MCP, including find_tools(domain=…).
+            from plugin.doc.peer_message import filter_peer_message_schemas
+
+            schemas = [to_mcp_schema(t, doc_type=doc_type) for t in tools]
+            return filter_peer_message_schemas(
+                schemas, kwargs.get("ctx"), doc=kwargs.get("doc"), active_domain=None
+            )
         else:
             raise ValueError(f"Unknown protocol: {protocol}")
 

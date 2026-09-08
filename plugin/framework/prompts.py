@@ -505,13 +505,29 @@ DRAW_SPECIALIZED_DELEGATION_TEMPLATE = (
 )
 
 
-# Shown only when send_peer_message is on the wire (another v1 peer is open).
-PEER_MESSAGING_RULES = """PEER SIDEBARS: Do call send_peer_message(document_url=<that peer’s uid, file URL, or unique display name from the Open peers list>, message=<the task for that sidebar>) when an Open peers entry is listed and the task is aimed at that peer’s app — compute, fill, write, or “ask the budget workbook / Draw form agent”. Why: only that sidebar has the peer’s tools; this loop must not invent them, and “take numbers from the open budget” is a peer send, not a silent read.
-Do not put your own path, uid, or URL in message — the gateway inserts [Peer from: name | uid | url | peer_ask_id]. There is no reply=true; every send needs an explicit document_url.
-document_research is only for a silent file fact when you do not need the peer sidebar to run (no peer agent work, no peer write). Do not use document_research as the default for an Open peers Writer/Calc/Draw document.
-After status ok/accepted, finish any local work then Ready. The reply arrives later as a follow-up user turn with a peer envelope — do not wait in this loop.
-When you receive a peer envelope: do the work with your tools; then send_peer_message(document_url=<uid or url from the envelope>, message=<result>, peer_ask_id=<id from the envelope>). Say what you completed. Never omit document_url.
-Never invent the other app's write tools on this loop."""
+# Outer main chat only — no send_peer_message on this loop. {delegate} is the
+# Writer/Calc/Draw specialized gateway. Shown when a v1 peer is open.
+PEER_OUTER_DELEGATE_HINT = (
+    "Do {delegate}(domain=\"document_research\") for sibling Writer/Calc/Draw work. "
+    "Why: the inner agent chooses a silent read vs asking the peer sidebar; this loop must not invent the other app's tools.\n"
+    "When this turn is a [Peer from: …] envelope: do the local work with your tools, then "
+    "Do {delegate}(domain=\"document_research\") with a task to reply to that peer "
+    "(one string: envelope uid or url, peer_ask_id, and the HTML or result — not a JSON array). "
+    "Why: only that inner agent can send the peer reply; do not narrate the result only in this sidebar."
+)
+
+# document_research specialized only. Short DO+why; catalog is appended when peers exist.
+PEER_INNER_CHOICE_RULES = (
+    "PEER vs READ: Do send_peer_message(document_url=<peer uid, URL, or unique name>, message=<task>) "
+    "when an Open peers entry is listed and that sidebar must change, compute, write, or run as an agent. "
+    "Why: only that sidebar has the peer's write tools.\n"
+    "Do delegate_read_document when you only need a silent file fact.\n"
+    "When tasked to reply to a [Peer from: …] envelope you MUST send_peer_message("
+    "document_url=<uid or url from the envelope>, message=<one HTML/result string>, peer_ask_id=<id from the envelope>). "
+    "Why: the caller only sees the reply as a later user turn.\n"
+    "After ok/accepted you MUST call specialized_workflow_finished immediately. "
+    "Why: the peer runs after this loop exits; waiting deadlocks the reply."
+)
 
 
 DEFAULT_DRAW_CHAT_SYSTEM_PROMPT_TEMPLATE = """You are a LibreOffice Draw/Impress assistant who creates polished, professional, and colorful visual content.
@@ -559,17 +575,48 @@ DEFAULT_CALC_CHAT_SYSTEM_PROMPT = ""
 DEFAULT_DRAW_CHAT_SYSTEM_PROMPT = ""
 
 
+def peer_outer_delegate_tool_name(model) -> str:
+    """Writer / Calc / Draw specialized gateway used for document_research peer work."""
+    from plugin.doc.doc_type import is_calc, is_draw
+
+    if is_calc(model):
+        return "delegate_to_specialized_calc_toolset"
+    if is_draw(model):
+        return "delegate_to_specialized_draw_toolset"
+    return "delegate_to_specialized_writer_toolset"
+
+
+def format_peer_outer_delegate_hint(model) -> str:
+    """Outer DO+why with the matching specialized gateway name."""
+    return PEER_OUTER_DELEGATE_HINT.format(delegate=peer_outer_delegate_tool_name(model))
+
+
 def get_peer_messaging_prompt_block(model, ctx) -> str:
-    """Short peer-send rules plus open-peer catalog when a v1 peer is visible."""
+    """Thin outer pointer when a v1 peer is open. No send_peer_message on this loop."""
     if ctx is None or model is None:
         return ""
     try:
-        from plugin.doc.peer_message import format_peer_catalog, list_v1_peers
+        from plugin.doc.peer_message import list_v1_peers
 
         peers = list_v1_peers(ctx, model)
         if not peers:
             return ""
-        return PEER_MESSAGING_RULES + "\n" + format_peer_catalog(peers)
+        return format_peer_outer_delegate_hint(model)
+    except Exception:
+        return ""
+
+
+def get_peer_inner_choice_block(uno_ctx, doc) -> str:
+    """Short inner read-vs-peer rules plus catalog. Empty when no v1 peer is open."""
+    if uno_ctx is None:
+        return ""
+    try:
+        from plugin.doc.peer_message import format_peer_catalog, list_v1_peers
+
+        peers = list_v1_peers(uno_ctx, doc)
+        if not peers:
+            return ""
+        return PEER_INNER_CHOICE_RULES + "\n" + format_peer_catalog(peers)
     except Exception:
         return ""
 

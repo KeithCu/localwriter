@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Sidebar-only A1 peer send: ``send_peer_message``.
+"""A1 peer send: ``send_peer_message``.
 
 Queues a user-equivalent turn on another already-open Writer/Calc/Draw
-sidebar and returns immediately. See ``docs/chat/peer-messaging.md``.
+sidebar and returns immediately. Experiment: advertised on the
+document_research specialized loop only (not outer chat, not MCP).
+See ``docs/chat/peer-messaging.md``.
 
 This module must not import ``plugin.chatbot.panel`` or
 ``plugin.chatbot.panel_factory`` (cycle: CommonModule → tool → panel →
@@ -22,7 +24,7 @@ import uuid
 import weakref
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 from weakref import WeakKeyDictionary
 
 from plugin.framework.async_drain_guard import add_drain_idle_callback, get_drain_owner
@@ -32,6 +34,11 @@ log = logging.getLogger("writeragent.doc.peer_message")
 
 PEER_TOOL_NAME = "send_peer_message"
 PEER_QUEUE_CAP = 8
+PEER_SPECIALIZED_DOMAIN = "document_research"
+# MCP / script / venv RPC must never inject a sidebar turn. Chat main and
+# document_research specialized inherit or set caller="chat"; also allow a
+# specialized ToolContext that only sets active_domain.
+_PEER_SEND_BLOCKED_CALLERS = frozenset({"mcp", "script", "ppt_master_venv"})
 
 _TEXT_SERVICE = "com.sun.star.text.TextDocument"
 _CALC_SERVICE = "com.sun.star.sheet.SpreadsheetDocument"
@@ -41,13 +48,20 @@ _IMPRESS_SERVICE = "com.sun.star.presentation.PresentationDocument"
 _BASE_DESCRIPTION = (
     "Send a natural-language turn to another already-open Writer, Calc, or Draw "
     "sidebar (not Impress). Returns immediately {status: ok, accepted: true, "
-    "peer_ask_id}. The peer runs after this sidebar Readys; the reply arrives "
-    "later as a follow-up user turn — do not wait in this loop. "
+    "peer_ask_id}. After ok/accepted you MUST call specialized_workflow_finished "
+    "immediately — the peer runs after this loop exits; waiting deadlocks the reply. "
     "document_url is the one target argument: a file URL, RuntimeUID, or a "
     "display name that matches exactly one open peer. Required on every call. "
     "Never put your own path, uid, or URL in message — the gateway inserts "
     "[Peer from: name | uid | url | peer_ask_id]. On replies, pass peer_ask_id "
     "copied from the inbound envelope. Never invent the other app's write tools."
+)
+
+# Reinforces the prompt: specialized agents must exit after accepted.
+PEER_ACCEPTED_FINISH_HINT = (
+    "Queued. You MUST call specialized_workflow_finished immediately. "
+    "Why: the reply arrives later as a follow-up user turn on the caller sidebar; "
+    "waiting in this loop blocks the peer."
 )
 
 
@@ -418,14 +432,63 @@ def log_peer_tool_on_wire(schemas: list[dict[str, Any]]) -> None:
     log.info("peer tools: send_peer_message on_wire=%s peer_count=%d", on_wire, peer_count)
 
 
+def _document_research_domain(active_domain: str | None) -> bool:
+    base = (active_domain or "").split(":")[0]
+    return base == PEER_SPECIALIZED_DOMAIN
+
+
+def peer_send_caller_allowed(ctx: Any) -> bool:
+    """True for sidebar chat and document_research specialized; MCP stays out.
+
+    Specialized smol loops reuse the parent ``ToolContext`` (``caller="chat"``)
+    or set ``active_domain="document_research"``. A chat-only check would be
+    enough today, but the domain clause keeps execute working if a specialized
+    caller is not tagged ``chat``.
+    """
+    caller = str(getattr(ctx, "caller", "") or "")
+    if caller in _PEER_SEND_BLOCKED_CALLERS:
+        return False
+    if caller == "chat":
+        return True
+    return _document_research_domain(getattr(ctx, "active_domain", None))
+
+
+def peer_message_visible_on_specialized(
+    *,
+    active_domain: str | None,
+    peers: list[dict[str, str]],
+) -> bool:
+    """Advertise only on the document_research inner wire when a v1 peer exists."""
+    return bool(peers) and _document_research_domain(active_domain)
+
+
+def filter_peer_tools_for_specialized(tools: list[Any], uno_ctx: Any, doc: Any) -> list[Any]:
+    """Keep ``send_peer_message`` on document_research only when a v1 peer is open."""
+    if not any(getattr(t, "name", None) == PEER_TOOL_NAME for t in tools):
+        return tools
+    peers: list[dict[str, str]] = []
+    if uno_ctx is not None:
+        try:
+            peers = list_v1_peers(uno_ctx, doc)
+        except Exception:
+            log.debug("filter_peer_tools_for_specialized: catalog failed", exc_info=True)
+            peers = []
+    if not peers:
+        return [t for t in tools if getattr(t, "name", None) != PEER_TOOL_NAME]
+    return tools
+
+
 def filter_peer_message_schemas(
     schemas: list[dict[str, Any]],
     ctx: Any,
     doc: Any = None,
+    active_domain: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Hide ``send_peer_message`` unless a resolvable other v1 peer exists.
+    """Hide ``send_peer_message`` on the outer chat wire.
 
-    When shown, bake the open-peer catalog into the tool description.
+    Master/#672 advertised this on main chat when a peer was open. This
+    experiment shows it only on ``document_research`` schemas, and only when
+    a resolvable other v1 peer exists. Catalog is baked into the description.
     """
     if not any(_schema_function_name(s) == PEER_TOOL_NAME for s in schemas):
         return schemas
@@ -436,7 +499,7 @@ def filter_peer_message_schemas(
         except Exception:
             log.debug("filter_peer_message_schemas: catalog failed", exc_info=True)
             peers = []
-    if not peers:
+    if not peer_message_visible_on_specialized(active_domain=active_domain, peers=peers):
         return [s for s in schemas if _schema_function_name(s) != PEER_TOOL_NAME]
     catalog = format_peer_catalog(peers)
     out: list[dict[str, Any]] = []
@@ -486,11 +549,16 @@ def _inject_on_listener(listener: Any, wrapped: str) -> None:
 
 
 class SendPeerMessage(ToolBase):
-    """Chat-only async inject onto another live sidebar."""
+    """Async inject onto another live sidebar (document_research specialized)."""
 
     name = PEER_TOOL_NAME
     description = _BASE_DESCRIPTION
     tier = "chat"
+    # Domain membership: inner document_research sees this; outer chat does not
+    # advertise it (filter_peer_message_schemas). Cross-cutting so Writer/Calc/Draw
+    # document_research toolsets all get the same tool.
+    specialized_domain: ClassVar[str | None] = PEER_SPECIALIZED_DOMAIN
+    specialized_cross_cutting: ClassVar[bool] = True
     is_mutation = False
     uno_services = [_TEXT_SERVICE, _CALC_SERVICE, _DRAW_SERVICE]
     parameters = {
@@ -507,7 +575,8 @@ class SendPeerMessage(ToolBase):
             "message": {
                 "type": "string",
                 "description": (
-                    "Natural-language task body only. Do not paste your own path, uid, or URL — "
+                    "One string: natural-language task or reply body (an HTML table is one string, "
+                    "not a JSON array). Do not paste your own path, uid, or URL — "
                     "the gateway inserts the [Peer from: …] envelope."
                 ),
             },
@@ -526,9 +595,9 @@ class SendPeerMessage(ToolBase):
         return False
 
     def execute(self, ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-        if getattr(ctx, "caller", "") != "chat":
+        if not peer_send_caller_allowed(ctx):
             return self._tool_error(
-                "send_peer_message is sidebar chat only.",
+                "send_peer_message is sidebar chat / document_research only.",
                 code="PEER_CHAT_ONLY",
             )
         document_url = str(kwargs.get("document_url") or "").strip()
@@ -593,4 +662,9 @@ class SendPeerMessage(ToolBase):
                 f"Peer sidebar queue is full (max {PEER_QUEUE_CAP} pending turns).",
                 code="PEER_QUEUE_FULL",
             )
-        return {"status": "ok", "accepted": True, "peer_ask_id": peer_ask_id}
+        return {
+            "status": "ok",
+            "accepted": True,
+            "peer_ask_id": peer_ask_id,
+            "message": PEER_ACCEPTED_FINISH_HINT,
+        }
