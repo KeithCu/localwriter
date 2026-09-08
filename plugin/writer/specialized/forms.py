@@ -14,8 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-Form tools for Writer and Calc (shared registration: dual specialized bases + union uno_services).
+Form tools for Writer, Calc, Draw, and Impress (shared registration: dual specialized bases + union uno_services).
 Adapted from OnlyOfficeAI patterns. Original source: onlyofficeai/scripts/helpers/helpers.js (generateForm)
+
+These tools manage live ControlShapes (``com.sun.star.form.component.*``), not
+paper-form blank TextShapes and not PDF/AcroForm widgets. Draw paper-form fill
+is ``get_draw_tree`` + ``fill_draw_fields`` / ``shape_upsert``.
 """
 
 import logging
@@ -26,6 +30,13 @@ from com.sun.star.text.TextContentAnchorType import AS_CHARACTER
 from ..specialized_base import ToolWriterFormBase
 from plugin.doc.doc_type import is_calc, is_draw
 from plugin.doc.visual_helpers import get_active_draw_page
+from plugin.draw.form_fields import (
+    apply_control_value,
+    find_shape_on_page,
+    is_control_shape_type,
+    parse_control_state,
+    snapshot_control,
+)
 from plugin.framework.errors import format_error_payload, ToolExecutionError
 from plugin.framework.queue_executor import execute_on_main_thread
 from plugin.framework.thread_guard import on_main_thread
@@ -40,24 +51,6 @@ log = logging.getLogger("writeragent.writer.forms")
 # One registration per tool name; union services for Writer + Calc (see AGENTS.md shared tools).
 _FORM_DOC_SERVICES = ["com.sun.star.text.TextDocument", "com.sun.star.sheet.SpreadsheetDocument", "com.sun.star.drawing.DrawingDocument", "com.sun.star.presentation.PresentationDocument"]
 
-_CONTROL_TYPE_MAP = {
-    "checkbox": "com.sun.star.form.component.CheckBox",
-    "text": "com.sun.star.form.component.TextField",
-    "radio": "com.sun.star.form.component.RadioButton",
-    "date": "com.sun.star.form.component.DateField",
-    "combobox": "com.sun.star.form.component.ComboBox",
-    "button": "com.sun.star.form.component.CommandButton",
-}
-
-
-def _get_readable_type(model):
-    """Maps a UNO model back to a human-friendly type string."""
-    for type_str, service in _CONTROL_TYPE_MAP.items():
-        if model.supportsService(service):
-            return type_str
-    return "unknown"
-
-
 # Local aliases keep call sites short.
 _is_spreadsheet_doc = is_calc
 _is_draw_doc = is_draw
@@ -66,6 +59,57 @@ _get_form_draw_page = get_active_draw_page
 
 def _no_form_draw_page_payload():
     return format_error_payload(ToolExecutionError("No draw page available for form operations."))
+
+
+def _resolve_form_draw_page(doc, page=None):
+    """Active draw page, or a Draw/Impress page by 0-based index.
+
+    Writer/Calc ignore ``page`` (one canvas / active sheet). Invalid Draw page
+    returns None so callers can emit a tool error.
+    """
+    if page is not None and _is_draw_doc(doc):
+        try:
+            return doc.getDrawPages().getByIndex(int(page))
+        except Exception:
+            return None
+    return _get_form_draw_page(doc)
+
+
+def _find_control_shape(dp, *, index=None, name=None):
+    """Address a ControlShape by Control.Name / drawing Name, else page index.
+
+    Index is the draw-page shape index (same as ``form_list_controls``). It
+    breaks when non-controls sit between widgets — prefer ``name``.
+    """
+    lookup_name = str(name or "").strip()
+    if lookup_name:
+        found = find_shape_on_page(dp, name=lookup_name, index=None)
+        if found is None:
+            return None, format_error_payload(ToolExecutionError(f"No form control named {lookup_name!r}"))
+        shape, idx = found
+        try:
+            shape_type = shape.getShapeType()
+        except Exception:
+            shape_type = ""
+        if not is_control_shape_type(str(shape_type)):
+            return None, format_error_payload(ToolExecutionError(f"Shape named {lookup_name!r} is not a form control"))
+        return (shape, idx), None
+    if index is None:
+        return None, format_error_payload(ToolExecutionError("Provide index or name to identify the form control"))
+    try:
+        idx = int(index)
+    except (TypeError, ValueError):
+        return None, format_error_payload(ToolExecutionError(f"Invalid shape index: {index}"))
+    if idx < 0 or idx >= dp.getCount():
+        return None, format_error_payload(ToolExecutionError(f"Invalid shape index: {idx}"))
+    shape = dp.getByIndex(idx)
+    try:
+        shape_type = shape.getShapeType()
+    except Exception:
+        shape_type = ""
+    if not is_control_shape_type(str(shape_type)):
+        return None, format_error_payload(ToolExecutionError(f"Shape at index {idx} is not a form control"))
+    return (shape, idx), None
 
 
 def _next_stacked_position_on_draw_page(dp, default_width: int, default_height: int) -> Point:
@@ -110,7 +154,12 @@ class FormCreateControl(ToolWriterFormBase):
 
     name = "form_create_control"
     uno_services = _FORM_DOC_SERVICES
-    description = "Creates a single interactive form control (checkbox, text field, radio button, date field, combobox, or button). In Writer: anchored 'As Character' at the cursor. In Calc: placed on the active sheet draw page (stacked below existing shapes)."
+    description = (
+        "Do create one interactive ControlShape (checkbox, text field, radio, date, combobox, or button) "
+        "because the user asked for a live form widget — not a paper-form blank. "
+        "Writer: anchored As Character at the cursor. Calc: stacked on the active sheet draw page. "
+        "Draw/Impress: stacked on the active page (optional page index)."
+    )
     parameters = {
         "type": "object",
         "properties": {
@@ -123,6 +172,7 @@ class FormCreateControl(ToolWriterFormBase):
             "default_value": {"type": "string", "description": "Initial value for text or date fields."},
             "width": {"type": "integer", "description": "Width in 100ths of mm (default varies by type)."},
             "height": {"type": "integer", "description": "Height in 100ths of mm (default varies by type)."},
+            "page": {"type": "integer", "description": "0-based Draw/Impress page index (active page if omitted). Ignored in Writer/Calc."},
         },
         "required": ["control", "name"],
     }
@@ -180,7 +230,7 @@ class FormCreateControl(ToolWriterFormBase):
             shape.Control = model
 
             if _is_spreadsheet_doc(doc) or _is_draw_doc(doc):
-                dp = _get_form_draw_page(doc)
+                dp = _resolve_form_draw_page(doc, kwargs.get("page"))
                 if dp is None:
                     return _no_form_draw_page_payload()
                 pos = _next_stacked_position_on_draw_page(dp, w, h)
@@ -209,7 +259,10 @@ class FormCreate(ToolWriterFormBase):
 
     name = "form_create"
     uno_services = _FORM_DOC_SERVICES
-    description = "Creates multiple form controls at once from a list of field definitions. Useful for generating a complete form section in one call."
+    description = (
+        "Do create several interactive ControlShapes in one call because the user asked for live "
+        "form widgets (Writer, Calc, Draw, or Impress). Do not use this to fill paper-form blanks."
+    )
     parameters = {
         "type": "object",
         "properties": {
@@ -263,7 +316,12 @@ class FormGenerate(ToolWriterFormBase):
 
     name = "form_generate"
     uno_services = _FORM_DOC_SERVICES
-    description = "Generates a document or sheet layout with interactive form fields from a description. Writer: HTML inserted at the cursor. Calc: plain text is inserted into the active cell area; fields go on the active sheet draw page."
+    description = (
+        "Do generate a layout with interactive ControlShapes from a description. "
+        "Writer: HTML at the cursor. Calc: plain text in the active cell; fields on the sheet draw page. "
+        "Draw/Impress: labels as TextShapes plus ControlShapes on the page. "
+        "Not for paper-form blanks and not PDF/AcroForm fill."
+    )
     parameters = {"type": "object", "properties": {"description": {"type": "string", "description": "Description of the form to generate (e.g. 'Medical intake form')."}}, "required": ["description"]}
 
     def execute(self, ctx, **kwargs):
@@ -364,44 +422,51 @@ class FormListControls(ToolWriterFormBase):
 
     name = "form_list_controls"
     uno_services = _FORM_DOC_SERVICES
-    description = "Lists interactive form controls (checkboxes, text fields, etc.) with indices and values. Writer: document draw page. Calc: active sheet draw page only."
-    parameters = {"type": "object", "properties": {}, "required": []}
+    description = (
+        "Do list live ControlShapes (checkbox, text, radio, …) with name, type, current text/state, "
+        "and draw-page index so later form_edit_control / form_delete_control can address by name. "
+        "Writer: document draw page. Calc: active sheet only. Draw/Impress: active page or optional page index. "
+        "Does not list paper-form blank TextShapes — use get_draw_tree for those."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "page": {"type": "integer", "description": "0-based Draw/Impress page index (active page if omitted). Ignored in Writer/Calc."},
+        },
+        "required": [],
+    }
 
     def execute(self, ctx, **kwargs):
         return _run_on_main(self._execute_main, ctx, **kwargs)
 
     def _execute_main(self, ctx, **kwargs):
         doc = ctx.doc
-        dp = _get_form_draw_page(doc)
+        dp = _resolve_form_draw_page(doc, kwargs.get("page"))
         if dp is None:
             return _no_form_draw_page_payload()
         controls = []
 
         for i in range(dp.getCount()):
             shape = dp.getByIndex(i)
-            if shape.getShapeType() == "com.sun.star.drawing.ControlShape":
-                model = shape.Control
-                info = {"index": i, "name": getattr(model, "Name", ""), "type": _get_readable_type(model)}
-                if hasattr(model, "Label"):
-                    info["label"] = model.Label
-                if hasattr(model, "Text"):
-                    info["text"] = model.Text
-                if hasattr(model, "StringItemList"):
-                    info["items"] = list(model.StringItemList)
-
-                # Geometry
-                pos = shape.getPosition()
-                sz = shape.getSize()
-                info["x"] = pos.X
-                info["y"] = pos.Y
-                info["width"] = sz.Width
-                info["height"] = sz.Height
-
-                controls.append(info)
+            if not is_control_shape_type(str(shape.getShapeType())):
+                continue
+            model = shape.Control
+            info = snapshot_control(model)
+            info["index"] = i
+            # Geometry
+            pos = shape.getPosition()
+            sz = shape.getSize()
+            info["x"] = pos.X
+            info["y"] = pos.Y
+            info["width"] = sz.Width
+            info["height"] = sz.Height
+            controls.append(info)
 
         out: dict = {"status": "ok", "controls": controls, "count": len(controls)}
         if _is_spreadsheet_doc(doc):
             out["note"] = "Indices are ControlShapes on the active sheet draw page only."
+        elif _is_draw_doc(doc):
+            out["note"] = "Prefer name over index; non-control shapes sit on the same page."
         return out
 
 
@@ -410,21 +475,35 @@ class FormEditControl(ToolWriterFormBase):
 
     name = "form_edit_control"
     uno_services = _FORM_DOC_SERVICES
-    description = "Modifies an existing form control by index (from form_list_controls). Calc: index is on the active sheet draw page."
+    description = (
+        "Do update an existing ControlShape in Writer, Calc, Draw, or Impress. "
+        "Address by name (stable) or by form_list_controls index (draw-page index; fragile when "
+        "non-controls sit between widgets). Set checkbox/radio State (0/1/2 or yes/true) and text. "
+        "When index is omitted, name looks up the control; when index is set, name renames it."
+    )
     parameters = {
         "type": "object",
         "properties": {
-            "index": {"type": "integer", "description": "The index of the control (from form_list_controls)."},
-            "name": {"type": "string", "description": "New internal name."},
+            "index": {"type": "integer", "description": "Draw-page shape index from form_list_controls (optional if name is set)."},
+            "name": {
+                "type": "string",
+                "description": "Lookup name when index is omitted; new internal name when index is set.",
+            },
             "label": {"type": "string", "description": "New label text."},
             "text": {"type": "string", "description": "New text value (for text fields)."},
+            "state": {
+                "type": "integer",
+                "description": "Checkbox/radio State: 0 unchecked, 1 checked, 2 indeterminate.",
+            },
+            "selected": {"type": "string", "description": "Select this combobox/list item when it matches StringItemList."},
             "items": {"type": "array", "items": {"type": "string"}, "description": "New item list (for comboboxes)."},
             "x": {"type": "integer"},
             "y": {"type": "integer"},
             "width": {"type": "integer"},
             "height": {"type": "integer"},
+            "page": {"type": "integer", "description": "0-based Draw/Impress page index (active page if omitted). Ignored in Writer/Calc."},
         },
-        "required": ["index"],
+        "required": [],
     }
 
     def execute(self, ctx, **kwargs):
@@ -432,27 +511,32 @@ class FormEditControl(ToolWriterFormBase):
 
     def _execute_main(self, ctx, **kwargs):
         doc = ctx.doc
-        dp = _get_form_draw_page(doc)
+        dp = _resolve_form_draw_page(doc, kwargs.get("page"))
         if dp is None:
             return _no_form_draw_page_payload()
-        idx = kwargs["index"]
-
-        if idx < 0 or idx >= dp.getCount():
-            return format_error_payload(ToolExecutionError(f"Invalid shape index: {idx}"))
-
-        shape = dp.getByIndex(idx)
-        if shape.getShapeType() != "com.sun.star.drawing.ControlShape":
-            return format_error_payload(ToolExecutionError(f"Shape at index {idx} is not a form control"))
-
+        idx = kwargs.get("index")
+        # index present → name is a rename (legacy). index omitted → name is the address.
+        lookup_name = None if idx is not None else kwargs.get("name")
+        found, err = _find_control_shape(dp, index=idx, name=lookup_name)
+        if err:
+            return err
+        shape, resolved_idx = found
         model = shape.Control
 
         # Update Model
-        if "name" in kwargs:
+        if idx is not None and "name" in kwargs:
             model.Name = kwargs["name"]
         if "label" in kwargs and hasattr(model, "Label"):
             model.Label = kwargs["label"]
         if "text" in kwargs and hasattr(model, "Text"):
             model.Text = kwargs["text"]
+        if "state" in kwargs and hasattr(model, "State"):
+            parsed = parse_control_state(kwargs["state"])
+            if parsed is None:
+                return format_error_payload(ToolExecutionError(f"Invalid checkbox/radio state: {kwargs['state']}"))
+            model.State = parsed
+        if "selected" in kwargs:
+            apply_control_value(model, kwargs["selected"])
         if "items" in kwargs and hasattr(model, "StringItemList"):
             model.StringItemList = tuple(kwargs["items"])
 
@@ -465,34 +549,50 @@ class FormEditControl(ToolWriterFormBase):
             sz = shape.getSize()
             shape.setSize(Size(kwargs.get("width", sz.Width), kwargs.get("height", sz.Height)))
 
-        return {"status": "ok", "message": f"Updated form control at index {idx}", "control_name": model.Name}
+        return {
+            "status": "ok",
+            "message": f"Updated form control at index {resolved_idx}",
+            "index": resolved_idx,
+            "control_name": model.Name,
+        }
 
 
 class FormDeleteControl(ToolWriterFormBase):
-    """Deletes a form control by its index."""
+    """Deletes a form control by its index or name."""
 
     name = "form_delete_control"
     uno_services = _FORM_DOC_SERVICES
-    description = "Deletes a form control by index (Calc: active sheet draw page)."
-    parameters = {"type": "object", "properties": {"index": {"type": "integer", "description": "The index of the control to delete."}}, "required": ["index"]}
+    description = (
+        "Do delete a ControlShape in Writer, Calc, Draw, or Impress by name (preferred) or "
+        "draw-page index from form_list_controls. Index breaks when non-controls sit between widgets."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "index": {"type": "integer", "description": "Draw-page shape index (optional if name is set)."},
+            "name": {"type": "string", "description": "Control.Name or drawing Name to delete."},
+            "page": {"type": "integer", "description": "0-based Draw/Impress page index (active page if omitted). Ignored in Writer/Calc."},
+        },
+        "required": [],
+    }
 
     def execute(self, ctx, **kwargs):
         return _run_on_main(self._execute_main, ctx, **kwargs)
 
     def _execute_main(self, ctx, **kwargs):
         doc = ctx.doc
-        dp = _get_form_draw_page(doc)
+        dp = _resolve_form_draw_page(doc, kwargs.get("page"))
         if dp is None:
             return _no_form_draw_page_payload()
-        idx = kwargs["index"]
-
-        if idx < 0 or idx >= dp.getCount():
-            return format_error_payload(ToolExecutionError(f"Invalid shape index: {idx}"))
-
-        shape = dp.getByIndex(idx)
-        if shape.getShapeType() != "com.sun.star.drawing.ControlShape":
-            return format_error_payload(ToolExecutionError(f"Shape at index {idx} is not a form control"))
-
+        found, err = _find_control_shape(dp, index=kwargs.get("index"), name=kwargs.get("name"))
+        if err:
+            return err
+        shape, resolved_idx = found
+        control_name = ""
+        try:
+            control_name = getattr(shape.Control, "Name", "") or ""
+        except Exception:
+            pass
         dp.remove(shape)
 
-        return {"status": "ok", "message": f"Deleted form control at index {idx}"}
+        return {"status": "ok", "message": f"Deleted form control at index {resolved_idx}", "index": resolved_idx, "control_name": control_name}

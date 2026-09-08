@@ -355,10 +355,14 @@ def test_shape_upsert_validation():
     assert not ok
     assert "required when action is 'create'" in err
 
-    # Test validation when action='edit' but missing index
+    # Test validation when action='edit' but missing index and name
     ok, err = shape_upsert_tool.validate(action="edit")
     assert not ok
-    assert "Parameter 'index' is required" in err
+    assert "index" in err and "name" in err
+
+    ok, err = shape_upsert_tool.validate(action="edit", name="FieldX")
+    assert ok
+    assert err is None
 
     # Test validation when action='create' and all required parameters are present
     ok, err = shape_upsert_tool.validate(action="create", shape_type="rectangle", x=1000, y=1000, width=5000, height=3000)

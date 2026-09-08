@@ -74,7 +74,7 @@ def test_calc_catalog_has_write_formula() -> None:
 
 def test_draw_shapes_domain_advertises_upsert() -> None:
     names = {_schema_name(s) for s in build_eval_tool_schemas(kind="draw", active_domain="shapes")}
-    assert {"shape_upsert", "shape_connect", "specialized_workflow_finished"} <= names
+    assert {"shape_upsert", "shape_connect", "fill_draw_fields", "specialized_workflow_finished"} <= names
     assert "shape_upsert" not in _names("draw")
 
 

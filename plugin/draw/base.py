@@ -58,13 +58,21 @@ class ToolDrawChartBase(ToolDrawSpecialBase):
 
 class ToolDrawShapeBase(ToolDrawSpecialBase):
     specialized_domain: ClassVar[str | None] = "shapes"
-    specialized_domain_description: ClassVar[str | None] = "Create and edit drawing shapes, connectors, and groups."
+    specialized_domain_description: ClassVar[str | None] = (
+        "Create and edit drawing shapes, connectors, and groups. "
+        "Empty text boxes are paper-form fill targets: set text by Name via shape_upsert "
+        "or fill_draw_fields; do not create ControlShapes for paper forms."
+    )
     uno_services = ["com.sun.star.drawing.DrawingDocument", "com.sun.star.presentation.PresentationDocument"]
 
 
 class ToolDrawFormBase(ToolDrawSpecialBase):
     specialized_domain: ClassVar[str | None] = "forms"
-    specialized_domain_description: ClassVar[str | None] = "Create and manage form templates and UI controls."
+    specialized_domain_description: ClassVar[str | None] = (
+        "Create and manage interactive form ControlShapes (checkbox, text, radio) "
+        "in Writer, Calc, Draw, and Impress. For paper-form blank text boxes, use "
+        "get_draw_tree plus fill_draw_fields / shape_upsert — do not spawn ControlShapes unless asked."
+    )
     intent = "edit"
     uno_services = ["com.sun.star.drawing.DrawingDocument", "com.sun.star.presentation.PresentationDocument"]
 

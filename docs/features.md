@@ -85,6 +85,7 @@ Contracts and RPC: [calc/analysis-tools.md](calc/analysis-tools.md).
 | Topic | Docs |
 |-------|------|
 | Specialized toolsets | [draw/impress-specialized-toolsets.md](draw/impress-specialized-toolsets.md) · peer send (design): [chat/peer-messaging.md](chat/peer-messaging.md) |
+| Form fill (ControlShapes vs paper-form blanks; no AcroForm) | [draw/impress-specialized-toolsets.md](draw/impress-specialized-toolsets.md#25-forms-controlshapes-vs-paper-form-fill) |
 | Shapes | [draw/shape-support.md](draw/shape-support.md) |
 | PPT-Master | [ppt-master-integration-plan.md](ppt-master-integration-plan.md) |
 

@@ -113,7 +113,7 @@ WriterAgent's `write_formula_range` tool takes a different design approach than 
 | **Tables** | ✅ Implemented | `tables.py`: CreateTable, GetTableInfo, SetTableStyle | — |
 | **Shapes** | ✅ Implemented | `shapes.py`: Create/Edit/DeleteShape (shared with Writer/Draw) | — |
 | **Comments** | ✅ Implemented | `comments.py`: ListCellComments, AddCellComment, DeleteCellComment | Specialized tier |
-| **Forms** | ✅ Implemented | `forms.py`: FormCreate, FormGenerate, FormListControls, FormCreateControl, FormEditControl, FormDeleteControl (shared with Writer) | Specialized tier |
+| **Forms** | ✅ Implemented | Shared `form_*` (Writer/Calc/Draw/Impress): address by name or index; checkbox/radio State. Paper-form blanks are Draw-only — [Draw §2.5](../draw/impress-specialized-toolsets.md#25-forms-controlshapes-vs-paper-form-fill) | Specialized tier |
 
 ### 3.2 Future enhancements (roadmap)
 

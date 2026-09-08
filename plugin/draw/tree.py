@@ -26,7 +26,13 @@ log = logging.getLogger(__name__)
 class GetDrawTree(ToolBase):
     name = "get_draw_tree"
     intent = "read"
-    description = "Returns a semantic tree (DOM) of the shapes on the active or specified draw page. Use this instead of requesting a screenshot to understand the layout, text, connections, and hierarchy of objects (like flowcharts or diagrams)."
+    description = (
+        "Do this to understand page layout, paper-form blanks, and form widgets without a screenshot. "
+        "Empty/near-empty text boxes are fill targets (blank/fillable plus optional label_hint: nearest "
+        "text to the left, else above). ControlShapes include type, name, and current value/state. "
+        "Use the Name from this tree with shape_upsert or fill_draw_fields; do not create ControlShapes "
+        "for paper forms."
+    )
     parameters = {"type": "object", "properties": {"page": {"type": "integer", "description": "0-based page index (active page if omitted)"}}, "required": []}
     uno_services = ["com.sun.star.drawing.DrawingDocument", "com.sun.star.presentation.PresentationDocument"]
     doc_types = ["draw", "impress"]
@@ -55,6 +61,8 @@ class GetDrawTree(ToolBase):
 
     def _build_shape_tree(self, xshapes, base_index=None):
         """Recursively build a semantic tree from an XShapes collection (DrawPage or GroupShape)."""
+        from plugin.draw.form_fields import annotate_paper_form_nodes, is_control_shape_type, snapshot_control
+
         tree = []
         try:
             count = xshapes.getCount()
@@ -87,6 +95,15 @@ class GetDrawTree(ToolBase):
                     node["name"] = name
             except Exception:
                 pass
+
+            if is_control_shape_type(str(shape_type)):
+                try:
+                    node["control"] = snapshot_control(shape.Control)
+                    # Name on the widget is the stable fill key when the drawing Name is empty.
+                    if not node.get("name") and node["control"].get("name"):
+                        node["name"] = node["control"]["name"]
+                except Exception:
+                    node["control"] = {"type": "unknown", "name": ""}
 
             try:
                 if hasattr(shape, "getString"):
@@ -160,4 +177,6 @@ class GetDrawTree(ToolBase):
 
             tree.append(node)
 
+        # Sibling-level blank/fillable + left/above label_hint (see form_fields.annotate_paper_form_nodes).
+        annotate_paper_form_nodes(tree)
         return tree

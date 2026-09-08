@@ -264,7 +264,7 @@ GDPval GMP change-control ([`docs/eval/gdpval/58ac1cc5-…`](../eval/gdpval/58ac
 
 **Staging fact, not a product claim:** LibreOffice File → Open on a PDF often imports as **editable Draw text and shapes**, not live AcroForm widgets. A headed poke may land the gold PDF in Draw. That is eval/harness staging. It is **not** “WriterAgent edits PDFs” and **not** an AcroForm API.
 
-The Draw sidebar fills the stand-in with Draw tools (`get_draw_tree`, `delegate_to_specialized_draw_toolset` → `shape_upsert` / tree, shared `form_*` if present). Then it `send_peer_*`s back with the `peer_ask_id`.
+The Draw sidebar fills the stand-in with Draw tools (`get_draw_tree` marks empty boxes as fill targets; `delegate_to_specialized_draw_toolset` → `fill_draw_fields` / `shape_upsert` by Name, or shared `form_*` for live ControlShapes). Empty boxes are fill targets — use the Name from the tree; do not spawn ControlShapes for paper forms. Then it `send_peer_*`s back with the `peer_ask_id`.
 
 ### 4.8 Worked scenarios
 
@@ -282,7 +282,7 @@ Writer may draft locally after `accepted`. If the table is required to finish, d
 
 1. Writer drafts the memo with Writer tools.
 2. `send_peer_agent(document_url=<stand-in uid>, message="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{accepted, peer_ask_id}`.
-3. Draw sidebar sees the Writer envelope, runs `get_draw_tree` / specialized shapes or `form_*` **on the Draw model only**.
+3. Draw sidebar sees the Writer envelope, runs `get_draw_tree` / `fill_draw_fields` (paper-form blanks by Name) or `form_*` (live ControlShapes) **on the Draw model only**. Do not create ControlShapes for paper forms.
 4. Draw `send_peer_agent(document_url=<Writer uid or url from the envelope>, message=<confirmation>, peer_ask_id=…)`. Writer cites the form in the memo.
 
 Reverse (Draw asks Writer for a paragraph) is the same tool with a Writer uid.

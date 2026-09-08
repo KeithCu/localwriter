@@ -232,6 +232,16 @@ def test_edit_form_control(ctx, doc):
     assert ctrl2["text"] == "New Text"
     assert "label" not in ctrl2
 
+    # 6. Checkbox State + address by name (index would break if a non-control were first)
+    _clear_doc(doc)
+    create_tool.execute(mock_ctx, control="checkbox", name="agree_box", label="Agree")
+    edit_by_name = edit_tool.execute(mock_ctx, name="agree_box", state=1)
+    assert edit_by_name["status"] == "ok", edit_by_name
+    listed = list_tool.execute(mock_ctx)
+    box = listed["controls"][0]
+    assert box["name"] == "agree_box"
+    assert box["state"] == 1
+
 
 @native_test
 @with_native_doc("writer")

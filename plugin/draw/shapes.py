@@ -450,6 +450,20 @@ class DrawShapes:
             raise DrawError(f"Failed to create shape: {str(e)}", code="DRAW_SHAPE_CREATION_ERROR", details={"shape_type": shape_type, "position": position, "size": size, "original_error": str(e), "error_type": type(e).__name__}) from e
 
 
+def _try_set_shape_name(shape, name) -> None:
+    """Set drawing ``Name`` so later fills can address the shape without an index."""
+    wanted = str(name or "").strip()
+    if not wanted:
+        return
+    try:
+        shape.Name = wanted
+    except Exception:
+        try:
+            shape.setName(wanted)
+        except Exception:
+            log.debug("shape_upsert: failed to set Name=%r", wanted)
+
+
 def _apply_shape_properties(shape, kwargs):
     """Helper to apply rich formatting properties to a shape."""
     if kwargs.get("text") and hasattr(shape, "setString"):
@@ -564,12 +578,20 @@ _CREATE_SHAPE_SHAPE_TYPE_DESC = (
 
 class UpsertShape(ToolDrawShapeBase):
     name = "shape_upsert"
-    description = "Creates a new shape or modifies an existing shape on a page."
+    description = (
+        "Do create or edit a shape on a page. For paper-form fill, edit by stable "
+        "shape Name from get_draw_tree (index alone breaks when shapes are inserted). "
+        "Empty text boxes are fill targets; do not create ControlShapes for paper forms."
+    )
     parameters = {
         "type": "object",
         "properties": {
             "action": {"type": "string", "enum": ["create", "edit"], "description": "Action to perform: 'create' a new shape, or 'edit' an existing one."},
-            "index": {"type": "integer", "description": "0-based index of the shape on the page (required only for action='edit')"},
+            "index": {"type": "integer", "description": "0-based index of the shape on the page (edit: required unless name is set)"},
+            "name": {
+                "type": "string",
+                "description": "Shape Name: set on create; on edit, look up the shape by Name (preferred over index).",
+            },
             "page": {"type": "integer", "description": "0-based page index (active page if omitted)"},
             "shape_type": {"type": "string", "description": _CREATE_SHAPE_SHAPE_TYPE_DESC + " (required only for action='create')"},
             "x": {"type": "integer", "description": "X position (100ths of mm) (required only for action='create')"},
@@ -603,8 +625,10 @@ class UpsertShape(ToolDrawShapeBase):
                 if r not in kwargs:
                     return False, f"Parameter '{r}' is required when action is 'create'"
         elif action == "edit":
-            if "index" not in kwargs:
-                return False, "Parameter 'index' is required when action is 'edit'"
+            has_index = "index" in kwargs and kwargs.get("index") is not None
+            has_name = bool(str(kwargs.get("name") or "").strip())
+            if not has_index and not has_name:
+                return False, "Parameter 'index' or 'name' is required when action is 'edit'"
         else:
             return False, f"Unknown action: '{action}'. Must be 'create' or 'edit'"
             
@@ -680,6 +704,7 @@ class UpsertShape(ToolDrawShapeBase):
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
 
             _apply_shape_properties(shape, kwargs)
+            _try_set_shape_name(shape, kwargs.get("name"))
             _try_writer_invalidate_and_pump(ctx.doc)
             _try_writer_select_created_shape(ctx.doc, shape)
             _log_shape_uno_snapshot("after_formatting", shape)
@@ -694,6 +719,9 @@ class UpsertShape(ToolDrawShapeBase):
             log.debug("shape_upsert (create): page=%s shape=%s shape_type=%s is_custom=%s geometry_applied=%s", page_index, shape_index, shape_type_raw, is_custom_shape, geometry_applied)
 
             result: dict = {"status": "ok", "message": f"Created {shape_type_raw}", "index": shape_index, "page": page_index, "shape_count_after": shape_count_after}
+            created_name = str(kwargs.get("name") or "").strip()
+            if created_name:
+                result["name"] = created_name
             if is_custom_shape:
                 result["custom_shape_engine"] = _ENHANCED_CUSTOM_SHAPE_ENGINE
                 result["geometry_applied"] = bool(geometry_applied)
@@ -704,10 +732,21 @@ class UpsertShape(ToolDrawShapeBase):
             return result
 
         elif action == "edit":
-            try:
-                shape = page.getByIndex(kwargs["index"])
-            except Exception as e:
-                return self._tool_error(f"Failed to find shape at index {kwargs['index']}: {str(e)}")
+            from plugin.draw.form_fields import find_shape_on_page
+
+            lookup_name = str(kwargs.get("name") or "").strip()
+            lookup_index = kwargs.get("index")
+            # Name is the stable paper-form key; do not fall back to index when Name misses.
+            found = find_shape_on_page(
+                page,
+                name=lookup_name or None,
+                index=None if lookup_name else lookup_index,
+            )
+            if found is None:
+                if lookup_name:
+                    return self._tool_error(f"Failed to find shape named {lookup_name!r}")
+                return self._tool_error(f"Failed to find shape at index {lookup_index}")
+            shape, resolved_index = found
 
             if "x" in kwargs or "y" in kwargs:
                 pos = shape.getPosition()
@@ -718,7 +757,13 @@ class UpsertShape(ToolDrawShapeBase):
 
             _apply_shape_properties(shape, kwargs)
 
-            return {"status": "ok", "message": "Shape updated", "page": actual_idx}
+            return {
+                "status": "ok",
+                "message": "Shape updated",
+                "page": actual_idx,
+                "index": resolved_index,
+                **({"name": lookup_name} if lookup_name else {}),
+            }
 
 
 class ConnectShapes(ToolDrawShapeBase):

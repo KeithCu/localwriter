@@ -195,7 +195,11 @@ class ToolWriterFormBase(ToolWriterSpecialBase, ToolCalcSpecialBase, ToolDrawFor
 
     # Same key on both ToolWriterSpecialBase / ToolCalcSpecialBase; explicit ClassVar for checkers.
     specialized_domain: ClassVar[str | None] = "forms"
-    specialized_domain_description: ClassVar[str | None] = "Create and manage form templates and UI controls."
+    specialized_domain_description: ClassVar[str | None] = (
+        "Create and manage interactive form ControlShapes (checkbox, text, radio) "
+        "in Writer, Calc, Draw, and Impress. For paper-form blank text boxes, use "
+        "get_draw_tree plus fill_draw_fields / shape_upsert — do not spawn ControlShapes unless asked."
+    )
     intent = "edit"
     uno_services = ["com.sun.star.text.TextDocument"]
 

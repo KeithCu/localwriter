@@ -42,7 +42,7 @@ These tools are **always available** to the main agent for Draw/Impress document
 | `set_active_page` | `pages.py` | Drawing+Presentation | Switch current view to slide |
 | `read_slide_text` | `pages.py` | Drawing+Presentation | Extract text from all shapes on a page |
 | `get_presentation_info` | `pages.py` | Drawing+Presentation | Metadata: slide count, dimensions, masters |
-| `get_draw_tree` | `tree.py` | Drawing+Presentation | JSON DOM of shapes and layout hierarchy |
+| `get_draw_tree` | `tree.py` | Drawing+Presentation | JSON DOM of shapes, paper-form blanks (`blank`/`fillable` + `label_hint`), and ControlShape values |
 | `list_placeholders` | `placeholders.py` | Presentation | List placeholder shapes (title, subtitle, body) |
 | `get_placeholder_text` | `placeholders.py` | Presentation | Get text from a placeholder |
 | `set_placeholder_text` | `placeholders.py` | Presentation | Set text in a placeholder |
@@ -55,7 +55,8 @@ These are available only via `delegate_to_specialized_draw_toolset`:
 | Tool | Domain | Module | Purpose | Services |
 |------|--------|--------|---------|---------|
 | `shape_summary` | `shapes` | `draw/shapes.py` | Summary of shapes on page | Drawing+Presentation |
-| `shape_upsert` | `shapes` | `draw/shapes.py` | Create or edit shapes (1/100mm coordinates) | Drawing+Presentation |
+| `shape_upsert` | `shapes` | `draw/shapes.py` | Create or edit shapes (1/100mm coordinates); edit by **Name** or index | Drawing+Presentation |
+| `fill_draw_fields` | `shapes` | `draw/form_fields.py` | Batch-fill paper-form blanks / existing controls by name, index, or `label_hint` | Drawing+Presentation |
 | `shape_delete` | `shapes` | `draw/shapes.py` | Delete a shape by index | Drawing+Presentation |
 | `shape_connect` | `shapes` | `draw/shapes.py` | Connect two shapes with a connector line | Drawing+Presentation |
 | `shape_group` | `shapes` | `draw/shapes.py` | Group multiple shapes | Drawing+Presentation |
@@ -76,7 +77,7 @@ These are available only via `delegate_to_specialized_draw_toolset`:
 | `get_headers_footers` | `headers_footers` | `draw/headers_footers.py` | Read slide/master header and footer settings (Impress) | Presentation |
 | `set_headers_footers` | `headers_footers` | `draw/headers_footers.py` | Update slide/master header and footer settings (Impress) | Presentation |
 | `manage_charts` | `charts` | `draw/charts.py` | Unified charts CRUD | Drawing+Presentation |
-| `form_*` (6 tools) | `forms` | `writer/forms.py` | Form controls | Drawing+Presentation+Spreadsheet+Text |
+| `form_*` (6 tools) | `forms` | `writer/specialized/forms.py` | Live ControlShapes (shared Writer/Calc/Draw/Impress); address by **name** or index | Drawing+Presentation+Spreadsheet+Text |
 | `insert_math` | `math` | `math_insert.py` | Insert LibreOffice Math (OLE) from LaTeX or MathML | Drawing+Presentation |
 | `WebResearchTool` | `web_research` | `web_research.py` | Web search for context | All |
 
@@ -91,9 +92,36 @@ These are available only via `delegate_to_specialized_draw_toolset`:
 
 ----
 
+### 2.5 Forms: ControlShapes vs paper-form fill
 
+Draw/Impress has **two** form problems. Do not collapse them, and do **not** claim PDF/AcroForm fill.
 
-### 2.4 Feature: Advanced Impress Layouts
+| Kind | What the user sees | How the agent fills it |
+|------|--------------------|------------------------|
+| **A. Paper form** | Empty / near-empty text boxes next to labels (imported “form” pages, GMP change-control stand-ins) | `get_draw_tree` → `fill_draw_fields` or `shape_upsert` by **Name** |
+| **B. ControlShapes** | Live LibreOffice form widgets (`com.sun.star.form.component.*` on a `ControlShape`) | Shared `form_*` (`form_list_controls`, `form_edit_control`, …) |
+| **C. PDF AcroForm** | Live PDF widgets in a PDF file | **Out of scope.** LibreOffice File → Open on a PDF often imports as editable Draw text/shapes. That stand-in is harness/eval staging, not a product PDF API. |
+
+**Paper-form (`plugin/draw/form_fields.py` + `tree.py`):**
+
+- `get_draw_tree` marks empty/near-empty text-capable shapes. `TextShape` blanks are always `fillable`. Other empty boxes (rectangles, custom shapes) become `fillable` only when a neighbor label exists, so decorative empties stay `blank` only.
+- `label_hint` is a sibling heuristic: nearest non-empty text **to the left** (vertical overlap), else **above** (horizontal overlap). Good enough for “Name:” next to a blank; not a layout engine.
+- ControlShape nodes include `control: {type, name, text, state, selected}` so the main agent can see widgets without a forms delegation.
+- `shape_upsert` edit accepts `name` (drawing Name or Control.Name) as well as index. Index-only is fragile when shapes are inserted.
+- `fill_draw_fields` is the one new specialized shapes tool: `fields: [{name|index|label_hint, value}, …]` plus optional `page`. Resolves, then `setString` or Control Text/State. Per-field ok/fail. **Does not create ControlShapes.**
+
+**ControlShapes (`plugin/writer/specialized/forms.py`, still `ToolWriterFormBase` ∪ `ToolDrawFormBase`):**
+
+- Descriptions cover Writer, Calc, Draw, and Impress.
+- `form_list_controls` / `form_edit_control` / `form_delete_control` address by **name** (Control.Name or drawing Name) or draw-page index. Optional `page` on Draw/Impress.
+- List returns current `text` / `state` / `selected`. Edit sets checkbox/radio `state` (0/1/2 or yes/true).
+- Do not split into a Draw-only fork.
+
+**Prompt rule:** empty boxes are fill targets; use the Name from the tree; do not spawn ControlShapes for paper forms.
+
+----
+
+### 2.6 Feature: Advanced Impress Layouts
 
 WriterAgent leverages the native Draw/Impress toolset to manage presentation layouts, including centering generated images on slides using explicit shape manipulation. **This layout strategy is derived directly from the explicit shape-handling implementation in LibreAI's `UnoHelper.cpp`.**
 
@@ -151,7 +179,8 @@ The existing sidebar doesn't need new UI elements; the "Insert Image" action dyn
 | **Charts (specialized)** | ✅ Complete | 5 tools | Full CRUD + info |
 | **Tree Structure (core)** | ✅ Complete | 1 tool | JSON DOM for LLM understanding |
 | **Web Research (specialized)** | ✅ Complete | 1 tool | Delegated search |
-| **Forms (specialized)** | ✅ Complete | 6 tools | Form controls (shared with Writer) |
+| **Forms — ControlShapes (specialized)** | ✅ Complete | 6 `form_*` tools | Live `com.sun.star.form.component.*` widgets (shared Writer/Calc/Draw/Impress). Address by **name** (stable) or draw-page index; list/edit checkbox/radio **State**. See [§2.5](#25-forms-controlshapes-vs-paper-form-fill). |
+| **Forms — paper-form fill** | ✅ Shipped | `get_draw_tree` + `fill_draw_fields` / `shape_upsert` | Empty/near-empty text boxes next to labels (GMP-style Draw stand-in). **Not** PDF/AcroForm. |
 | **Math (specialized)** | partial | 1 tool (`insert_math`) | LaTeX/MathML → OLE Math on slide; **bounding-box sizing still unreliable** — see [§2.3](#23-insert_math-math-domain) |
 | **Animations** | ❌ Missing | — | Slide + shape-level animations |
 | **Layers** | ❌ Missing | — | Draw layer management |
@@ -198,7 +227,7 @@ Core **placeholders** remain on the default list (`list_placeholders`, `get_plac
 Some tools are implemented in shared modules but work with Draw/Impress:
 
 - **Charts** (`plugin/draw/charts.py`): Chart tools work across all document types that support charts
-- **Forms** (`writer/forms.py`): Form tools inherit from `ToolDrawFormBase` (`plugin/draw/base.py`) and work across document types that support form controls
+- **Forms** (`plugin/writer/specialized/forms.py`): `form_*` inherit from `ToolWriterFormBase` ∪ `ToolDrawFormBase` and manage **ControlShapes** across Writer/Calc/Draw/Impress. Paper-form blanks use `get_draw_tree` + `fill_draw_fields` (shapes domain), not `form_create_*`. See [§2.5](#25-forms-controlshapes-vs-paper-form-fill).
 
 > This document focuses on Draw/Impress-specific usage of these shared tools.
 
@@ -363,7 +392,7 @@ Use the existing Writer/Calc `image_*` tools (`domain="images"`). On Draw/Impres
 
 | Domain | Tools | Use Case |
 |--------|-------|---------|
-| `shapes` | `shape_upsert`, `create_diagram`, `align_shapes`, `distribute_shapes`, `shape_connect`, `shape_group` | Vector graphics & flowcharts |
+| `shapes` | `shape_upsert`, `fill_draw_fields`, `create_diagram`, `align_shapes`, `distribute_shapes`, `shape_connect`, `shape_group` | Vector graphics, flowcharts, paper-form fill |
 | `images` | `image_insert`, `image_list`, `image_delete`, `image_generate` | Images on slides (millimetres) |
 | `tables` | `table_insert`, `table_list`, `table_get_cells`, `table_set_cell`, `manage_table_structure` | Slide tables |
 | `animations` | `get_animations`, `set_animations`, `add_animation` | Element entrance/motion builds |
@@ -458,7 +487,8 @@ Use the existing Writer/Calc `image_*` tools (`domain="images"`). On Draw/Impres
 **Recommended test additions:**
 - `tests/draw/test_draw_uno.py` - Draw/Impress UNO shape and page coverage
 - `tests/draw/test_draw_specialized_tiers.py` - Specialized tier registration
-- `tests/draw/test_draw_forms_uno.py` - Forms
+- `tests/draw/test_draw_forms_uno.py` - ControlShape form_* + paper-form fill
+- `tests/draw/test_form_fields.py` - Blank detection, name lookup, fill_draw_fields (unit)
 - `tests/draw/test_draw_headers_footers.py` - Headers/footers
 
 ----

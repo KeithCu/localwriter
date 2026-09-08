@@ -524,7 +524,7 @@ READ:
 - list_pages: List pages/slides in the document.
 - read_slide_text: Extract text content and speaker notes from a slide.
 - get_presentation_info: Slide count, dimensions, master slide names, and Impress status.
-- get_draw_tree: Semantic tree (DOM) of shapes, layout, and hierarchy on a page.
+- get_draw_tree: Semantic tree (DOM) of shapes, layout, hierarchy, paper-form blanks (fillable + label_hint), and ControlShape values. Empty text boxes are fill targets — use the Name from the tree with fill_draw_fields / shape_upsert; do not spawn ControlShapes for paper forms.
 - list_placeholders: List text placeholders (title, subtitle, body) on a slide (Impress).
 - get_placeholder_text: Get text from a slide placeholder by role or index.
 
