@@ -452,8 +452,15 @@ class DrawShapes:
 
 def _apply_shape_properties(shape, kwargs):
     """Helper to apply rich formatting properties to a shape."""
-    if kwargs.get("text") and hasattr(shape, "setString"):
-        shape.setString(kwargs["text"])
+    # "text" in kwargs (not truthy) so paper-form fills can write "" or keep a Name-only edit.
+    if "text" in kwargs and hasattr(shape, "setString"):
+        shape.setString("" if kwargs["text"] is None else str(kwargs["text"]))
+
+    if kwargs.get("name") and hasattr(shape, "Name"):
+        try:
+            shape.Name = str(kwargs["name"])
+        except Exception:
+            pass
 
     # Background/Fill Color
     if kwargs.get("fill_color"):
@@ -564,12 +571,16 @@ _CREATE_SHAPE_SHAPE_TYPE_DESC = (
 
 class UpsertShape(ToolDrawShapeBase):
     name = "shape_upsert"
-    description = "Creates a new shape or modifies an existing shape on a page."
+    description = (
+        "Create or edit a shape on a page. When filling a paper-form blank, edit by shape Name "
+        "from get_draw_tree — draw-page index shifts when other shapes sit between fields."
+    )
     parameters = {
         "type": "object",
         "properties": {
             "action": {"type": "string", "enum": ["create", "edit"], "description": "Action to perform: 'create' a new shape, or 'edit' an existing one."},
-            "index": {"type": "integer", "description": "0-based index of the shape on the page (required only for action='edit')"},
+            "index": {"type": "integer", "description": "0-based index of the shape on the page (edit: pass index or name)"},
+            "name": {"type": "string", "description": "Shape Name. Edit: look up by Name when index is omitted. Create: set the new shape's Name so later fills stay stable."},
             "page": {"type": "integer", "description": "0-based page index (active page if omitted)"},
             "shape_type": {"type": "string", "description": _CREATE_SHAPE_SHAPE_TYPE_DESC + " (required only for action='create')"},
             "x": {"type": "integer", "description": "X position (100ths of mm) (required only for action='create')"},
@@ -603,8 +614,8 @@ class UpsertShape(ToolDrawShapeBase):
                 if r not in kwargs:
                     return False, f"Parameter '{r}' is required when action is 'create'"
         elif action == "edit":
-            if "index" not in kwargs:
-                return False, "Parameter 'index' is required when action is 'edit'"
+            if "index" not in kwargs and not str(kwargs.get("name") or "").strip():
+                return False, "Parameter 'index' or 'name' is required when action is 'edit'"
         else:
             return False, f"Unknown action: '{action}'. Must be 'create' or 'edit'"
             
@@ -704,10 +715,14 @@ class UpsertShape(ToolDrawShapeBase):
             return result
 
         elif action == "edit":
-            try:
-                shape = page.getByIndex(kwargs["index"])
-            except Exception as e:
-                return self._tool_error(f"Failed to find shape at index {kwargs['index']}: {str(e)}")
+            from plugin.draw.tree import find_shape_on_page
+
+            # Index is fragile for peer "fill field X"; Name from get_draw_tree stays stable
+            # when non-fields sit between boxes. Index wins when both are passed.
+            lookup_name = kwargs.get("name") if "index" not in kwargs else None
+            shape_idx, shape, find_err = find_shape_on_page(page, index=kwargs.get("index"), name=lookup_name)
+            if find_err or shape is None:
+                return self._tool_error(find_err or "Shape not found.")
 
             if "x" in kwargs or "y" in kwargs:
                 pos = shape.getPosition()
@@ -718,7 +733,7 @@ class UpsertShape(ToolDrawShapeBase):
 
             _apply_shape_properties(shape, kwargs)
 
-            return {"status": "ok", "message": "Shape updated", "page": actual_idx}
+            return {"status": "ok", "message": "Shape updated", "page": actual_idx, "index": shape_idx, "name": getattr(shape, "Name", "") or ""}
 
 
 class ConnectShapes(ToolDrawShapeBase):

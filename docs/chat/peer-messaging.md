@@ -98,7 +98,7 @@ This is user-send equivalence.
 | Frame → model | `_get_document_model` → `get_document_from_frame` | Sidebar stays on **its** window. Envelope sender uses `ctx.doc` (same model). |
 | FSM | `next_state` in [`plugin/chatbot/tool_loop_state.py`](../../plugin/chatbot/tool_loop_state.py) | Pure. Success is `status == "ok"` or `success is True`. No inject-user-message event. |
 | Schema filter | `ToolRegistry.get_schemas("openai", doc_type=…)` | Default excludes `specialized`, `specialized_control`, `mcp`. Precedent: `filter_vision_delegate_schemas` in [`plugin/framework/tool.py`](../../plugin/framework/tool.py). |
-| Live panels | Debug `WeakSet` only today (`register_debug_live_panel` / `iter_debug_live_chat_panels` in [`plugin/chatbot/panel_factory.py`](../../plugin/chatbot/panel_factory.py); `iter_live_chat_panels` in [`plugin/chatbot/sidebar_test_hooks.py`](../../plugin/chatbot/sidebar_test_hooks.py)) | Debug-gated / stripped in release / not uid-keyed. A1 **requires** a production weak map — [§4.3](#43-live-panel--busy--queue--deck). |
+| Live panels | Production `WeakValueDictionary` uid → panel in [`plugin/doc/live_panels.py`](../../plugin/doc/live_panels.py); debug `WeakSet` remains for tests | Register after `_wire_buttons`. Tool reads the map — [§4.3](#43-live-panel--busy--queue--deck). |
 
 Draw already registers a sidebar deck (`DrawingDocument` in `extension/registry/.../Sidebar.xcu`; Impress is also on that ContextList). A1 still needs that deck **constructed once** so a live panel exists.
 
@@ -342,7 +342,7 @@ GDPval GMP change-control ([`docs/eval/gdpval/58ac1cc5-…`](../eval/gdpval/58ac
 
 **Staging fact, not a product claim:** LibreOffice File → Open on a PDF often imports as **editable Draw text and shapes**, not live AcroForm widgets. A headed poke may land the gold PDF in Draw. That is eval/harness staging. It is **not** “WriterAgent edits PDFs” and **not** an AcroForm API.
 
-The Draw sidebar fills **blank / fillable shapes** on that stand-in — not a product PDF/AcroForm API. Point at fields with `get_draw_tree`. Write text via name-based `shape_upsert` (and `fill_draw_fields` when that tool is on the branch). **ControlShapes** stay on shared `form_*` (`form_list_controls` / `form_edit_control` / `form_create_control`). Then it `send_peer_message`s back with the `peer_ask_id`.
+The Draw sidebar fills the stand-in with Draw tools (`get_draw_tree` marks empty boxes as fill targets; `delegate_to_specialized_draw_toolset` → `fill_draw_fields` / `shape_upsert` by name from the tree; shared `form_*` only for live ControlShapes). Do not spawn new ControlShapes for paper-form blanks. Then it `send_peer_message`s back with the `peer_ask_id`.
 
 ### 4.8 Worked scenarios
 
@@ -359,7 +359,7 @@ The Draw sidebar fills **blank / fillable shapes** on that stand-in — not a pr
 
 1. Writer drafts the memo with Writer tools.
 2. `send_peer_message(document_url=<stand-in uid>, message="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{ok, accepted, peer_ask_id}`. Writer Readys.
-3. Draw sidebar sees the Writer envelope, runs `get_draw_tree` (then `shape_upsert` / `fill_draw_fields` if present for shape text; `form_*` for ControlShapes) **on the Draw model only**.
+3. Draw sidebar sees the Writer envelope, runs `get_draw_tree` then `fill_draw_fields` (or `shape_upsert` by name) **on the Draw model only**. Empty text boxes are the fill targets; use the name from the tree. `form_*` is only for live ControlShapes.
 4. Draw `send_peer_message(document_url=<Writer uid or url from the envelope>, message=<confirmation>, peer_ask_id=…)`. Writer follow-up cites the form in the memo.
 
 Reverse (Draw asks Writer for a paragraph) is the same tool with a Writer uid.

@@ -522,7 +522,7 @@ Do not explain - do the operation directly using tools. Perform as many steps as
 WORKFLOW:
 1. Understand the user's request.
 2. If needed, use list_pages, read_slide_text, or get_presentation_info to understand current slides and layout.
-3. Use the specialized delegation tool to perform shape operations (create, edit, group, etc.), transitions, masters, notes, or charts.
+3. Use the specialized delegation tool to perform shape operations (create, edit, group, paper-form fill via fill_draw_fields), transitions, masters, notes, or charts.
 4. Give a short confirmation; when you changed pages/shapes, mention them.
 
 TOOLS (grouped by use):
@@ -531,7 +531,7 @@ READ:
 - list_pages: List pages/slides in the document.
 - read_slide_text: Extract text content and speaker notes from a slide.
 - get_presentation_info: Slide count, dimensions, master slide names, and Impress status.
-- get_draw_tree: Semantic tree (DOM) of shapes, layout, and hierarchy on a page.
+- get_draw_tree: Semantic tree (DOM) of shapes, layout, and hierarchy on a page. Empty/near-empty text boxes are fill targets (fillable, label_hint, name); ControlShapes include type/name/value/state. Address by name. Do not spawn ControlShapes to fill paper-form blanks.
 - list_placeholders: List text placeholders (title, subtitle, body) on a slide (Impress).
 - get_placeholder_text: Get text from a slide placeholder by role or index.
 

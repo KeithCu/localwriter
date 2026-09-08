@@ -153,3 +153,17 @@ def test_page_index_for_uses_uno_same_ladder():
     assert _page_index_for(bridge, second) == 1
     assert _page_index_for(bridge, first) == 0
     assert _page_index_for(bridge, object()) == 0
+
+
+def test_shape_upsert_edit_accepts_name_without_index():
+    tool = UpsertShape()
+    ok, err = tool.validate(action="edit")
+    assert not ok
+    assert err is not None
+    assert "index" in err and "name" in err
+    ok, err = tool.validate(action="edit", name="fld_product")
+    assert ok
+    assert err is None
+    ok, err = tool.validate(action="edit", index=0)
+    assert ok
+    assert err is None
