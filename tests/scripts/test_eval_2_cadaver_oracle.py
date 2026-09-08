@@ -6,7 +6,7 @@ from pathlib import Path
 
 from docx import Document
 from odf.opendocument import OpenDocumentText
-from odf.text import P
+from odf.text import H, P
 
 _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS) not in sys.path:
@@ -20,23 +20,22 @@ from eval_2_cadaver_oracle import (  # noqa: E402
 from eval_2_headed import main as headed_main  # noqa: E402
 
 _PASSING = """
-Collaborative Cadaver Program Proposal
 Introduction
-Hope Hospital General Surgery proposes a Collaborative Cadaver Program
-with Thoracic Surgery, Otolaryngology, and Orthopedic Surgery.
+Collaborative Cadaver Program Proposal for General Surgery, Thoracic
+Surgery, Otolaryngology, and Orthopedic Surgery.
 
-Cost savings: baseline uses 4 cadavers at $3,000 each plus a $1,000
-annual lab fee. Supplies and education are excluded. The graph of
-annual savings versus 1-4 participating departments is below.
+Cost savings come first. Baseline is 4 cadavers/year for General Surgery.
+Formula: (4 × per-cadaver) + Annual Cadaver Lab Fee. The analysis excludes
+Supplies and Education. Graph and savings table for 1-4 departments below.
 
-Ethical use: we maximize cadaver use to respect donor final wishes.
-Anatomy assignments: abdomen for General Surgery; thorax for Thoracic
-Surgery; head and neck for Otolaryngology; limbs for Orthopedic Surgery.
+Ethical use: we maximize cadaver use to honor donors and respect final wishes.
+Anatomy: abdomen for General Surgery; thorax for Thoracic Surgery; head and
+neck for Otolaryngology; limbs for Orthopedic Surgery.
 
 Freeze/thaw cycles are 10-12. Once thawed there is a 3-hour window.
-Simple procedures take 30-45 minutes (40-48 per cadaver). Standard
-takes 1-1.5 hours. Complex takes 2-3 hours. This proposal does not
-account for mixing complexity.
+Simple 30-45 minutes (up to 4 per window; totals 40-48). Standard 1-1.5
+hours (2-3 per window; totals 20-36). Complex 2-3 hours (1 per window;
+totals 10-12). This proposal does not account for mixing complexity.
 """
 
 
@@ -48,9 +47,15 @@ def _write_docx(path: Path, text: str) -> Path:
     return path
 
 
-def _write_odt(path: Path, text: str) -> Path:
+def _write_odt(path: Path, text: str, *, title_as_heading: bool = False) -> Path:
     doc = OpenDocumentText()
-    for line in text.strip().splitlines():
+    lines = text.strip().splitlines()
+    if title_as_heading and lines:
+        heading = H(outlinelevel=1)
+        heading.addText(lines[0])
+        doc.text.addElement(heading)
+        lines = lines[1:]
+    for line in lines:
         doc.text.addElement(P(text=line))
     doc.save(str(path))
     return path
@@ -67,7 +72,15 @@ def test_passing_proposal_docx_and_odt(tmp_path: Path) -> None:
     for path in (docx, odt):
         result = score_proposal(path)
         assert result.passed, (path.name, result.failures)
-        assert 250 <= result.word_count <= 3000
+        assert 250 <= result.word_count <= 2500
+
+
+def test_odt_heading_title_is_scored(tmp_path: Path) -> None:
+    """Headed Writer puts the title in text:h; body stays text:p."""
+    body = _padded().replace("Collaborative Cadaver Program Proposal", "Working draft", 1)
+    path = _write_odt(tmp_path / "headed.odt", "Collaborative Cadaver Program Proposal\n" + body, title_as_heading=True)
+    result = score_proposal(path)
+    assert result.passed, result.failures
 
 
 def test_empty_proposal_fails(tmp_path: Path) -> None:
@@ -77,23 +90,51 @@ def test_empty_proposal_fails(tmp_path: Path) -> None:
     assert any("empty" in item or "word_count" in item for item in result.failures)
 
 
-def test_wrong_budget_cells_fail() -> None:
-    text = (
-        _padded()
-        .replace("$3,000", "$9,999")
-        .replace("$1,000", "$50")
-    )
+def test_missing_exclude_wording_fails() -> None:
+    text = _padded().replace("excludes\nSupplies and Education", "mentions Supplies and Education")
     result = score_text(text, para_count=12)
     assert not result.passed
-    assert any("2,000" in item or "3,000" in item for item in result.failures)
-    assert any("1,000" in item for item in result.failures)
+    assert any("exclude" in item for item in result.failures)
 
 
-def test_missing_hope_hospital_fails() -> None:
-    text = _padded().replace("Hope Hospital", "Silverview Hospital")
+def test_missing_formula_fails() -> None:
+    text = _padded().replace("(4 × per-cadaver) + Annual Cadaver Lab Fee", "some shared costs")
     result = score_text(text, para_count=12)
     assert not result.passed
-    assert any("Hope Hospital" in item for item in result.failures)
+    assert any("formula" in item for item in result.failures)
+
+
+def test_cost_savings_must_come_before_ethics() -> None:
+    text = _padded()
+    ethics = "Ethical use: we maximize cadaver use to honor donors and respect final wishes."
+    cost = "Cost savings come first."
+    swapped = text.replace(ethics, "PLACEHOLDER_ETHICS").replace(cost, ethics).replace("PLACEHOLDER_ETHICS", cost)
+    result = score_text(swapped, para_count=12)
+    assert not result.passed
+    assert any("not first" in item for item in result.failures)
+
+
+def test_missing_standard_36_fails() -> None:
+    text = _padded().replace("20-36", "20-24")
+    result = score_text(text, para_count=12)
+    assert not result.passed
+    assert any("20-36" in item for item in result.failures)
+
+
+def test_does_not_require_exact_dollars() -> None:
+    text = _padded()
+    assert "$" not in text
+    assert "2,000" not in text
+    result = score_text(text, para_count=12)
+    assert result.passed, result.failures
+
+
+def test_does_not_require_hope_or_silverview() -> None:
+    text = _padded()
+    assert "Hope Hospital" not in text
+    assert "Silverview" not in text
+    result = score_text(text, para_count=12)
+    assert result.passed, result.failures
 
 
 def test_husk_body_fails() -> None:
@@ -101,13 +142,6 @@ def test_husk_body_fails() -> None:
     result = score_text(text, para_count=12)
     assert not result.passed
     assert any("husk" in item for item in result.failures)
-
-
-def test_oracle_does_not_require_silverview() -> None:
-    text = _padded()
-    assert "Silverview" not in text
-    result = score_text(text, para_count=12)
-    assert result.passed, result.failures
 
 
 def test_headed_score_routes_to_cadaver_oracle(tmp_path: Path) -> None:
