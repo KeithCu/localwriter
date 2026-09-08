@@ -155,6 +155,7 @@ _STANDARD_HR_RE = re.compile(
     r"|60\s*[-–to]+\s*90|60\s+to\s+90",
     re.I,
 )
+_COMPLEX_HR_RE = re.compile(r"2\s*[-–to]+\s*3")
 _WINDOW_SIMPLE_RE = re.compile(
     r"simple.{0,60}(?:up\s+to|<=|≤|at\s+most)\s*4"
     r"|(?:up\s+to|<=|≤)\s*4.{0,40}simple"
