@@ -391,7 +391,8 @@ Every test must satisfy:
 | ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
 |:--:|:----:|----------------|-----------------|------------------------|:--------------:|
 | **P1** | mock-sidebar | `Ask the budget workbook to add a Total row` | Dual decks; Writer send | Both Ready; Calc wrote Total; Writer saw reply; finish immediately after accepted; no outer `send_peer_message` | **Landed** (SkipTest if Calc deck cannot open) |
-| **P2** | mock-sidebar | `wait after accepted then hang` | Writer send; short wait | Writer still busy or Calc has no envelope; no finish-after-accepted | **Landed** (same skip) |
+| **P2** | mock-sidebar | `wait after accepted then hang` | Writer send; assert before max_steps | Specialized stays in discovery after accepted; Calc does not `write_formula_range` (inject-now envelope is OK) | **Landed** (same skip) |
+| **P3** | unit | busy peer listener | `schedule_peer_turn` while busy | Queue, no start; kick after idle starts the reply | **Landed** (`test_p3_busy_then_queue_reply` in `test_peer_message.py`) |
 
 See [peer-messaging.md](../chat/peer-messaging.md#dual-mock-peer-tests).
 

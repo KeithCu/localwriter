@@ -320,6 +320,24 @@ def test_user_busy_wins_over_queued_inject():
     assert listener.started == [("wrapped", False)]
 
 
+def test_p3_busy_then_queue_reply():
+    """Packet P: inbound reply queues while the peer is busy; starts after idle."""
+    listener = _Listener()
+    listener.sidebar_state.send.is_busy = True
+    wrapped = (
+        "[Peer from: BudgetPeer.ods | uid=calc-uid | url= | peer_ask_id=ask-1]\n\n"
+        "Total row written at A4:B4."
+    )
+    turn = PeerPendingTurn(wrapped, False, "ask-1")
+    assert schedule_peer_turn(listener, turn) is None
+    assert listener.started == []
+    assert listener_queue_len(listener) == 1
+    listener.sidebar_state.send.is_busy = False
+    kick_pending_peer_starts()
+    assert listener.started == [(wrapped, False)]
+    assert listener_queue_len(listener) == 0
+
+
 def test_execute_status_ok_accepted():
     tool = SendPeerMessage()
     ctx = _ctx()

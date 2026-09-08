@@ -163,23 +163,6 @@ def write_minimal_ods(path: str) -> None:
         zf.writestr("content.xml", content)
 
 
-def _writeragent_deck_visible(ctx: Any, doc: Any) -> bool:
-    from plugin.chatbot.sidebar_test_hooks import chat_dialog_controls, sidebar_provider
-
-    if doc is None:
-        return False
-    try:
-        if chat_dialog_controls(ctx, doc) is not None:
-            return True
-        controller = doc.getCurrentController()
-        provider = sidebar_provider(controller)
-        if provider is None or not hasattr(provider, "isVisible"):
-            return False
-        return bool(provider.isVisible())
-    except Exception:
-        return False
-
-
 def _iter_office_docs(ctx: Any) -> list[Any]:
     from plugin.chatbot.sidebar_test_hooks import desktop_from_ctx
 
@@ -232,98 +215,23 @@ def find_open_writer(ctx: Any) -> Any:
     return None
 
 
-def _load_url(ctx: Any, url: str, filter_name: str = "") -> Any:
-    """``loadComponentFromURL`` onto ``_blank``. Not ``private:factory/scalc``."""
-    import uno
-
-    from plugin.chatbot.sidebar_test_hooks import desktop_from_ctx
-
-    props = []
-    if filter_name:
-        pv = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
-        pv.Name = "FilterName"
-        pv.Value = filter_name
-        props.append(pv)
-    return desktop_from_ctx(ctx).loadComponentFromURL(url, "_blank", 0, tuple(props))
-
-
-def _dispatch_file_new_spreadsheet(ctx: Any, frame: Any) -> None:
-    """File→New Spreadsheet equivalent (not factory/scalc after Writer deck)."""
-    import uno
-
-    pv = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
-    pv.Name = "DocumentService"
-    pv.Value = "com.sun.star.sheet.SpreadsheetDocument"
-    smgr = ctx.getServiceManager()
-    helper = smgr.createInstanceWithContext("com.sun.star.frame.DispatchHelper", ctx)
-    helper.executeDispatch(frame, ".uno:NewDoc", "_blank", 0, (pv,))
-
-
 def open_calc_for_dual_sidebar(ctx: Any, *, timeout: float = 15.0) -> Any:
-    """Open Calc without the E12 ``factory/scalc``-after-Writer-deck URP hang.
+    """Open Calc for Packet P via the shared E12 helper (keep Writer; VCL factory).
 
-    Order: reuse an open Calc; load a temp ODS file URL; load a temp CSV;
-    File→New Spreadsheet dispatch. ``private:factory/scalc`` is only used when
-    no WriterAgent deck is visible yet (open-Calc-first hypothesis).
+    Do not ``loadComponentFromURL('private:factory/scalc')`` from the URP client
+    after a WriterAgent deck is visible. Show the Writer deck first so
+    ``OPEN_CALC`` can post onto that listener's ``QueueExecutor``.
     """
-    import os
-    import tempfile
-    import time
+    from plugin.chatbot.sidebar_test_hooks import open_calc_document
 
-    import uno
-
-
-    existing = find_open_calc(ctx)
-    if existing is not None:
-        return existing
-
-    writer = find_open_writer(ctx)
-    deck_up = _writeragent_deck_visible(ctx, writer)
-    deadline = time.monotonic() + max(2.0, timeout)
-
-    ods_path = os.path.join(tempfile.mkdtemp(prefix="wa-peer-"), "BudgetPeer.ods")
-    write_minimal_ods(ods_path)
     try:
-        doc = _load_url(ctx, uno.systemPathToFileUrl(ods_path))
-        if doc is not None:
-            return doc
+        return open_calc_document(ctx, timeout=timeout)
     except Exception:
-        pass
-
-    csv_path = os.path.join(os.path.dirname(ods_path), "BudgetPeer.csv")
-    write_budget_csv(csv_path)
-    try:
-        doc = _load_url(ctx, uno.systemPathToFileUrl(csv_path), "Text - txt - csv (StarCalc)")
-        if doc is not None:
-            return doc
-    except Exception:
-        pass
-
-    if writer is not None:
-        try:
-            frame = writer.getCurrentController().getFrame()
-            _dispatch_file_new_spreadsheet(ctx, frame)
-            while time.monotonic() <= deadline:
-                found = find_open_calc(ctx)
-                if found is not None:
-                    return found
-                time.sleep(0.3)
-        except Exception:
-            pass
-
-    # Last resort only when the WriterAgent deck is not up (E12 hang is after deck).
-    if not deck_up:
-        try:
-            from plugin.chatbot.sidebar_test_hooks import desktop_from_ctx
-
-            return desktop_from_ctx(ctx).loadComponentFromURL("private:factory/scalc", "_blank", 0, ())
-        except Exception:
-            return None
-    return None
+        return None
 
 
 def seed_budget_sheet(calc: Any) -> None:
-    """Guarantee Item/Amount rows if the file-URL load came in empty."""
+    """Guarantee Item/Amount rows on a factory Calc (E12 open is empty)."""
     if calc is None:
         return
     try:

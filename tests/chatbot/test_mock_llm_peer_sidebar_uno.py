@@ -5,7 +5,7 @@
 """Packet P: dual mock-LLM sidebars locking specialized-inner peer messaging (#673).
 
 Run via ``make test-mock-sidebar FILTER=P`` (visible soffice, user profile).
-Does not use ``private:factory/scalc`` after a WriterAgent deck is up (E12 URP hang).
+Opens Calc with ``open_calc_document`` (E12 / #674: VCL-posted factory, ``_blank``).
 """
 
 from __future__ import annotations
@@ -32,11 +32,10 @@ _calc_doc = None
 _writer_doc = None
 _open_path = ""
 _CALC_OPEN_SKIP = (
-    "Packet P: could not open Calc with a live WriterAgent deck without the "
-    "E12 factory/scalc-after-Writer-deck URP hang. Unit tests in "
-    "tests/scripts/test_mock_llm_server.py still lock finish-after-accepted "
-    "and the specialized-inner reply path. Follow-up: a File→New / file-URL "
-    "Calc open that does not block URP."
+    "Packet P: open_calc_document did not yield a Calc WriterAgent deck. "
+    "Unit tests in tests/scripts/test_mock_llm_server.py and "
+    "tests/doc/test_peer_message.py still lock finish-after-accepted, "
+    "reply-via-specialized, and busy-then-queue."
 )
 
 
@@ -67,10 +66,9 @@ def _setup_peer(ctx):
     import plugin.chatbot.sidebar_test_hooks  # noqa: F401
 
     from plugin.chatbot.sidebar_test_hooks import (
-        adopt_runtime_send_listeners,
+        adopt_chat_sidebar,
+        desktop_from_ctx,
         ensure_sidebar_chat_mode,
-        send_listener_for_doc,
-        wait_for_chat_dialog_controls,
     )
     from plugin.doc.doc_type import is_writer
     from plugin.framework.uno_context import get_runtime_uid
@@ -79,42 +77,36 @@ def _setup_peer(ctx):
     _session = start_mock_sidebar_session(delay_ms=20, offline=True)
     _session.prompt_research_cleared = True
 
-    # Open Calc before showing WriterAgentDeck when possible (open-first hypothesis).
-    _calc_doc = open_calc_for_dual_sidebar(ctx, timeout=15.0)
-    _open_path = "reuse-or-file" if _calc_doc is not None else ""
+    # #674 recipe: Writer deck first so OPEN_CALC posts onto that QueueExecutor.
+    writer = find_open_writer(ctx)
+    if writer is None:
+        writer = desktop_from_ctx(ctx).loadComponentFromURL("private:factory/swriter", "_default", 0, ())
+        time.sleep(1.0)
+    _writer_doc = writer if writer is not None and is_writer(writer) else None
+    writer_controls, writer_listener = adopt_chat_sidebar(ctx, _writer_doc)
+    ensure_sidebar_chat_mode(writer_controls, doc_type="writer", listener=writer_listener)
+
+    _calc_doc = open_calc_for_dual_sidebar(ctx, timeout=20.0)
+    _open_path = "open_calc_document" if _calc_doc is not None else ""
+    calc_controls = None
+    calc_listener = None
     if _calc_doc is not None:
         seed_budget_sheet(_calc_doc)
         try:
             _calc_doc.setTitle("BudgetPeer.ods")
         except Exception:
             pass
-
-    writer = find_open_writer(ctx)
-    if writer is None:
-        from plugin.chatbot.sidebar_test_hooks import desktop_from_ctx
-
-        writer = desktop_from_ctx(ctx).loadComponentFromURL("private:factory/swriter", "_default", 0, ())
-        time.sleep(1.0)
-    _writer_doc = writer if writer is not None and is_writer(writer) else None
-
-    writer_controls = wait_for_chat_dialog_controls(ctx, timeout=20.0, doc=_writer_doc)
-    adopt_runtime_send_listeners()
-    ensure_sidebar_chat_mode(writer_controls, doc_type="writer")
-
-    calc_controls = None
-    if _calc_doc is not None:
-        calc_controls = wait_for_chat_dialog_controls(ctx, timeout=20.0, doc=_calc_doc)
-        ensure_sidebar_chat_mode(calc_controls, doc_type="calc")
-        adopt_runtime_send_listeners()
+        calc_controls, calc_listener = adopt_chat_sidebar(ctx, _calc_doc)
+        ensure_sidebar_chat_mode(calc_controls, doc_type="calc", listener=calc_listener)
 
     _session.writer_doc = _writer_doc
     _session.calc_doc = _calc_doc
     _session.writer_controls = writer_controls
     _session.calc_controls = calc_controls
-    # Resolve listeners once. Re-entering send_listener_for_doc from a wait
-    # loop URP-hangs after the peer kick (getFrame during the extracted send).
-    _session.writer_listener = send_listener_for_doc(_writer_doc) if _writer_doc is not None else None
-    _session.calc_listener = send_listener_for_doc(_calc_doc) if _calc_doc is not None else None
+    # Cache listeners once. Re-resolving send_listener_for_doc in a wait loop
+    # URP-hangs after the peer kick (getFrame during the extracted send).
+    _session.writer_listener = writer_listener
+    _session.calc_listener = calc_listener
     _session.hook_ctx = ctx
     _session.writer_uid = get_runtime_uid(_writer_doc) if _writer_doc is not None else ""
     _session.calc_uid = get_runtime_uid(_calc_doc) if _calc_doc is not None else ""
@@ -136,11 +128,9 @@ def _teardown_peer():
         except Exception:
             pass
     stop_mock_sidebar_session(_session)
-    if _calc_doc is not None:
-        try:
-            _calc_doc.close(True)
-        except Exception:
-            pass
+    from plugin.chatbot.sidebar_test_hooks import close_component
+
+    close_component(_calc_doc)
     _session = None
     _calc_doc = None
     _writer_doc = None
@@ -431,20 +421,35 @@ def test_p2_wait_after_accepted_deadlocks_peer(ctx):
         time.sleep(0.2)
         uno_click(controls["send"])
 
-    # Peer must not run while Writer specialized is still draining.
-    time.sleep(8.0)
-    calc_txt = _transcript("calc")
-    writer_busy = _is_busy("writer")
-    calc_has_envelope = "[Peer from:" in calc_txt
+    # Inject-now may paint [Peer from:] on Calc immediately. Lock the hang:
+    # while specialized keeps calling discovery (not finish), Calc must not
+    # start write_formula_range. Do not wait for max_steps — that Readys Writer
+    # and finally-kicks the peer.
+    deadline = time.monotonic() + 4.0
+    saw_send = False
+    saw_wait_loop = False
+    while time.monotonic() <= deadline:
+        decided = _capture_tools()
+        flat = [name for row in decided for name in row]
+        if "send_peer_message" in flat:
+            saw_send = True
+        if saw_send and "list_nearby_files" in flat and "specialized_workflow_finished" not in flat:
+            saw_wait_loop = True
+            break
+        time.sleep(0.12)
     snaps = _captures()
     decided = [row.get("decided_tools") or [] for row in snaps]
     finished_after_send = finish_immediately_after_peer_sends(snaps)
+    formula_started = any("write_formula_range" in row for row in decided)
     try:
-        assert writer_busy or not calc_has_envelope, (
-            "peer started while specialized waited after accepted: calc=%r decided=%r" % (calc_txt[-300:], decided)
+        assert saw_send, "specialized never called send_peer_message: %r" % decided
+        assert saw_wait_loop or _is_busy("writer"), (
+            "specialized did not stay in the wait loop after accepted: decided=%r" % decided
+        )
+        assert not formula_started, (
+            "peer started (write_formula_range) while specialized waited: decided=%r" % decided
         )
         assert not finished_after_send
-        assert any("send_peer_message" in row for row in decided)
     finally:
         _session.config.scenario = "none"
         _session.config.peer_wait_after_accepted = False
