@@ -15,15 +15,21 @@ if str(_SCRIPTS) not in sys.path:
 from eval_2_headed import (  # noqa: E402
     DEFAULT_MAX_TOOL_ROUNDS,
     EVAL_2_MAX_TOOL_ROUNDS,
+    LETTER_ODT_NAME,
     MAX_TOOL_ROUNDS_KEY,
     POPULATION_ODS_NAME,
+    SURVEY_XLSX_NAME,
+    TASK_TENANT,
+    TENANT_MEMO_NAME,
     _AFC_DIR,
+    _TENANT_DIR,
     apply_max_tool_rounds,
     default_eval2_trial_dir,
     find_writeragent_json,
     read_max_tool_rounds,
     restore_max_tool_rounds,
     stage_clean_trial_ods,
+    stage_tenant_trial,
     temporary_max_tool_rounds,
 )
 
@@ -168,3 +174,24 @@ def test_default_eval2_trial_dir_is_tmp_subdir() -> None:
     path = default_eval2_trial_dir()
     assert path.name == "writeragent-eval2-afc"
     assert path.parent == Path(tempfile.gettempdir())
+    tenant = default_eval2_trial_dir(TASK_TENANT)
+    assert tenant.name == "writeragent-eval2-tenant"
+    assert tenant.parent == Path(tempfile.gettempdir())
+
+
+def test_stage_tenant_trial_contains_only_refs_and_blank_memo(tmp_path: Path) -> None:
+    dest = tmp_path / "trial"
+    dest.mkdir()
+    (dest / "prompt.writeragent.txt").write_text("PROMPT-LEAK", encoding="utf-8")
+    (dest / "rubric.eval2.md").write_text("RUBRIC-LEAK", encoding="utf-8")
+    memo = stage_tenant_trial(dest)
+    names = sorted(p.name for p in dest.iterdir())
+    assert names == sorted([LETTER_ODT_NAME, SURVEY_XLSX_NAME, TENANT_MEMO_NAME])
+    assert memo == dest / TENANT_MEMO_NAME
+    assert memo.is_file()
+    assert not any("PROMPT-LEAK" in p.read_text(encoding="utf-8", errors="ignore") for p in dest.iterdir() if p.suffix == ".txt")
+
+
+def test_stage_tenant_trial_refuses_real_task_dir() -> None:
+    with pytest.raises(ValueError, match="protected"):
+        stage_tenant_trial(_TENANT_DIR)
