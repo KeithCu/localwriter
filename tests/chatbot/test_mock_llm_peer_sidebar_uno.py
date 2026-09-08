@@ -334,6 +334,38 @@ def _kick_pending_in_soffice(ctx) -> None:
         pass
 
 
+def _clear_chat(which: str) -> None:
+    """URP-safe Clear: click the cached control (listener.session.clear is a no-op proxy)."""
+    from plugin.chatbot.sidebar_test_hooks import clear_sidebar_chat, uno_click
+
+    controls = _controls(which) or {}
+    clear_btn = controls.get("clear")
+    if clear_btn is not None:
+        try:
+            uno_click(clear_btn)
+            time.sleep(0.15)
+            return
+        except Exception:
+            pass
+    sl = _listener(which)
+    if sl is not None:
+        clear_sidebar_chat(listener=sl)
+
+
+def _quiesce_dual(ctx) -> None:
+    """Stop leftover turns (P2 hang / inject-now) so the next case starts idle."""
+    _press_stop("writer")
+    _press_stop("calc")
+    _kick_pending_in_soffice(ctx)
+    _wait_both_idle(timeout=15.0)
+    _press_stop("writer")
+    _press_stop("calc")
+    _wait_both_idle(timeout=8.0)
+    for which in ("writer", "calc"):
+        _clear_chat(which)
+    _clear_captures()
+
+
 def _capture_tools() -> list[list[str]]:
     return [list(row.get("decided_tools") or []) for row in _captures()]
 
@@ -486,46 +518,63 @@ def test_p2_wait_after_accepted_deadlocks_peer(ctx):
         _session.config.peer_wait_after_accepted = False
         _press_stop("writer")
         _press_stop("calc")
-        time.sleep(0.8)
+        # Consume the inject-now envelope so P3 does not inherit a Calc reply.
+        _kick_pending_in_soffice(ctx)
+        _wait_both_idle(timeout=12.0)
+        _press_stop("writer")
+        _press_stop("calc")
+        time.sleep(0.3)
 
 
 @native_test
 def test_p3_writer_busy_queues_calc_reply(ctx):
     """Writer ramble before Calc reply: reply queues, then starts after Ready."""
     _skip_without_dual()
-    from plugin.chatbot.sidebar_test_hooks import clear_sidebar_chat
 
     assert _session is not None
     _session.config.scenario = "none"
     _session.config.peer_wait_after_accepted = False
-    # Slow Calc POSTs so Writer can start ramble after Ready before the reply.
     _session.config.delay_ms = 80
-    if _is_busy("writer"):
-        _press_stop("writer")
-    if _is_busy("calc"):
-        _press_stop("calc")
-    time.sleep(0.4)
-    _clear_captures()
-    for which in ("writer", "calc"):
-        sl = _listener(which)
-        if sl is not None:
-            clear_sidebar_chat(listener=sl)
+    _quiesce_dual(ctx)
 
-    _send("writer", "Ask the budget workbook to add a Total row", timeout=90.0)
+    # Fire first ask and take Ready as soon as specialized finishes — do not
+    # wait long enough for a leftover/auto-started Calc reply to inject.
+    _click_send("writer", "Ask the budget workbook to add a Total row")
+    deadline = time.monotonic() + 45.0
+    writer_ready = False
+    while time.monotonic() <= deadline:
+        decided = [name for row in _capture_tools() for name in row]
+        body = _transcript("writer")
+        if "send_peer_message" in decided and (
+            not _is_busy("writer") or ("[delegate" in body and ": done]" in body)
+        ):
+            writer_ready = True
+            break
+        time.sleep(0.12)
+    assert writer_ready, "Writer first ask never finished: decided=%r writer=%r" % (
+        _capture_tools(),
+        _transcript("writer")[-300:],
+    )
+    ready_txt = _transcript("writer")
+    assert "Total row written" not in ready_txt, (
+        "Calc already replied while Writer was idle after first ask: %r" % ready_txt[-300:]
+    )
+    sends_at_ready = sum(1 for row in _capture_tools() for name in row if name == "send_peer_message")
+
     # Do not KICK_PEERS yet: under TESTING=1 the Calc extracted send stays queued.
-    # Start Writer ramble first so the reply lands on a busy peer.
     _click_send("writer", "keep talking")
     deadline = time.monotonic() + 4.0
     while time.monotonic() <= deadline and not _is_busy("writer"):
         time.sleep(0.1)
     assert _is_busy("writer"), "Writer ramble did not start after first Ready: %r" % _transcript("writer")[-200:]
+    busy_txt = _transcript("writer")
     _kick_pending_in_soffice(ctx)
 
     deadline = time.monotonic() + 60.0
     calc_replied = False
     while time.monotonic() <= deadline:
-        decided = [name for row in _capture_tools() for name in row]
-        if decided.count("send_peer_message") >= 2:
+        sends = sum(1 for row in _capture_tools() for name in row if name == "send_peer_message")
+        if sends > sends_at_ready:
             calc_replied = True
             break
         time.sleep(0.2)
@@ -533,8 +582,12 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
         assert calc_replied, "Calc never sent the reply: decided=%r" % _capture_tools()
         assert _is_busy("writer"), "Writer went idle before Calc replied (reply would inject now)"
         writer_txt = _transcript("writer")
-        # already_appended=False: do not start/inject the Calc reply onto a busy Writer.
-        assert "Total row written" not in writer_txt
+        # already_appended=False: do not inject the Calc reply onto a busy Writer.
+        assert "Total row written" not in writer_txt, (
+            "Calc reply injected while Writer ramble was busy: ready=%r now=%r"
+            % (ready_txt[-200:], writer_txt[-300:])
+        )
+        assert writer_txt.count("[Peer from:") == busy_txt.count("[Peer from:")
         decided = [name for row in _capture_tools() for name in row]
         assert "apply_document_content" not in decided
     finally:
@@ -549,8 +602,8 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
         writer_txt = _transcript("writer")
         decided = [name for row in _capture_tools() for name in row]
         if (
-            "[Peer from:" in writer_txt
-            or "Total row written" in writer_txt
+            "Total row written" in writer_txt
+            or writer_txt.count("[Peer from:") > busy_txt.count("[Peer from:")
             or "apply_document_content" in decided
         ):
             drained = True
