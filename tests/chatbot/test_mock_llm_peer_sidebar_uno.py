@@ -557,7 +557,7 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
     _session.config.peer_wait_after_accepted = False
     # SSE ramble stays Stop-enabled; nested Calc POSTs (stream=False) need
     # sync_delay or they finish in milliseconds after Writer wrapup.
-    _session.config.delay_ms = 60
+    _session.config.delay_ms = 120
     _session.config.sync_delay_ms = 3500
     _quiesce_dual(ctx)
 
@@ -616,17 +616,30 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
         time.sleep(0.2)
     try:
         assert calc_replied, "Calc never sent the reply: decided=%r" % _capture_tools()
-        # Capture is decide-time (before sync_delay). Wait for execute.
-        extra = max(0.4, ((_session.config.sync_delay_ms or 0) / 1000.0) + 0.3)
-        time.sleep(extra)
+        # Decide is before sync_delay execute. Poll while ramble is still
+        # painting (word0.. not yet word199). Idle inject after word199 is
+        # correct and is not this lock.
+        injected_mid = False
+        saw_mid = False
+        poll_until = time.monotonic() + max(1.5, ((_session.config.sync_delay_ms or 0) / 1000.0) + 0.8)
         writer_txt = _transcript("writer")
-        # URP Stop Enabled can read idle while ramble SSE is still open.
-        # already_appended=False is the lock: no inject onto Writer.
-        assert "Total row written" not in writer_txt, (
-            "Calc reply injected while Writer ramble was busy: ready=%r now=%r"
-            % (ready_txt[-200:], writer_txt[-300:])
+        while time.monotonic() <= poll_until:
+            writer_txt = _transcript("writer")
+            mid = "word0" in writer_txt and "word199" not in writer_txt
+            if mid:
+                saw_mid = True
+                if "Total row written" in writer_txt or writer_txt.count("[Peer from:") > busy_txt.count(
+                    "[Peer from:"
+                ):
+                    injected_mid = True
+                    break
+            elif "word199" in writer_txt:
+                break
+            time.sleep(0.12)
+        assert saw_mid, "Writer ramble never painted mid-stream: %r" % writer_txt[-300:]
+        assert not injected_mid, (
+            "Calc reply injected while Writer ramble was still streaming: %r" % writer_txt[-300:]
         )
-        assert writer_txt.count("[Peer from:") == busy_txt.count("[Peer from:")
         decided = [name for row in _capture_tools() for name in row]
         assert "apply_document_content" not in decided
     finally:
