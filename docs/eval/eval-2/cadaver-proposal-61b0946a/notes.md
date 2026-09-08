@@ -32,7 +32,9 @@ numbers” — the oracle fail-closes on fixture cells instead.
   the **saved trial proposal**, not that gold file. Fail-close on
   **Hope Hospital** and the fixture cells / gold-hard ranges
   (`$2,000` **or** `$3,000`, `$1,000`, 4 cadavers, 40–48 simple,
-  10–12 cycles). Wrong budget analysis = FAIL.
+  10–12 cycles). Gold also omits the required “does not account for
+  mixing complexity” disclaimer (it says mixing is possible). Wrong
+  budget analysis = FAIL.
 
 ## Not changed
 
