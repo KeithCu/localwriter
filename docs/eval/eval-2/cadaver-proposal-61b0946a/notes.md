@@ -30,6 +30,42 @@ Exact dollars, lab-fee share, per-dept ranges, and chart aesthetics are
 ODT scoring reads `text:h` and `text:p` in document order so a headed
 title still counts.
 
+## Oracle format soften (headed-proposal false-FAIL)
+
+A real Gemini headed proposal (~9 pages; four departments; costs; ethics;
+freeze/thaw; embedded visual) false-failed the v1 structural oracle on
+**regex brittleness**, not substance. Soften (do **not** weaken the four
+departments, title theme, anatomy map, 10–12 cycles, 3h thawed,
+no-mixing, husk/`Error:` ban, or the requirement that **both** Supplies
+and Education are named; do **not** change `prompt.writeragent.txt`):
+
+1. Word max is **3200** (min stays 250).
+2. Intro accepts `introduction` / `executive summary` / `program overview`
+   / `overview`.
+3. Cost-first is heading-order (first major cost/financial H2 before
+   ethics/anatomy H2) **or** first cost saving(s) before the dedicated
+   stewardship/ethics section. Early “honor donor” in an overview does
+   not fail.
+4. Lab fee aliases: `lab fee` / `anatomy lab … fee` / `lab facility fee`
+   / facility fee that is still anatomy- or lab-tied (fixture:
+   “Annual Anatomy Lab Facility Fee”).
+5. Exclude: either order supplies↔education with an exclude verb; both
+   names still required.
+6. Formula: algebraic `(4 × per-cadaver/specimen) + lab/facility fee`
+   **or** explicit baseline arithmetic (`$3k+$1k=$13k` / `$3,000 × 4 +
+   $1,000 = $13,000`). No literal string required.
+7. Graph/table: `graph` / `chart` / `figure` / `graphical representation`,
+   **or** an ODT `draw:frame` (chart/image/object) / `table:table` whose
+   nearby caption/text mentions savings or 1–4 departments. Bare frames
+   do not count. “chart” inside “charter” is not a figure.
+8. Standard duration: `1–1.5` hours **or** `60–90` minutes.
+9. Simple window: `≤4` / `up to 4` / `3–4` / `3 to 4` per thaw/window.
+
+If `runs/20260908-2246-gemini-3.8-flash-r200/final_proposal.odt` is on
+disk, re-score it after this soften — substance checks should **PASS**
+(or only fail on a genuine content gap). That artifact is not committed
+here.
+
 ## Gold vs fixture (do not “fix” gold)
 
 - Gold rubric mentions a **Costs** tab and “per-cadaver cost … category

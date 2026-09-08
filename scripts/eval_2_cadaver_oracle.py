@@ -4,12 +4,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Fail-closed structural scorer for an eval-2 Cadaver Proposal.
 
-Eliyezer-locked v1. Pass/fail is document-local. Chat Ready / STREAM_DONE
-is never consulted. Exact dollars, lab-fee share, and chart pixels are
-out of v1. Gold's Silverview hospital name is not a scored string.
+Eliyezer-locked v1, softened after a headed Gemini false-red (Tenant #665
+style). Pass/fail is document-local. Chat Ready / STREAM_DONE is never
+consulted. Exact lab-fee share and chart pixels stay out of v1. Gold's
+Silverview hospital name is not a scored string.
 
 ODT extraction reads ``text:h`` and ``text:p`` in document order (headed
 Writer often puts the title in a heading). DOCX headings are ``w:p``.
+Embedded ``draw:frame`` / ``table:table`` count as graph/table evidence
+only when nearby caption/text mentions savings or 1–4 departments.
 
 Usage:
   .venv/bin/python scripts/eval_2_cadaver_oracle.py path/to/final_proposal.odt
@@ -27,8 +30,17 @@ from xml.etree import ElementTree as ET
 
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+_DRAW_NS = "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+_TABLE_NS = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+_TEXT_H = f"{{{_TEXT_NS}}}h"
+_TEXT_P = f"{{{_TEXT_NS}}}p"
+_DRAW_FRAME = f"{{{_DRAW_NS}}}frame"
+_TABLE_TABLE = f"{{{_TABLE_NS}}}table"
 _WORD_MIN = 250
-_WORD_MAX = 2500
+# First headed Gemini proposal was ~9 pages and above 2500; 3200 is the
+# Eliyezer lock (min stays 250 so Ready-empty husks still fail).
+_WORD_MAX = 3200
+_VISUAL_NEAR_RADIUS = 3
 
 _I = re.IGNORECASE | re.DOTALL
 _HUSK_RE = re.compile(
@@ -40,23 +52,71 @@ _GEN_SURG_RE = re.compile(r"general\s+surgery", re.I)
 _THORACIC_RE = re.compile(r"thoracic\s+surgery", re.I)
 _ENT_RE = re.compile(r"otolaryngology", re.I)
 _ORTHO_RE = re.compile(r"orthopedic\s+surgery", re.I)
-_INTRO_RE = re.compile(r"\bintroduction\b", re.I)
+# Headed drafts use Overview / Executive Summary instead of "Introduction".
+_INTRO_RE = re.compile(
+    r"\bintroduction\b|\bexecutive\s+summary\b|\bprogram\s+overview\b|\boverview\b",
+    re.I,
+)
 _COST_RE = re.compile(r"cost\s+saving|cost-saving|\bsavings\b", re.I)
 _ETHICS_RE = re.compile(
     r"donat|donor|honor.{0,20}donor|final\s+wishes|maximi[sz]e.{0,40}(?:cadaver|use)",
     _I,
 )
-_GRAPH_RE = re.compile(r"\bgraphs?\b|\bcharts?\b", re.I)
+# Dedicated ethics/stewardship *section* — not mid-overview "honor donors".
+_ETHICS_SECTION_HEADING_RE = re.compile(
+    r"^(?:#{1,3}\s*|\d+[\.\):]\s*)?(?:ethical(?:\s+use|\s+consider|\s+import|\s+steward)?"
+    r"|ethics|stewardship"
+    r"|honou?ring\s+donors?"
+    r"|respect(?:ing)?\s+(?:the\s+)?(?:bodies|donors)"
+    r"|maximi[sz]ing\s+(?:cadaver\s+)?use"
+    r"|anatomical\s+assignment|anatomy\s+(?:assignment|map|section))\b",
+    re.I | re.M,
+)
+_COST_HEADING_RE = re.compile(
+    r"cost\s*[- ]*saving|financial|budget|savings?\s+analys|cost\s+analys"
+    r"|program\s+costs?|annual\s+costs?",
+    re.I,
+)
+# Anatomy *assignment* headings, not "Anatomy Lab Fee" cost titles.
+_ETHICS_ANATOMY_HEADING_RE = re.compile(
+    r"\bethic|\bstewardship\b|anatomical\s+assign|anatomy\s+(?:assign|map|section|areas)"
+    r"|honou?ring\s+donors?|donor\s+respect|maximi[sz]ing\s+(?:cadaver\s+)?use",
+    re.I,
+)
+# "chart" inside "charter" is not a figure; accept Graphical / Figure N too.
+_GRAPH_RE = re.compile(
+    r"\bgraphs?\b|\bcharts?\b|\bfigures?\b|graphical\s+representation",
+    re.I,
+)
 _SAVINGS_TABLE_RE = re.compile(
     r"(?:savings?\s+table|table.{0,40}savings?|1\s*[-–to]+\s*4.{0,40}depart)",
     _I,
 )
+# Nearby caption/text for an embedded frame or table — not the frame alone.
+_SAVINGS_NEAR_RE = re.compile(
+    r"saving|1\s*[-–to]+\s*4.{0,48}depart|departments?.{0,32}participat",
+    re.I,
+)
 _PER_CADAVER_RE = re.compile(r"per[\s\-]*cadaver", re.I)
-_LAB_FEE_RE = re.compile(r"annual\s+cadaver\s+lab\s+fee|(?:anatomy\s+)?lab\s+fee", re.I)
-_EXCLUDE_RE = re.compile(
-    r"exclud(?:e|es|ed|ing).{0,80}supplies.{0,60}education"
-    r"|exclud(?:e|es|ed|ing).{0,80}education.{0,60}supplies"
-    r"|supplies.{0,40}and.{0,20}education.{0,40}exclud",
+# Fixture used "Annual Anatomy Lab Facility Fee"; require an anatomy/lab tie.
+_LAB_FEE_RE = re.compile(
+    r"(?:annual\s+)?(?:cadaver\s+)?lab\s+fee"
+    r"|anatomy\s+lab.{0,48}fee"
+    r"|lab\s+facility\s+fee"
+    r"|(?:anatomy|cadaver).{0,32}facility\s+fee"
+    r"|facility\s+fee.{0,32}(?:anatomy|cadaver|lab)",
+    re.I,
+)
+_SUPPLIES_RE = re.compile(r"\bsupplies\b", re.I)
+_EDUCATION_RE = re.compile(r"\beducation\b", re.I)
+# Either order supplies↔education with an exclude verb; both names required.
+_EXCLUDE_BOTH_RE = re.compile(
+    r"exclud(?:e|es|ed|ing).{0,160}supplies.{0,80}education"
+    r"|exclud(?:e|es|ed|ing).{0,160}education.{0,80}supplies"
+    r"|supplies.{0,80}education.{0,80}exclud(?:e|es|ed|ing)"
+    r"|education.{0,80}supplies.{0,80}exclud(?:e|es|ed|ing)"
+    r"|supplies.{0,80}exclud(?:e|es|ed|ing).{0,80}education"
+    r"|education.{0,80}exclud(?:e|es|ed|ing).{0,80}supplies",
     _I,
 )
 _FOUR_YEAR_RE = re.compile(
@@ -64,8 +124,23 @@ _FOUR_YEAR_RE = re.compile(
     re.I,
 )
 _FORMULA_RE = re.compile(
-    r"\(?\s*4\s*[×x*]\s*(?:the\s+)?per[\s\-]*cadaver.?\)?\s*(?:\+|plus)\s*.{0,24}lab\s+fee"
-    r"|4\s*[×x*]\s*(?:the\s+)?per[\s\-]*cadaver.{0,40}(?:\+|plus).{0,20}lab\s+fee",
+    r"\(?\s*4\s*[×x*]\s*(?:the\s+)?per[\s\-]*(?:cadaver|specimen).?\)?\s*(?:\+|plus)\s*.{0,24}(?:lab|facility)\s+fee"
+    r"|4\s*[×x*]\s*(?:the\s+)?per[\s\-]*(?:cadaver|specimen).{0,40}(?:\+|plus).{0,24}(?:lab|facility)\s+fee"
+    r"|(?:4|four)\s+(?:times|x)\s+(?:the\s+)?per[\s\-]*(?:cadaver|specimen).{0,40}(?:\+|plus).{0,40}(?:lab|facility)\s+fee",
+    _I,
+)
+_THOUSANDS_RE = r"(?:\$?\s*3(?:\s*,\s*)?000|\b3k\b|\$?\s*3\s*thousand)"
+_ONE_K_RE = r"(?:\$?\s*1(?:\s*,\s*)?000|\b1k\b|\$?\s*1\s*thousand)"
+_THIRTEEN_K_RE = r"(?:\$?\s*13(?:\s*,\s*)?000|\b13k\b|\$?\s*13\s*thousand)"
+# Gold baseline is 4 × $3,000 + $1,000 = $13,000. Accept that arithmetic
+# in prose so a literal "(4 × per-cadaver) + lab fee" string is not required.
+_ARITH_FORMULA_RE = re.compile(
+    rf"(?:{_THOUSANDS_RE}.{{0,28}}(?:[×x*]|times).{{0,16}}(?:4|four).{{0,28}}"
+    rf"(?:\+|plus).{{0,28}}{_ONE_K_RE}.{{0,28}}(?:(?:=|equals).{{0,16}}{_THIRTEEN_K_RE})?)"
+    rf"|(?:(?:4|four).{{0,16}}(?:[×x*]|times).{{0,28}}{_THOUSANDS_RE}.{{0,28}}"
+    rf"(?:\+|plus).{{0,28}}{_ONE_K_RE}.{{0,28}}(?:(?:=|equals).{{0,16}}{_THIRTEEN_K_RE})?)"
+    rf"|(?:{_THOUSANDS_RE}.{{0,16}}(?:\+|plus).{{0,16}}{_ONE_K_RE}.{{0,16}}"
+    rf"(?:=|equals).{{0,16}}{_THIRTEEN_K_RE})",
     _I,
 )
 _ABDOMEN_RE = re.compile(r"\babdomen\b|\babdominal\b", re.I)
@@ -75,10 +150,16 @@ _LIMB_RE = re.compile(r"\blimbs?\b", re.I)
 _CYCLES_RE = re.compile(r"10\s*[-–to]+\s*12", re.I)
 _THREE_HOUR_RE = re.compile(r"\b3[\s\-]*h(?:ours?)?\b", re.I)
 _SIMPLE_MIN_RE = re.compile(r"30\s*[-–to]+\s*45")
-_STANDARD_HR_RE = re.compile(r"1\s*[-–.]+\s*1\.?5|1\s*[-–]\s*1\.5|hour to an hour and a half", re.I)
-_COMPLEX_HR_RE = re.compile(r"2\s*[-–to]+\s*3")
+_STANDARD_HR_RE = re.compile(
+    r"1\s*[-–.]+\s*1\.?5|1\s*[-–]\s*1\.5|hour to an hour and a half"
+    r"|60\s*[-–to]+\s*90|60\s+to\s+90",
+    re.I,
+)
 _WINDOW_SIMPLE_RE = re.compile(
-    r"simple.{0,50}(?:up\s+to|<=|≤)\s*4|(?:up\s+to|<=|≤)\s*4.{0,30}simple",
+    r"simple.{0,60}(?:up\s+to|<=|≤|at\s+most)\s*4"
+    r"|(?:up\s+to|<=|≤)\s*4.{0,40}simple"
+    r"|3\s*(?:[-–]|to)\s*4.{0,50}(?:simple|per\s+(?:thaw|window)|procedures?\s+per)"
+    r"|(?:simple|per\s+(?:thaw|window)).{0,50}3\s*(?:[-–]|to)\s*4",
     _I,
 )
 _WINDOW_STANDARD_RE = re.compile(
@@ -114,36 +195,135 @@ class OracleResult:
         return asdict(self)
 
 
-def _docx_blocks(path: Path) -> list[str]:
-    """DOCX headings are ordinary ``w:p`` nodes; walk document order."""
+@dataclass
+class ProposalExtract:
+    """Text blocks plus heading-order / embedded-visual evidence."""
+
+    blocks: list[str]
+    headings: list[str]
+    has_savings_visual: bool
+
+
+def _elem_text(elem: ET.Element) -> str:
+    return "".join(elem.itertext())
+
+
+def _docx_is_heading(para: ET.Element) -> bool:
+    ppr = para.find(f"{{{_W_NS}}}pPr")
+    if ppr is None:
+        return False
+    style = ppr.find(f"{{{_W_NS}}}pStyle")
+    if style is not None:
+        val = style.get(f"{{{_W_NS}}}val") or ""
+        if re.search(r"heading|title", val, re.I):
+            return True
+    return ppr.find(f"{{{_W_NS}}}outlineLvl") is not None
+
+
+def _docx_has_drawing(para: ET.Element) -> bool:
+    return (
+        para.find(f"{{{_W_NS}}}drawing") is not None
+        or para.find(f"{{{_W_NS}}}pict") is not None
+    )
+
+
+def _window_has_savings(items: list[tuple[str, str]], index: int) -> bool:
+    start = max(0, index - _VISUAL_NEAR_RADIUS)
+    end = min(len(items), index + _VISUAL_NEAR_RADIUS + 1)
+    blob = " ".join(text for unused_kind, text in items[start:end])
+    return bool(_SAVINGS_NEAR_RE.search(blob))
+
+
+def _has_savings_visual(items: list[tuple[str, str]]) -> bool:
+    """Embedded frame/table counts only with nearby savings / 1–4 depts."""
+    for index, (kind, unused_text) in enumerate(items):
+        if kind in {"frame", "table"} and _window_has_savings(items, index):
+            return True
+    return False
+
+
+def _docx_extract(path: Path) -> ProposalExtract:
+    """DOCX headings are ordinary ``w:p``; drawings/tables are visual items."""
     with zipfile.ZipFile(path) as zf:
         root = ET.fromstring(zf.read("word/document.xml"))
     blocks: list[str] = []
-    for para in root.iter(f"{{{_W_NS}}}p"):
-        text = "".join(node.text or "" for node in para.iter(f"{{{_W_NS}}}t"))
+    headings: list[str] = []
+    items: list[tuple[str, str]] = []
+    body = root.find(f"{{{_W_NS}}}body")
+    for child in body if body is not None else root:
+        if child.tag == f"{{{_W_NS}}}tbl":
+            text = _elem_text(child)
+            items.append(("table", text))
+            blocks.append(text)
+            continue
+        if child.tag != f"{{{_W_NS}}}p":
+            continue
+        text = "".join(node.text or "" for node in child.iter(f"{{{_W_NS}}}t"))
         blocks.append(text)
-    return blocks
+        if _docx_is_heading(child):
+            headings.append(text)
+            items.append(("h", text))
+        else:
+            items.append(("p", text))
+        if _docx_has_drawing(child):
+            items.append(("frame", text))
+    return ProposalExtract(
+        blocks=blocks,
+        headings=headings,
+        has_savings_visual=_has_savings_visual(items),
+    )
 
 
-def _odt_blocks(path: Path) -> list[str]:
+def _walk_odt(elem: ET.Element) -> list[tuple[str, str]]:
+    """Document-order items: headings, paras, frames, tables."""
+    items: list[tuple[str, str]] = []
+    tag = elem.tag
+    if tag == _DRAW_FRAME:
+        name = elem.get(f"{{{_DRAW_NS}}}name") or ""
+        items.append(("frame", f"{_elem_text(elem)} {name}".strip()))
+        for child in elem:
+            items.extend(_walk_odt(child))
+        return items
+    if tag == _TABLE_TABLE:
+        items.append(("table", _elem_text(elem)))
+        for child in elem:
+            items.extend(_walk_odt(child))
+        return items
+    if tag == _TEXT_H:
+        items.append(("h", _elem_text(elem)))
+        return items
+    if tag == _TEXT_P:
+        items.append(("p", _elem_text(elem)))
+        return items
+    for child in elem:
+        items.extend(_walk_odt(child))
+    return items
+
+
+def _odt_extract(path: Path) -> ProposalExtract:
     """Headed Writer titles often live in ``text:h``, body in ``text:p``."""
-    heading = f"{{{_TEXT_NS}}}h"
-    para = f"{{{_TEXT_NS}}}p"
     with zipfile.ZipFile(path) as zf:
         root = ET.fromstring(zf.read("content.xml"))
-    return [
-        "".join(node.itertext())
-        for node in root.iter()
-        if node.tag in {heading, para}
-    ]
+    items = _walk_odt(root)
+    blocks = [text for kind, text in items if kind in {"h", "p"}]
+    headings = [text for kind, text in items if kind == "h"]
+    return ProposalExtract(
+        blocks=blocks,
+        headings=headings,
+        has_savings_visual=_has_savings_visual(items),
+    )
 
 
 def read_proposal_blocks(path: Path) -> list[str]:
+    return read_proposal(path).blocks
+
+
+def read_proposal(path: Path) -> ProposalExtract:
     suffix = path.suffix.lower()
     if suffix == ".docx":
-        return _docx_blocks(path)
+        return _docx_extract(path)
     if suffix == ".odt":
-        return _odt_blocks(path)
+        return _odt_extract(path)
     raise ValueError(f"unsupported proposal type: {path.suffix}")
 
 
@@ -151,18 +331,71 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"\S+", text))
 
 
-def _cost_savings_comes_first(text: str) -> bool:
-    """Intro must lead with cost savings, not the ethics/anatomy section."""
+def _heading_kind(heading: str) -> str | None:
+    """Cost/financial vs ethics/anatomy H2. Cost wins if a title matches both."""
+    if _COST_HEADING_RE.search(heading):
+        return "cost"
+    if _ETHICS_ANATOMY_HEADING_RE.search(heading):
+        return "ethics"
+    return None
+
+
+def _dedicated_ethics_pos(text: str, headings: list[str] | None) -> int | None:
+    """Start index of the dedicated stewardship/ethics section, if any."""
+    if headings:
+        for heading in headings:
+            if _ETHICS_SECTION_HEADING_RE.search(heading.strip()):
+                pos = text.find(heading)
+                if pos >= 0:
+                    return pos
+    match = _ETHICS_SECTION_HEADING_RE.search(text)
+    return match.start() if match else None
+
+
+def _cost_purpose_leads(text: str, headings: list[str] | None) -> bool:
+    """Cost/financial H2 before ethics/anatomy H2, or cost-savings before ethics section.
+
+    Early overview "honor donors" is not a dedicated ethics section. The old
+    first-regex-hit of honor/donor was a false-red on headed Gemini drafts.
+    """
+    if headings:
+        cost_i: int | None = None
+        ethics_i: int | None = None
+        for index, heading in enumerate(headings):
+            kind = _heading_kind(heading)
+            if kind == "cost" and cost_i is None:
+                cost_i = index
+            elif kind == "ethics" and ethics_i is None:
+                ethics_i = index
+        if cost_i is not None and (ethics_i is None or cost_i < ethics_i):
+            return True
     cost = _COST_RE.search(text)
-    ethics = _ETHICS_RE.search(text)
     if cost is None:
         return False
-    if ethics is None:
+    ethics_pos = _dedicated_ethics_pos(text, headings)
+    if ethics_pos is None:
         return True
-    return cost.start() < ethics.start()
+    return cost.start() < ethics_pos
 
 
-def score_text(text: str, *, para_count: int) -> OracleResult:
+def _has_baseline_formula(text: str) -> bool:
+    """Algebraic (4 × per-cadaver/specimen + lab/facility fee) or $3k+$1k=$13k."""
+    return bool(_FORMULA_RE.search(text) or _ARITH_FORMULA_RE.search(text))
+
+
+def _has_graph_or_savings_table(text: str, *, has_savings_visual: bool) -> bool:
+    if _GRAPH_RE.search(text) or _SAVINGS_TABLE_RE.search(text):
+        return True
+    return has_savings_visual
+
+
+def score_text(
+    text: str,
+    *,
+    para_count: int,
+    headings: list[str] | None = None,
+    has_savings_visual: bool = False,
+) -> OracleResult:
     """Apply Eliyezer-locked v1 checks to extracted proposal text."""
     failures: list[str] = []
     words = _word_count(text)
@@ -188,19 +421,19 @@ def score_text(text: str, *, para_count: int) -> OracleResult:
         failures.append("missing introduction")
     if not _COST_RE.search(text):
         failures.append("missing cost-savings purpose")
-    elif not _cost_savings_comes_first(text):
+    elif not _cost_purpose_leads(text, headings):
         failures.append("cost-savings purpose is not first")
     if not _PER_CADAVER_RE.search(text):
         failures.append("missing per-cadaver cost input")
     if not _LAB_FEE_RE.search(text):
         failures.append("missing Annual Cadaver Lab Fee / lab fee")
-    if not _EXCLUDE_RE.search(text):
+    if not (_SUPPLIES_RE.search(text) and _EDUCATION_RE.search(text) and _EXCLUDE_BOTH_RE.search(text)):
         failures.append("missing exclude Supplies and Education")
     if not _FOUR_YEAR_RE.search(text):
         failures.append("missing 4 cadavers/year General Surgery baseline")
-    if not _FORMULA_RE.search(text):
+    if not _has_baseline_formula(text):
         failures.append("missing (4 × per-cadaver) + lab fee formula")
-    if not _GRAPH_RE.search(text) and not _SAVINGS_TABLE_RE.search(text):
+    if not _has_graph_or_savings_table(text, has_savings_visual=has_savings_visual):
         failures.append("missing graph/chart or labeled 1-4 savings table")
     if not _ETHICS_RE.search(text):
         failures.append("missing donor-respect / maximize-use section")
@@ -249,12 +482,17 @@ def score_proposal(path: Path | str) -> OracleResult:
     if not proposal.is_file():
         return OracleResult(passed=False, failures=[f"proposal not found: {proposal}"])
     try:
-        blocks = read_proposal_blocks(proposal)
+        extract = read_proposal(proposal)
     except Exception as exc:
         return OracleResult(passed=False, failures=[f"cannot read proposal: {exc}"])
-    text = "\n".join(blocks)
-    nonempty = sum(1 for block in blocks if block.strip())
-    return score_text(text, para_count=nonempty)
+    text = "\n".join(extract.blocks)
+    nonempty = sum(1 for block in extract.blocks if block.strip())
+    return score_text(
+        text,
+        para_count=nonempty,
+        headings=extract.headings,
+        has_savings_visual=extract.has_savings_visual,
+    )
 
 
 def format_result(result: OracleResult) -> str:
