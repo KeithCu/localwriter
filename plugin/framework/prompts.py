@@ -547,7 +547,7 @@ def looks_like_peer_wait_outcome(text: str) -> bool:
     return any(marker in blob for marker in _PEER_WAIT_OUTCOME_MARKERS)
 
 
-def annotate_outer_peer_wait(payload: dict[str, object], *, peer_send_invoked: bool = False) -> dict[str, object]:
+def annotate_outer_peer_wait(payload: dict, *, peer_send_invoked: bool = False) -> dict:
     """Append idle-after-send on an ok document_research payload when a peer was asked.
 
     The outer model otherwise treats “Message sent to the peer…” as unfinished work

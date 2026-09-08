@@ -343,5 +343,6 @@ class DelegateToSpecializedBase(ToolBase):
         if domain == "document_research":
             from plugin.framework.prompts import annotate_outer_peer_wait
 
-            return annotate_outer_peer_wait(payload, peer_send_invoked=peer_send_invoked)
+            # dict() widens the specialize payload for annotate_outer_peer_wait.
+            return annotate_outer_peer_wait(dict(payload), peer_send_invoked=peer_send_invoked)
         return payload
