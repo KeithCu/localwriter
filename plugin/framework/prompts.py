@@ -569,7 +569,7 @@ def annotate_outer_peer_wait(payload: dict, *, peer_send_invoked: bool = False) 
     return out
 
 # document_research specialized only. Short DO+why; catalog is appended when peers exist.
-# Reply path: send_peer_message is a side effect. Outer already stuffed the HTML/KPI
+# Reply path: send_peer_message is a side effect. Outer already stuffed the HTML/result
 # into task, so the smol "answer from the task alone → finish" rule otherwise skips
 # the send and the peer sidebar never sees the reply.
 PEER_INNER_CHOICE_RULES = (
@@ -581,7 +581,7 @@ PEER_INNER_CHOICE_RULES = (
     "document_url=<uid or url from the envelope>, message=<one HTML/result string>, peer_ask_id=<id from the envelope>) "
     "before specialized_workflow_finished. "
     "Why: putting the reply only in answer stays inside this loop — the peer sidebar never sees it.\n"
-    "HTML, table, or KPI text in the task is the message argument to send_peer_message, not a final answer. "
+    "HTML, table, or other result text in the task is the message argument to send_peer_message, not a final answer. "
     "Why: the outer already did the local work; your job is deliver via the tool.\n"
     "Do send_peer_message on a peer-reply task even when you can answer from the task alone. "
     "Why: that rule is for silent research finishes; peer delivery is a tool side effect.\n"

@@ -542,7 +542,7 @@ def test_prompts_outer_thin_inner_choice():
     assert "before specialized_workflow_finished" in PEER_INNER_CHOICE_RULES
     assert "peer sidebar never sees it" in PEER_INNER_CHOICE_RULES
     assert "message argument to send_peer_message" in PEER_INNER_CHOICE_RULES
-    assert "KPI text in the task" in PEER_INNER_CHOICE_RULES
+    assert "other result text in the task" in PEER_INNER_CHOICE_RULES
     assert "answer from the task alone" in PEER_INNER_CHOICE_RULES
     assert "tool side effect" in PEER_INNER_CHOICE_RULES
     assert "not a JSON array" in PEER_OUTER_DELEGATE_HINT
