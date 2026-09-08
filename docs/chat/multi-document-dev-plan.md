@@ -587,7 +587,7 @@ Per [AGENTS.md](../../AGENTS.md): matching `test_*.py` names; run `make test` be
 - [../writer/specialized-toolsets.md](../writer/specialized-toolsets.md) — nested delegation, gateway pattern
 - [../framework/streaming-and-threading.md](../framework/streaming-and-threading.md) — main-thread UNO, queue drain
 - [../calc/specialized-toolsets.md](../calc/specialized-toolsets.md) — Calc tool surface
-- [peer-messaging.md](peer-messaging.md) — Writer ↔ Calc ↔ Draw async `send_peer_*` (A1 user-send; research stays read-only)
+- [peer-messaging.md](peer-messaging.md) — Writer ↔ Calc ↔ Draw async `send_peer_agent` (A1 user-send + caller-frame envelope; research stays read-only)
 - [../mcp-protocol.md](../mcp-protocol.md) — `X-Document-URL`, MCP tool policy
 - [../chat/search.md](../chat/search.md) — external fetch (contrast with nearby files)
 
