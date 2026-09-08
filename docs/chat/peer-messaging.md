@@ -1,6 +1,6 @@
 # Cross-app sidebar peer messaging (Writer ↔ Calc ↔ Draw)
 
-**Status:** Design only (no product code). Decisions below are current v1; alternate designs stay in [§3](#3-candidate-designs) if we change our mind.  
+**Status:** Implemented (A1 v1). Decisions below match the shipped code; alternate designs stay in [§3](#3-candidate-designs) if we change our mind.  
 **One-liner:** three peers, A1 async `send_peer_message` (user-send equivalence), chat-only, pre-open only, GMP via a staged Draw/Writer form (not a PDF product claim), no spawn.
 
 **Assumption:** Writer, Calc, and Draw documents are already open in **one LibreOffice process** / one WriterAgent extension. Talk-to-already-open is enough for SAR/floorstand (Writer ↔ Calc) and GMP (Writer ↔ Draw). Creating or spawning a peer mid-session is later product polish.
@@ -17,7 +17,7 @@ Recorded 2026-09-08. Implement these; do not implement the older “don’t Read
 | -------- | ---------- |
 | **Name** | `send_peer_message` (not `send_peer_agent`, not `ask_peer_*`). |
 | **Surface** | Sidebar chat only. New tool tier `"chat"` (see [§4.5](#45-call-sites--prompts--registration)). Hidden from MCP `tools/list` / `find_tools`. `execute()` refuses `ctx.caller != "chat"`. |
-| **Shape** | `send_peer_message(document_url=target, message=body)` plus `peer_ask_id` on replies. Required `document_url` every call. No `reply=true`, no `last_peer_from`. |
+| **Shape** | `send_peer_message(document_url=target, message=body)` plus `peer_ask_id` on replies. Required `document_url` every call. `document_url` is the **one** target arg: file URL, RuntimeUID, or a display `name` that matches **exactly one** open peer. No separate `name` parameter. No `reply=true`, no `last_peer_from`. |
 | **Return** | `{"status": "ok", "accepted": true, "peer_ask_id": "…"}`. FSM success is `status == "ok"`; do **not** return `status: "accepted"` alone. `is_mutation = False`. |
 | **Sender** | Derived from `ToolContext.doc` (`get_runtime_uid`, display name, file URL). Not authored in `message`. `ToolContext` has no frame. |
 | **Ready** | After `ok`/`accepted`, the caller **Readys** (local work first is OK). Do **not** teach “don’t Ready until the reply.” Reply is a **follow-up user turn** when the caller is idle. SAR/GMP are **two caller turns**. |
@@ -29,7 +29,9 @@ Recorded 2026-09-08. Implement these; do not implement the older “don’t Read
 | **Lock** | No extra per-doc lock in v1. Sidebar chat does not take MCP’s uid gate. |
 | **Focus** | No `toFront`, no `query.setFocus` on the extracted send. |
 
-**Still later (kept, not v1):** A2 blocking `ask_*` / silent fallback; multiplexed drain + mid-loop `PEER_REPLY`; last-sender default; MCP exposure; Impress; spawn; PDF/AcroForm. See [§3](#3-candidate-designs) and [§3.1](#31-alternatives-considered--kept).
+**Shipped in this v1:** `send_peer_message` (`plugin/doc/peer_message.py`, tier `"chat"`); live-panel `WeakValueDictionary` (`plugin/doc/live_panels.py`); schema-time visibility + peer catalog; MCP hide + `execute()` chat-only guard; `ctx.doc` envelope; inject-now / start-later + per-listener queue (cap 8); extracted send (no Ask / setFocus / librarian); Ready-after-accepted prompts.
+
+**Still later (kept, not v1):** A2 blocking `ask_*` / silent fallback; multiplexed drain + mid-loop `PEER_REPLY`; waiting chrome; last-sender default; MCP exposure; Impress; spawn; PDF/AcroForm. See [§3](#3-candidate-designs) and [§3.1](#31-alternatives-considered--kept). Do **not** sneak Ready-hold back in — that deadlocks the queue.
 
 ```mermaid
 sequenceDiagram
@@ -96,7 +98,7 @@ This is user-send equivalence.
 | Frame → model | `_get_document_model` → `get_document_from_frame` | Sidebar stays on **its** window. Envelope sender uses `ctx.doc` (same model). |
 | FSM | `next_state` in [`plugin/chatbot/tool_loop_state.py`](../../plugin/chatbot/tool_loop_state.py) | Pure. Success is `status == "ok"` or `success is True`. No inject-user-message event. |
 | Schema filter | `ToolRegistry.get_schemas("openai", doc_type=…)` | Default excludes `specialized`, `specialized_control`, `mcp`. Precedent: `filter_vision_delegate_schemas` in [`plugin/framework/tool.py`](../../plugin/framework/tool.py). |
-| Live panels | Debug `WeakSet` only today (`register_debug_live_panel` / `iter_debug_live_chat_panels` in [`plugin/chatbot/panel_factory.py`](../../plugin/chatbot/panel_factory.py); `iter_live_chat_panels` in [`plugin/chatbot/sidebar_test_hooks.py`](../../plugin/chatbot/sidebar_test_hooks.py)) | Debug-gated / stripped in release / not uid-keyed. A1 **requires** a production weak map — [§4.3](#43-live-panel--busy--queue--deck). |
+| Live panels | Production `WeakValueDictionary` uid → panel in [`plugin/doc/live_panels.py`](../../plugin/doc/live_panels.py); debug `WeakSet` remains for tests | Register after `_wire_buttons`. Tool reads the map — [§4.3](#43-live-panel--busy--queue--deck). |
 
 Draw already registers a sidebar deck (`DrawingDocument` in `extension/registry/.../Sidebar.xcu`; Impress is also on that ContextList). A1 still needs that deck **constructed once** so a live panel exists.
 
@@ -152,7 +154,7 @@ Do **not** nest `_do_send_chat_with_tools` / `_start_tool_calling_async` on the 
 One **chat-tier** tool, advertised only when a **resolvable other peer** exists ([§4.2](#42-tool-visibility)).
 
 - **Name:** `send_peer_message`. Not an existing API. Not `ask_peer_agent`.
-- **Args:** `document_url` = **target** only (URL or RuntimeUID) — **required on every call**. `message` = NL body only. Replies also pass `peer_ask_id` (copied from the inbound envelope). There is no `reply=true` and no `last_peer_from` default ([§4.1](#41-envelope-and-correlation)).
+- **Args:** `document_url` = **target** only (file URL, RuntimeUID, or a display name that matches exactly one open peer) — **required on every call**. No separate `name` parameter. `message` = NL body only. Replies also pass `peer_ask_id` (copied from the inbound envelope). There is no `reply=true` and no `last_peer_from` default ([§4.1](#41-envelope-and-correlation)).
 - **Caller must not put a from-url in `message`.** Source identity is automatic ([§4.1](#41-envelope-and-correlation)).
 - **Behavior:** Do **not** change the caller’s schemas or `ToolContext.doc`. Resolve an **open** supported peer. Find that uid’s live panel / `SendButtonListener`. Gateway builds the envelope from **`ctx.doc`**, prepends it to `message`, injects on the peer session, **schedules** that host’s extracted send, returns immediately `{status: "ok", "accepted": true, "peer_ask_id"}`.
 - **Reply:** the peer later calls the same tool with `document_url` = the envelope’s from uid/url and that `peer_ask_id`. Same inject + schedule onto the **caller** session (symmetric envelope). Prompt + protocol **require** the reply; do not hope the peer mentions it in passing. Delivery is a follow-up user turn when idle ([Current decisions](#current-decisions-v1)).
@@ -199,7 +201,7 @@ Reviewed against the current send/drain code. Not v1; do not delete — we may r
 
 **Tool shape (v1):** `send_peer_message(document_url=target, message=body)` plus `peer_ask_id` on replies.
 
-- `document_url` addresses the **peer** (file URL or RuntimeUID). It is never “who I am.”
+- `document_url` addresses the **peer**. It is the **one** target argument: a file URL, a RuntimeUID, or a display `name` that matches **exactly one** open peer. Do **not** add a separate `name` parameter. It is never “who I am.”
 - `message` is the NL body only. Prompts must tell the model **not** to paste its own path, uid, or URL into `message`. LLMs will get that wrong; the gateway always has `ctx.doc`.
 
 **Sender is derived, not authored.** On `execute`, read the **caller** bound model (`ctx.doc`): display **name**, `RuntimeUID`, and file URL if the doc is saved (untitled → empty url, uid still required). Build a one-line envelope in **code**, then the body. Inject so the peer transcript and the send path see the same wrapped user turn:
@@ -279,7 +281,7 @@ Harness pre-open is in scope; mid-session create/spawn is not.
 1. `get_open_documents(ctx.ctx, ctx.doc)` — reject self (same uid).
 2. v1 peer services only: `TextDocument`, `SpreadsheetDocument`, `DrawingDocument` **minus** `PresentationDocument` on the resolved model. Do not trust catalog `doc_type == "draw"`.
 3. `resolve_document_by_url` — open model only. Do not `loadComponentFromURL` / `open_document_for_read`.
-4. Ambiguous set (two `.ods`, two Draw forms): require `document_url` / uid, or a `name` that matches **exactly one**. Never silently pick the first Calc or first Draw.
+4. Ambiguous set (two `.ods`, two Draw forms): require a file URL / uid, or a display `name` passed as `document_url` that matches **exactly one**. Never silently pick the first Calc or first Draw. Two peers with the same name → `PEER_AMBIGUOUS`.
 5. No matching open peer → clear error. Do not create, load, or spawn.
 
 Suggested error codes: `PEER_NOT_FOUND`, `PEER_SIDEBAR_NOT_OPEN`, `PEER_UNSUPPORTED` (Impress), `PEER_QUEUE_FULL`, `VALIDATION_ERROR` (missing `document_url`), `PEER_CHAT_ONLY` (non-chat caller).
@@ -301,7 +303,8 @@ Suggested error codes: `PEER_NOT_FOUND`, `PEER_SIDEBAR_NOT_OPEN`, `PEER_UNSUPPOR
 
 **Prompts** (short block next to Writer / Calc / Draw specialized-delegation templates in [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py)):
 
-- Need the other **open** app’s writes? `send_peer_message(document_url=<peer uid or url from the tool description>, message=<task>)`. Do **not** put your own path, uid, or URL in `message` — the gateway inserts `[Peer from: …]`. Need a **file** fact only? `document_research`.
+- Do `send_peer_message(document_url=<peer uid, file URL, or unique display name from the Open peers list>, message=<task>)` when that peer is listed and the task is aimed at that app (compute / fill / write / “ask the budget workbook agent”). Why: only the peer sidebar has those tools. Do **not** put your own path, uid, or URL in `message` — the gateway inserts `[Peer from: …]`. No `reply=true`; every send needs `document_url`.
+- `document_research` is only a silent file fact when you do **not** need the peer sidebar to run. Do not use it as the default for an Open peers Writer/Calc/Draw document.
 - After `ok`/`accepted`, finish local work if any, then **Ready**. The reply arrives as a later user turn with a peer envelope.
 - When you **receive** a peer envelope: do the work with **your** tools; then `send_peer_message(document_url=<uid or url from the envelope>, message=<result>, peer_ask_id=<id from the envelope>)`. Say what you completed. Never omit `document_url`.
 - Never invent the other app’s write tools on this loop.

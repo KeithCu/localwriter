@@ -1,0 +1,248 @@
+"""UNO tests for A1 peer messaging: addressing, missing deck, inject/queue."""
+
+from __future__ import annotations
+
+from plugin.doc.live_panels import register_live_panel, reset_live_panels, unregister_live_panel
+from plugin.doc.peer_message import (
+    SendPeerMessage,
+    drop_listener_queue,
+    kick_pending_peer_starts,
+    listener_queue_len,
+    reset_peer_queues,
+    resolve_peer_target,
+)
+from plugin.framework.async_drain_guard import drain_owner_scope, reset_sentry_state
+from plugin.framework.tool import ToolContext
+from plugin.framework.uno_context import get_desktop, get_runtime_uid
+from plugin.testing_runner import native_test
+
+
+class _Listener:
+    def __init__(self):
+        self.session = _Session()
+        self.appended = []
+        self.started = []
+        self.sidebar_state = _SendState()
+        self._active_q = None
+        self._send_cancellation = None
+        self.chat_mode_selector = None
+
+    def _append_response(self, text, role="assistant"):
+        self.appended.append((text, role))
+
+    def start_extracted_peer_send(self, query_text, *, already_appended):
+        self.started.append((query_text, already_appended))
+        return True
+
+
+class _Session:
+    def __init__(self):
+        self.messages = []
+
+    def add_user_message(self, content):
+        self.messages.append({"role": "user", "content": content})
+
+
+class _SendState:
+    def __init__(self):
+        self.send = type("S", (), {"is_busy": False})()
+
+
+def _hidden_prop():
+    import uno
+
+    return uno.createUnoStruct("com.sun.star.beans.PropertyValue", Name="Hidden", Value=True)
+
+
+def _load(ctx, factory_url):
+    desktop = get_desktop(ctx)
+    return desktop.loadComponentFromURL(factory_url, "_blank", 0, (_hidden_prop(),))
+
+
+def _close(doc):
+    if doc is None:
+        return
+    try:
+        doc.close(True)
+    except Exception:
+        pass
+
+
+def _tool_ctx(ctx, doc):
+    return ToolContext(doc=doc, ctx=ctx, doc_type="writer", services=None, caller="chat")
+
+
+@native_test
+def test_peer_impress_rejected_on_resolved_model(ctx):
+    reset_peer_queues()
+    reset_live_panels()
+    reset_sentry_state()
+    writer = None
+    impress = None
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        impress = _load(ctx, "private:factory/simpress")
+        assert writer is not None and impress is not None
+        impress_uid = get_runtime_uid(impress)
+        assert impress_uid
+        model, code, msg = resolve_peer_target(ctx, writer, impress_uid)
+        assert model is None
+        assert code == "PEER_UNSUPPORTED"
+        assert "Impress" in msg
+    finally:
+        _close(impress)
+        _close(writer)
+        reset_peer_queues()
+        reset_live_panels()
+
+
+@native_test
+def test_peer_catalog_draw_label_is_not_enough_for_impress(ctx):
+    """get_open_documents labels Impress as draw; v1 still rejects the model."""
+    from plugin.doc.document_research import get_open_documents
+    from plugin.doc.peer_message import list_v1_peers
+
+    reset_live_panels()
+    writer = None
+    impress = None
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        impress = _load(ctx, "private:factory/simpress")
+        catalog = get_open_documents(ctx, writer)
+        impress_uid = get_runtime_uid(impress)
+        rec = next((r for r in catalog if r.get("uid") == impress_uid), None)
+        assert rec is not None
+        assert rec.get("doc_type") == "draw"
+        peers = list_v1_peers(ctx, writer)
+        assert all(p.get("uid") != impress_uid for p in peers)
+    finally:
+        _close(impress)
+        _close(writer)
+
+
+@native_test
+def test_peer_missing_deck_is_clear_error(ctx):
+    reset_peer_queues()
+    reset_live_panels()
+    reset_sentry_state()
+    writer = None
+    other = None
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        other = _load(ctx, "private:factory/swriter")
+        other_uid = get_runtime_uid(other)
+        tool = SendPeerMessage()
+        result = tool.execute(_tool_ctx(ctx, writer), document_url=other_uid, message="Hello peer")
+        assert result["status"] == "error"
+        assert result["code"] == "PEER_SIDEBAR_NOT_OPEN"
+        assert "sidebar" in result["message"].lower()
+    finally:
+        _close(other)
+        _close(writer)
+        reset_peer_queues()
+        reset_live_panels()
+
+
+@native_test
+def test_peer_inject_defers_until_drain_idle(ctx):
+    reset_peer_queues()
+    reset_live_panels()
+    reset_sentry_state()
+    writer = None
+    other = None
+    listener = _Listener()
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        other = _load(ctx, "private:factory/swriter")
+        other_uid = get_runtime_uid(other)
+        panel = type("P", (), {"send_listener": listener})()
+        register_live_panel(other_uid, panel)
+        tool = SendPeerMessage()
+        with drain_owner_scope("stream"):
+            result = tool.execute(_tool_ctx(ctx, writer), document_url=other_uid, message="Compute Q4")
+            assert result["status"] == "ok"
+            assert result["accepted"] is True
+            assert listener.started == []
+            assert listener.session.messages
+            assert "[Peer from:" in listener.session.messages[0]["content"]
+        kick_pending_peer_starts()
+        assert listener.started
+        assert listener.started[0][1] is True
+    finally:
+        drop_listener_queue(listener)
+        unregister_live_panel(get_runtime_uid(other) if other is not None else "")
+        _close(other)
+        _close(writer)
+        reset_peer_queues()
+        reset_live_panels()
+        reset_sentry_state()
+
+
+@native_test
+def test_peer_busy_queues_then_starts(ctx):
+    reset_peer_queues()
+    reset_live_panels()
+    reset_sentry_state()
+    writer = None
+    other = None
+    listener = _Listener()
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        other = _load(ctx, "private:factory/swriter")
+        other_uid = get_runtime_uid(other)
+        panel = type("P", (), {"send_listener": listener})()
+        register_live_panel(other_uid, panel)
+        listener.sidebar_state.send.is_busy = True
+        tool = SendPeerMessage()
+        result = tool.execute(_tool_ctx(ctx, writer), document_url=other_uid, message="Queued")
+        assert result["status"] == "ok"
+        assert listener.started == []
+        assert listener_queue_len(listener) == 1
+        listener.sidebar_state.send.is_busy = False
+        kick_pending_peer_starts()
+        assert listener.started
+    finally:
+        drop_listener_queue(listener)
+        _close(other)
+        _close(writer)
+        reset_peer_queues()
+        reset_live_panels()
+        reset_sentry_state()
+
+
+@native_test
+def test_peer_unique_name_and_self_reject(ctx):
+    import tempfile
+
+    import uno
+
+    reset_peer_queues()
+    reset_live_panels()
+    writer = None
+    calc = None
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        calc = _load(ctx, "private:factory/scalc")
+        from plugin.doc.peer_message import list_v1_peers
+
+        writer_uid = get_runtime_uid(writer)
+        model, code, _msg = resolve_peer_target(ctx, writer, writer_uid)
+        assert model is None
+        assert code == "PEER_SELF"
+        # Untitled Writer + Calc both catalog as "Untitled"; save Calc so the
+        # display name is unique and document_url-as-name can resolve.
+        calc_path = tempfile.mkdtemp() + "/BudgetPeer.ods"
+        calc.storeAsURL(uno.systemPathToFileUrl(calc_path), ())
+        peers = list_v1_peers(ctx, writer)
+        calc_uid = get_runtime_uid(calc)
+        rec = next((p for p in peers if p.get("uid") == calc_uid), None)
+        assert rec is not None, peers
+        assert rec["name"] == "BudgetPeer.ods"
+        model, code, _msg = resolve_peer_target(ctx, writer, rec["name"])
+        assert code is None, _msg
+        assert get_runtime_uid(model) == calc_uid
+    finally:
+        _close(calc)
+        _close(writer)
+        reset_peer_queues()
+        reset_live_panels()

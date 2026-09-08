@@ -405,6 +405,15 @@ class ChatPanelElement(unohelper.Base, XUIElement):
                  hasattr(self, "send_listener") and bool(self.send_listener))
         unregister_debug_live_panel(self)
         try:
+            from plugin.doc.live_panels import unregister_live_panel
+            from plugin.framework.uno_context import get_document_from_frame, get_runtime_uid
+
+            model = get_document_from_frame(self.xFrame) if getattr(self, "xFrame", None) else None
+            if model is not None:
+                unregister_live_panel(get_runtime_uid(model))
+        except Exception as e:
+            log.debug("live panel unregister on dispose: %s", e)
+        try:
             if hasattr(self, "send_listener") and self.send_listener:
                 self.send_listener.disposing(None)
         except Exception as e:
@@ -964,6 +973,10 @@ class ChatPanelElement(unohelper.Base, XUIElement):
             # Save it to the instance so panel_wiring can use it for QueryTextListener
             self.send_listener = send_listener
             register_debug_live_panel(self)
+            from plugin.doc.live_panels import register_live_panel
+            from plugin.framework.uno_context import get_runtime_uid
+
+            register_live_panel(get_runtime_uid(model), self)
 
 
 

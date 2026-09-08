@@ -64,8 +64,9 @@ def _document_echo_payload(doc):
 
 # Chat keeps specialized + mcp off the default list (_DEFAULT_EXCLUDE_TIERS in tool.py).
 # MCP advertise policy is forked: keep mcp-tier tools; hide specialized except in direct_flat.
-MCP_DELEGATE_EXCLUDE_TIERS = frozenset({"specialized", "specialized_control"})
-MCP_DIRECT_FLAT_EXCLUDE_TIERS = frozenset({"specialized_control"})
+# tier="chat" (send_peer_message) stays off both MCP lists.
+MCP_DELEGATE_EXCLUDE_TIERS = frozenset({"specialized", "specialized_control", "chat"})
+MCP_DIRECT_FLAT_EXCLUDE_TIERS = frozenset({"specialized_control", "chat"})
 
 
 def drop_unavailable_domains(schemas, registry, ctx):

@@ -106,6 +106,7 @@ def test_send_state_mutual_exclusion_oracle() -> None:
         SendEvent(SendEventKind.RECORD_CLICKED),
         SendEvent(SendEventKind.STOP_REC_CLICKED),
         SendEvent(SendEventKind.SEND_CLICKED),
+        SendEvent(SendEventKind.EXTRACTED_SEND),
         SendEvent(SendEventKind.STOP_CLICKED),
         SendEvent(SendEventKind.SEND_COMPLETED),
         SendEvent(SendEventKind.ERROR_OCCURRED),

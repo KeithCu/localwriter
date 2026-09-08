@@ -30,6 +30,7 @@ class SendEventKind(Enum):
     RECORD_CLICKED = auto()
     STOP_REC_CLICKED = auto()
     SEND_CLICKED = auto()
+    EXTRACTED_SEND = auto()
     STOP_CLICKED = auto()
     SEND_COMPLETED = auto()
     ERROR_OCCURRED = auto()
@@ -182,6 +183,21 @@ def next_state(state: SendButtonState, event: SendEvent) -> FsmTransition[SendBu
             )
         )
         effects.append(StartSendEffect())
+        return FsmTransition(new_state, effects)
+
+    elif event.kind == SendEventKind.EXTRACTED_SEND:
+        # Peer inject: set busy without StartSendEffect (that posts _do_send / Ask-box).
+        if state.is_busy or state.is_recording:
+            return FsmTransition(state, effects)
+        new_state = SendButtonState(is_busy=True, is_recording=False, has_text=state.has_text, has_audio=state.has_audio, audio_supported=state.audio_supported)
+        effects.append(
+            UpdateUIEffect(
+                send_enabled=False,
+                stop_enabled=True,
+                send_label="Send",
+                status_text="Starting...",
+            )
+        )
         return FsmTransition(new_state, effects)
 
     elif event.kind == SendEventKind.STOP_CLICKED:
