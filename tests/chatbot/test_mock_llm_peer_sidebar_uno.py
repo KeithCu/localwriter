@@ -537,20 +537,17 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
     _session.config.delay_ms = 80
     _quiesce_dual(ctx)
 
-    # Fire first ask and take Ready as soon as specialized finishes — do not
-    # wait long enough for a leftover/auto-started Calc reply to inject.
+    # Fire first ask and wait for true Ready (Stop disabled). Breaking on
+    # delegate-done while wrapup still owns Stop makes the ramble Send a no-op.
     _click_send("writer", "Ask the budget workbook to add a Total row")
     deadline = time.monotonic() + 45.0
     writer_ready = False
     while time.monotonic() <= deadline:
         decided = [name for row in _capture_tools() for name in row]
-        body = _transcript("writer")
-        if "send_peer_message" in decided and (
-            not _is_busy("writer") or ("[delegate" in body and ": done]" in body)
-        ):
+        if "send_peer_message" in decided and not _is_busy("writer"):
             writer_ready = True
             break
-        time.sleep(0.12)
+        time.sleep(0.08)
     assert writer_ready, "Writer first ask never finished: decided=%r writer=%r" % (
         _capture_tools(),
         _transcript("writer")[-300:],
@@ -563,10 +560,20 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
 
     # Do not KICK_PEERS yet: under TESTING=1 the Calc extracted send stays queued.
     _click_send("writer", "keep talking")
-    deadline = time.monotonic() + 4.0
-    while time.monotonic() <= deadline and not _is_busy("writer"):
-        time.sleep(0.1)
-    assert _is_busy("writer"), "Writer ramble did not start after first Ready: %r" % _transcript("writer")[-200:]
+    deadline = time.monotonic() + 5.0
+    ramble_on = False
+    while time.monotonic() <= deadline:
+        queries = [str(row.get("current_query") or "") for row in _captures()]
+        if _is_busy("writer") and (
+            any("keep talking" in q.lower() for q in queries) or "word0" in _transcript("writer")
+        ):
+            ramble_on = True
+            break
+        time.sleep(0.08)
+    assert ramble_on and _is_busy("writer"), (
+        "Writer ramble did not start after first Ready: busy=%s queries=%r writer=%r"
+        % (_is_busy("writer"), [str(row.get("current_query") or "")[-40:] for row in _captures()], _transcript("writer")[-200:])
+    )
     busy_txt = _transcript("writer")
     _kick_pending_in_soffice(ctx)
 
