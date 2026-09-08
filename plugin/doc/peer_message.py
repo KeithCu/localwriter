@@ -575,7 +575,8 @@ class SendPeerMessage(ToolBase):
             "message": {
                 "type": "string",
                 "description": (
-                    "Natural-language task body only. Do not paste your own path, uid, or URL — "
+                    "One string: natural-language task or reply body (an HTML table is one string, "
+                    "not a JSON array). Do not paste your own path, uid, or URL — "
                     "the gateway inserts the [Peer from: …] envelope."
                 ),
             },

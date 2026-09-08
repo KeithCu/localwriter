@@ -512,7 +512,7 @@ PEER_OUTER_DELEGATE_HINT = (
     "Why: the inner agent chooses a silent read vs asking the peer sidebar; this loop must not invent the other app's tools.\n"
     "When this turn is a [Peer from: …] envelope: do the local work with your tools, then "
     "Do {delegate}(domain=\"document_research\") with a task to reply to that peer "
-    "(include the envelope uid or url, peer_ask_id, and the HTML or result). "
+    "(one string: envelope uid or url, peer_ask_id, and the HTML or result — not a JSON array). "
     "Why: only that inner agent can send the peer reply; do not narrate the result only in this sidebar."
 )
 
@@ -523,7 +523,7 @@ PEER_INNER_CHOICE_RULES = (
     "Why: only that sidebar has the peer's write tools.\n"
     "Do delegate_read_document when you only need a silent file fact.\n"
     "When tasked to reply to a [Peer from: …] envelope you MUST send_peer_message("
-    "document_url=<uid or url from the envelope>, message=<HTML/result>, peer_ask_id=<id from the envelope>). "
+    "document_url=<uid or url from the envelope>, message=<one HTML/result string>, peer_ask_id=<id from the envelope>). "
     "Why: the caller only sees the reply as a later user turn.\n"
     "After ok/accepted you MUST call specialized_workflow_finished immediately. "
     "Why: the peer runs after this loop exits; waiting deadlocks the reply."

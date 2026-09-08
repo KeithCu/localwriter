@@ -490,7 +490,10 @@ def test_prompts_outer_thin_inner_choice():
     assert "delegate_read_document" in PEER_INNER_CHOICE_RULES
     assert "specialized_workflow_finished immediately" in PEER_INNER_CHOICE_RULES
     assert "you MUST send_peer_message" in PEER_INNER_CHOICE_RULES
+    assert "one HTML/result string" in PEER_INNER_CHOICE_RULES
+    assert "not a JSON array" in PEER_OUTER_DELEGATE_HINT
     assert "PEER SIDEBARS" not in PEER_INNER_CHOICE_RULES
+    assert SendPeerMessage.parameters["properties"]["message"]["type"] == "string"
 
     writer = MagicMock()
     writer.supportsService.side_effect = lambda s: s == "com.sun.star.text.TextDocument"
