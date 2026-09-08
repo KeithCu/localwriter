@@ -32,7 +32,8 @@ _calc_doc = None
 _writer_doc = None
 _open_path = ""
 _CALC_OPEN_SKIP = (
-    "Packet P: open_calc_document did not yield a Calc WriterAgent deck. "
+    "Packet P: open_calc_document did not yield a Calc WriterAgent deck "
+    "(E12 follow-up: URP hang after Writer deck is farmed separately). "
     "Unit tests in tests/scripts/test_mock_llm_server.py and "
     "tests/doc/test_peer_message.py still lock finish-after-accepted, "
     "reply-via-specialized, and busy-then-queue."
@@ -217,6 +218,27 @@ def _send(which: str, text: str, timeout: float = 90.0) -> None:
         # Wrapup HTML / Stop Enabled can lag after specialized_workflow_finished.
         return
     assert finished, "%s send did not finish: %r" % (which, body[-400:])
+
+
+def _click_send(which: str, text: str) -> None:
+    """Fire Send without waiting (P3: start Writer ramble while Calc replies)."""
+    from plugin.chatbot.sidebar_test_hooks import (
+        press_send,
+        set_query_text,
+        set_query_text_via_controls,
+        uno_click,
+    )
+
+    sl = _listener(which)
+    controls = _controls(which)
+    if controls is not None:
+        set_query_text_via_controls(controls, text)
+        time.sleep(0.15)
+        uno_click(controls["send"])
+        return
+    assert sl is not None, "no listener or controls for %s" % which
+    set_query_text(text, listener=sl)
+    press_send(listener=sl)
 
 
 def _wait_calc_envelope(timeout: float = 60.0) -> bool:
@@ -465,3 +487,79 @@ def test_p2_wait_after_accepted_deadlocks_peer(ctx):
         _press_stop("writer")
         _press_stop("calc")
         time.sleep(0.8)
+
+
+@native_test
+def test_p3_writer_busy_queues_calc_reply(ctx):
+    """Writer ramble before Calc reply: reply queues, then starts after Ready."""
+    _skip_without_dual()
+    from plugin.chatbot.sidebar_test_hooks import clear_sidebar_chat
+
+    assert _session is not None
+    _session.config.scenario = "none"
+    _session.config.peer_wait_after_accepted = False
+    # Slow Calc POSTs so Writer can start ramble after Ready before the reply.
+    _session.config.delay_ms = 80
+    if _is_busy("writer"):
+        _press_stop("writer")
+    if _is_busy("calc"):
+        _press_stop("calc")
+    time.sleep(0.4)
+    _clear_captures()
+    for which in ("writer", "calc"):
+        sl = _listener(which)
+        if sl is not None:
+            clear_sidebar_chat(listener=sl)
+
+    _send("writer", "Ask the budget workbook to add a Total row", timeout=90.0)
+    # Do not KICK_PEERS yet: under TESTING=1 the Calc extracted send stays queued.
+    # Start Writer ramble first so the reply lands on a busy peer.
+    _click_send("writer", "keep talking")
+    deadline = time.monotonic() + 4.0
+    while time.monotonic() <= deadline and not _is_busy("writer"):
+        time.sleep(0.1)
+    assert _is_busy("writer"), "Writer ramble did not start after first Ready: %r" % _transcript("writer")[-200:]
+    _kick_pending_in_soffice(ctx)
+
+    deadline = time.monotonic() + 60.0
+    calc_replied = False
+    while time.monotonic() <= deadline:
+        decided = [name for row in _capture_tools() for name in row]
+        if decided.count("send_peer_message") >= 2:
+            calc_replied = True
+            break
+        time.sleep(0.2)
+    try:
+        assert calc_replied, "Calc never sent the reply: decided=%r" % _capture_tools()
+        assert _is_busy("writer"), "Writer went idle before Calc replied (reply would inject now)"
+        writer_txt = _transcript("writer")
+        # already_appended=False: do not start/inject the Calc reply onto a busy Writer.
+        assert "Total row written" not in writer_txt
+        decided = [name for row in _capture_tools() for name in row]
+        assert "apply_document_content" not in decided
+    finally:
+        _session.config.delay_ms = 20
+        _press_stop("writer")
+        time.sleep(0.4)
+        _kick_pending_in_soffice(ctx)
+
+    deadline = time.monotonic() + 45.0
+    drained = False
+    while time.monotonic() <= deadline:
+        writer_txt = _transcript("writer")
+        decided = [name for row in _capture_tools() for name in row]
+        if (
+            "[Peer from:" in writer_txt
+            or "Total row written" in writer_txt
+            or "apply_document_content" in decided
+        ):
+            drained = True
+            break
+        time.sleep(0.25)
+    _wait_both_idle(timeout=30.0)
+    writer_txt = _transcript("writer")
+    decided = [name for row in _capture_tools() for name in row]
+    assert drained or "[Peer from:" in writer_txt or "Total" in writer_txt, (
+        "queued Calc reply never started after Writer Ready: writer=%r decided=%r"
+        % (writer_txt[-300:], decided)
+    )

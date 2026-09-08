@@ -1714,6 +1714,26 @@ def test_writer_followup_applies_peer_reply():
     assert "send_peer_message" not in [n for n, _a in completion_tool_calls(out)]
 
 
+def test_p3_scripted_writer_ramble_does_not_steal_calc_reply():
+    """Same mock: Writer 'keep talking' rambles; Calc envelope still writes + replies."""
+    cfg = MockLLMConfig(delay_ms=0)
+    ramble = decide_completion(_payload("keep talking", _WRITER_OUTER), cfg)
+    assert ramble.ramble_parts or (ramble.content and ramble.tool_name is None)
+    assert "send_peer_message" not in [n for n, _a in completion_tool_calls(ramble)]
+    envelope = (
+        "[Peer from: Memo.odt | uid=writer-uid | url=file:///tmp/Memo.odt | peer_ask_id=ask-1]\n\n"
+        "Add a Total row under the numbers."
+    )
+    write = decide_completion(_payload(envelope, _CALC_OUTER, system=_WRITER_SYS), cfg)
+    assert write.tool_name == "write_formula_range"
+    reply = decide_completion(
+        _payload(envelope, _CALC_OUTER, system=_WRITER_SYS, prior=_tool_follow("write_formula_range", '{"status":"ok"}')),
+        cfg,
+    )
+    assert reply.tool_name == "delegate_to_specialized_calc_toolset"
+    assert "send_peer_message" not in [n for n, _a in completion_tool_calls(reply)]
+
+
 def test_scripted_rules_branch_writer_vs_calc():
     cfg = MockLLMConfig(
         delay_ms=0,

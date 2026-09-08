@@ -386,13 +386,13 @@ Every test must satisfy:
 - **Focus:** Writer + Calc sidebars sharing one process-global mock OpenAI server. Scripts branch on advertised tools, `[Peer from:]` envelopes, and the specialized-inner wire.
 - **Mode:** Automated (`make test-mock-sidebar FILTER=P`). Unit scripts always run in `make pytest` (`tests/scripts/test_mock_llm_server.py`).
 - **Protocol locked:** outer main delegates `document_research` (never advertises `send_peer_message`); inner `send_peer_message` then `specialized_workflow_finished` immediately; Calc does `write_formula_range` then delegates to reply with `peer_ask_id`.
-- **Calc open:** same `open_calc_document` / `adopt_chat_sidebar` helper as E12/G17 (VCL-posted `factory/scalc` + `_blank`; keep Writer open). Never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck. After Writer Ready, P1 dispatches `KICK_PEERS` so soffice starts the queued extracted send. If dual decks cannot be wired, P1/P2 SkipTest — the unit scripts still lock finish-after-accepted vs `peer_wait`.
+- **Calc open:** same `open_calc_document` / `adopt_chat_sidebar` helper as E12/G17 (VCL-posted `factory/scalc` + `_blank`; keep Writer open). Never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck. After Writer Ready, P1 dispatches `KICK_PEERS` so soffice starts the queued extracted send. If dual decks cannot be wired, P1–P3 SkipTest — unit scripts still lock finish-after-accepted, reply-via-specialized, and busy-then-queue.
 
 | ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
 |:--:|:----:|----------------|-----------------|------------------------|:--------------:|
 | **P1** | mock-sidebar | `Ask the budget workbook to add a Total row` | Dual decks; Writer send | Both Ready; Calc wrote Total; Writer saw reply; finish immediately after accepted; no outer `send_peer_message` | **Landed** (SkipTest if Calc deck cannot open) |
 | **P2** | mock-sidebar | `wait after accepted then hang` | Writer send; assert before max_steps | Specialized stays in discovery after accepted; Calc does not `write_formula_range` (inject-now envelope is OK) | **Landed** (same skip) |
-| **P3** | unit | busy peer listener | `schedule_peer_turn` while busy | Queue, no start; kick after idle starts the reply | **Landed** (`test_p3_busy_then_queue_reply` in `test_peer_message.py`) |
+| **P3** | mock-sidebar + unit | Writer Ready, then `keep talking`; `KICK_PEERS` after ramble busy | Writer busy when Calc `send_peer_message`s | Reply queues (no inject); after Stop/Ready + kick, extracted send starts | **Landed** (`test_p3_writer_busy_queues_calc_reply`; unit `test_p3_*` if dual SkipTest / E12 follow-up) |
 
 See [peer-messaging.md](../chat/peer-messaging.md#dual-mock-peer-tests).
 
