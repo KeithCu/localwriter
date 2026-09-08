@@ -261,8 +261,9 @@ help:
 	@echo "  make mock-llm               Fake OpenAI chat server on :18766 (sidebar soak: scroll, tools, Stop, errors)"
 	@echo "  make test-uno               UNO tests only via testing_runner (serial live soffice)"
 	@echo "  make test-uno FILTER=…      Same; FILTER=path or test_* name (native runner)"
-	@echo "  make test-mock-sidebar      Packet F+B+C+D+E+G mock-LLM sidebar (visible soffice, your user profile)"
-	@echo "  make test-mock-sidebar FILTER=E   Packet letter (B/C/D/E/F/G), case id (e12 / g17), or test_* name"
+	@echo "  make test-mock-sidebar      Packet F+B+C+D+E+G+P mock-LLM sidebar (visible soffice, your user profile)"
+	@echo "  make test-mock-sidebar FILTER=E   Packet letter (B/C/D/E/F/G/P), case id (e12 / g17 / p1), or test_* name"
+	@echo "  make test-mock-sidebar FILTER=P   Dual Writer+Calc peer Packet (specialized-inner #673)"
 	@echo "  make excel-py-roundtrip     Excel↔DAG sample fidelity over PythonExcelSamples/"
 	@echo ""
 	@echo "Benchmarks (prompt optimization / eval):"
@@ -764,7 +765,7 @@ pytest:
 mock-llm:
 	$(PYTHON) scripts/mock_llm_server.py
 
-# Optional native-runner selectors: packet letter (B/C/D/E/F/G), case id (f3a), or test_* name.
+# Optional native-runner selectors: packet letter (B/C/D/E/F/G/P), case id (f3a/p1), or test_* name.
 FILTER ?=
 
 # Fail before launching a doomed interpreter. The old silent venv fallback
@@ -802,7 +803,7 @@ test-uno: _check-lo-python
 
 test-mock-sidebar: _check-lo-python
 	@$(MAKE) -C "$(PROJECT_ROOT)" lo-kill
-	WRITERAGENT_UNO_TEST_TIMEOUT=120 PYTHONUNBUFFERED=1 $(LO_PYTHON_UNSET) $(LO_PYTHON_ENV) "$(LO_PYTHON)" -u -m plugin.testing_runner --user-profile tests/chatbot/test_mock_llm_sidebar_uno.py $(FILTER); EXIT_CODE=$$?; $(MAKE) -C "$(PROJECT_ROOT)" lo-kill; exit $$EXIT_CODE
+	WRITERAGENT_UNO_TEST_TIMEOUT=120 PYTHONUNBUFFERED=1 $(LO_PYTHON_UNSET) $(LO_PYTHON_ENV) "$(LO_PYTHON)" -u -m plugin.testing_runner --user-profile $(FILTER); EXIT_CODE=$$?; $(MAKE) -C "$(PROJECT_ROOT)" lo-kill; exit $$EXIT_CODE
 
 # Cap xdist at 6 so subprocess-heavy compute_service / venv worker tests
 # do not starve handshake timeouts on an 8-core box (PYTEST_WORKERS=auto).

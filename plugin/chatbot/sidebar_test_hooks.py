@@ -176,6 +176,13 @@ def handle_debug_sidebar_command(command: str) -> None:
         _post_to_soffice_vcl(_load_visible_calc_factory, sl=sl)
         _write_debug_snapshot(sl)
         return
+    if op == "KICK_PEERS":
+        # Packet P URP: queues live in soffice; the test-process kick is a no-op.
+        from plugin.doc.peer_message import kick_pending_peer_starts
+
+        kick_pending_peer_starts()
+        _write_debug_snapshot(sl)
+        return
     # Slash ops only touch the Ask ListBox. Run inline like SNAPSHOT —
     # queue_executor.post is not drained on this URP path (no AsyncCallback).
     if op in ("SLASH_REFRESH", "SLASH_ENTER", "SLASH_ESC"):
@@ -826,8 +833,8 @@ def wait_for_chat_dialog_controls(
 ) -> dict[str, Any] | None:
     """Show WriterAgentDeck until query+send exist. Does not pump VCL over URP.
 
-    Pass *doc* to target a specific model (Calc after :func:`open_calc_document`).
-    Default is ``current_component``.
+    Pass *doc* to target a specific model (Calc after :func:`open_calc_document`,
+    Packet P dual Writer+Calc). Default is ``current_component``.
     """
     global _HOOK_CTX
     _HOOK_CTX = ctx
@@ -859,8 +866,51 @@ def control_enabled(control: Any) -> bool | None:
         return None
 
 
+def send_listener_for_doc(doc: Any) -> Any:
+    """``send_listener`` bound to *doc*'s frame (dual-deck Packet P)."""
+    _require_debug()
+    if doc is None:
+        return None
+    try:
+        frame = doc.getCurrentController().getFrame()
+    except Exception:
+        return None
+    return send_listener(frame)
+
+
+def iter_send_listeners() -> list[Any]:
+    """All live SendButtonListeners (panels first, then adopted OXT copies)."""
+    _require_debug()
+    adopt_runtime_send_listeners()
+    out: list[Any] = []
+    seen: set[int] = set()
+    try:
+        panels = iter_live_chat_panels()
+    except Exception:
+        panels = []
+    for panel in panels:
+        sl = getattr(panel, "send_listener", None)
+        if sl is None:
+            continue
+        ident = id(sl)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        out.append(sl)
+    for sl in list(_LIVE_SEND_LISTENERS):
+        ident = id(sl)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        out.append(sl)
+    return out
+
+
 def ensure_sidebar_chat_mode(
-    controls: dict[str, Any] | None, *, doc_type: str = "writer"
+    controls: dict[str, Any] | None,
+    *,
+    doc_type: str = "writer",
+    listener: Any = None,
 ) -> None:
     """Select main Chat (not Librarian) so Packet F hits the chat completions path."""
     _require_debug()
@@ -875,7 +925,7 @@ def ensure_sidebar_chat_mode(
         )
 
         set_selector_mode_with_flags(sel, CHAT_MODE_CHAT, sidebar_mode_flags_for_doc_type(doc_type))
-    sl = send_listener()
+    sl = listener if listener is not None else send_listener()
     if sl is not None:
         apply_fn = getattr(sl, "_apply_sidebar_mode_fn", None)
         if apply_fn is not None:
@@ -886,14 +936,14 @@ def ensure_sidebar_chat_mode(
         execute_debug_sidebar_op("SET_CHAT_MODE")
 
 
-def set_query_text_via_controls(controls: dict[str, Any], text: str) -> None:
+def set_query_text_via_controls(controls: dict[str, Any], text: str, *, listener: Any = None) -> None:
     """Set the query box over URP so QueryTextListener can enable Send."""
     _require_debug()
     from plugin.chatbot.dialogs import set_control_text
 
     if "query" in controls:
         set_control_text(controls["query"], text)
-    sl = send_listener()
+    sl = listener if listener is not None else send_listener()
     if sl is not None:
         sl.dispatch(SendEvent(SendEventKind.TEXT_UPDATED, {"has_text": bool(text.strip())}))
     else:

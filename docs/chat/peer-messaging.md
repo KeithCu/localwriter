@@ -388,6 +388,7 @@ Concrete touch points so this is implementable without rediscovering the review.
 
 - Unit: envelope from `ctx.doc` (untitled url empty); visibility (main hides even with peers; specialized shows catalog; Impress rejected); addressing (self, missing, ambiguous); queue policy (FIFO, cap, overflow error, Stop drops); `status: ok` + `accepted`; `execute` allows specialized `document_research` and refuses MCP; no `panel_factory` import from the tool module.
 - UNO: two live sidebars — inject, defer-until-idle, busy queue, missing deck error, Impress reject. Follow `tests/chatbot/test_hamburger_menu_uno.py` style (`@native_test`, `ctx`). Mock-sidebar / user-profile URP must open Calc with `open_calc_document` in [`sidebar_test_hooks.py`](../../plugin/chatbot/sidebar_test_hooks.py) (`_blank`, VCL-posted factory load) — never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck (E12 hang). Then `adopt_chat_sidebar(ctx, calc)` for the live Calc deck. Headless `make test-uno` hidden `_blank` factory loads stay fine.
+- Dual mock Packet P: one process-global mock (`CompletionRule` / `peer_total` / `peer_wait`) scripts Writer vs Calc from tools + envelope. Unit lock is `tests/scripts/test_mock_llm_server.py` plus `tests/doc/test_peer_message.py` (`test_p3_*` busy-then-queue). Live decks: `make test-mock-sidebar FILTER=P` (`test_mock_llm_peer_sidebar_uno.py`) uses the same `open_calc_document` helper (keep Writer open; `_blank`). After Writer Ready, Packet P dispatches `KICK_PEERS` over URP so soffice starts the queued extracted send. P3 starts Writer `keep talking` (slow SSE) before that kick so the Calc reply queues. SkipTest if dual decks cannot be wired (E12 follow-up; do not block the packet).
 
 ---
 
@@ -451,3 +452,4 @@ Concrete touch points so this is implementable without rediscovering the review.
 - [mcp-protocol.md](../mcp-protocol.md) — external host; this tool stays off that wire
 - [uno-thread-safety.md](../framework/uno-thread-safety.md) / [threading.md](../framework/threading.md) / [streaming-and-threading.md](../framework/streaming-and-threading.md)
 - [GDPval GMP gold `58ac1cc5`](../eval/gdpval/58ac1cc5-5754-4580-8c9c-8c67e1a9d619/README.md) — materials only; peer/Draw port is separate work
+- [mock-llm-sidebar.md](../tests/mock-llm-sidebar.md) — Packets B–G soak + Packet P dual peer

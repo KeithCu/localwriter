@@ -13,7 +13,12 @@ import unittest
 from http.server import ThreadingHTTPServer
 from typing import Any
 
-from scripts.mock_llm_server import MOCK_MODEL_ID, MockLLMConfig, make_handler_class
+from scripts.mock_llm_server import (
+    MOCK_MODEL_ID,
+    CompletionRule,
+    MockLLMConfig,
+    make_handler_class,
+)
 
 
 def mock_config(config: Any, **flags: Any) -> Any:
@@ -94,14 +99,199 @@ def stop_mock_sidebar_session(session: MockSidebarSession | None) -> None:
     set_api_key_for_endpoint(session.base_url, saved.get("api_key") or "")
 
 
-def require_send_listener(*, skip_if_missing: bool = True):
-    """Live ``SendButtonListener``. Skip or fail if the chat deck is not wired."""
-    from plugin.chatbot.sidebar_test_hooks import send_listener
+def require_send_listener(*, skip_if_missing: bool = True, frame: Any = None, doc: Any = None):
+    """Live ``SendButtonListener``. Skip or fail if the chat deck is not wired.
 
-    sl = send_listener()
+    Pass *frame* or *doc* for the dual-deck Packet (Writer vs Calc).
+    """
+    from plugin.chatbot.sidebar_test_hooks import send_listener, send_listener_for_doc
+
+    sl = send_listener_for_doc(doc) if doc is not None else send_listener(frame)
     if sl is None:
         msg = "WriterAgent chat sidebar not wired (make test-mock-sidebar uses your LO profile)"
         if skip_if_missing:
             raise unittest.SkipTest(msg)
         raise AssertionError(msg)
     return sl
+
+
+def write_budget_csv(path: str) -> None:
+    """Tiny Amount column so Packet P can write a Total row."""
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("Item,Amount\nApples,10\nBananas,20\n")
+
+
+def write_minimal_ods(path: str) -> None:
+    """Valid empty-ish ODS (Item/Amount) for file-URL Calc open — not factory/scalc."""
+    import zipfile
+
+    manifest = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" '
+        'manifest:version="1.2">'
+        '<manifest:file-entry manifest:full-path="/" manifest:version="1.2" '
+        'manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>'
+        '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>'
+        "</manifest:manifest>"
+    )
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" '
+        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.2">'
+        "<office:body><office:spreadsheet>"
+        '<table:table table:name="Sheet1">'
+        "<table:table-row>"
+        '<table:table-cell office:value-type="string"><text:p>Item</text:p></table:table-cell>'
+        '<table:table-cell office:value-type="string"><text:p>Amount</text:p></table:table-cell>'
+        "</table:table-row>"
+        "<table:table-row>"
+        '<table:table-cell office:value-type="string"><text:p>Apples</text:p></table:table-cell>'
+        '<table:table-cell office:value-type="float" office:value="10">'
+        "<text:p>10</text:p></table:table-cell>"
+        "</table:table-row>"
+        "<table:table-row>"
+        '<table:table-cell office:value-type="string"><text:p>Bananas</text:p></table:table-cell>'
+        '<table:table-cell office:value-type="float" office:value="20">'
+        "<text:p>20</text:p></table:table-cell>"
+        "</table:table-row>"
+        "</table:table></office:spreadsheet></office:body></office:document-content>"
+    )
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("mimetype", "application/vnd.oasis.opendocument.spreadsheet", compress_type=zipfile.ZIP_STORED)
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("content.xml", content)
+
+
+def _iter_office_docs(ctx: Any) -> list[Any]:
+    from plugin.chatbot.sidebar_test_hooks import desktop_from_ctx
+
+    docs: list[Any] = []
+    try:
+        comps = desktop_from_ctx(ctx).getComponents()
+        enum = comps.createEnumeration() if comps is not None else None
+    except Exception:
+        return docs
+    while enum is not None:
+        try:
+            more = enum.hasMoreElements()
+        except Exception:
+            break
+        if more is not True and more != 1:
+            break
+        try:
+            elem = enum.nextElement()
+        except Exception:
+            break
+        try:
+            if elem is not None and elem.supportsService("com.sun.star.document.OfficeDocument"):
+                docs.append(elem)
+        except Exception:
+            continue
+    return docs
+
+
+def find_open_calc(ctx: Any) -> Any:
+    from plugin.doc.doc_type import is_calc
+
+    for doc in _iter_office_docs(ctx):
+        try:
+            if is_calc(doc):
+                return doc
+        except Exception:
+            continue
+    return None
+
+
+def find_open_writer(ctx: Any) -> Any:
+    from plugin.doc.doc_type import is_writer
+
+    for doc in _iter_office_docs(ctx):
+        try:
+            if is_writer(doc):
+                return doc
+        except Exception:
+            continue
+    return None
+
+
+def open_calc_for_dual_sidebar(ctx: Any, *, timeout: float = 15.0) -> Any:
+    """Open Calc for Packet P via the shared E12 helper (keep Writer; VCL factory).
+
+    Do not ``loadComponentFromURL('private:factory/scalc')`` from the URP client
+    after a WriterAgent deck is visible. Show the Writer deck first so
+    ``OPEN_CALC`` can post onto that listener's ``QueueExecutor``.
+    """
+    from plugin.chatbot.sidebar_test_hooks import open_calc_document
+
+    try:
+        return open_calc_document(ctx, timeout=timeout)
+    except Exception:
+        return None
+
+
+def seed_budget_sheet(calc: Any) -> None:
+    """Guarantee Item/Amount rows on a factory Calc (E12 open is empty)."""
+    if calc is None:
+        return
+    try:
+        sheet = calc.getSheets().getByIndex(0)
+        if not (sheet.getCellByPosition(0, 0).getString() or "").strip():
+            sheet.getCellByPosition(0, 0).setString("Item")
+            sheet.getCellByPosition(1, 0).setString("Amount")
+            sheet.getCellByPosition(0, 1).setString("Apples")
+            sheet.getCellByPosition(1, 1).setValue(10)
+            sheet.getCellByPosition(0, 2).setString("Bananas")
+            sheet.getCellByPosition(1, 2).setValue(20)
+    except Exception:
+        pass
+
+
+def calc_total_formula(calc: Any) -> str:
+    if calc is None:
+        return ""
+    try:
+        sheet = calc.getSheets().getByIndex(0)
+        return str(sheet.getCellByPosition(1, 3).getFormula() or sheet.getCellByPosition(1, 3).getString() or "")
+    except Exception:
+        return ""
+
+
+def finish_immediately_after_peer_sends(captures: list[dict[str, Any]]) -> bool:
+    """True when each ``send_peer_message`` decision is followed by a finish tool.
+
+    Locks #673: waiting after accepted deadlocks the peer.
+    """
+    decided_rows = [row.get("decided_tools") or [] for row in captures]
+    saw_send = False
+    finished_after = 0
+    sends = 0
+    for tools in decided_rows:
+        if "send_peer_message" in tools:
+            saw_send = True
+            sends += 1
+            continue
+        if saw_send and (
+            "specialized_workflow_finished" in tools or "final_answer" in tools
+        ):
+            finished_after += 1
+            saw_send = False
+    return sends > 0 and finished_after >= sends
+
+
+__all__ = (
+    "CompletionRule",
+    "MockSidebarSession",
+    "calc_total_formula",
+    "find_open_calc",
+    "find_open_writer",
+    "finish_immediately_after_peer_sends",
+    "mock_config",
+    "open_calc_for_dual_sidebar",
+    "require_send_listener",
+    "seed_budget_sheet",
+    "start_mock_sidebar_session",
+    "stop_mock_sidebar_session",
+    "write_budget_csv",
+    "write_minimal_ods",
+)

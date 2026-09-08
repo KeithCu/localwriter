@@ -383,7 +383,9 @@ def _on_drain_idle() -> None:
     Starting the peer drain inside ``drain_owner_scope``'s ``finally`` would
     run it before the caller’s ``SEND_COMPLETED`` (Ready). ``QueueExecutor.post``
     is inline under ``WRITERAGENT_TESTING=1``, so we never start here — only
-    mark that a kick is due. Production posts to the next VCL tick.
+    mark that a kick is due. Production posts to the next VCL tick. Mock-sidebar
+    Packet P dispatches ``KICK_PEERS`` after Writer Ready (do not force-marshal
+    from this callback: that starts Calc during Writer wrapup and sticks Stop).
     """
     global _idle_kick_scheduled
     if get_drain_owner() is not None:

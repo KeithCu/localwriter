@@ -320,6 +320,53 @@ def test_user_busy_wins_over_queued_inject():
     assert listener.started == [("wrapped", False)]
 
 
+def test_p3_busy_then_queue_reply():
+    """Packet P: inbound reply queues while the peer is busy; starts after idle."""
+    listener = _Listener()
+    listener.sidebar_state.send.is_busy = True
+    wrapped = (
+        "[Peer from: BudgetPeer.ods | uid=calc-uid | url= | peer_ask_id=ask-1]\n\n"
+        "Total row written at A4:B4."
+    )
+    turn = PeerPendingTurn(wrapped, False, "ask-1")
+    assert schedule_peer_turn(listener, turn) is None
+    assert listener.started == []
+    assert listener_queue_len(listener) == 1
+    listener.sidebar_state.send.is_busy = False
+    kick_pending_peer_starts()
+    assert listener.started == [(wrapped, False)]
+    assert listener_queue_len(listener) == 0
+
+
+def test_p3_execute_queues_reply_while_writer_busy():
+    """Calc send_peer_message while Writer is rambling: accept, no inject, start later."""
+    tool = SendPeerMessage()
+    ctx = _ctx()
+    peer = MagicMock()
+    listener = _Listener()
+    listener.sidebar_state.send.is_busy = True
+    panel = MagicMock()
+    panel.send_listener = listener
+    with patch("plugin.doc.peer_message.resolve_peer_target", return_value=(peer, None, "")):
+        with patch("plugin.framework.uno_context.get_runtime_uid", return_value="peer-uid"):
+            with patch("plugin.doc.live_panels.get_live_panel", return_value=panel):
+                result = tool.execute(
+                    ctx,
+                    document_url="peer-uid",
+                    message="Total row written at A4:B4.",
+                    peer_ask_id="ask-1",
+                )
+    assert result["status"] == "ok"
+    assert result["accepted"] is True
+    assert listener.appended == []
+    listener.session.add_user_message.assert_not_called()
+    assert listener.started == []
+    assert listener_queue_len(listener) == 1
+    listener.sidebar_state.send.is_busy = False
+    kick_pending_peer_starts()
+    assert listener.started and listener.started[0][1] is False
+
+
 def test_execute_status_ok_accepted():
     tool = SendPeerMessage()
     ctx = _ctx()
