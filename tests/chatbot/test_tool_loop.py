@@ -543,6 +543,7 @@ def test_refresh_active_tools_for_session():
             uno_services_supported=frozenset({"com.sun.star.text.TextDocument"}),
             active_domain="tables",
             ctx=panel.ctx,
+            doc=None,
         )
         assert panel._active_tools == [{"function": {"name": "fresh"}}]
     finally:
