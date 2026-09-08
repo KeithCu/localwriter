@@ -534,7 +534,10 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
     assert _session is not None
     _session.config.scenario = "none"
     _session.config.peer_wait_after_accepted = False
-    _session.config.delay_ms = 80
+    # SSE ramble stays Stop-enabled; nested Calc POSTs (stream=False) need
+    # sync_delay or they finish in milliseconds after Writer wrapup.
+    _session.config.delay_ms = 60
+    _session.config.sync_delay_ms = 3500
     _quiesce_dual(ctx)
 
     # Fire first ask and wait for true Ready (Stop disabled). Breaking on
@@ -605,6 +608,7 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
         assert "apply_document_content" not in decided
     finally:
         _session.config.delay_ms = 20
+        _session.config.sync_delay_ms = None
         _press_stop("writer")
         time.sleep(0.4)
         _kick_pending_in_soffice(ctx)
