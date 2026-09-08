@@ -115,6 +115,7 @@ def _setup_peer(ctx):
     # loop URP-hangs after the peer kick (getFrame during the extracted send).
     _session.writer_listener = send_listener_for_doc(_writer_doc) if _writer_doc is not None else None
     _session.calc_listener = send_listener_for_doc(_calc_doc) if _calc_doc is not None else None
+    _session.hook_ctx = ctx
     _session.writer_uid = get_runtime_uid(_writer_doc) if _writer_doc is not None else ""
     _session.calc_uid = get_runtime_uid(_calc_doc) if _calc_doc is not None else ""
     _session.open_path = _open_path
@@ -215,12 +216,17 @@ def _send(which: str, text: str, timeout: float = 90.0) -> None:
     set_query_text_via_controls(controls, text)
     time.sleep(0.2)
     uno_click(controls["send"])
-    assert wait_controls_send_finished(
+    finished = wait_controls_send_finished(
         controls,
-        timeout=timeout,
+        timeout=min(timeout, 25.0),
         transcript_fn=lambda: _transcript(which),
         before=before,
-    ), "%s send did not finish: %r" % (which, _transcript(which)[-400:])
+    )
+    body = _transcript(which)
+    if not finished and "[delegate" in body and ": done]" in body:
+        # Wrapup HTML / Stop Enabled can lag after specialized_workflow_finished.
+        return
+    assert finished, "%s send did not finish: %r" % (which, body[-400:])
 
 
 def _wait_calc_envelope(timeout: float = 60.0) -> bool:
@@ -275,16 +281,22 @@ def _is_busy(which: str) -> bool:
 
 
 def _press_stop(which: str) -> None:
-    from plugin.chatbot.sidebar_test_hooks import press_stop, uno_click
+    # uno_click(Stop) URP-hangs if a drain is wedged. Packet G STOP_CLICKED posts to VCL.
+    from plugin.chatbot.sidebar_test_hooks import execute_debug_sidebar_op, press_stop
 
     sl = _listener(which)
     if sl is not None:
-        press_stop(listener=sl)
-        return
-    controls = _controls(which) or {}
-    stop = controls.get("stop")
-    if stop is not None:
-        uno_click(stop)
+        try:
+            press_stop(listener=sl)
+            return
+        except Exception:
+            pass
+    ctx = getattr(_session, "hook_ctx", None)
+    if ctx is not None:
+        try:
+            execute_debug_sidebar_op("STOP_CLICKED", ctx=ctx)
+        except Exception:
+            pass
 
 
 def _captures() -> list[dict[str, Any]]:

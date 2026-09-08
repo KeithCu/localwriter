@@ -302,7 +302,7 @@ def test_schedule_does_not_start_while_drain_owned():
         assert err is None
         assert listener_queue_len(listener) == 1
         assert listener.started == []
-    # idle callback force-marshals under TESTING=1; no VCL poke here — kick explicitly
+    # idle callback may schedule but testing post is deferred; kick explicitly
     kick_pending_peer_starts()
     assert listener.started == [("wrapped", True)]
     assert listener_queue_len(listener) == 0
