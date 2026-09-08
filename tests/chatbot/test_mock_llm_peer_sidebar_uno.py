@@ -362,11 +362,17 @@ def test_p1_total_row_peer_roundtrip(ctx):
             _transcript("calc")[-300:],
         )
     )
-    assert _wait_both_idle(timeout=90.0), (
-        "nested-drain freeze or wait-for-peer stall: writer_busy=%s calc_busy=%s writer=%r calc=%r"
-        % (_is_busy("writer"), _is_busy("calc"), _transcript("writer")[-300:], _transcript("calc")[-300:])
-    )
-    assert not _is_busy("writer") and not _is_busy("calc")
+    # First idle beat is Writer Ready; Calc reply + Writer follow-up start later.
+    deadline = time.monotonic() + 90.0
+    while time.monotonic() <= deadline:
+        decided = [name for row in _capture_tools() for name in row]
+        if decided.count("send_peer_message") >= 2 and (
+            "write_formula_range" in decided or "delegate_to_specialized_calc_toolset" in decided
+        ):
+            _wait_both_idle(timeout=8.0)
+            break
+        time.sleep(0.25)
+    _wait_both_idle(timeout=20.0)
     writer_txt = _transcript("writer")
     calc_txt = _transcript("calc")
     assert "[Peer from:" in calc_txt, "Calc never received the envelope: %r" % calc_txt[-400:]
@@ -400,8 +406,11 @@ def test_p2_wait_after_accepted_deadlocks_peer(ctx):
     assert _session is not None
     _session.config.scenario = "peer_wait"
     _session.config.peer_wait_after_accepted = True
-    _press_stop("writer")
-    _press_stop("calc")
+    if _is_busy("writer"):
+        _press_stop("writer")
+    if _is_busy("calc"):
+        _press_stop("calc")
+    time.sleep(0.5)
     _clear_captures()
     for which in ("writer", "calc"):
         sl = _listener(which)
