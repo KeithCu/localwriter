@@ -17,12 +17,12 @@ basename typo `Rentention`.
 | Check | Source | Fail closed |
 |-------|--------|-------------|
 | Writer doc present (`.odt` / `.docx`) and body is non-empty | Writer prompt: memo in this open document | Missing file / unreadable / no extractable text |
-| ~1–2 pages (word band 180–1400) | Gold + writer prompt “concise, 1-2 page” | `< 180` (Ready-empty) or `> 1400` |
+| ~1–2 pages (word band 180–1800) | Gold + writer prompt “concise, 1-2 page”; 1800 leaves headroom for table-heavy headed memos (~1500 words) | `< 180` (Ready-empty) or `> 1800` |
 | `Harborview Flats` and `Stamford` present | Prompt + gold rubric | Either string missing |
 | Objective: **+10% retention / 6 months** | Prompt + gold rubric | Missing `10%` or `6 month` |
-| Four section themes present | Writer prompt components 1–4 | Missing departure analysis, tiered renewal, communication plan, or community engagement |
-| Top reason: **rent increase** **9/20 (45%)** | Fixture: 9 of 20 comments; gold rubric | Missing rent-increase theme, `9/20` (or `9 out of 20`), or `45%` |
-| Top reason: **lack of community / disconnected** **5/20 (25%)** | Fixture: 5 of 20 comments; gold rubric | Missing community/disconnected theme, `5/20` (or `5 out of 20`), or `25%` |
+| Four section themes present | Writer prompt components 1–4. ODT extract includes `text:h` (LibreOffice headings). Titles may be synonyms (`departure reason/categor`, `exit survey/analysis`, `communication plan/template/cadence`, `email draft/timeline`, `community engagement` / `engagement initiative`) | Missing departure analysis, tiered renewal, communication plan, or community engagement |
+| Top reason: **rent increase** **9/20 (45%)** | Fixture: 9 of 20 comments; gold rubric | Missing rent-increase theme; missing count (`9/20`, `9 out of 20`, `9 of 20`, **or** digit `9` near the rent theme **and** survey N=`20` somewhere); or missing `45%` / `45.0%` / `45 percent` |
+| Top reason: **lack of community / disconnected** **5/20 (25%)** | Fixture: 5 of 20 comments; gold rubric | Missing community/disconnected theme; missing count (`5/20` / `5 out of 20` / `5 of 20`, **or** digit `5` near the community theme **and** survey N=`20`); or missing `25%` / `25.0%` / `25 percent` |
 | Early-bird **90d**, standard **60d**, month-to-month **premium** | Writer prompt §2; letter is the current 60-day one-size offer | Missing any of the three tiers |
 | Touchpoints **90 / 60 / 30** | Writer prompt §3 | Any of 90, 60, 30 absent |
 | **Two** events | Writer prompt §4 | No “two … event(s)” wording |

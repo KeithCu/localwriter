@@ -24,8 +24,11 @@ from xml.etree import ElementTree as ET
 
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+_TEXT_P = f"{{{_TEXT_NS}}}p"
+_TEXT_H = f"{{{_TEXT_NS}}}h"
 _WORD_MIN = 180
-_WORD_MAX = 1400
+# Table-heavy headed memos land ~1500 words; 1400 was a false-FAIL on format.
+_WORD_MAX = 1800
 
 _HUSK_RE = re.compile(
     r"(?:#DIV/0!|Err:507|\bError:|_deal_|DEAL_|PYTHONFUNCTION)",
@@ -36,25 +39,54 @@ _STAMFORD_RE = re.compile(r"stamford", re.I)
 _TEN_PCT_RE = re.compile(r"10\s*%")
 _SIX_MONTHS_RE = re.compile(r"6\s*-\s*months?|6\s+months?", re.I)
 _RENT_COUNT_RE = re.compile(r"9\s*/\s*20|9\s+out\s+of\s+20|9\s+of\s+20", re.I)
-_RENT_PCT_RE = re.compile(r"45\s*%")
+# Writer tables often store 45.0% (office:value) rather than "45%".
+_RENT_PCT_RE = re.compile(r"45(?:\.0+)?\s*%|45\s+percent", re.I)
 _RENT_THEME_RE = re.compile(r"rent\s+increase|price\s+sensitivity", re.I)
 _COMMUNITY_COUNT_RE = re.compile(r"5\s*/\s*20|5\s+out\s+of\s+20|5\s+of\s+20", re.I)
-_COMMUNITY_PCT_RE = re.compile(r"25\s*%")
+_COMMUNITY_PCT_RE = re.compile(r"25(?:\.0+)?\s*%|25\s+percent", re.I)
 _COMMUNITY_THEME_RE = re.compile(
     r"lack\s+of\s+community|feeling\s+disconnected|disconnected",
     re.I,
+)
+# Survey N lives in prose or a caption, not always glued to 9/20.
+_SURVEY_N20_RE = re.compile(
+    r"(?i)"
+    r"(?:n\s*=\s*20)"
+    r"|(?:\b20\s+(?:comments?|residents?|respondents?|exits?|surveys?|tenants?|responses?|people))"
+    r"|(?:(?:survey|sample|feedback|comments?|respondents?|residents?).{0,48}\b20\b)"
+    r"|(?:\b20\b.{0,48}(?:survey|comments?|residents?|respondents?|exits?|responses?))"
 )
 _EARLY_BIRD_RE = re.compile(r"early[\s\-]*bird", re.I)
 _MONTH_TO_MONTH_RE = re.compile(r"month[\s\-]*to[\s\-]*month|\bm2m\b", re.I)
 _PREMIUM_RE = re.compile(r"premium", re.I)
 _TWO_EVENTS_RE = re.compile(r"\btwo\b.{0,40}\bevents?\b|\b2\b.{0,20}\bevents?\b", re.I)
-_DEPARTURE_RE = re.compile(r"departure\s+reasons|analysis\s+of\s+departure", re.I)
+# Heading extract is the main section fix; these ORs are belt-and-suspenders.
+_DEPARTURE_RE = re.compile(
+    r"departure\s+(?:reason|categor)\w*"
+    r"|exit\s+(?:survey|analysis)"
+    r"|why\s+(?:residents|tenants)\s+(?:left|leave)"
+    r"|analysis\s+of\s+(?:resident\s+)?departure",
+    re.I,
+)
 _TIERED_RE = re.compile(r"tiered\s+renewal", re.I)
-_COMM_PLAN_RE = re.compile(r"communication\s+plan", re.I)
-_ENGAGEMENT_RE = re.compile(r"community\s+engagement", re.I)
+_COMM_PLAN_RE = re.compile(
+    r"communication\s+(?:plan|template|cadence)"
+    r"|email\s+(?:draft|timeline|plan)"
+    r"|renewal\s+notification",
+    re.I,
+)
+_ENGAGEMENT_RE = re.compile(
+    r"community\s+engagement"
+    r"|resident\s+events?"
+    r"|engagement\s+initiative",
+    re.I,
+)
 _DAY_90_RE = re.compile(r"\b90[\s\-]*day|\b90\s+days?\b", re.I)
 _DAY_60_RE = re.compile(r"\b60[\s\-]*day|\b60\s+days?\b", re.I)
 _DAY_30_RE = re.compile(r"\b30[\s\-]*day|\b30\s+days?\b", re.I)
+# Window for table-split "9" / "5" sitting in a cell next to the theme label.
+_COUNT_WINDOW_BEFORE = 80
+_COUNT_WINDOW_AFTER = 300
 
 
 @dataclass
@@ -81,9 +113,20 @@ def _docx_paragraphs(path: Path) -> list[str]:
 
 
 def _odt_paragraphs(path: Path) -> list[str]:
+    """Body blocks in document order: ``text:p`` and ``text:h``.
+
+    Heading-only section titles live in ``text:h``. Walking ``text:p``
+    alone hid those titles (Gemini headed memo) and false-failed the
+    section checks. Table cells already wrap ``text:p``, so cell text
+    is included; document order keeps count-near-theme windows honest.
+    """
     with zipfile.ZipFile(path) as zf:
         root = ET.fromstring(zf.read("content.xml"))
-    return ["".join(node.itertext()) for node in root.iter(f"{{{_TEXT_NS}}}p")]
+    blocks: list[str] = []
+    for node in root.iter():
+        if node.tag in (_TEXT_P, _TEXT_H):
+            blocks.append("".join(node.itertext()))
+    return blocks
 
 
 def read_memo_paragraphs(path: Path) -> list[str]:
@@ -97,6 +140,36 @@ def read_memo_paragraphs(path: Path) -> list[str]:
 
 def _word_count(text: str) -> int:
     return len(re.findall(r"\S+", text))
+
+
+def _digit_near_theme(text: str, theme_re: re.Pattern[str], digit: int) -> bool:
+    """Standalone digit in a short window around a theme mention."""
+    digit_re = re.compile(rf"\b{digit}\b")
+    for match in theme_re.finditer(text):
+        start = max(0, match.start() - _COUNT_WINDOW_BEFORE)
+        end = min(len(text), match.end() + _COUNT_WINDOW_AFTER)
+        if digit_re.search(text[start:end]):
+            return True
+    return False
+
+
+def _has_survey_count(
+    text: str,
+    *,
+    digit: int,
+    literal_re: re.Pattern[str],
+    theme_re: re.Pattern[str],
+) -> bool:
+    """Literal ``9/20`` / ``9 of 20``, or split table: digit near theme + N=20.
+
+    Writer tables put the count in one cell and the percent in the next, so
+    the body never contains the token ``9/20``. Requiring that glue was a
+    false-FAIL on format; the fixture still has to state survey N=20 and
+    place ``9`` (or ``5``) next to the rent / community theme.
+    """
+    if literal_re.search(text):
+        return True
+    return bool(_SURVEY_N20_RE.search(text) and _digit_near_theme(text, theme_re, digit))
 
 
 def score_text(text: str, *, para_count: int) -> OracleResult:
@@ -129,13 +202,17 @@ def score_text(text: str, *, para_count: int) -> OracleResult:
         failures.append("missing community engagement section")
     if not _RENT_THEME_RE.search(text):
         failures.append("missing rent-increase theme")
-    if not _RENT_COUNT_RE.search(text):
+    if not _has_survey_count(
+        text, digit=9, literal_re=_RENT_COUNT_RE, theme_re=_RENT_THEME_RE
+    ):
         failures.append("missing rent-increase 9/20 count")
     if not _RENT_PCT_RE.search(text):
         failures.append("missing rent-increase 45%")
     if not _COMMUNITY_THEME_RE.search(text):
         failures.append("missing lack of community / disconnected theme")
-    if not _COMMUNITY_COUNT_RE.search(text):
+    if not _has_survey_count(
+        text, digit=5, literal_re=_COMMUNITY_COUNT_RE, theme_re=_COMMUNITY_THEME_RE
+    ):
         failures.append("missing community 5/20 count")
     if not _COMMUNITY_PCT_RE.search(text):
         failures.append("missing community 25%")
