@@ -34,20 +34,20 @@ They already share the process: one `ToolRegistry` (`plugin.main.get_tools()`), 
 - Opening, creating, or spawning a peer mid-session. No matching open peer → **error**, not a silent create.
 - Product PDF editing or an AcroForm API. See [§4.5](#45-gmp-staging--not-a-pdf-product).
 
-The product move: **`send_peer_message` (illustrative; or `send_peer_agent`) queues one user-equivalent turn on the peer sidebar and returns `{status: accepted, peer_ask_id}`.** The peer’s own `_do_send` / `ChatSession` path does the work. When finished, the peer calls the same tool back with that id.
+The product move: **`send_peer_agent(document_url=target, message=body)` queues one user-equivalent turn on the peer sidebar and returns `{status: accepted, peer_ask_id}`.** The caller puts **only** the task in `message` — never the source URL. The gateway derives the sender from the **caller frame** and prepends a code-inserted envelope before `add_user_message`. The peer’s own `_do_send` / `ChatSession` path does the work. When finished, the peer calls the same tool back (`reply=true` / omitted `document_url` may default to `last_peer_from`).
 
 ```mermaid
 sequenceDiagram
   participant W as Writer ChatSession
-  participant WT as send_peer_message
+  participant WT as send_peer_agent
   participant C as Calc ChatSession
-  W->>WT: task + document_url
+  W->>WT: document_url=target + message=body
   WT-->>W: accepted + peer_ask_id
-  Note over W: Caller keeps its schemas; parallel local work OK
-  WT->>C: host injects envelope + NL (as if user typed)
+  Note over W: Caller keeps its schemas; no from-url in body
+  WT->>C: envelope from caller frame + body then add_user_message
   C->>C: _do_send / tool_loop on Calc tools
-  C->>WT: send_peer_message reply + peer_ask_id
-  WT->>W: host injects envelope onto caller session
+  C->>WT: send_peer_agent reply=true + message
+  WT->>W: same envelope inject onto caller session
 ```
 
 Any of the three can initiate. Writer as first sender is the usual SAR/GMP shape; Calc ↔ Draw is the same tool.
@@ -119,10 +119,11 @@ v1 `send_peer_*` is **not** a `long_running` wait-for-reply gateway. `execute` r
 
 One core-tier tool, advertised only when a **resolvable other peer** exists ([§4.2](#42-tool-visibility)).
 
-- **Name (illustrative):** `send_peer_message` or `send_peer_agent`. Not an existing API. Not `ask_peer_agent`.
-- **Args:** `task` (NL) + `document_url` (URL or RuntimeUID). Replies should pass `peer_ask_id`. Host may default omitted `document_url` / `peer_ask_id` from `last_peer_from` ([§4.1](#41-envelope-correlation--reply-default)).
-- **Behavior:** Do **not** change the caller’s schemas or `ToolContext.doc`. Resolve an **open** supported peer. Find that uid’s live `SendButtonListener`. Inject a **code-inserted envelope** + the NL task onto the **peer** `ChatSession` as a user turn. Start the peer’s normal send path. **Return immediately** `{status: "accepted", peer_ask_id}`.
-- **Reply:** the peer later calls the same tool toward the caller, **with that `peer_ask_id`**. The host injects that send onto the **caller** session (symmetric envelope). Prompt + protocol **require** the reply; do not hope the peer mentions it in passing.
+- **Name (illustrative):** `send_peer_agent` (or `send_peer_message`). Not an existing API. Not `ask_peer_agent`.
+- **Args:** `document_url` = **target** only (URL or RuntimeUID). `message` = NL body only. Optional `reply=true` (and/or omitted `document_url`) defaults the target to `last_peer_from` on that session. Optional `peer_ask_id` on replies; host may default it from `last_peer_from` ([§4.1](#41-envelope-correlation--reply-default)).
+- **Caller must not put a from-url in `message`.** Source identity is automatic ([§4.1](#41-envelope-correlation--reply-default)).
+- **Behavior:** Do **not** change the caller’s schemas or `ToolContext.doc`. Resolve an **open** supported peer. Find that uid’s live `SendButtonListener`. Gateway builds the envelope from the **caller frame**, prepends it to `message`, then `add_user_message` + the peer’s normal send path. **Return immediately** `{status: "accepted", peer_ask_id}`.
+- **Reply:** the peer later calls the same tool toward the caller (`reply=true` or explicit target), **with that `peer_ask_id`**. The host injects that send onto the **caller** session (symmetric envelope). Prompt + protocol **require** the reply; do not hope the peer mentions it in passing.
 
 No schema union. Each sidebar keeps its own tools because each send runs on **that** host.
 
@@ -149,24 +150,38 @@ Fresh peer-context smol loop: `ToolContext` rebound to the peer model, `get_tool
 
 ### 4.1 Envelope, correlation, and reply default
 
+**Tool shape (v1):** `send_peer_agent(document_url=target, message=body)`.
+
+- `document_url` addresses the **peer** (file URL or RuntimeUID). It is never “who I am.”
+- `message` is the NL body only. Prompts must tell the model **not** to paste its own path, uid, or URL into `message`. LLMs will get that wrong; the gateway always has the caller frame.
+
+**Sender is derived, not authored.** On `execute`, read the **caller** sidebar’s bound model (`_get_document_model` / frame): display **name**, `RuntimeUID`, and file URL if the doc is saved (untitled → empty url, uid still required). Build a one-line envelope in **code**, then the body. Inject **before** `ChatSession.add_user_message` so the peer transcript and the send path see the same wrapped user turn:
+
+```text
+[Peer from: Budget 2026.ods | uid=… | url=file:///… ]
+
+Compute Q4 revenue by region and reply with an HTML table.
+```
+
+Illustrative layout: `[Peer from: Name | uid=… | url=…]\n\n` + `message`. Include `peer_ask_id` on the same envelope line or the next (implementer choice; must be present so replies can cite it). Same user-send path after that; the wrapper is not model-written and not a second tool.
+
 **Outbound `execute` (immediate):**
 
-1. Resolve peer ([§4.2](#42-tool-visibility), [§4.4](#44-addressing)). Fail if none / ambiguous / unsupported.
+1. Resolve **target** from `document_url` (or from `last_peer_from` when `reply=true` / `document_url` omitted). Fail if none / ambiguous / unsupported ([§4.2](#42-tool-visibility), [§4.4](#44-addressing)).
 2. Fail fast if the target sidebar is busy ([§4.3](#43-live-panel--busy--deck)).
 3. Allocate `peer_ask_id` (opaque string; unique per accepted send). Needed for concurrent peers and re-asks.
-4. Host inserts an envelope **in code** (not model-authored) as the peer user message prefix, then the NL `task`. Envelope includes at least: from `document_url` / uid, from app label, `peer_ask_id`, and that this turn is a peer message (not the human at that window).
-5. Start the peer `_do_send` path with that `query_text`. Do not wait for it to finish.
-6. Return `{status: "accepted", peer_ask_id}` to the **caller** tool (same turn). This is not a compact task result.
+4. Derive sender from the **caller frame**. Prepend the envelope to `message`. `add_user_message` on the **peer** session, then start that host’s `_do_send` path. Do not wait for it to finish.
+5. Return `{status: "accepted", peer_ask_id}` to the **caller** tool (same turn). This is not a compact task result.
 
 **On the receiving session, host state:**
 
-- `last_peer_from`: `{document_url or uid, peer_ask_id, app}` from the last inbound envelope.
-- Optional reply default: if the model omits `document_url` and/or `peer_ask_id` on the next `send_peer_*`, fill them from `last_peer_from`. Prompt still teaches to pass both; the default is convenience, not a second protocol.
+- `ChatSession.last_peer_from`: `{name, uid, url, peer_ask_id, app}` parsed from the last inbound envelope (or stored when injecting).
+- **Optional reply default:** outbound `send_peer_agent` may omit `document_url` and/or pass `reply=true` to send back to that sender. Host may also default omitted `peer_ask_id` from `last_peer_from`. Convenience so the peer model does not paste the source URL either. If both `document_url` and `last_peer_from` are missing, error (do not guess another open doc).
 
 **Reply delivery (must land on the caller session):**
 
-- Symmetric `send_peer_*` with envelope + `peer_ask_id` **is** the injection. The host treats a send that carries a known `peer_ask_id` as a reply and injects it onto the **originating** `ChatSession` the same way (code-inserted envelope + NL body, then that host’s send path if a new turn is needed).
-- Prompt + protocol: when you finish the asked work, **you must** `send_peer_*` back (“Completed what you asked” / result) **with that `peer_ask_id`**. Do not rely on the peer happening to narrate in its own sidebar only.
+- Symmetric `send_peer_agent` with a fresh **caller-frame** envelope + `peer_ask_id` **is** the injection. The host treats a send that carries a known `peer_ask_id` (or `reply=true`) as a reply and injects it onto the **originating** `ChatSession` the same way (envelope before `add_user_message`, then that host’s send path if a new turn is needed).
+- Prompt + protocol: when you finish the asked work, **you must** `send_peer_agent` back (`reply=true` or target + “Completed what you asked” / result). Do not rely on the peer happening to narrate in its own sidebar only.
 
 **Caller Ready vs reply (soft):** the caller’s original send may finish (`Ready`) before the peer replies. Teach: if the user task depends on the peer payload, **do not Ready until a host-injected reply with that `peer_ask_id` arrives**. Parallel **local** work after `accepted` is OK. If they Ready early, the reply still injects as a **follow-up** user turn when the caller is idle.
 
@@ -209,13 +224,13 @@ Harness pre-open is in scope; mid-session create/spawn is not.
 
 **New tool:** under [`plugin/doc/`](../../plugin/doc/), `auto_discover` from [`common_module.py`](../../plugin/doc/common_module.py). `tier = "core"`. `uno_services` union of Writer + Calc + Draw (so any of the three may send). Impress off the v1 union. **Not** `long_running` wait-for-reply; `execute` returns after accept. A later optional sync wrapper may be `long_running`.
 
-**Extracted send:** non-UI entry on the mixin that takes `query_text` (envelope + task) and runs `_do_send_chat_with_tools` without assuming a Send click / Ask-box clear. Peer `ChatSession` stores the injected user message (envelope visible in that transcript).
+**Extracted send:** wrap `message` with the caller-frame envelope, `add_user_message` on the peer session, then a non-UI `_do_send_chat_with_tools` (no Send click / Ask-box clear). The envelope is visible in that transcript.
 
 **Prompts** (short block next to Writer / Calc / Draw specialized-delegation templates):
 
-- Need the other **open** app’s writes? `send_peer_*` with `document_url` / uid and a complete NL task. Need a **file** fact only? `document_research`.
+- Need the other **open** app’s writes? `send_peer_agent(document_url=<peer>, message=<task>)`. Do **not** put your own path, uid, or URL in `message` — the gateway inserts `[Peer from: …]`. Need a **file** fact only? `document_research`.
 - After `accepted`, you may keep working on **your** document (parallel is OK).
-- When you **receive** a peer envelope: do the work with **your** tools; then `send_peer_*` back with the same `peer_ask_id` (or omit and use `last_peer_from`). Say what you completed.
+- When you **receive** a peer envelope: do the work with **your** tools; then `send_peer_agent(reply=true, message=<result>)` (or omit `document_url` to use `last_peer_from`). Say what you completed.
 - If the user’s request depends on that reply, do not Ready until it lands.
 - Never invent the other app’s write tools on this loop.
 
@@ -228,12 +243,12 @@ Harness pre-open is in scope; mid-session create/spawn is not.
 ```mermaid
 flowchart TD
   Caller["Caller tool_loop — caller schemas only"]
-  Send["send_peer_message task + document_url"]
+  Send["send_peer_agent document_url=target + message=body"]
   Accept["Return accepted + peer_ask_id"]
   Map["Live panel map by RuntimeUID"]
-  Inject["Host envelope + last_peer_from"]
+  Inject["Caller-frame envelope then add_user_message"]
   PeerSend["Peer _do_send / ChatSession"]
-  Reply["Peer send_peer_* + peer_ask_id"]
+  Reply["send_peer_agent reply=true + message"]
   Back["Host injects onto caller session"]
 
   Caller --> Send --> Accept --> Caller
@@ -258,20 +273,20 @@ The Draw sidebar fills the stand-in with Draw tools (`get_draw_tree`, `delegate_
 
 **SAR / floorstand (Writer ↔ Calc).** User (Writer): “Take Q4 revenue from the open budget workbook and add a table here.”
 
-1. Writer schemas stay Writer-only. `send_peer_message` is visible because the budget `.ods` is a resolvable other peer.
-2. `send_peer_message(document_url=<budget uid>, task="Compute Q4 revenue by region and reply with an HTML table plus the ranges you used.")` → `{accepted, peer_ask_id}`.
-3. Host injects envelope + task on the **Calc** sidebar. Calc `_do_send` uses Calc tools / `delegate_to_specialized_calc_toolset` / `write_formula_range` **on the Calc model only**.
-4. Calc `send_peer_message` back (`peer_ask_id`, body = table + ranges; `document_url` may default from `last_peer_from`).
-5. Host injects that reply onto **Writer**. Writer `apply_document_content` on the Writer doc.
+1. Writer schemas stay Writer-only. `send_peer_agent` is visible because the budget `.ods` is a resolvable other peer.
+2. `send_peer_agent(document_url=<budget uid>, message="Compute Q4 revenue by region and reply with an HTML table plus the ranges you used.")` → `{accepted, peer_ask_id}`. Writer does **not** put its own URL in `message`.
+3. Gateway prepends `[Peer from: Risk memo.odt | uid=… | url=…]` then `add_user_message` on the **Calc** sidebar. Calc `_do_send` uses Calc tools / `delegate_to_specialized_calc_toolset` / `write_formula_range` **on the Calc model only**. Calc session stores `last_peer_from`.
+4. Calc `send_peer_agent(reply=true, message=<table + ranges>)` (no from-url in the body). Host wraps with Calc’s caller-frame envelope and injects onto **Writer**.
+5. Writer `apply_document_content` on the Writer doc.
 
 Writer may draft locally after `accepted`. If the table is required to finish, do not Ready until the reply injects.
 
 **GMP-style (Writer ↔ Draw), staged form.** Writer risk memo open; harness pre-opened the **editable Draw stand-in** (not the gold PDF as the write target). User opened the Draw sidebar once.
 
 1. Writer drafts the memo with Writer tools.
-2. `send_peer_message(document_url=<stand-in uid>, task="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{accepted, peer_ask_id}`.
-3. Draw sidebar runs `get_draw_tree` / specialized shapes or `form_*` **on the Draw model only**.
-4. Draw sends back with `peer_ask_id`. Writer cites the form in the memo.
+2. `send_peer_agent(document_url=<stand-in uid>, message="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{accepted, peer_ask_id}`.
+3. Draw sidebar sees the Writer envelope, stores `last_peer_from`, runs `get_draw_tree` / specialized shapes or `form_*` **on the Draw model only**.
+4. Draw `send_peer_agent(reply=true, message=<confirmation>)`. Writer cites the form in the memo.
 
 Reverse (Draw asks Writer for a paragraph) is the same tool with a Writer uid.
 
@@ -300,6 +315,7 @@ Harness pre-open + “open the peer sidebar once” is enough. Do not spawn the 
 | **Auth** | User’s machine only. Do not route through MCP for a sense of auth. |
 | **Cycles** | Send-back is required. Do not forbid reply `send_peer_*`. A third hop (Writer→Calc→Draw) is optional; keep prompts to ask/reply pairs in v1. |
 | **Impress** | Out of v1. |
+| **From-url in body** | Prompt + schema: `message` is body only. If the model pastes a source URL anyway, still inject the **caller-frame** envelope; do not parse the body for identity. |
 | **GMP gold PDF** | Staged Draw/Writer stand-in only. |
 
 ---
