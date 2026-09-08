@@ -69,6 +69,7 @@ def _setup_peer(ctx):
     from plugin.chatbot.sidebar_test_hooks import (
         adopt_runtime_send_listeners,
         ensure_sidebar_chat_mode,
+        send_listener_for_doc,
         wait_for_chat_dialog_controls,
     )
     from plugin.doc.doc_type import is_writer
@@ -110,6 +111,10 @@ def _setup_peer(ctx):
     _session.calc_doc = _calc_doc
     _session.writer_controls = writer_controls
     _session.calc_controls = calc_controls
+    # Resolve listeners once. Re-entering send_listener_for_doc from a wait
+    # loop URP-hangs after the peer kick (getFrame during the extracted send).
+    _session.writer_listener = send_listener_for_doc(_writer_doc) if _writer_doc is not None else None
+    _session.calc_listener = send_listener_for_doc(_calc_doc) if _calc_doc is not None else None
     _session.writer_uid = get_runtime_uid(_writer_doc) if _writer_doc is not None else ""
     _session.calc_uid = get_runtime_uid(_calc_doc) if _calc_doc is not None else ""
     _session.open_path = _open_path
@@ -144,20 +149,15 @@ def _teardown_peer():
 def _skip_without_dual() -> None:
     if _session is None or getattr(_session, "calc_doc", None) is None:
         raise unittest.SkipTest(_CALC_OPEN_SKIP)
-    from plugin.chatbot.sidebar_test_hooks import send_listener_for_doc
-
-    w = send_listener_for_doc(_session.writer_doc)
-    c = send_listener_for_doc(_session.calc_doc)
+    w = getattr(_session, "writer_listener", None)
+    c = getattr(_session, "calc_listener", None)
     if w is None or c is None:
         if getattr(_session, "calc_controls", None) is None:
             raise unittest.SkipTest(_CALC_OPEN_SKIP)
 
 
 def _listener(which: str):
-    from plugin.chatbot.sidebar_test_hooks import send_listener_for_doc
-
-    doc = _session.writer_doc if which == "writer" else _session.calc_doc
-    return send_listener_for_doc(doc)
+    return getattr(_session, "writer_listener" if which == "writer" else "calc_listener", None)
 
 
 def _controls(which: str):
@@ -165,11 +165,7 @@ def _controls(which: str):
 
 
 def _transcript(which: str) -> str:
-    from plugin.chatbot.sidebar_test_hooks import transcript_text
-
-    sl = _listener(which)
-    if sl is not None:
-        return transcript_text(listener=sl)
+    """Read cached dialog text. Do not resolve listeners here (URP hang)."""
     controls = _controls(which) or {}
     for name in ("response_rich", "response"):
         ctrl = controls.get(name)
@@ -177,11 +173,23 @@ def _transcript(which: str) -> str:
             continue
         try:
             if hasattr(ctrl, "getText"):
-                return str(ctrl.getText() or "")
-            return str(getattr(ctrl.getModel(), "Text", "") or "")
+                text = str(ctrl.getText() or "")
+                if text:
+                    return text
+            text = str(getattr(ctrl.getModel(), "Text", "") or "")
+            if text:
+                return text
         except Exception:
             continue
-    return ""
+    sl = _listener(which)
+    if sl is None:
+        return ""
+    from plugin.chatbot.sidebar_test_hooks import transcript_text
+
+    try:
+        return transcript_text(listener=sl)
+    except Exception:
+        return ""
 
 
 def _send(which: str, text: str, timeout: float = 90.0) -> None:
@@ -197,7 +205,8 @@ def _send(which: str, text: str, timeout: float = 90.0) -> None:
     sl = _listener(which)
     controls = _controls(which)
     before = _transcript(which)
-    if sl is not None:
+    # Prefer dialog click over listener (URP hang if we wait on listener.is_busy).
+    if controls is None and sl is not None:
         set_query_text(text, listener=sl)
         press_send(listener=sl)
         assert wait_idle(listener=sl, timeout=timeout), "%s send did not go idle: %r" % (which, text)
@@ -236,12 +245,13 @@ def _wait_both_idle(timeout: float = 90.0) -> bool:
         for which in ("writer", "calc"):
             sl = _listener(which)
             controls = _controls(which)
-            if sl is not None:
-                if not wait_idle(listener=sl, timeout=0.4):
+            # Prefer dialog Enabled over listener.is_busy (URP hang during peer drain).
+            if controls is not None:
+                if not wait_controls_send_finished(controls, timeout=0.4, transcript_fn=lambda w=which: _transcript(w)):
                     ok = False
                     break
-            elif controls is not None:
-                if not wait_controls_send_finished(controls, timeout=0.4, transcript_fn=lambda w=which: _transcript(w)):
+            elif sl is not None:
+                if not wait_idle(listener=sl, timeout=0.4):
                     ok = False
                     break
         if ok:
@@ -253,11 +263,15 @@ def _wait_both_idle(timeout: float = 90.0) -> bool:
 def _is_busy(which: str) -> bool:
     from plugin.chatbot.sidebar_test_hooks import control_enabled, send_state
 
+    controls = _controls(which) or {}
+    if controls.get("stop") is not None:
+        en = control_enabled(controls.get("stop"))
+        if en is not None:
+            return en is True
     sl = _listener(which)
     if sl is not None:
         return bool(send_state(listener=sl).is_busy)
-    controls = _controls(which) or {}
-    return control_enabled(controls.get("stop")) is True
+    return False
 
 
 def _press_stop(which: str) -> None:
