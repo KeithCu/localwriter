@@ -60,7 +60,7 @@ def _write_odt(path: Path, text: str) -> Path:
 
 
 def _padded() -> str:
-    return _PASSING + (" Retention follow-through. " * 40)
+    return _PASSING + (" Retention follow-through. " * 80)
 
 
 def test_passing_memo_docx_and_odt(tmp_path: Path) -> None:
