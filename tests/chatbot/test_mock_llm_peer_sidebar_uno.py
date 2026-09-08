@@ -558,19 +558,26 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
     )
     sends_at_ready = sum(1 for row in _capture_tools() for name in row if name == "send_peer_message")
 
-    # keep talking finishes after ~200 SSE words (Writer goes idle too soon).
-    # hang the stream holds Stop until we press it — that is the busy window.
-    _click_send("writer", "hang the stream")
-    deadline = time.monotonic() + 5.0
+    # hang the stream half-closes the socket (Writer Readys immediately).
+    # keep talking streams ~200 chunks at delay_ms so Stop stays enabled.
+    _click_send("writer", "keep talking")
+    ramble_started = time.monotonic()
+    deadline = ramble_started + 6.0
     ramble_on = False
+    clicked_again = False
     while time.monotonic() <= deadline:
         queries = [str(row.get("current_query") or "") for row in _captures()]
-        if _is_busy("writer") and any("hang the stream" in q.lower() for q in queries):
+        if _is_busy("writer") and (
+            any("keep talking" in q.lower() for q in queries) or "word0" in _transcript("writer")
+        ):
             ramble_on = True
             break
+        if not clicked_again and time.monotonic() - ramble_started > 1.2 and not _is_busy("writer"):
+            _click_send("writer", "keep talking")
+            clicked_again = True
         time.sleep(0.08)
     assert ramble_on and _is_busy("writer"), (
-        "Writer hang did not start after first Ready: busy=%s queries=%r writer=%r"
+        "Writer ramble did not start after first Ready: busy=%s queries=%r writer=%r"
         % (_is_busy("writer"), [str(row.get("current_query") or "")[-40:] for row in _captures()], _transcript("writer")[-200:])
     )
     busy_txt = _transcript("writer")

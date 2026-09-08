@@ -392,7 +392,7 @@ Every test must satisfy:
 |:--:|:----:|----------------|-----------------|------------------------|:--------------:|
 | **P1** | mock-sidebar | `Ask the budget workbook to add a Total row` | Dual decks; Writer send | Both Ready; Calc wrote Total; Writer saw reply; finish immediately after accepted; no outer `send_peer_message` | **Landed** (SkipTest if Calc deck cannot open) |
 | **P2** | mock-sidebar | `wait after accepted then hang` | Writer send; assert before max_steps | Specialized stays in discovery after accepted; Calc does not `write_formula_range` (inject-now envelope is OK) | **Landed** (same skip) |
-| **P3** | mock-sidebar + unit | Writer Ready, then `hang the stream`; `KICK_PEERS` after Stop enabled | Writer busy when Calc `send_peer_message`s | Reply queues (no inject); after Stop/Ready + kick, extracted send starts | **Landed** (`test_p3_writer_busy_queues_calc_reply`; unit `test_p3_*` if dual SkipTest / E12 follow-up) |
+| **P3** | mock-sidebar + unit | Writer Ready, then `keep talking` (slow SSE); `KICK_PEERS` after Stop enabled | Writer busy when Calc `send_peer_message`s | Reply queues (no inject); after Stop/Ready + kick, extracted send starts | **Landed** (`test_p3_writer_busy_queues_calc_reply`; unit `test_p3_*` if dual SkipTest / E12 follow-up) |
 
 See [peer-messaging.md](../chat/peer-messaging.md#dual-mock-peer-tests).
 
