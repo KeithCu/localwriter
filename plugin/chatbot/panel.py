@@ -1230,9 +1230,11 @@ class SendButtonListener(SendHandlersMixin, ToolCallingMixin, BaseActionListener
             if self._terminal_status == "Error":
                 self.dispatch(SendEvent(SendEventKind.ERROR_OCCURRED))
             else:
+                # Extracted send only uses Ready or Error (unlike _do_send, which
+                # may leave ""). Always set Ready here so ty does not treat a
+                # nonempty-string check as a redundant condition.
                 self.dispatch(SendEvent(SendEventKind.SEND_COMPLETED))
-                if self._terminal_status:
-                    self._set_status(_(self._terminal_status))
+                self._set_status(_("Ready"))
             kick_pending_peer_starts()
 
     def _do_send_extracted_peer(self, query_text: str, *, already_appended: bool) -> None:
