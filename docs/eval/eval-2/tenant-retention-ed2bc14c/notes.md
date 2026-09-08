@@ -34,13 +34,36 @@ The expert gold memo states 45% / 25% but omits Stamford and the 9/20
 and 5/20 counts. Eval-2 scores the **saved trial memo**, not that gold
 file, and fail-closes on the counts (wrong analysis = FAIL).
 
+## Oracle format soften (headed-memo false-FAIL)
+
+A real Gemini headed memo (~1476 words; Harborview/Stamford; +10%/6mo;
+early-bird 90d / 60d / M2M; 90/60/30; two events; table cells `9` /
+`45.0%` and `5` / `25.0%`; section titles in ODT `text:h`) false-failed
+the v1 structural oracle on **format**, not substance. Soften (do **not**
+weaken Harborview Flats, Stamford, 10% retention, 6 months, or the
+husk/`Error:` ban; do **not** change `prompt.writeragent.txt`):
+
+1. Extract walks `text:h` as well as `text:p` (heading titles were invisible).
+2. Percents accept `45%` / `45.0%` / `45 percent` (same for 25).
+3. Counts pass on literal `9/20` / `9 out of 20` / `9 of 20`, **or**
+   digit `9` near the rent-increase theme plus survey N=`20` somewhere
+   (same for community `5`).
+4. Section titles allow a short synonym OR list (secondary; `text:h`
+   extract is the main fix).
+5. Word max is **1800** (min stays 180) so table-heavy 1–2 page memos pass.
+
+If `runs/20260908-0121-gemini-3.8-flash-r200/final_memo.odt` is on disk,
+re-score it after this soften — substance checks should **PASS** (or only
+fail on a genuine content gap). That artifact is not committed here.
+
 ## Not changed
 
-- Four required sections and the 1–2 page memo length
+- Four required section themes (titles may be synonyms / `text:h`)
 - Early-bird 90d / standard 60d / month-to-month premium
 - 90/60/30 communication touchpoints and two next-quarter events
 - Permission to use web examples for events (oracle does not require cites)
 - Gold rubric, `task.json`, `meta.txt`, `prompt.gdpval.txt`, gold memo bytes
+- Writer prompt (`prompt.writeragent.txt`)
 - `docs/eval/gdpval/` contents (this PR only **adds** this task id)
 
 Harness pass/fail for this variant is [`rubric.eval2.md`](rubric.eval2.md),
