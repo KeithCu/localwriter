@@ -214,6 +214,19 @@ def _send(which: str, text: str, timeout: float = 90.0) -> None:
     ), "%s send did not finish: %r" % (which, _transcript(which)[-400:])
 
 
+def _wait_calc_envelope(timeout: float = 60.0) -> bool:
+    """Writer Readys before the peer drain starts — both look idle for a beat."""
+    deadline = time.monotonic() + max(0.5, timeout)
+    while time.monotonic() <= deadline:
+        if "[Peer from:" in _transcript("calc"):
+            return True
+        if _is_busy("calc"):
+            time.sleep(0.15)
+            continue
+        time.sleep(0.15)
+    return "[Peer from:" in _transcript("calc")
+
+
 def _wait_both_idle(timeout: float = 90.0) -> bool:
     from plugin.chatbot.sidebar_test_hooks import wait_controls_send_finished, wait_idle
 
@@ -273,6 +286,20 @@ def _clear_captures() -> None:
     clear_captures(_session.config)
 
 
+def _kick_pending_in_soffice(ctx) -> None:
+    """Start queued extracted sends in soffice (test-process kick is a no-op)."""
+    from plugin.chatbot.sidebar_test_hooks import execute_debug_sidebar_op
+
+    try:
+        execute_debug_sidebar_op("KICK_PEERS", ctx=ctx)
+    except Exception:
+        pass
+
+
+def _capture_tools() -> list[list[str]]:
+    return [list(row.get("decided_tools") or []) for row in _captures()]
+
+
 def _outer_advertised_send_peer() -> bool:
     """True if a main-chat POST (no specialized finish tool) advertised send_peer_message."""
     for row in _captures():
@@ -294,6 +321,8 @@ def test_p1_total_row_peer_roundtrip(ctx):
     assert _session is not None
     _session.config.scenario = "none"
     _session.config.peer_wait_after_accepted = False
+    _press_stop("writer")
+    _press_stop("calc")
     _clear_captures()
     for which in ("writer", "calc"):
         sl = _listener(which)
@@ -301,6 +330,22 @@ def test_p1_total_row_peer_roundtrip(ctx):
             clear_sidebar_chat(listener=sl)
 
     _send("writer", "Ask the budget workbook to add a Total row", timeout=90.0)
+    # Inject-now / start-later: Writer is Ready before Calc's extracted send begins.
+    time.sleep(0.6)
+    _kick_pending_in_soffice(ctx)
+    assert _wait_calc_envelope(timeout=60.0), (
+        "Calc never received the envelope after Writer Ready: writer_uid=%s calc_uid=%s "
+        "writer_busy=%s calc_busy=%s decided=%r writer=%r calc=%r"
+        % (
+            getattr(_session, "writer_uid", ""),
+            getattr(_session, "calc_uid", ""),
+            _is_busy("writer"),
+            _is_busy("calc"),
+            _capture_tools(),
+            _transcript("writer")[-300:],
+            _transcript("calc")[-300:],
+        )
+    )
     assert _wait_both_idle(timeout=90.0), (
         "nested-drain freeze or wait-for-peer stall: writer_busy=%s calc_busy=%s writer=%r calc=%r"
         % (_is_busy("writer"), _is_busy("calc"), _transcript("writer")[-300:], _transcript("calc")[-300:])
@@ -339,6 +384,8 @@ def test_p2_wait_after_accepted_deadlocks_peer(ctx):
     assert _session is not None
     _session.config.scenario = "peer_wait"
     _session.config.peer_wait_after_accepted = True
+    _press_stop("writer")
+    _press_stop("calc")
     _clear_captures()
     for which in ("writer", "calc"):
         sl = _listener(which)
@@ -377,4 +424,4 @@ def test_p2_wait_after_accepted_deadlocks_peer(ctx):
         _session.config.peer_wait_after_accepted = False
         _press_stop("writer")
         _press_stop("calc")
-        time.sleep(0.5)
+        time.sleep(0.8)

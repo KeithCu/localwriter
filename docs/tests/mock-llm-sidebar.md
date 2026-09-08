@@ -386,7 +386,7 @@ Every test must satisfy:
 - **Focus:** Writer + Calc sidebars sharing one process-global mock OpenAI server. Scripts branch on advertised tools, `[Peer from:]` envelopes, and the specialized-inner wire.
 - **Mode:** Automated (`make test-mock-sidebar FILTER=P`). Unit scripts always run in `make pytest` (`tests/scripts/test_mock_llm_server.py`).
 - **Protocol locked:** outer main delegates `document_research` (never advertises `send_peer_message`); inner `send_peer_message` then `specialized_workflow_finished` immediately; Calc does `write_formula_range` then delegates to reply with `peer_ask_id`.
-- **Calc open:** same `open_calc_document` / `adopt_chat_sidebar` helper as E12/G17 (VCL-posted `factory/scalc` + `_blank`; keep Writer open). Never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck. If dual decks cannot be wired, P1/P2 SkipTest — the unit scripts still lock finish-after-accepted vs `peer_wait`.
+- **Calc open:** same `open_calc_document` / `adopt_chat_sidebar` helper as E12/G17 (VCL-posted `factory/scalc` + `_blank`; keep Writer open). Never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck. After Writer Ready, P1 dispatches `KICK_PEERS` so soffice starts the queued extracted send. If dual decks cannot be wired, P1/P2 SkipTest — the unit scripts still lock finish-after-accepted vs `peer_wait`.
 
 | ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
 |:--:|:----:|----------------|-----------------|------------------------|:--------------:|

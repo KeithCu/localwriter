@@ -1588,6 +1588,10 @@ def test_parse_peer_envelope_and_catalog():
     peers = parse_peer_catalog(_PEER_SYS)
     assert peers and peers[0]["uid"] == "calc-uid"
     assert peers[0]["type"] == "calc"
+    noisy = "Earlier uid=not-a-peer, url=file:///tmp/x.ods, type=calc.\n" + _PEER_SYS
+    only_open = parse_peer_catalog(noisy)
+    assert only_open and only_open[0]["uid"] == "calc-uid"
+    assert all(p["uid"] != "not-a-peer" for p in only_open)
 
 
 def test_detect_peer_total_and_wait_phrases():

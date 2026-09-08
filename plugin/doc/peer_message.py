@@ -382,8 +382,9 @@ def _on_drain_idle() -> None:
 
     Starting the peer drain inside ``drain_owner_scope``'s ``finally`` would
     run it before the caller’s ``SEND_COMPLETED`` (Ready). ``QueueExecutor.post``
-    is inline under ``WRITERAGENT_TESTING=1``, so we never start here — only
-    mark that a kick is due. Production posts to the next VCL tick.
+    is inline under ``WRITERAGENT_TESTING=1``, so a bare ``post`` here would
+    start the peer on this stack. Force AsyncCallback (Packet G pattern) so
+    mock-sidebar soffice still kicks on the next VCL tick.
     """
     global _idle_kick_scheduled
     if get_drain_owner() is not None:
@@ -392,9 +393,15 @@ def _on_drain_idle() -> None:
         return
     _idle_kick_scheduled = True
     try:
-        from plugin.framework.queue_executor import default_executor
+        from plugin.framework.queue_executor import default_executor, set_force_marshal_mode
 
-        if not default_executor._should_run_inline():
+        if default_executor._should_run_inline():
+            set_force_marshal_mode(True)
+            try:
+                default_executor.post(kick_pending_peer_starts)
+            finally:
+                set_force_marshal_mode(False)
+        else:
             default_executor.post(kick_pending_peer_starts)
     except Exception:
         log.debug("peer drain-idle schedule failed", exc_info=True)

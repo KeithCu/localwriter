@@ -414,8 +414,12 @@ def parse_peer_envelope(text: str) -> dict[str, str] | None:
 
 def parse_peer_catalog(text: str) -> list[dict[str, str]]:
     """Parse ``Open peers: Name (uid=…, url=…, type=…).`` from prompts/tool descriptions."""
+    blob = text or ""
+    marker = blob.lower().rfind("open peers:")
+    if marker >= 0:
+        blob = blob[marker:]
     peers: list[dict[str, str]] = []
-    for match in _PEER_CATALOG_RE.finditer(text or ""):
+    for match in _PEER_CATALOG_RE.finditer(blob):
         peers.append(
             {
                 "name": (match.group("name") or "").strip(),

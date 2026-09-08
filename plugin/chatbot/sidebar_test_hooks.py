@@ -176,6 +176,13 @@ def handle_debug_sidebar_command(command: str) -> None:
         _post_to_soffice_vcl(_load_visible_calc_factory, sl=sl)
         _write_debug_snapshot(sl)
         return
+    if op == "KICK_PEERS":
+        # Packet P URP: queues live in soffice; the test-process kick is a no-op.
+        from plugin.doc.peer_message import kick_pending_peer_starts
+
+        kick_pending_peer_starts()
+        _write_debug_snapshot(sl)
+        return
     # Slash ops only touch the Ask ListBox. Run inline like SNAPSHOT —
     # queue_executor.post is not drained on this URP path (no AsyncCallback).
     if op in ("SLASH_REFRESH", "SLASH_ENTER", "SLASH_ESC"):
