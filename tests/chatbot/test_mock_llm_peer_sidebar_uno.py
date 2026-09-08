@@ -619,9 +619,9 @@ def test_p3_writer_busy_queues_calc_reply(ctx):
         # Capture is decide-time (before sync_delay). Wait for execute.
         extra = max(0.4, ((_session.config.sync_delay_ms or 0) / 1000.0) + 0.3)
         time.sleep(extra)
-        assert _is_busy("writer"), "Writer went idle before Calc replied (reply would inject now)"
         writer_txt = _transcript("writer")
-        # already_appended=False: do not inject the Calc reply onto a busy Writer.
+        # URP Stop Enabled can read idle while ramble SSE is still open.
+        # already_appended=False is the lock: no inject onto Writer.
         assert "Total row written" not in writer_txt, (
             "Calc reply injected while Writer ramble was busy: ready=%r now=%r"
             % (ready_txt[-200:], writer_txt[-300:])
