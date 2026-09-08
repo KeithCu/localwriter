@@ -1655,11 +1655,16 @@ def test_e12_calc_list_sheets(ctx):
         _send_and_wait("list sheets", timeout=60.0)
         snaps = _captures()
         decided: list[str] = []
+        advertised: list[str] = []
         for row in snaps:
             decided.extend(row.get("decided_tools") or [])
-        assert "list_sheets" in decided, (
-            "E12 expected list_sheets on Calc deck, decided=%r snaps=%r"
-            % (decided, snaps[-5:])
+            advertised.extend(row.get("advertised_tools") or [])
+        assert "write_formula_range" in advertised or "get_sheet_summary" in advertised, (
+            "E12 expected Calc-deck tools, advertised=%r" % advertised
+        )
+        # list_sheets is specialized-tier; main Calc chat uses get_sheet_summary.
+        assert "list_sheets" in decided or "get_sheet_summary" in decided, (
+            "E12 expected a Calc list tool, decided=%r snaps=%r" % (decided, snaps[-5:])
         )
         _hello_ok()
     finally:

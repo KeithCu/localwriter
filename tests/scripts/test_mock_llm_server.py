@@ -997,6 +997,14 @@ def test_mutate_and_calc_draw_thin_tools():
         cfg,
     )
     assert sheets.tool_name == "list_sheets"
+    sheets_core = decide_completion(
+        {
+            "messages": [{"role": "user", "content": "list sheets"}],
+            "tools": _tools("get_sheet_summary"),
+        },
+        cfg,
+    )
+    assert sheets_core.tool_name == "get_sheet_summary"
     pages = decide_completion(
         {"messages": [{"role": "user", "content": "list pages"}], "tools": _tools("list_pages")},
         cfg,
