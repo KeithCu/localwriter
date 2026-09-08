@@ -301,6 +301,63 @@ def test_document_research_chat_append_on_delegate_read_document(
     assert "delegate_read_document" in captured[0]
 
 
+@patch(
+    "plugin.chatbot.smol_agent.get_config_int",
+    side_effect=_mock_get_config_int_for_sub_agent,
+)
+@patch("plugin.chatbot.smol_agent.get_api_config", create=True)
+@patch("plugin.chatbot.smol_agent.ToolCallingAgent")
+@patch("plugin.chatbot.smol_agent.WriterAgentSmolModel")
+@patch("plugin.chatbot.smol_agent.LlmClient")
+@patch("plugin.doc.specialized_base.SmolAgentExecutor")
+def test_document_research_return_idles_outer_after_peer_send(
+    mock_executor_cls,
+    mock_llm,
+    mock_smol_model,
+    mock_agent_class,
+    mock_get_config,
+    _mock_get_config_int,
+):
+    """Host appends idle-after-send when inner send_peer_message ran."""
+    from plugin.framework.prompts import PEER_OUTER_IDLE_AFTER_SEND
+
+    def fake_execute_safe(agent, task, tool_call_handler=None, **kwargs):
+        if tool_call_handler:
+            tool_call_handler(
+                ToolCall(
+                    name="send_peer_message",
+                    arguments={"document_url": "u2", "message": "Get KPIs"},
+                    id="peer-send-1",
+                )
+            )
+        return "Message sent to the peer."
+
+    mock_executor_cls.return_value.execute_safe.side_effect = fake_execute_safe
+
+    r = ToolRegistry(services={})
+    r.register(ListNearbyFiles())
+    r.register(DelegateReadDocument())
+    r.register(SpecializedWorkflowFinished())
+    r.register(DelegateToSpecializedWriter())
+
+    mock_get_config.return_value = {}
+    mock_agent_class.return_value = MagicMock()
+
+    ctx = MagicMock()
+    ctx.doc = MagicMock()
+    ctx.doc.supportsService = lambda svc: svc == "com.sun.star.text.TextDocument"
+    ctx.ctx = MagicMock()
+    ctx.services = {"tools": r}
+    ctx.stop_checker = lambda: False
+
+    gw = r.get("delegate_to_specialized_writer_toolset")
+    with patch("plugin.doc.document_research.get_open_documents", return_value=[]):
+        result = gw.execute_safe(ctx, domain="document_research", task="Get KPIs from the open sheet")
+    assert result["status"] == "ok"
+    assert PEER_OUTER_IDLE_AFTER_SEND in result["message"]
+    assert PEER_OUTER_IDLE_AFTER_SEND in result["result"]
+
+
 @patch("plugin.doc.document_research_specialized.build_toolcalling_agent")
 @patch("plugin.doc.document_research_specialized.SmolAgentExecutor")
 def test_run_inner_read_agent_uses_allowlist(mock_executor_cls, mock_build_agent):

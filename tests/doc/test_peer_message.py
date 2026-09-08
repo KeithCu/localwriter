@@ -493,6 +493,14 @@ def test_prompts_outer_thin_inner_choice():
     assert "one HTML/result string" in PEER_INNER_CHOICE_RULES
     assert "not a JSON array" in PEER_OUTER_DELEGATE_HINT
     assert "PEER SIDEBARS" not in PEER_INNER_CHOICE_RULES
+    # Idle-after-send: outer must Ready, not keep tooling in the same turn.
+    assert "Stop tool use and Ready" in PEER_OUTER_DELEGATE_HINT
+    assert "later user turn" in PEER_OUTER_DELEGATE_HINT
+    assert "document_research, python, or query" in PEER_OUTER_DELEGATE_HINT
+    # Conditional reply: data/result inbound is local work only.
+    assert "only when the peer asked for work that needs an answer back" in PEER_OUTER_DELEGATE_HINT
+    assert "Do not delegate an ack specialize" in PEER_OUTER_DELEGATE_HINT
+    assert "KPI table" in PEER_OUTER_DELEGATE_HINT
     assert SendPeerMessage.parameters["properties"]["message"]["type"] == "string"
 
     writer = MagicMock()
@@ -515,6 +523,58 @@ def test_prompts_outer_thin_inner_choice():
     assert "Budget.ods" in inner
     assert "uid=u2" in inner
     assert PEER_INNER_CHOICE_RULES in inner
+    assert "Stop tool use and Ready" in outer
+    assert "only when the peer asked for work that needs an answer back" in outer
+    assert "Do not delegate an ack specialize" in outer
+    assert "send_peer_message" not in outer
+
+
+def test_outer_hint_idle_after_send_and_conditional_reply():
+    """Outer hint encodes idle-after-send and reply-only-when-the-peer-asked."""
+    from plugin.framework.prompts import (
+        PEER_OUTER_DELEGATE_HINT,
+        PEER_OUTER_IDLE_AFTER_SEND,
+        annotate_outer_peer_wait,
+        looks_like_peer_wait_outcome,
+    )
+
+    assert PEER_OUTER_IDLE_AFTER_SEND in PEER_OUTER_DELEGATE_HINT
+    assert "send_peer_message" not in PEER_OUTER_IDLE_AFTER_SEND
+    assert looks_like_peer_wait_outcome("Message sent to the peer. Waiting for reply.")
+    assert looks_like_peer_wait_outcome('{"status": "ok", "accepted": true}')
+    assert looks_like_peer_wait_outcome("waiting for a peer reply")
+    assert not looks_like_peer_wait_outcome("Q4 revenue is 12 in Sheet1.A1")
+
+    sent = annotate_outer_peer_wait(
+        {"status": "ok", "message": "Specialized task (document_research) completed.", "result": "Message sent to the peer."},
+    )
+    assert PEER_OUTER_IDLE_AFTER_SEND in sent["message"]
+    assert PEER_OUTER_IDLE_AFTER_SEND in sent["result"]
+
+    invoked = annotate_outer_peer_wait(
+        {"status": "ok", "message": "Specialized task (document_research) completed.", "result": "Asked Calc for KPIs."},
+        peer_send_invoked=True,
+    )
+    assert PEER_OUTER_IDLE_AFTER_SEND in invoked["message"]
+
+    research = annotate_outer_peer_wait(
+        {"status": "ok", "message": "Specialized task (document_research) completed.", "result": "Q4 revenue is 12."},
+    )
+    assert research["result"] == "Q4 revenue is 12."
+    assert PEER_OUTER_IDLE_AFTER_SEND not in research["message"]
+
+    err = annotate_outer_peer_wait({"status": "error", "message": "Message sent to the peer."})
+    assert err["message"] == "Message sent to the peer."
+    assert "Stop tool use" not in err["message"]
+
+    already = annotate_outer_peer_wait(
+        {
+            "status": "ok",
+            "message": "done " + PEER_OUTER_IDLE_AFTER_SEND,
+            "result": "Message sent to the peer.",
+        }
+    )
+    assert already["message"].count(PEER_OUTER_IDLE_AFTER_SEND) == 1
 
 
 def test_summarize_peer_tool_on_wire():

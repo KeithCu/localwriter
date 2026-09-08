@@ -505,16 +505,68 @@ DRAW_SPECIALIZED_DELEGATION_TEMPLATE = (
 )
 
 
+# Host suffix + outer DO: after an inner peer send, idle on this loop (do not wait
+# inside document_research — that deadlocks the peer). Also used on specialize return.
+PEER_OUTER_IDLE_AFTER_SEND = (
+    "Stop tool use and Ready. "
+    "Why: the peer reply arrives as a later user turn; more document_research, python, or query tools in this turn race the peer."
+)
+
 # Outer main chat only — no send_peer_message on this loop. {delegate} is the
 # Writer/Calc/Draw specialized gateway. Shown when a v1 peer is open.
 PEER_OUTER_DELEGATE_HINT = (
     "Do {delegate}(domain=\"document_research\") for sibling Writer/Calc/Draw work. "
     "Why: the inner agent chooses a silent read vs asking the peer sidebar; this loop must not invent the other app's tools.\n"
-    "When this turn is a [Peer from: …] envelope: do the local work with your tools, then "
-    "Do {delegate}(domain=\"document_research\") with a task to reply to that peer "
+    "After that inner result means a peer message was sent/accepted, or the answer says waiting for a peer reply: "
+    f"{PEER_OUTER_IDLE_AFTER_SEND} "
+    "A short chat line that the peer was asked is OK.\n"
+    "When this turn is a [Peer from: …] envelope: do the local work with your tools. "
+    "Do {delegate}(domain=\"document_research\") to send a peer reply only when the peer asked for work that needs an answer back "
     "(one string: envelope uid or url, peer_ask_id, and the HTML or result — not a JSON array). "
-    "Why: only that inner agent can send the peer reply; do not narrate the result only in this sidebar."
+    "Why: only that inner agent can send the peer reply; do not narrate an answer-back only in this sidebar.\n"
+    "If this envelope is already a data/result reply to our earlier ask (for example a KPI table to insert): "
+    "apply or insert locally and stop. Do not delegate an ack specialize. "
+    "Why: the peer did not ask for more work."
 )
+
+# Inner answer / tool-result text that means the outer should idle (not keep researching).
+_PEER_WAIT_OUTCOME_MARKERS = (
+    "waiting for a peer reply",
+    "waiting for peer",
+    "peer message was sent",
+    "message sent to the peer",
+    '"accepted": true',
+    "'accepted': true",
+    "accepted: true",
+)
+
+
+def looks_like_peer_wait_outcome(text: str) -> bool:
+    """True when specialize/research text means a peer ask was accepted or is pending."""
+    blob = (text or "").lower()
+    return any(marker in blob for marker in _PEER_WAIT_OUTCOME_MARKERS)
+
+
+def annotate_outer_peer_wait(payload: dict, *, peer_send_invoked: bool = False) -> dict:
+    """Append idle-after-send on an ok document_research payload when a peer was asked.
+
+    The outer model otherwise treats “Message sent to the peer…” as unfinished work
+    and starts another document_research / query in the same turn.
+    """
+    if payload.get("status") != "ok":
+        return payload
+    blob = " ".join(str(payload.get(key) or "") for key in ("message", "result", "answer"))
+    if not (peer_send_invoked or looks_like_peer_wait_outcome(blob)):
+        return payload
+    if PEER_OUTER_IDLE_AFTER_SEND in blob:
+        return payload
+    out = dict(payload)
+    message = str(out.get("message") or "")
+    out["message"] = (message + " " + PEER_OUTER_IDLE_AFTER_SEND).strip()
+    result = str(out.get("result") or "")
+    if result:
+        out["result"] = result + "\n" + PEER_OUTER_IDLE_AFTER_SEND
+    return out
 
 # document_research specialized only. Short DO+why; catalog is appended when peers exist.
 PEER_INNER_CHOICE_RULES = (

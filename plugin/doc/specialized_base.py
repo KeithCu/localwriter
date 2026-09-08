@@ -230,6 +230,8 @@ class DelegateToSpecializedBase(ToolBase):
         # caller guard allows this loop (not only ctx.caller == "chat").
         prev_active_domain = getattr(ctx, "active_domain", None)
         ctx.active_domain = domain
+        # When inner send_peer_message ran, the outer must Ready (not keep tooling).
+        peer_send_invoked = False
         try:
             smol_tools = [SmolToolAdapter(t, ctx, safe=True, inputs_style="specialized") for t in domain_tools]
             if peer_catalog:
@@ -316,7 +318,9 @@ class DelegateToSpecializedBase(ToolBase):
             document_open_step_index = 0
 
             def tool_call_handler(step):
-                nonlocal document_open_step_index
+                nonlocal document_open_step_index, peer_send_invoked
+                if domain == "document_research" and step.name == "send_peer_message":
+                    peer_send_invoked = True
                 if domain == "document_research" and step.name == "delegate_read_document" and chat_append_callback:
                     from plugin.chatbot.web_research_chat import document_open_step_chat_text
 
@@ -333,6 +337,12 @@ class DelegateToSpecializedBase(ToolBase):
             ctx.active_domain = prev_active_domain
 
         if isinstance(final_ans, dict) and "status" in final_ans:
-            return final_ans
+            payload = final_ans
+        else:
+            payload = {"status": "ok", "message": _(f"Specialized task ({domain}) completed."), "result": str(final_ans)}
+        if domain == "document_research":
+            from plugin.framework.prompts import annotate_outer_peer_wait
 
-        return {"status": "ok", "message": _(f"Specialized task ({domain}) completed."), "result": str(final_ans)}
+            # dict() widens the specialize payload for annotate_outer_peer_wait.
+            return annotate_outer_peer_wait(dict(payload), peer_send_invoked=peer_send_invoked)
+        return payload
