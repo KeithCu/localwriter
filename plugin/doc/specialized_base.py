@@ -193,112 +193,138 @@ class DelegateToSpecializedBase(ToolBase):
                 exclude_tiers=(),
                 ctx=ctx.ctx,
             )
+            peer_catalog = ""
             if domain == "document_research":
                 from plugin.doc.document_research import filter_document_research_discovery_tools
+                from plugin.doc.peer_message import (
+                    PEER_TOOL_NAME,
+                    filter_peer_tools_for_specialized,
+                    format_peer_catalog,
+                    list_v1_peers,
+                )
 
                 tools = filter_document_research_discovery_tools(tools, ctx.ctx)
-            return tools
+                tools = filter_peer_tools_for_specialized(tools, ctx.ctx, ctx.doc)
+                if any(getattr(t, "name", None) == PEER_TOOL_NAME for t in tools):
+                    peer_catalog = format_peer_catalog(list_v1_peers(ctx.ctx, ctx.doc))
+            return tools, peer_catalog
 
         # get_tools(doc=...) calls doc.supportsService — must not run on the sub-agent worker.
-        domain_tools = queue_executor.execute_on_main_thread(_fetch_domain_tools)
+        domain_tools, peer_catalog = queue_executor.execute_on_main_thread(_fetch_domain_tools)
 
         if not domain_tools:
             return self._tool_error(f"No specialized tools found for domain '{domain}'. Ensure the tools are implemented and registered.")
 
-        smol_tools = [SmolToolAdapter(t, ctx, safe=True, inputs_style="specialized") for t in domain_tools]
+        # Specialized execute must see document_research so send_peer_message's
+        # caller guard allows this loop (not only ctx.caller == "chat").
+        prev_active_domain = getattr(ctx, "active_domain", None)
+        ctx.active_domain = domain
+        try:
+            smol_tools = [SmolToolAdapter(t, ctx, safe=True, inputs_style="specialized") for t in domain_tools]
+            if peer_catalog:
+                from plugin.doc.peer_message import PEER_TOOL_NAME
 
-        footnotes_hint = ""
-        if domain == "footnotes":
-            footnotes_hint = " For footnotes_insert: if the task quotes or names the document anchor (e.g. a sentence), pass that exact string as insert_after so the note is placed after that text; the task executor cannot move the view cursor."
-        shapes_canvas = ""
-        if domain == "shapes":
-            try:
-                canvas = queue_executor.execute_on_main_thread(lambda: format_shapes_canvas_context(getattr(ctx, "doc", None)))
-            except Exception as e:
-                log.warning("Failed to get shapes canvas for sub-agent: %s", e)
-                canvas = ""
-            if canvas:
-                shapes_canvas = canvas
+                for adapter in smol_tools:
+                    if getattr(adapter, "name", None) == PEER_TOOL_NAME:
+                        adapter.description = (str(adapter.description or "") + " " + peer_catalog).strip()
 
-        charts_hint = ""
-        if domain == "charts":
-            if self._agent_label == "Calc":
-                charts_hint = " When creating a chart in Calc, you MUST specify the data range explicitly (e.g. data_range='A1:B10')."
-            elif self._agent_label in ("Writer", "Draw"):
-                charts_hint = " When creating or editing a chart in Writer or Draw/Impress, you MUST specify both the `headers` and `rows` parameters."
+            footnotes_hint = ""
+            if domain == "footnotes":
+                footnotes_hint = " For footnotes_insert: if the task quotes or names the document anchor (e.g. a sentence), pass that exact string as insert_after so the note is placed after that text; the task executor cannot move the view cursor."
+            shapes_canvas = ""
+            if domain == "shapes":
+                try:
+                    canvas = queue_executor.execute_on_main_thread(lambda: format_shapes_canvas_context(getattr(ctx, "doc", None)))
+                except Exception as e:
+                    log.warning("Failed to get shapes canvas for sub-agent: %s", e)
+                    canvas = ""
+                if canvas:
+                    shapes_canvas = canvas
 
-        calc_ctx = ""
-        # Identity only: truthiness on a guard-proxied doc trips UNO bool on the MCP/long-running
-        # worker. UNO reads stay inside _fetch_calc_context on the main thread.
-        if self._agent_label == "Calc" and getattr(ctx, "doc", None) is not None:
-            from plugin.calc.analyzer import get_calc_context_for_chat
+            charts_hint = ""
+            if domain == "charts":
+                if self._agent_label == "Calc":
+                    charts_hint = " When creating a chart in Calc, you MUST specify the data range explicitly (e.g. data_range='A1:B10')."
+                elif self._agent_label in ("Writer", "Draw"):
+                    charts_hint = " When creating or editing a chart in Writer or Draw/Impress, you MUST specify both the `headers` and `rows` parameters."
 
-            def _fetch_calc_context() -> str:
-                return "\n\n[SPREADSHEET CONTEXT]\n" + get_calc_context_for_chat(ctx.doc, ctx=ctx.ctx)
+            calc_ctx = ""
+            # Identity only: truthiness on a guard-proxied doc trips UNO bool on the MCP/long-running
+            # worker. UNO reads stay inside _fetch_calc_context on the main thread.
+            if self._agent_label == "Calc" and getattr(ctx, "doc", None) is not None:
+                from plugin.calc.analyzer import get_calc_context_for_chat
 
-            try:
-                # Sub-agent runs on a worker thread; UNO reads must go through the main thread.
-                calc_ctx = queue_executor.execute_on_main_thread(_fetch_calc_context)
-            except Exception as e:
-                log.warning("Failed to get Calc context for sub-agent: %s", e)
+                def _fetch_calc_context() -> str:
+                    return "\n\n[SPREADSHEET CONTEXT]\n" + get_calc_context_for_chat(ctx.doc, ctx=ctx.ctx)
 
-        document_research_hint = get_document_research_workflow_hint(ctx.ctx) if domain == "document_research" else ""
-        open_docs_context = ""
-        if domain == "document_research":
-            try:
-                from plugin.doc.document_research import get_open_documents
+                try:
+                    # Sub-agent runs on a worker thread; UNO reads must go through the main thread.
+                    calc_ctx = queue_executor.execute_on_main_thread(_fetch_calc_context)
+                except Exception as e:
+                    log.warning("Failed to get Calc context for sub-agent: %s", e)
 
-                open_docs = queue_executor.execute_on_main_thread(lambda: get_open_documents(ctx.ctx, ctx.doc))
-                if open_docs:
-                    lines = []
-                    for d in open_docs:
-                        path_or_url = d["path"] or d["url"] or "Untitled"
-                        doc_type = d["doc_type"]
-                        active_str = " (Active)" if d["is_active"] else ""
-                        lines.append(f"- {path_or_url} [{doc_type}]{active_str}")
-                    open_docs_context = (
-                        "\n\n[OPEN DOCUMENTS CONTEXT]\n"
-                        "Note: These are the currently open files in LibreOffice. "
-                        "Some of these files may be completely unrelated to the task at hand:\n"
-                        + "\n".join(lines)
-                    )
-            except Exception as e:
-                log.warning("Failed to get open documents for sub-agent: %s", e)
+            document_research_hint = (
+                get_document_research_workflow_hint(ctx.ctx, getattr(ctx, "doc", None))
+                if domain == "document_research"
+                else ""
+            )
+            open_docs_context = ""
+            if domain == "document_research":
+                try:
+                    from plugin.doc.document_research import get_open_documents
 
-        images_hint = (
-            " Discover local image files with image_list_nearby_files before image_insert when the user refers to a photo in the folder."
-            if domain == "images"
-            else ""
-        )
-        python_hint = python_specialized_sub_agent_hint(self._agent_label) if domain == "python" else ""
-        instructions = (
-            f"You are a specialized {self._agent_label} task executor focused on the '{domain}' domain. "
-            f"You have a focused set of tools to accomplish your task. Use them to fulfill the user's request."
-            f"{footnotes_hint}{shapes_canvas}{charts_hint}{calc_ctx}{document_research_hint}{open_docs_context}{images_hint}{python_hint}"
-        )
+                    open_docs = queue_executor.execute_on_main_thread(lambda: get_open_documents(ctx.ctx, ctx.doc))
+                    if open_docs:
+                        lines = []
+                        for d in open_docs:
+                            path_or_url = d["path"] or d["url"] or "Untitled"
+                            doc_type = d["doc_type"]
+                            active_str = " (Active)" if d["is_active"] else ""
+                            lines.append(f"- {path_or_url} [{doc_type}]{active_str}")
+                        open_docs_context = (
+                            "\n\n[OPEN DOCUMENTS CONTEXT]\n"
+                            "Note: These are the currently open files in LibreOffice. "
+                            "Some of these files may be completely unrelated to the task at hand:\n"
+                            + "\n".join(lines)
+                        )
+                except Exception as e:
+                    log.warning("Failed to get open documents for sub-agent: %s", e)
 
+            images_hint = (
+                " Discover local image files with image_list_nearby_files before image_insert when the user refers to a photo in the folder."
+                if domain == "images"
+                else ""
+            )
+            python_hint = python_specialized_sub_agent_hint(self._agent_label) if domain == "python" else ""
+            instructions = (
+                f"You are a specialized {self._agent_label} task executor focused on the '{domain}' domain. "
+                f"You have a focused set of tools to accomplish your task. Use them to fulfill the user's request."
+                f"{footnotes_hint}{shapes_canvas}{charts_hint}{calc_ctx}{document_research_hint}{open_docs_context}{images_hint}{python_hint}"
+            )
 
-        examples_key = f"{self._agent_label.lower()}:{domain}"
-        agent = build_toolcalling_agent(ctx, smol_tools, instructions=instructions, final_answer_tool_name="specialized_workflow_finished", examples_block=get_examples_block(examples_key), status_callback=status_callback)
+            examples_key = f"{self._agent_label.lower()}:{domain}"
+            agent = build_toolcalling_agent(ctx, smol_tools, instructions=instructions, final_answer_tool_name="specialized_workflow_finished", examples_block=get_examples_block(examples_key), status_callback=status_callback)
 
-        executor = SmolAgentExecutor(ctx)
+            executor = SmolAgentExecutor(ctx)
 
-        document_open_step_index = 0
+            document_open_step_index = 0
 
-        def tool_call_handler(step):
-            nonlocal document_open_step_index
-            if domain == "document_research" and step.name == "delegate_read_document" and chat_append_callback:
-                from plugin.chatbot.web_research_chat import document_open_step_chat_text
+            def tool_call_handler(step):
+                nonlocal document_open_step_index
+                if domain == "document_research" and step.name == "delegate_read_document" and chat_append_callback:
+                    from plugin.chatbot.web_research_chat import document_open_step_chat_text
 
-                path_or_name = _path_or_name_from_tool_arguments(step.arguments)
-                chat_append_callback(document_open_step_chat_text(path_or_name, document_open_step_index))
-                document_open_step_index += 1
-            if append_thinking_callback:
-                append_thinking_callback(f"Running specialized tool: {step.name} with {step.arguments}\n")
-            if status_callback:
-                status_callback(f"Tool: {step.name}...")
+                    path_or_name = _path_or_name_from_tool_arguments(step.arguments)
+                    chat_append_callback(document_open_step_chat_text(path_or_name, document_open_step_index))
+                    document_open_step_index += 1
+                if append_thinking_callback:
+                    append_thinking_callback(f"Running specialized tool: {step.name} with {step.arguments}\n")
+                if status_callback:
+                    status_callback(f"Tool: {step.name}...")
 
-        final_ans = executor.execute_safe(agent, cast("str", task), tool_call_handler=tool_call_handler, stop_message="Specialized task stopped by user.", error_prefix="Specialized agent failed")
+            final_ans = executor.execute_safe(agent, cast("str", task), tool_call_handler=tool_call_handler, stop_message="Specialized task stopped by user.", error_prefix="Specialized agent failed")
+        finally:
+            ctx.active_domain = prev_active_domain
 
         if isinstance(final_ans, dict) and "status" in final_ans:
             return final_ans

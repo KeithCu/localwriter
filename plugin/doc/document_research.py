@@ -108,9 +108,10 @@ def guess_doc_type_from_path(path: str) -> DocTypeGuess:
     return _EXTENSION_DOC_TYPE.get(ext, "unknown")
 
 
-def get_document_research_workflow_hint(ctx=None) -> str:
+def get_document_research_workflow_hint(ctx=None, doc=None) -> str:
     """Outer document_research sub-agent workflow text."""
     from plugin.framework.constants import folder_search_enabled
+    from plugin.framework.prompts import get_peer_inner_choice_block
 
     common = (
         "\n\nDocument research workflow:\n"
@@ -136,9 +137,11 @@ def get_document_research_workflow_hint(ctx=None) -> str:
         "or topic with search_in_document — do not rely on para_index or character offsets as exact LO coordinates.\n"
         "If search_nearby_files returns status indexing, retry after the background index finishes.\n"
     )
-    if folder_search_enabled():
-        return common + index_hint
-    return common + grep_hint
+    hint = common + (index_hint if folder_search_enabled() else grep_hint)
+    peer = get_peer_inner_choice_block(ctx, doc)
+    if peer:
+        hint = hint + "\n" + peer
+    return hint
 
 
 def filter_document_research_discovery_tools(tools: list[ToolBase], ctx) -> list[ToolBase]:

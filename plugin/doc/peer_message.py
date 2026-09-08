@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-"""Sidebar-only A1 peer send: ``send_peer_message``.
+"""A1 peer send: ``send_peer_message``.
 
 Queues a user-equivalent turn on another already-open Writer/Calc/Draw
-sidebar and returns immediately. See ``docs/chat/peer-messaging.md``.
+sidebar and returns immediately. Experiment: advertised on the
+document_research specialized loop only (not outer chat, not MCP).
+See ``docs/chat/peer-messaging.md``.
 
 This module must not import ``plugin.chatbot.panel`` or
 ``plugin.chatbot.panel_factory`` (cycle: CommonModule → tool → panel →
@@ -22,7 +24,7 @@ import uuid
 import weakref
 from collections import deque
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 from weakref import WeakKeyDictionary
 
 from plugin.framework.async_drain_guard import add_drain_idle_callback, get_drain_owner
@@ -32,6 +34,11 @@ log = logging.getLogger("writeragent.doc.peer_message")
 
 PEER_TOOL_NAME = "send_peer_message"
 PEER_QUEUE_CAP = 8
+PEER_SPECIALIZED_DOMAIN = "document_research"
+# MCP / script / venv RPC must never inject a sidebar turn. Chat main and
+# document_research specialized inherit or set caller="chat"; also allow a
+# specialized ToolContext that only sets active_domain.
+_PEER_SEND_BLOCKED_CALLERS = frozenset({"mcp", "script", "ppt_master_venv"})
 
 _TEXT_SERVICE = "com.sun.star.text.TextDocument"
 _CALC_SERVICE = "com.sun.star.sheet.SpreadsheetDocument"
@@ -418,14 +425,63 @@ def log_peer_tool_on_wire(schemas: list[dict[str, Any]]) -> None:
     log.info("peer tools: send_peer_message on_wire=%s peer_count=%d", on_wire, peer_count)
 
 
+def _document_research_domain(active_domain: str | None) -> bool:
+    base = (active_domain or "").split(":")[0]
+    return base == PEER_SPECIALIZED_DOMAIN
+
+
+def peer_send_caller_allowed(ctx: Any) -> bool:
+    """True for sidebar chat and document_research specialized; MCP stays out.
+
+    Specialized smol loops reuse the parent ``ToolContext`` (``caller="chat"``)
+    or set ``active_domain="document_research"``. A chat-only check would be
+    enough today, but the domain clause keeps execute working if a specialized
+    caller is not tagged ``chat``.
+    """
+    caller = str(getattr(ctx, "caller", "") or "")
+    if caller in _PEER_SEND_BLOCKED_CALLERS:
+        return False
+    if caller == "chat":
+        return True
+    return _document_research_domain(getattr(ctx, "active_domain", None))
+
+
+def peer_message_visible_on_specialized(
+    *,
+    active_domain: str | None,
+    peers: list[dict[str, str]],
+) -> bool:
+    """Advertise only on the document_research inner wire when a v1 peer exists."""
+    return bool(peers) and _document_research_domain(active_domain)
+
+
+def filter_peer_tools_for_specialized(tools: list[Any], uno_ctx: Any, doc: Any) -> list[Any]:
+    """Keep ``send_peer_message`` on document_research only when a v1 peer is open."""
+    if not any(getattr(t, "name", None) == PEER_TOOL_NAME for t in tools):
+        return tools
+    peers: list[dict[str, str]] = []
+    if uno_ctx is not None:
+        try:
+            peers = list_v1_peers(uno_ctx, doc)
+        except Exception:
+            log.debug("filter_peer_tools_for_specialized: catalog failed", exc_info=True)
+            peers = []
+    if not peers:
+        return [t for t in tools if getattr(t, "name", None) != PEER_TOOL_NAME]
+    return tools
+
+
 def filter_peer_message_schemas(
     schemas: list[dict[str, Any]],
     ctx: Any,
     doc: Any = None,
+    active_domain: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Hide ``send_peer_message`` unless a resolvable other v1 peer exists.
+    """Hide ``send_peer_message`` on the outer chat wire.
 
-    When shown, bake the open-peer catalog into the tool description.
+    Master/#672 advertised this on main chat when a peer was open. This
+    experiment shows it only on ``document_research`` schemas, and only when
+    a resolvable other v1 peer exists. Catalog is baked into the description.
     """
     if not any(_schema_function_name(s) == PEER_TOOL_NAME for s in schemas):
         return schemas
@@ -436,7 +492,7 @@ def filter_peer_message_schemas(
         except Exception:
             log.debug("filter_peer_message_schemas: catalog failed", exc_info=True)
             peers = []
-    if not peers:
+    if not peer_message_visible_on_specialized(active_domain=active_domain, peers=peers):
         return [s for s in schemas if _schema_function_name(s) != PEER_TOOL_NAME]
     catalog = format_peer_catalog(peers)
     out: list[dict[str, Any]] = []
@@ -486,11 +542,16 @@ def _inject_on_listener(listener: Any, wrapped: str) -> None:
 
 
 class SendPeerMessage(ToolBase):
-    """Chat-only async inject onto another live sidebar."""
+    """Async inject onto another live sidebar (document_research specialized)."""
 
     name = PEER_TOOL_NAME
     description = _BASE_DESCRIPTION
     tier = "chat"
+    # Domain membership: inner document_research sees this; outer chat does not
+    # advertise it (filter_peer_message_schemas). Cross-cutting so Writer/Calc/Draw
+    # document_research toolsets all get the same tool.
+    specialized_domain: ClassVar[str | None] = PEER_SPECIALIZED_DOMAIN
+    specialized_cross_cutting: ClassVar[bool] = True
     is_mutation = False
     uno_services = [_TEXT_SERVICE, _CALC_SERVICE, _DRAW_SERVICE]
     parameters = {
@@ -526,9 +587,9 @@ class SendPeerMessage(ToolBase):
         return False
 
     def execute(self, ctx: ToolContext, **kwargs: Any) -> dict[str, Any]:
-        if getattr(ctx, "caller", "") != "chat":
+        if not peer_send_caller_allowed(ctx):
             return self._tool_error(
-                "send_peer_message is sidebar chat only.",
+                "send_peer_message is sidebar chat / document_research only.",
                 code="PEER_CHAT_ONLY",
             )
         document_url = str(kwargs.get("document_url") or "").strip()

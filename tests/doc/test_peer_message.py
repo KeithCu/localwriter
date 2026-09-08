@@ -8,17 +8,20 @@ from unittest.mock import MagicMock, patch
 
 from plugin.doc.peer_message import (
     PEER_QUEUE_CAP,
+    PEER_SPECIALIZED_DOMAIN,
     PEER_TOOL_NAME,
     PeerPendingTurn,
     SendPeerMessage,
     drop_listener_queue,
     enqueue_peer_turn,
     filter_peer_message_schemas,
+    filter_peer_tools_for_specialized,
     format_peer_envelope,
     identity_from_doc,
     is_v1_peer_model,
     kick_pending_peer_starts,
     listener_queue_len,
+    peer_send_caller_allowed,
     reset_peer_queues,
     resolve_peer_target,
     schedule_peer_turn,
@@ -151,6 +154,20 @@ def test_list_v1_peers_magicmock_ctx_does_not_hang():
     assert "send_peer_message" not in prompt
 
 
+def test_outer_prompt_with_peers_has_no_send_peer_message():
+    from plugin.framework.prompts import PEER_OUTER_DELEGATE_HINT, get_chat_system_prompt_for_document
+
+    model = MagicMock()
+    model.supportsService.side_effect = lambda s: s == "com.sun.star.text.TextDocument"
+    peers = [{"name": "Budget.ods", "uid": "u2", "url": "", "type": "calc"}]
+    with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
+        prompt = get_chat_system_prompt_for_document(model, ctx=MagicMock())
+    assert PEER_OUTER_DELEGATE_HINT in prompt
+    assert "send_peer_message" not in prompt
+    assert "PEER SIDEBARS" not in prompt
+    assert "PEER vs READ" not in prompt
+
+
 def test_visibility_filter_alone_hides_tool():
     schemas = [
         {"type": "function", "function": {"name": PEER_TOOL_NAME, "description": "base"}},
@@ -162,18 +179,45 @@ def test_visibility_filter_alone_hides_tool():
     assert "undo" in names
 
 
-def test_visibility_filter_two_writer_shows_catalog():
+def test_visibility_filter_two_writer_hides_on_main():
+    """Experiment: outer chat never advertises send_peer_message, even with peers."""
+    schemas = [
+        {"type": "function", "function": {"name": PEER_TOOL_NAME, "description": "base"}},
+        {"type": "function", "function": {"name": "undo", "description": "u"}},
+    ]
+    peers = [{"name": "Other.odt", "uid": "u2", "url": "file:///tmp/Other.odt", "type": "writer"}]
+    with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
+        out = filter_peer_message_schemas(schemas, ctx=object(), doc=object())
+    names = [s["function"]["name"] for s in out]
+    assert PEER_TOOL_NAME not in names
+    assert "undo" in names
+
+
+def test_visibility_filter_two_writer_shows_catalog_on_specialized():
     schemas = [
         {"type": "function", "function": {"name": PEER_TOOL_NAME, "description": "base"}},
     ]
     peers = [{"name": "Other.odt", "uid": "u2", "url": "file:///tmp/Other.odt", "type": "writer"}]
     with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
-        out = filter_peer_message_schemas(schemas, ctx=object(), doc=object())
+        out = filter_peer_message_schemas(
+            schemas, ctx=object(), doc=object(), active_domain=PEER_SPECIALIZED_DOMAIN
+        )
     assert len(out) == 1
     desc = out[0]["function"]["description"]
     assert "Other.odt" in desc
     assert "uid=u2" in desc
     assert "type=writer" in desc
+
+
+def test_visibility_filter_specialized_hides_when_alone():
+    schemas = [
+        {"type": "function", "function": {"name": PEER_TOOL_NAME, "description": "base"}},
+    ]
+    with patch("plugin.doc.peer_message.list_v1_peers", return_value=[]):
+        out = filter_peer_message_schemas(
+            schemas, ctx=object(), doc=object(), active_domain=PEER_SPECIALIZED_DOMAIN
+        )
+    assert out == []
 
 
 def test_addressing_self_rejected():
@@ -291,12 +335,43 @@ def test_execute_status_ok_accepted():
     assert listener.appended
 
 
-def test_execute_refuses_non_chat_caller():
+def test_execute_refuses_mcp_caller():
     tool = SendPeerMessage()
     ctx = _ctx(caller="mcp")
     result = tool.execute(ctx, document_url="x", message="hi")
     assert result["status"] == "error"
     assert result["code"] == "PEER_CHAT_ONLY"
+
+
+def test_execute_allows_specialized_document_research_caller():
+    """Subagent ToolContext may not be caller=chat; domain must still inject."""
+    tool = SendPeerMessage()
+    ctx = _ctx(caller="")
+    ctx.active_domain = PEER_SPECIALIZED_DOMAIN
+    peer = MagicMock()
+    listener = _Listener()
+    panel = MagicMock()
+    panel.send_listener = listener
+    with patch("plugin.doc.peer_message.resolve_peer_target", return_value=(peer, None, "")):
+        with patch("plugin.framework.uno_context.get_runtime_uid", return_value="peer-uid"):
+            with patch("plugin.doc.live_panels.get_live_panel", return_value=panel):
+                with drain_owner_scope("stream"):
+                    result = tool.execute(ctx, document_url="peer-uid", message="Do the thing")
+    assert result["status"] == "ok"
+    assert result["accepted"] is True
+    assert listener.session.add_user_message.called
+
+
+def test_peer_send_caller_allowed_mcp_blocked_specialized_ok():
+    chat = _ctx(caller="chat")
+    mcp = _ctx(caller="mcp")
+    spec = _ctx(caller="")
+    spec.active_domain = PEER_SPECIALIZED_DOMAIN
+    script = _ctx(caller="script")
+    assert peer_send_caller_allowed(chat) is True
+    assert peer_send_caller_allowed(mcp) is False
+    assert peer_send_caller_allowed(spec) is True
+    assert peer_send_caller_allowed(script) is False
 
 
 def test_execute_missing_sidebar():
@@ -339,6 +414,51 @@ def test_registry_chat_tier_on_default_list():
     assert PEER_TOOL_NAME not in mcp_names
 
 
+def test_schemas_main_hides_specialized_shows_when_peers_open():
+    registry = ToolRegistry(services=None)
+    registry.register(SendPeerMessage())
+    peers = [{"name": "Budget.ods", "uid": "u2", "url": "file:///tmp/Budget.ods", "type": "calc"}]
+    with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
+        main = registry.get_schemas("openai", doc_type="writer", ctx=object(), doc=object())
+        inner = registry.get_schemas(
+            "openai",
+            doc_type="writer",
+            ctx=object(),
+            doc=object(),
+            active_domain=PEER_SPECIALIZED_DOMAIN,
+        )
+        mcp = registry.get_schemas(
+            "mcp",
+            doc_type="writer",
+            ctx=object(),
+            doc=object(),
+            active_domain=PEER_SPECIALIZED_DOMAIN,
+        )
+    main_names = [s["function"]["name"] for s in main]
+    inner_names = [s["function"]["name"] for s in inner]
+    mcp_names = [s.get("name") for s in mcp]
+    assert PEER_TOOL_NAME not in main_names
+    assert PEER_TOOL_NAME in inner_names
+    assert PEER_TOOL_NAME not in mcp_names
+    inner_desc = next(s["function"]["description"] for s in inner if s["function"]["name"] == PEER_TOOL_NAME)
+    assert "Budget.ods" in inner_desc
+    assert "uid=u2" in inner_desc
+
+
+def test_specialized_get_tools_includes_peer_when_peers_open():
+    registry = ToolRegistry(services=None)
+    registry.register(SendPeerMessage())
+    tools = registry.get_tools(doc_type="writer", active_domain=PEER_SPECIALIZED_DOMAIN, exclude_tiers=())
+    assert PEER_TOOL_NAME in {t.name for t in tools}
+    peers = [{"name": "Budget.ods", "uid": "u2", "url": "", "type": "calc"}]
+    with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
+        kept = filter_peer_tools_for_specialized(tools, uno_ctx=object(), doc=object())
+    assert PEER_TOOL_NAME in {t.name for t in kept}
+    with patch("plugin.doc.peer_message.list_v1_peers", return_value=[]):
+        dropped = filter_peer_tools_for_specialized(tools, uno_ctx=object(), doc=object())
+    assert PEER_TOOL_NAME not in {t.name for t in dropped}
+
+
 def test_is_mutation_false_and_sync():
     tool = SendPeerMessage()
     assert tool.detects_mutation() is False
@@ -347,17 +467,32 @@ def test_is_mutation_false_and_sync():
     assert tool.name == "send_peer_message"
 
 
-def test_prompts_ready_after_accepted_not_wait():
-    from plugin.framework.prompts import PEER_MESSAGING_RULES
+def test_prompts_outer_thin_inner_choice():
+    from plugin.framework.prompts import (
+        PEER_INNER_CHOICE_RULES,
+        PEER_OUTER_DELEGATE_HINT,
+        get_peer_inner_choice_block,
+        get_peer_messaging_prompt_block,
+    )
 
-    assert "Ready" in PEER_MESSAGING_RULES
-    assert "do not wait" in PEER_MESSAGING_RULES.lower()
-    assert "don't Ready" not in PEER_MESSAGING_RULES
-    assert "do not Ready" not in PEER_MESSAGING_RULES
-    assert "Need a file fact only?" not in PEER_MESSAGING_RULES
-    assert "Do call send_peer_message" in PEER_MESSAGING_RULES
-    assert "Do not use document_research as the default" in PEER_MESSAGING_RULES
-    assert "reply=true" in PEER_MESSAGING_RULES
+    assert "send_peer_message" not in PEER_OUTER_DELEGATE_HINT
+    assert "PEER SIDEBARS" not in PEER_OUTER_DELEGATE_HINT
+    assert "document_research" in PEER_OUTER_DELEGATE_HINT
+    assert "send_peer_message" in PEER_INNER_CHOICE_RULES
+    assert "delegate_read_document" in PEER_INNER_CHOICE_RULES
+    assert "do not wait" in PEER_INNER_CHOICE_RULES.lower()
+    assert "PEER SIDEBARS" not in PEER_INNER_CHOICE_RULES
+
+    peers = [{"name": "Budget.ods", "uid": "u2", "url": "", "type": "calc"}]
+    model = MagicMock()
+    with patch("plugin.doc.peer_message.list_v1_peers", return_value=peers):
+        outer = get_peer_messaging_prompt_block(model, ctx=object())
+        inner = get_peer_inner_choice_block(object(), doc=object())
+    assert outer == PEER_OUTER_DELEGATE_HINT
+    assert "send_peer_message" not in outer
+    assert "Budget.ods" in inner
+    assert "uid=u2" in inner
+    assert PEER_INNER_CHOICE_RULES in inner
 
 
 def test_summarize_peer_tool_on_wire():
