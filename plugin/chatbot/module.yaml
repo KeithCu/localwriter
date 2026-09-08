@@ -14,7 +14,7 @@ config:
     type: int
     default: 15
     min: 1
-    max: 150
+    max: 200
     widget: number
     label: Max Tool Rounds
 

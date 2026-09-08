@@ -3,18 +3,26 @@
 """Temporarily write chatbot.max_tool_rounds=50, then restore.
 
 No new yaml knobs. Everyday chat stays at the schema default (15).
+Schema max is 200 so a trial can temporarily set 80 or 200 without clamp.
+This helper still writes 50.
 
-``--launch`` copies only the Population ODS into a clean trial directory
-(default ``$TMP/writeragent-eval2-afc``) so ``document_research`` cannot see
-prompt/rubric/gold or fixture siblings. Do not open ``fixtures/`` or the
-task folder.
+``--launch`` (default ``--task afc``) copies only the Population ODS into a
+clean trial directory (default ``$TMP/writeragent-eval2-afc``) so
+``document_research`` cannot see prompt/rubric/gold or fixture siblings.
+
+``--task tenant-retention --launch`` copies the renewal letter ODT and exit
+survey XLSX into ``$TMP/writeragent-eval2-tenant``, writes a blank
+``Tenant Retention Strategy.odt``, and opens Writer. Do not open
+``fixtures/`` or the task folder.
 
 Usage:
   .venv/bin/python scripts/eval_2_headed.py
   .venv/bin/python scripts/eval_2_headed.py --launch
   .venv/bin/python scripts/eval_2_headed.py --launch --trial-dir /tmp/my-afc
+  .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
+  .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
 """
 from __future__ import annotations
 
@@ -25,6 +33,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -34,13 +43,23 @@ MAX_TOOL_ROUNDS_KEY = "chatbot.max_tool_rounds"
 DEFAULT_MAX_TOOL_ROUNDS = 15
 EVAL_2_MAX_TOOL_ROUNDS = 50
 _AFC_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "afc-sample-83d10b06"
+_TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14c"
 POPULATION_ODS_NAME = "Population v2.ods"
+LETTER_ODT_NAME = "Current Renewal Letter.odt"
+SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
+TENANT_MEMO_NAME = "Tenant Retention Strategy.odt"
 _FIXTURE_ODS = _AFC_DIR / "fixtures" / POPULATION_ODS_NAME
 _FIXTURE_CANDIDATES = (
     _FIXTURE_ODS,
     _AFC_DIR / "fixtures" / "Population v2.xlsx",
 )
+_TENANT_LETTER_ODT = _TENANT_DIR / "fixtures" / LETTER_ODT_NAME
+_TENANT_SURVEY_XLSX = _TENANT_DIR / "fixtures" / SURVEY_XLSX_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
+DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
+TASK_AFC = "afc"
+TASK_TENANT = "tenant-retention"
+TASK_CHOICES = (TASK_AFC, TASK_TENANT)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -166,27 +185,85 @@ def find_afc_population_ods() -> Path:
     )
 
 
-def default_eval2_trial_dir() -> Path:
-    return Path(tempfile.gettempdir()) / DEFAULT_TRIAL_DIR_NAME
+def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
+    name = DEFAULT_TENANT_TRIAL_DIR_NAME if task == TASK_TENANT else DEFAULT_TRIAL_DIR_NAME
+    return Path(tempfile.gettempdir()) / name
+
+
+def _task_dirs() -> tuple[Path, ...]:
+    return (_AFC_DIR.resolve(), _TENANT_DIR.resolve())
 
 
 def _is_protected_trial_dest(dest_dir: Path, source: Path) -> bool:
     """Refuse dest that would wipe the task tree, fixtures, or a filesystem root."""
     dest_dir = dest_dir.resolve()
     source = source.resolve()
-    afc = _AFC_DIR.resolve()
     if dest_dir == source.parent or dest_dir in source.parents:
         return True
-    if dest_dir == afc or dest_dir == afc.parent:
-        return True
-    try:
-        dest_dir.relative_to(afc)
-        return True
-    except ValueError:
-        pass
+    for task_dir in _task_dirs():
+        if dest_dir == task_dir or dest_dir == task_dir.parent:
+            return True
+        try:
+            dest_dir.relative_to(task_dir)
+            return True
+        except ValueError:
+            pass
     if dest_dir == Path(dest_dir.anchor) or dest_dir == Path(tempfile.gettempdir()):
         return True
     return False
+
+
+def _wipe_dir(dest_dir: Path) -> None:
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for child in dest_dir.iterdir():
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+
+def write_blank_writer_odt(path: Path) -> Path:
+    """Minimal empty Writer document so the open memo lives in the trial dir."""
+    manifest = """<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+ <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+ <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+"""
+    content = """<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.2">
+ <office:body><office:text/></office:body>
+</office:document-content>
+"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("mimetype", "application/vnd.oasis.opendocument.text", compress_type=zipfile.ZIP_STORED)
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("content.xml", content)
+    return path
+
+
+def stage_clean_trial_files(sources: list[Path], dest_dir: Path, *, label: str) -> list[Path]:
+    """Copy only *sources* into *dest_dir* (wiped). Prompt/rubric/gold stay outside."""
+    dest_dir = dest_dir.resolve()
+    resolved: list[Path] = []
+    for source in sources:
+        source = source.resolve()
+        if not source.is_file():
+            raise FileNotFoundError(f"{label} fixture not found: {source}")
+        if _is_protected_trial_dest(dest_dir, source):
+            raise ValueError(
+                f"refusing to stage into protected path {dest_dir} "
+                "(task tree, fixture folder, or filesystem/temp root)"
+            )
+        resolved.append(source)
+    _wipe_dir(dest_dir)
+    copied: list[Path] = []
+    for source in resolved:
+        dest = dest_dir / source.name
+        shutil.copy2(source, dest)
+        copied.append(dest)
+    return copied
 
 
 def stage_clean_trial_ods(source: Path, dest_dir: Path) -> Path:
@@ -195,37 +272,42 @@ def stage_clean_trial_ods(source: Path, dest_dir: Path) -> Path:
     document_research lists the open workbook's folder. Opening from fixtures/
     or the AFC task dir exposes xlsx, min-range ODS, prompt.txt, rubric, notes.
     """
-    source = source.resolve()
-    dest_dir = dest_dir.resolve()
-    if not source.is_file():
-        raise FileNotFoundError(f"Population fixture not found: {source}")
-    if _is_protected_trial_dest(dest_dir, source):
-        raise ValueError(
-            f"refusing to stage into protected path {dest_dir} "
-            "(task tree, fixture folder, or filesystem/temp root)"
+    copied = stage_clean_trial_files([source], dest_dir, label="Population")
+    return copied[0]
+
+
+def find_tenant_fixtures() -> tuple[Path, Path]:
+    if not _TENANT_LETTER_ODT.is_file():
+        raise FileNotFoundError(
+            f"Missing {_TENANT_LETTER_ODT}. Convert the letter fixture; "
+            "do not open fixtures/ (siblings leak)."
         )
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    # Previous trials may have leftover Sample notes or extra ODS — wipe so
-    # list_nearby_files sees only the Population copy.
-    for child in dest_dir.iterdir():
-        if child.is_dir() and not child.is_symlink():
-            shutil.rmtree(child)
-        else:
-            child.unlink()
-    dest = dest_dir / source.name
-    shutil.copy2(source, dest)
-    return dest
+    if not _TENANT_SURVEY_XLSX.is_file():
+        raise FileNotFoundError(f"Missing {_TENANT_SURVEY_XLSX}")
+    return _TENANT_LETTER_ODT, _TENANT_SURVEY_XLSX
 
 
-def launch_calc(fixture: Path | None) -> None:
+def stage_tenant_trial(dest_dir: Path) -> Path:
+    """Letter + survey + blank memo. Gold/prompt stay outside the trial dir."""
+    letter, survey = find_tenant_fixtures()
+    stage_clean_trial_files([letter, survey], dest_dir, label="Tenant")
+    return write_blank_writer_odt(dest_dir / TENANT_MEMO_NAME)
+
+
+def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
-        print("soffice not on PATH; open Calc yourself.", file=sys.stderr)
+        print("soffice not on PATH; open the document yourself.", file=sys.stderr)
         return
-    cmd = [soffice, "--calc"]
+    flag = "--writer" if mode == "writer" else "--calc"
+    cmd = [soffice, flag]
     if fixture is not None:
         cmd.append(str(fixture))
     subprocess.Popen(cmd)
+
+
+def launch_calc(fixture: Path | None) -> None:
+    launch_office("calc", fixture)
 
 
 def _wait_for_finish() -> None:
@@ -243,24 +325,31 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=None, help="writeragent.json path")
     parser.add_argument(
+        "--task",
+        choices=TASK_CHOICES,
+        default=TASK_AFC,
+        help="Experiment to launch or score (default: afc). tenant-retention is Writer.",
+    )
+    parser.add_argument(
         "--launch",
         action="store_true",
-        help="Stage Population ODS only into a clean trial dir, then soffice --calc",
+        help="Stage a clean trial dir, then soffice (Calc for AFC, Writer for tenant-retention)",
     )
     parser.add_argument(
         "--trial-dir",
         type=Path,
         default=None,
         help=(
-            "Directory that will contain only the Population ODS "
-            f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME})"
+            "Directory that will contain only the staged refs "
+            f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME} or "
+            f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
         "--score",
         type=Path,
         default=None,
-        help="Score a saved trial workbook (ODS/XLSX). Ignores chat Ready; does not write config.",
+        help="Score a saved trial artifact. Ignores chat Ready; does not write config.",
     )
     parser.add_argument(
         "command",
@@ -269,7 +358,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     if args.score is not None:
-        from eval_2_ods_oracle import main as score_main
+        suffix = args.score.suffix.lower()
+        use_tenant = args.task == TASK_TENANT or suffix in {".odt", ".docx"}
+        if use_tenant:
+            from eval_2_tenant_oracle import main as score_main
+        else:
+            from eval_2_ods_oracle import main as score_main
 
         return score_main([str(args.score)])
     command = list(args.command)
@@ -283,16 +377,23 @@ def main(argv: list[str] | None = None) -> int:
         if command:
             exit_code = subprocess.call(command)
         elif args.launch:
+            trial_dir = args.trial_dir or default_eval2_trial_dir(args.task)
             try:
-                trial_ods = stage_clean_trial_ods(
-                    find_afc_population_ods(),
-                    args.trial_dir or default_eval2_trial_dir(),
-                )
+                if args.task == TASK_TENANT:
+                    trial_doc = stage_tenant_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in trial_doc.parent.iterdir()))
+                    print(f"Staged clean trial dir {trial_doc.parent} ({staged})")
+                    launch_office("writer", trial_doc)
+                else:
+                    trial_ods = stage_clean_trial_ods(
+                        find_afc_population_ods(),
+                        trial_dir,
+                    )
+                    print(f"Staged clean trial dir {trial_ods.parent} ({trial_ods.name} only)")
+                    launch_calc(trial_ods)
             except (FileNotFoundError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
                 return 1
-            print(f"Staged clean trial dir {trial_ods.parent} ({trial_ods.name} only)")
-            launch_calc(trial_ods)
             _wait_for_finish()
         else:
             _wait_for_finish()

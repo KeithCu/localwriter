@@ -1,0 +1,5 @@
+task_id: ed2bc14c-99ac-4a2a-8467-482a1a5d67f3
+sector: Real Estate and Rental and Leasing
+occupation: Property, Real Estate, and Community Association Managers
+source: https://huggingface.co/datasets/openai/gdpval
+license: see dataset card / OpenAI GDPval terms
