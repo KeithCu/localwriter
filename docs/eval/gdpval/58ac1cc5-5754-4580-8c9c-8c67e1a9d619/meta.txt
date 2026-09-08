@@ -1,0 +1,5 @@
+task_id: 58ac1cc5-5754-4580-8c9c-8c67e1a9d619
+sector: Professional, Scientific, and Technical Services
+occupation: Project Management Specialists
+source: https://huggingface.co/datasets/openai/gdpval
+license: see dataset card / OpenAI GDPval terms
