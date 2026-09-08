@@ -1,11 +1,11 @@
 # Cross-app sidebar peer messaging (Writer ↔ Calc ↔ Draw)
 
 **Status:** Design only (no product code).  
-**One-liner:** three peers, A2 + pre-open only, GMP via a staged Draw/Writer form (not a PDF product claim), no spawn.
+**One-liner:** three peers, A1 async `send_peer_*` (user-send equivalence), pre-open only, GMP via a staged Draw/Writer form (not a PDF product claim), no spawn.
 
-**Assumption:** Writer, Calc, and Draw documents are already open in **one LibreOffice process** / one WriterAgent extension. That is background, not a reason to invent a bus. Talk-to-already-open is enough for SAR/floorstand (Writer ↔ Calc) and GMP (Writer ↔ Draw). Creating or spawning a peer mid-session is later product polish.
+**Assumption:** Writer, Calc, and Draw documents are already open in **one LibreOffice process** / one WriterAgent extension. Talk-to-already-open is enough for SAR/floorstand (Writer ↔ Calc) and GMP (Writer ↔ Draw). Creating or spawning a peer mid-session is later product polish.
 
-This is **not** an IPC problem. WriterAgent already has plenty of process and thread plumbing (MCP HTTP, venv RPC, `queue_executor`, stream queues). The research question is: how **sidebar agent loops** — Writer-context, Calc-context, and Draw-context — can **exchange natural-language tasks and results** by reusing the machinery that already hands work to another agent-like loop.
+This is **not** an IPC problem and **not** a blocking inner-agent RPC. The product center is: one sidebar **sends a natural-language turn into another already-open sidebar**, as if the user typed there. The send tool **returns immediately**. The peer, when done, **sends back** (same tool) with a correlation id. No `ToolContext` rebind on the caller. No schema union.
 
 ---
 
@@ -21,286 +21,261 @@ A user (or an eval harness) has two or three windows open in the same LibreOffic
 
 They already share the process: one `ToolRegistry` (`plugin.main.get_tools()`), one `ServiceRegistry` (`get_services()`), one UNO Desktop, one `LlmClient` stack, one history DB file, one memory/skills directory. What they do **not** share is a conversation or a tool schema. Each send builds schemas for **that** `doc_type` and executes tools against **that** `ToolContext.doc`.
 
-**What the user wants:** the Writer agent can ask the Calc agent to do Calc work, or the Draw agent to do Draw work (and any reverse), in natural language, and get a reply back — without the Writer loop suddenly advertising `write_formula_range` or `shape_upsert`, and without the Calc loop advertising `apply_document_content`.
+**What the user wants:** the Writer agent can send the Calc agent Calc work, or the Draw agent Draw work (and any reverse), in natural language. The other sidebar **shows the message and runs it**. A reply comes back later on the caller’s transcript. Writer never advertises `write_formula_range` or `shape_upsert`; Calc never advertises `apply_document_content`.
 
 **What this is not:**
 
+- A long-running `ask_*` that waits for a compact inner-loop result (optional later wrapper — see [§3 A2](#a2-demoted--optional-later--documented-escape-hatch)).
+- Rebinding the caller’s `ToolContext` to the peer document.
 - Switching Writer ↔ Calc ↔ Draw tools inside one agent loop (in-place `active_specialized_domain` is for **same-app** domains).
-- Unioning peer write tools onto the caller’s wire schemas. Always **rebind** `ToolContext`.
+- Unioning peer write tools onto the caller’s wire schemas.
 - Turning `document_research` into a writer. Sibling reads stay read-only (`ToolContext.read_only_target`, `READ_ONLY_TARGET`).
 - A new inter-process or in-process message bus (queues, sockets, `storeToURL`, udprops-as-mail, file-drop).
-- Opening, creating, or spawning a peer mid-session. The peer document must already be open. No matching open peer → **error**, not a silent create.
-- Product PDF editing or an AcroForm API. See [§4.4](#44-gmp-staging--not-a-pdf-product).
+- Opening, creating, or spawning a peer mid-session. No matching open peer → **error**, not a silent create.
+- Product PDF editing or an AcroForm API. See [§4.5](#45-gmp-staging--not-a-pdf-product).
 
-The product move is the one chat already knows: **a gateway tool whose argument is a natural-language `task`, which runs another agent-like loop in the peer document’s context and returns one compact result.**
+The product move: **`send_peer_message` (illustrative; or `send_peer_agent`) queues one user-equivalent turn on the peer sidebar and returns `{status: accepted, peer_ask_id}`.** The peer’s own `_do_send` / `ChatSession` path does the work. When finished, the peer calls the same tool back with that id.
 
 ```mermaid
-flowchart LR
-  subgraph writerWin [Writer window]
-    WUser[User / Writer LLM]
-    WLoop[Writer ChatSession + tool_loop]
-    WTools[Writer core + writer delegate]
-  end
-  subgraph calcWin [Calc window]
-    CLoop[Calc ChatSession + tool_loop]
-    CTools[Calc core + calc delegate]
-  end
-  subgraph drawWin [Draw window]
-    DLoop[Draw ChatSession + tool_loop]
-    DTools[Draw core + draw delegate]
-  end
-  WUser --> WLoop
-  WLoop --> WTools
-  WLoop -->|"ask_peer_agent task=NL"| CLoop
-  WLoop -->|"ask_peer_agent task=NL"| DLoop
-  CLoop --> CTools
-  DLoop --> DTools
-  CLoop -->|"compact reply"| WLoop
-  DLoop -->|"compact reply"| WLoop
+sequenceDiagram
+  participant W as Writer ChatSession
+  participant WT as send_peer_message
+  participant C as Calc ChatSession
+  W->>WT: task + document_url
+  WT-->>W: accepted + peer_ask_id
+  Note over W: Caller keeps its schemas; parallel local work OK
+  WT->>C: host injects envelope + NL (as if user typed)
+  C->>C: _do_send / tool_loop on Calc tools
+  C->>WT: send_peer_message reply + peer_ask_id
+  WT->>W: host injects envelope onto caller session
 ```
 
-Any of the three can initiate. The diagram shows Writer as caller because that is the usual SAR/GMP shape; Calc ↔ Draw is the same tool.
+Any of the three can initiate. Writer as first sender is the usual SAR/GMP shape; Calc ↔ Draw is the same tool.
 
 ---
 
 ## 2. Inventory of reusable infra
 
-What already moves a **task** into another agent-like loop and a **result** back. Cite these; do not invent a second handoff.
+Cite these. Do not invent a bus. v1 copies the **sidebar send path**, not specialized-delegation’s blocking inner smol loop.
 
-### 2.1 Specialized delegation (the pattern to copy)
+### 2.1 Main sidebar send (the pattern to copy)
 
-This is the closest existing “talk to another agent” feature.
-
-| Piece | Symbol / path | What it already does |
-| ----- | ------------- | -------------------- |
-| Shared gateway base | `DelegateToSpecializedBase` in [`plugin/doc/specialized_base.py`](../../plugin/doc/specialized_base.py) | Core-tier, `long_running = True`, `is_async()` → True. Args: `domain` + **`task`** (NL). Sub-agent path: gather domain tools → `build_toolcalling_agent` → `SmolAgentExecutor.execute_safe` → one JSON result. |
-| Writer / Calc / Draw gateways | `DelegateToSpecializedWriter` / `DelegateToSpecializedCalc` / `DelegateToSpecializedDraw` | Names: `delegate_to_specialized_writer_toolset`, `delegate_to_specialized_calc_toolset`, `delegate_to_specialized_draw_toolset`. Filtered by `uno_services` (`TextDocument` vs `SpreadsheetDocument` vs `DrawingDocument` + `PresentationDocument`). |
-| Domain grouping | `ToolWriterSpecialBase`, `ToolCalcSpecialBase`, `ToolDrawSpecialBase` | `tier = "specialized"`, `specialized_domain`. Hidden from default lists via `_DEFAULT_EXCLUDE_TIERS` in [`plugin/framework/tool.py`](../../plugin/framework/tool.py). |
-| Inner HTTP / ReAct | `WriterAgentSmolModel`, `build_toolcalling_agent`, `SmolToolAdapter`, `SmolAgentExecutor` in [`plugin/chatbot/smol_agent.py`](../../plugin/chatbot/smol_agent.py) | Same `LlmClient` as main chat. Sync tools marshal to the main thread. Completion tool: `specialized_workflow_finished`. |
-| In-place alternative | `USE_SUB_AGENT` in [`plugin/framework/constants.py`](../../plugin/framework/constants.py) | `False`: `ctx.set_active_domain_callback(domain)` swaps **this** session’s schemas until `specialized_workflow_finished`. Same loop, different tools — **not** a peer agent. |
-| Prompt teaching | `WRITER_SPECIALIZED_DELEGATION_TEMPLATE` / `CALC_SPECIALIZED_DELEGATION_TEMPLATE` / `DRAW_SPECIALIZED_DELEGATION_TEMPLATE` in [`plugin/framework/prompts.py`](../../plugin/framework/prompts.py) | Main model is told **when** to call the gateway and which `domain` strings exist. |
-
-Docs: [writer/specialized-toolsets.md](../writer/specialized-toolsets.md), [calc/specialized-toolsets.md](../calc/specialized-toolsets.md), [draw/impress-specialized-toolsets.md](../draw/impress-specialized-toolsets.md), [smol-tool-architecture.md](smol-tool-architecture.md).
-
-**Handoff contract (already shipped):** outer model calls one tool with a `task` string → inner loop runs with a **focused** tool list and its own `ToolContext` → inner calls a finish tool → outer gets `{status, message, result}`. The outer wire schema does not grow.
-
-Draw is not an afterthought on this path. The Draw gateway already exists; peer-ask **reuses** it after `ToolContext` is bound to a Draw model.
-
-### 2.2 Main sidebar chat loop (the three instances)
+This is user-send equivalence.
 
 | Piece | Symbol / path | What it already does |
 | ----- | ------------- | -------------------- |
 | Per-document session | `ChatSession` in [`plugin/chatbot/panel.py`](../../plugin/chatbot/panel.py) | One transcript per sidebar. `active_specialized_domain` is **session-local**. History via `get_chat_history(session_id)`. |
-| Session identity | `ChatPanelElement._setup_sessions` in [`plugin/chatbot/panel_factory.py`](../../plugin/chatbot/panel_factory.py) | `WriterAgentSessionID` udprop (URL hash or UUID). Librarian uses a **global** id (`LIBRARIAN_HISTORY_SESSION_ID`) — proof that some chats are already cross-document. |
-| Frame → model | `SendButtonListener._get_document_model` → `get_document_from_frame` | Sidebar is bound to **its window**, not `Desktop.getCurrentComponent()`. This is why three loops stay on the right docs. |
-| Send entry | `SendButtonListener._do_send` → `ToolCallingMixin._do_send_chat_with_tools` | User text → schemas for `doc_type_str` → `build_tool_execute_fn` → `_start_tool_calling_async`. |
-| Tool context per call | `build_tool_execute_fn` in [`plugin/chatbot/tool_loop_actions.py`](../../plugin/chatbot/tool_loop_actions.py) | Builds `ToolContext(doc=…, doc_type=…, caller="chat", set_active_domain_callback=…, stop_checker=…)`. |
-| FSM | `next_state` in [`plugin/chatbot/tool_loop_state.py`](../../plugin/chatbot/tool_loop_state.py) | Pure. Gateway names are listed in `DELEGATE_GATEWAY_TOOL_NAMES` (already includes the Draw delegate). Side effects stay in the interpreter. |
-| Schema filter | `ToolRegistry.get_schemas("openai", doc_type=…)` | Default excludes `specialized`, `specialized_control`, **and** `mcp`. `tool_supports_document` matches `uno_services` / `doc_types`. |
+| Send entry | `SendButtonListener._do_send` → `ToolCallingMixin._do_send_chat_with_tools` | Reads the Ask box, clears it, binds **this** frame’s model, builds schemas for **this** `doc_type`, starts that listener’s drain. |
+| Tool context per call | `build_tool_execute_fn` in [`plugin/chatbot/tool_loop_actions.py`](../../plugin/chatbot/tool_loop_actions.py) | Builds `ToolContext(doc=…)` for **that** sidebar’s doc. The caller of `send_peer_*` does not rebind this. |
+| Frame → model | `_get_document_model` → `get_document_from_frame` | Sidebar stays on **its** window. |
+| FSM | `next_state` in [`plugin/chatbot/tool_loop_state.py`](../../plugin/chatbot/tool_loop_state.py) | Pure. `DELEGATE_GATEWAY_TOOL_NAMES` already includes the Draw delegate. |
+| Schema filter | `ToolRegistry.get_schemas("openai", doc_type=…)` | Default excludes `specialized`, `specialized_control`, `mcp`. Precedent for hiding a tool: `filter_vision_delegate_schemas` in [`plugin/framework/tool.py`](../../plugin/framework/tool.py). |
+| Live panels | Debug `WeakSet` only today (`register_debug_live_panel` / `iter_debug_live_chat_panels` in [`plugin/chatbot/panel_factory.py`](../../plugin/chatbot/panel_factory.py); `iter_live_chat_panels` in [`plugin/chatbot/sidebar_test_hooks.py`](../../plugin/chatbot/sidebar_test_hooks.py)) | A1 **requires** a production weak map keyed by `get_runtime_uid(model)` across Writer, Calc, and Draw. |
 
-Two or three open sidebars are that many `SendButtonListener` objects, each with its own `ChatSession`, drain queue, and `ToolContext.doc`. There is **no** production registry of live panels today — only a **debug** `WeakSet` (`register_debug_live_panel` / `iter_debug_live_chat_panels` in `panel_factory.py`, plus `iter_live_chat_panels` in [`plugin/chatbot/sidebar_test_hooks.py`](../../plugin/chatbot/sidebar_test_hooks.py)).
+`_do_send` today also clears the Ask box and assumes a click. v1 needs a **non-UI** “run this `query_text` on this host” extracted from that path (same `ChatSession` + `_do_send_chat_with_tools`). That is still the chat loop, not a mailbox.
 
-Draw already registers a sidebar deck (`DrawingDocument` in `extension/registry/.../Sidebar.xcu`). A2 does not need that deck constructed; the open Draw **model** is enough.
+Draw already registers a sidebar deck (`DrawingDocument` in `extension/registry/.../Sidebar.xcu`). A1 still needs that deck **constructed once** so a live panel exists — see [§4.3](#43-live-panel--busy--deck).
 
-### 2.3 Nested inner loops that rebind `ToolContext.doc`
-
-`document_research` already runs a **second** (and third) agent on a **different** model without giving the main loop that file’s write tools.
+### 2.2 Open-doc addressing (already shipped)
 
 | Piece | Symbol / path | Relevance |
 | ----- | ------------- | --------- |
-| Outer domain | `delegate_*(domain="document_research", task=…)` | Main stays on active-doc core tools. |
-| Inner read agent | `run_inner_read_agent` / `DelegateReadDocument` in [`plugin/doc/document_research_specialized.py`](../../plugin/doc/document_research_specialized.py) | New `ToolContext(doc=opened_model, doc_type=…, read_only_target=True)`. Allowlist `READ_TOOLS_BY_DOC_TYPE` already includes Draw (`list_pages`, `get_draw_tree`). Same `build_toolcalling_agent` + `specialized_workflow_finished`. |
-| Open-doc catalog | `get_open_documents` in [`plugin/doc/document_research.py`](../../plugin/doc/document_research.py) | Desktop components → `{name, url, uid, path, doc_type, is_active, modified}`. Labels Writer / Calc / Draw. Main-thread only. |
-| Resolve open model | `resolve_document_by_url` in [`plugin/framework/uno_context.py`](../../plugin/framework/uno_context.py) | File URL **or** `RuntimeUID` (untitled). Returns `(model, doc_type)` with `doc_type` in `writer` / `calc` / `draw`. |
-| MCP listing tool | `ListOpenDocuments` in [`plugin/doc/document_research_tools.py`](../../plugin/doc/document_research_tools.py) | `tier="mcp"` — **not** on sidebar `get_schemas`. Facade over `get_open_documents`. |
-| Write guard | `ToolRegistry.execute` when `ctx.read_only_target` | Mutation → `READ_ONLY_TARGET`. Do not relax this for research. |
+| Open-doc catalog | `get_open_documents` in [`plugin/doc/document_research.py`](../../plugin/doc/document_research.py) | Desktop components → `{name, url, uid, path, doc_type, is_active, modified}`. Main-thread only. |
+| Resolve open model | `resolve_document_by_url` in [`plugin/framework/uno_context.py`](../../plugin/framework/uno_context.py) | File URL **or** `RuntimeUID`. Returns `(model, doc_type)` in `writer` / `calc` / `draw`. |
+| Write guard | `ToolRegistry.execute` when `ctx.read_only_target` | Research mutations → `READ_ONLY_TARGET`. Do not relax this. |
 
-Docs: [multi-document-dev-plan.md](multi-document-dev-plan.md). Phase 0 decision #4: write-back to siblings is **out of scope** for research. Peer messaging is a **different** feature: writes happen inside a **peer-context agent** (Writer, Calc, or Draw), not inside the research allowlist.
+Docs: [multi-document-dev-plan.md](multi-document-dev-plan.md). Phase 0 decision #4: write-back to siblings is **out of scope** for research. Peer messaging is a **different** feature: writes happen because the **peer sidebar** ran a normal user turn on **its** bound doc.
 
-**Hypothesis (verified against current code):** extending A2’s `ToolContext` retarget to Draw is the **same pattern** as Calc. `run_inner_read_agent` already takes a `doc_type` and builds a new context on `opened_model`. `registry.get_tools(doc=peer_model, doc_type=peer)` already filters by `uno_services`. There is no Draw-specific factory to invent. The peer-ask difference from research is only `read_only_target=False` plus the peer’s **core + that app’s existing delegate**, not the research allowlist.
+### 2.3 Specialized delegation (contrast — A2 only)
 
-Implementers must **not** copy the caller’s cached `uno_services_supported` onto the inner context (research currently inherits the parent’s cache). Derive services from the **peer** model (`get_document_uno_services` / `uno_services_for_document`) so a Writer caller does not leave Writer services on a Draw inner loop.
+`DelegateToSpecializedBase` + `build_toolcalling_agent` + `SmolAgentExecutor.execute_safe` is the closest shipped “task in, compact result out” loop. Writer / Calc / Draw already have `delegate_to_specialized_*` (`DrawingDocument` + `PresentationDocument` on the Draw gateway).
 
-### 2.4 Other “handoffs” (weaker fit, still real)
+That path **rebinds** a fresh `ToolContext` and **blocks** the caller tool until `specialized_workflow_finished`. It is the right shape for **A2** (optional later / documented escape hatch). It is **not** v1. Draw is already first-class on this path; A1 does not need a Draw-specific send factory — same panel map + `_do_send` as Calc.
 
-| Piece | Why it is in the inventory | Why it is not the design center |
+`document_research` / `run_inner_read_agent` also rebind `ToolContext` (read-only allowlist, including Draw `list_pages` / `get_draw_tree`). Keep that for sibling **reads**. Do not flip `read_only_target` to implement peer writes.
+
+### 2.4 Other “handoffs” (weaker fit)
+
+| Piece | Why people reach for it | Why it is not the design center |
 | ----- | -------------------------- | -------------------------------- |
-| MCP `tools/call` + `document_url` | External host can target any open doc; `delegate_*` still runs an inner smol loop on that model. [`plugin/mcp/mcp_protocol.py`](../../plugin/mcp/mcp_protocol.py) | Host is **outside** the sidebars. Loopback HTTP to talk to yourself is transport, not “agents chatting.” |
-| MCP result toast | `SendButtonListener._on_mcp_result` posts `[MCP Result]` onto **a** sidebar | Display of an external call, not a peer ask. |
-| `EventBus` | [`plugin/framework/event_bus.py`](../../plugin/framework/event_bus.py) — sync pub/sub (`config:changed`, MCP request/result) | Fan-out of process events, not a conversation. |
-| `history_db` | [`plugin/chatbot/history_db.py`](../../plugin/chatbot/history_db.py) — SQLite/JSON keyed by `session_id` | Persistence of **one** transcript. Mixing Writer/Calc/Draw tool turns in one session is the anti-pattern. |
-| `MemoryStore` / `SkillStore` | [`plugin/chatbot/memory.py`](../../plugin/chatbot/memory.py), [`plugin/chatbot/skills.py`](../../plugin/chatbot/skills.py) | Profile-global files (`USER.md`, skills). Shared memory ≠ peer turn. |
-| `WriterCompoundUndo` | [`plugin/writer/edit_review.py`](../../plugin/writer/edit_review.py) | Per-document undo on the **writer** of that doc. Peer writes stay on the peer model’s undo stack. |
-| udprops | [`plugin/doc/udprops.py`](../../plugin/doc/udprops.py) `get_document_property` / `set_document_property` | Already stores `WriterAgentSessionID`. Identity, not a mailbox. |
+| MCP `tools/call` + `document_url` | External host can target any open doc | Loopback HTTP is not two sidebars chatting. |
+| MCP result toast | `_on_mcp_result` posts onto **a** sidebar | External call display, not a peer send. |
+| `EventBus` | Sync pub/sub | Process events, not a conversation. |
+| `history_db` / memory / skills | Shared disk | Persistence ≠ a turn. Mixing app tool traces in one session is the anti-pattern. |
+| udprops | Already stores `WriterAgentSessionID` | Identity, not a mailbox. |
+| Collabora / coolwsd | Kit IPC | Different product — [§6](#6-non-goals). |
 
-### 2.5 Threading (only as it constrains the handoff)
+### 2.5 Threading
 
-Colors from [uno-thread-safety.md](../framework/uno-thread-safety.md): **RED** = main/UNO, **BLUE** = workers (`run_in_background`), **YELLOW** = sync host dispatch (must not block on `execute_on_main_thread`).
+Colors from [uno-thread-safety.md](../framework/uno-thread-safety.md): **RED** = main/UNO, **BLUE** = workers, **YELLOW** = sync host dispatch.
 
-Existing delegation already crosses BLUE → RED: `DelegateToSpecializedBase.is_async()` runs on a worker; `get_tools(doc=…)` and UNO reads go through `queue_executor.execute_on_main_thread`; `SmolToolAdapter` marshals sync tools. A peer-ask gateway should be the same color (`long_running`, `is_async()`), not a new queue color.
-
-Sidebar send already owns a drain loop (`_start_tool_calling_async`). `tool_loop.py` warns against nested re-entry of `_do_send_chat_with_tools` / `_start_tool_calling_async` (nested drain). That matters if the **caller** wait sits inside an active Writer send while the **peer** send also drains — see [§5](#5-open-questions--risks).
+v1 `send_peer_*` is **not** a `long_running` wait-for-reply gateway. `execute` resolves the peer, fail-fast checks, injects, returns `accepted`. The **peer** send uses that listener’s existing drain (`StreamQueueKind` + `run_stream_drain_loop`). Do **not** nest `_do_send_chat_with_tools` / `_start_tool_calling_async` on the **caller** listener (`tool_loop.py` already forbids nested drain). Two sidebars may drain at once; the UI thread stays one `processEventsToIdle` owner — see [streaming-and-threading.md](../framework/streaming-and-threading.md).
 
 ---
 
 ## 3. Candidate designs
 
-Ranked by **reuse of agent-loop handoff** and **trust** (each app keeps its own tools; research stays read-only). IPC-shaped ideas are discarded, not designed.
+### A1. Recommended (product center) — Async user-send into the live peer sidebar
 
-### A. Recommended — Peer-ask gateway (delegation shape, peer document context)
+One core-tier tool, advertised only when a **resolvable other peer** exists ([§4.2](#42-tool-visibility)).
 
-Add a **core-tier** tool on Writer, Calc, **and** Draw main lists, same *shape* as `delegate_to_specialized_*`:
+- **Name (illustrative):** `send_peer_message` or `send_peer_agent`. Not an existing API. Not `ask_peer_agent`.
+- **Args:** `task` (NL) + `document_url` (URL or RuntimeUID). Replies should pass `peer_ask_id`. Host may default omitted `document_url` / `peer_ask_id` from `last_peer_from` ([§4.1](#41-envelope-correlation--reply-default)).
+- **Behavior:** Do **not** change the caller’s schemas or `ToolContext.doc`. Resolve an **open** supported peer. Find that uid’s live `SendButtonListener`. Inject a **code-inserted envelope** + the NL task onto the **peer** `ChatSession` as a user turn. Start the peer’s normal send path. **Return immediately** `{status: "accepted", peer_ask_id}`.
+- **Reply:** the peer later calls the same tool toward the caller, **with that `peer_ask_id`**. The host injects that send onto the **caller** session (symmetric envelope). Prompt + protocol **require** the reply; do not hope the peer mentions it in passing.
 
-- **Name (illustrative):** `ask_peer_agent` (or `delegate_to_open_peer_agent`). Not an existing API.
-- **Args:** `task` (natural language, reuse `DELEGATE_SPECIALIZED_TASK_PARAM_HINT` tone) + `document_url` (URL or RuntimeUID from `get_open_documents`). If several peers of the same app are open, `document_url` / uid (or a name that matches exactly one open doc) is **required**. Never silently pick the first Calc or first Draw.
-- **Behavior:** Do **not** change the caller’s `active_specialized_domain` or wire schemas. Resolve the peer **open** model. Run an **inner agent loop** whose `ToolContext` is bound to **that** model and whose schemas are **that** app’s core + that app’s existing `delegate_to_specialized_*`. Wait for the inner finish tool / send completion. Return one compact NL (or structured) reply to the caller.
+No schema union. Each sidebar keeps its own tools because each send runs on **that** host.
 
-Two implementation variants of the **same** product tool — choose at build time, not as two user-visible tools:
+### A2. Demoted — optional later / documented escape hatch
 
-| Variant | What the inner loop is | Reuse | Fit to “other sidebar’s agent” |
-| ------- | ---------------------- | ----- | ------------------------------ |
-| **A1. Drive the live peer sidebar** | The other window’s existing `ChatSession` + `ToolCallingMixin._do_send_chat_with_tools` | Highest fidelity to “two sidebars chat.” Needs a **production** weak map of live panels (today debug-only) keyed by `get_runtime_uid(model)` across Writer, Calc, **and** Draw, plus an extracted “run one user turn, return final assistant text” entry on the mixin. | The peer transcript is the conversation partner. User sees the ask on that sidebar. |
-| **A2. Fresh peer-context inner loop** | `DelegateToSpecializedBase`-class path: `build_toolcalling_agent` + `SmolAgentExecutor.execute_safe` with `ToolContext(doc=peer_model, doc_type=peer, read_only_target=False)` and `get_schemas` / `get_tools` for the **peer** `doc_type` (core + peer gateway). Same nesting as `run_inner_read_agent`, **without** the read-only allowlist. | Highest reuse of specialized_base / smol. No live-panel registry required. Open Writer / Calc / Draw doc is enough. | Same *kind* of agent (that app’s tools, that doc), but **not** the user’s peer sidebar history unless you also `add_user_message` / append a summary to that `ChatSession`. |
+Fresh peer-context smol loop: `ToolContext` rebound to the peer model, `get_tools` for that `doc_type`, block until `specialized_workflow_finished`. Same retarget pattern as `run_inner_read_agent` (Calc and Draw are the same factory). Useful if the peer deck was never built or as a later **sync wrapper** (`ask_*` that waits).
 
-**Recommendation:** ship the **tool contract** as A; implement **A2 first** for Writer, Calc, **and** Draw (it is the specialized-delegation clone with a retargeted `ToolContext`), and treat **A1** as the follow-up when the product requirement is “the other sidebar’s transcript participates.” A2 already satisfies the rule: Writer never receives Calc or Draw write tools; peer work runs in a peer-context loop. A1 is the same rule plus UI/history identity.
+**v1 must not silently fall back to A2.** If A2 is ever shipped, document it as an explicit escape hatch (setting or distinct behavior), not as a quiet substitute for “open the peer sidebar once.”
 
-A2 must **not** be implemented by adding Calc or Draw names to the Writer registry listing. It must **rebind** `ToolContext.doc` / `doc_type` / `uno_services_supported` the way `run_inner_read_agent` already does, then list tools for **that** binding.
+### B–E. Discarded (unchanged reasons)
 
-### B. Strong but rejected as the *only* path — “Just call the other app’s delegate”
-
-Writer already has `delegate_to_specialized_writer_toolset`; Calc and Draw have twins. One might hope Writer could call `delegate_to_specialized_calc_toolset` or `delegate_to_specialized_draw_toolset`.
-
-**Why this is insufficient:** those gateways’ `uno_services` are `SpreadsheetDocument` or `DrawingDocument` (+ Impress). `ToolRegistry.execute` + `tool_supports_document` reject them when `ctx.doc_type` is Writer. Even if you forced the name, the inner `ctx.doc` would still be the **Writer** model (`build_tool_execute_fn` passes the sidebar’s doc). The Calc/Draw gateway is not a peer address; it is “specialized domains **of this document**.”
-
-Useful as an **inner** step **after** `ToolContext` is rebound to the peer model (A2), not as the Writer main-list entry.
-
-### C. Discard — In-place switch of Writer ↔ Calc ↔ Draw tools on one loop
-
-`USE_SUB_AGENT = False` + `set_active_domain_callback` already swaps **same-app** specialized domains on **this** `ChatSession`. Extending that to “now you are Calc” or “now you are Draw” would put foreign schemas on a Writer history, mix `[DOCUMENT CONTENT]` snapshots, and violate the “do not switch app tools inside one loop” rule. `document_research` already **refuses** in-place mode (`DOCUMENT_RESEARCH_REQUIRES_SUB_AGENT`). Same instinct here: **new loop, compact result.**
-
-### D. Discard — Make `document_research` write the sibling
-
-`run_inner_read_agent` is the only shipped “other doc” inner loop. Flipping `read_only_target` or expanding `READ_TOOLS_BY_DOC_TYPE` with `write_formula_range` / `shape_upsert` would turn research into a silent writer of files the user thought were inspect-only. Trust model in [multi-document-dev-plan.md](multi-document-dev-plan.md) is explicit. Peer writes belong in a **named peer-ask** path, not research.
-
-### E. Discard as off-topic — MCP / HTTP / EventBus / udprops / files as the message
-
-| Idea | Why people reach for it | Why it is the wrong center |
-| ---- | ------------------------ | -------------------------- |
-| Writer sidebar `POST`s localhost MCP `tools/call` at the peer `document_url` | MCP already targets open docs | Same process talking to itself over HTTP. No auth. The host is not the other sidebar agent. |
-| Module-level `queue.Queue` / `EventBus` topic between panels | Same-process sharing | Invents in-proc IPC. Chat already returns results from inner loops without a mailbox. |
-| Write task JSON into udprops / `history_db` / `USER.md` / a drop folder | Shared disk is visible to both | Persistence and identity, not a turn. No “inner LLM loop.” |
-| Collabora / coolwsd service bus | [collabora-online-ai.md](collabora-online-ai.md) | Different product (kit IPC). Out of scope — see [§6](#6-non-goals). |
-
-Keep MCP as it is: **external** clients. A future MCP host can call the same `ask_peer_agent` by name if we register it core-tier; that is reuse of the **tool**, not MCP-as-transport between sidebars.
+- **B.** Calling the other app’s `delegate_to_specialized_*` from Writer fails `tool_supports_document` / wrong `ctx.doc`. That gateway is “specialized domains **of this** document.”
+- **C.** In-place Writer↔Calc↔Draw tool switch on one `ChatSession` mixes histories and schemas. `document_research` already refuses in-place mode.
+- **D.** Write-enabling research. Trust model in [multi-document-dev-plan.md](multi-document-dev-plan.md) stays read-only on siblings.
+- **E.** MCP / EventBus / udprops / files / Collabora as the message. Keep MCP for **external** hosts; they may call `send_peer_*` by name later.
 
 ---
 
-## 4. Recommended approach
+## 4. Recommended approach (A1 async)
 
-**Product:** a core-tier **peer-ask gateway** on Writer, Calc, and Draw main chats. The caller model uses it when it needs another **already-open** app’s writes. The caller loop does not change tools. The reply is one tool result, like specialized delegation.
+**Product:** a core-tier **peer-send** tool on Writer, Calc, and Draw main chats, **only when** a resolvable other v1 peer is open. The caller queues a user-equivalent turn on the peer sidebar and continues. The peer replies with the same tool. The caller loop never grows foreign write tools.
 
-**Implementation center:** clone the `DelegateToSpecializedBase` handoff (NL `task` → inner `LlmClient` loop → finish tool → compact result), and retarget `ToolContext` the way `run_inner_read_agent` already retargets `doc` / `doc_type`. Do not build a bus. Do not union peer write tools onto the caller.
+**Implementation center:** production live-panel map + envelope injection + extracted non-click send on the **target** listener. Do not build a bus. Do not rebind the caller’s `ToolContext`.
 
-### 4.1 Addressing (open docs only)
+### 4.1 Envelope, correlation, and reply default
 
-v1 talks to documents that are **already open**. Harness pre-open is in scope; mid-session create/spawn is not.
+**Outbound `execute` (immediate):**
 
-**Resolve the peer (RED, existing helpers):**
+1. Resolve peer ([§4.2](#42-tool-visibility), [§4.4](#44-addressing)). Fail if none / ambiguous / unsupported.
+2. Fail fast if the target sidebar is busy ([§4.3](#43-live-panel--busy--deck)).
+3. Allocate `peer_ask_id` (opaque string; unique per accepted send). Needed for concurrent peers and re-asks.
+4. Host inserts an envelope **in code** (not model-authored) as the peer user message prefix, then the NL `task`. Envelope includes at least: from `document_url` / uid, from app label, `peer_ask_id`, and that this turn is a peer message (not the human at that window).
+5. Start the peer `_do_send` path with that `query_text`. Do not wait for it to finish.
+6. Return `{status: "accepted", peer_ask_id}` to the **caller** tool (same turn). This is not a compact task result.
 
-1. `get_open_documents(ctx.ctx, ctx.doc)` — list candidates. Reject self (`is_active` / same RuntimeUID / same model).
-2. Accept only these UNO services as v1 peers:
-   - `com.sun.star.text.TextDocument` (Writer)
-   - `com.sun.star.sheet.SpreadsheetDocument` (Calc)
-   - `com.sun.star.drawing.DrawingDocument` (Draw)
-3. `resolve_document_by_url(ctx.ctx, document_url)` — bind the open model by file URL **or** RuntimeUID. Do not `loadComponentFromURL` a closed file (that is research’s hidden-open path).
-4. After resolve, confirm the model’s **exact** `doc_type` + `uno_services` the way Draw already filters `delegate_to_specialized_draw_toolset` (`DrawingDocument`). `get_open_documents` currently labels both Draw and Impress as `doc_type: "draw"`; v1 peer-ask must still require `DrawingDocument` and **reject** Impress (`PresentationDocument` only).
-5. Ambiguous set (two `.ods`, two Draw forms, untitled twins): require `document_url` / uid, or a `name` that matches **exactly one** open candidate. **Never** silently pick the first Calc or first Draw.
-6. No matching open peer → return a clear tool error. Do not create, load, or spawn.
+**On the receiving session, host state:**
 
-Optional later (A1): promote the debug live-panel `WeakSet` to a process-wide weak map keyed by `get_runtime_uid(model)` across all three apps so A1 can find `SendButtonListener`. Until then A2 does not need it.
+- `last_peer_from`: `{document_url or uid, peer_ask_id, app}` from the last inbound envelope.
+- Optional reply default: if the model omits `document_url` and/or `peer_ask_id` on the next `send_peer_*`, fill them from `last_peer_from`. Prompt still teaches to pass both; the default is convenience, not a second protocol.
 
-### 4.2 Call sites / modules (no code here)
+**Reply delivery (must land on the caller session):**
 
-**New tool (when implemented):** live under [`plugin/doc/`](../../plugin/doc/) next to the other cross-app gateways, registered from [`plugin/doc/common_module.py`](../../plugin/doc/common_module.py) `auto_discover`. `tier = "core"`, `long_running = True`, `is_async()` True, `requires_document_lock` like other mutating delegates (peer **writes** lock the **peer** uid, not the caller — same idea as MCP’s per-document gate, but this is sidebar-to-sidebar). `uno_services` / `doc_types` must allow **Writer + Calc + Draw** (union of `TextDocument`, `SpreadsheetDocument`, `DrawingDocument`), because all three main lists advertise the same ask tool. Impress stays off the v1 union.
+- Symmetric `send_peer_*` with envelope + `peer_ask_id` **is** the injection. The host treats a send that carries a known `peer_ask_id` as a reply and injects it onto the **originating** `ChatSession` the same way (code-inserted envelope + NL body, then that host’s send path if a new turn is needed).
+- Prompt + protocol: when you finish the asked work, **you must** `send_peer_*` back (“Completed what you asked” / result) **with that `peer_ask_id`**. Do not rely on the peer happening to narrate in its own sidebar only.
 
-**Inner loop (A2 — first implementation, all three apps):**
+**Caller Ready vs reply (soft):** the caller’s original send may finish (`Ready`) before the peer replies. Teach: if the user task depends on the peer payload, **do not Ready until a host-injected reply with that `peer_ask_id` arrives**. Parallel **local** work after `accepted` is OK. If they Ready early, the reply still injects as a **follow-up** user turn when the caller is idle.
 
-1. Build `ToolContext` like `run_inner_read_agent`, but `read_only_target=False`, `doc_type` = peer type, `uno_services_supported` from the **peer** model (not the caller cache), `caller` inherited, `stop_checker` / `send_cancellation` copied from parent.
-2. `registry.get_schemas("openai", doc_type=peer)` **or** smol wrap of `get_tools(doc=peer_model, doc_type=peer)` with default tier exclusion — **peer core + that peer’s `delegate_to_specialized_*` only**.
-   - Inner Calc still uses `delegate_to_specialized_calc_toolset` for pivot/charts/etc.
-   - Inner Draw still uses `delegate_to_specialized_draw_toolset` for shapes/forms/etc. Compact DOM for replies: `get_draw_tree` (already Draw core; research already allowlists it).
-   - Writer never sees those peer names on its own wire list.
-3. `build_toolcalling_agent` + `SmolAgentExecutor.execute_safe` in [`plugin/chatbot/smol_agent.py`](../../plugin/chatbot/smol_agent.py), finish with `specialized_workflow_finished`. Instructions: you are the **peer app** agent for **this** open file; do the `task`; return a compact answer for the sibling agent. Reuse `get_examples_block` with a new key (e.g. `peer:calc`, `peer:draw`) or the generic delegate block.
-4. Gateway `execute` returns the same `{status, message, result}` shape as `DelegateToSpecializedBase`.
+### 4.2 Tool visibility
 
-**Inner loop (A1 — later, same tool name):**
+Advertise `send_peer_*` on `get_schemas` **iff** `get_open_documents` has at least one **resolvable other peer**:
 
-1. Find peer `SendButtonListener` via uid (map covers Writer, Calc, and Draw).
-2. Extract a **non-UI** “run this `query_text` on this host” from `_do_send` / `_do_send_chat_with_tools` (today `_do_send` also clears the Ask box and assumes a click). That extracted function is the missing piece; it is still the chat loop, not a queue.
-3. `ChatSession.add_user_message(task)` on the **peer** session so that transcript shows the caller’s ask.
-4. Wait for that send’s drain to finish (peer already uses `StreamQueueKind` + `run_stream_drain_loop`). Return last assistant text. If the peer loop is already in a send, fail clearly (one send per sidebar today) or queue **on that listener**, not in a new global mailbox.
+- Different RuntimeUID than self (not two views of the same model).
+- Supported v1 service: `TextDocument` / `SpreadsheetDocument` / `DrawingDocument`.
+- Addressable (`url` or `uid`).
 
-**Main-loop wiring (caller side, already exists):**
+Hide when alone. Hide when the only other components are Start Center, Impress-only, or unresolvable. Two Writer documents with distinct uids **do** count (Writer↔Writer is a legal pair). “Two Writer tabs of confusion” means: do **not** show the tool merely because two components exist if you cannot name a supported non-self uid.
 
-- `ToolCallingMixin._do_send_chat_with_tools` — no schema change except the new core tool appearing in `get_tools().get_schemas(...)`.
-- `build_tool_execute_fn` — same `ToolContext` for the **caller** doc; the gateway internally builds the **peer** context (like `DelegateReadDocument.execute` does today).
-- `DELEGATE_GATEWAY_TOOL_NAMES` in `tool_loop_state.py` — add the new name if status/preview should match other gateways (Draw’s delegate is already listed).
-- Prompts: a short block next to the Writer / Calc / Draw specialized-delegation templates — “need the other **open** app’s writes? `ask_peer_agent`. Need a **file** fact only? `document_research`.”
+Same idea as `filter_vision_delegate_schemas`: filter at schema time, not only at `execute`. Re-evaluate each caller send (open set changes).
 
-**Undo / focus:** peer mutations use the peer document’s undo (`WriterCompoundUndo` only if the peer is Writer). Do not steal the user’s active frame: A2 must not change `Desktop` current component; A1 should append to the peer sidebar without `toFront` unless the user asked to watch. Research’s “active window unchanged” rule applies.
+### 4.3 Live panel, busy, deck
 
-**Triple open:** Writer + Calc + Draw at once is fine for eval if each agent writes **only** its bound doc. Research on siblings stays read-only. Do not treat three open windows as a reason to merge tool lists.
+**Live panel map (v1, not later):** promote the debug `WeakSet` to a process-wide weak map keyed by `get_runtime_uid(model)` for Writer, Calc, and Draw. `send_peer_*` looks up the target `SendButtonListener`.
 
-### 4.3 Why this is the least new machinery
+**Deck not built:** LibreOffice may not construct the Calc/Draw (or Writer) deck until the user opens it. A1 cannot inject without a live panel. **Error** (clear, user-facing): open the peer sidebar once. **No silent A2 fallback** in v1. A2 only if later documented as an escape hatch.
+
+**Peer busy (v1):** if that listener is already in a send / drain, **fail fast** with a clear tool error. No silent drop. **Queue-on-listener is v1.1**, not v1.
+
+**Focus:** do not `toFront` / steal `Desktop` current component unless the user asked to watch. Research’s “active window unchanged” rule applies.
+
+**Per-doc lock (soft):** peer mutations already run as a normal sidebar send on the peer model. Decide whether `send_peer_*` should also take `ToolBase.requires_document_lock` on the **peer** uid (MCP already serializes mutating `tools/call` per uid; sidebar chat does not). Name it; do not block the design on it.
+
+### 4.4 Addressing (open docs only)
+
+Harness pre-open is in scope; mid-session create/spawn is not.
+
+1. `get_open_documents(ctx.ctx, ctx.doc)` — reject self.
+2. v1 peer services only: `TextDocument`, `SpreadsheetDocument`, `DrawingDocument`.
+3. `resolve_document_by_url` — open model only. Do not `loadComponentFromURL` a closed file.
+4. Confirm exact type: `get_open_documents` labels Draw **and** Impress as `doc_type: "draw"`; v1 still requires `DrawingDocument` and **rejects** Impress.
+5. Ambiguous set (two `.ods`, two Draw forms): require `document_url` / uid, or a `name` that matches **exactly one**. Never silently pick the first Calc or first Draw.
+6. No matching open peer → clear error. Do not create, load, or spawn.
+
+### 4.5 Call sites / prompts (no code here)
+
+**New tool:** under [`plugin/doc/`](../../plugin/doc/), `auto_discover` from [`common_module.py`](../../plugin/doc/common_module.py). `tier = "core"`. `uno_services` union of Writer + Calc + Draw (so any of the three may send). Impress off the v1 union. **Not** `long_running` wait-for-reply; `execute` returns after accept. A later optional sync wrapper may be `long_running`.
+
+**Extracted send:** non-UI entry on the mixin that takes `query_text` (envelope + task) and runs `_do_send_chat_with_tools` without assuming a Send click / Ask-box clear. Peer `ChatSession` stores the injected user message (envelope visible in that transcript).
+
+**Prompts** (short block next to Writer / Calc / Draw specialized-delegation templates):
+
+- Need the other **open** app’s writes? `send_peer_*` with `document_url` / uid and a complete NL task. Need a **file** fact only? `document_research`.
+- After `accepted`, you may keep working on **your** document (parallel is OK).
+- When you **receive** a peer envelope: do the work with **your** tools; then `send_peer_*` back with the same `peer_ask_id` (or omit and use `last_peer_from`). Say what you completed.
+- If the user’s request depends on that reply, do not Ready until it lands.
+- Never invent the other app’s write tools on this loop.
+
+**Undo:** peer edits use the peer document’s undo. `WriterCompoundUndo` only if the peer is Writer.
+
+**Triple open:** Writer + Calc + Draw is fine for eval if each agent writes **only** its bound doc. Research on siblings stays read-only.
+
+### 4.6 Why this is the least new machinery
 
 ```mermaid
 flowchart TD
-  CallerMain["Caller tool_loop — caller schemas only"]
-  Gateway["ask_peer_agent task + document_url"]
-  Resolve["get_open_documents + resolve_document_by_url"]
-  Inner["Inner loop: smol A2 or peer tool_loop A1"]
-  PeerTools["Peer get_schemas / that app's delegate_to_specialized_*"]
-  Finish["specialized_workflow_finished or send complete"]
-  Back["One tool result on caller"]
+  Caller["Caller tool_loop — caller schemas only"]
+  Send["send_peer_message task + document_url"]
+  Accept["Return accepted + peer_ask_id"]
+  Map["Live panel map by RuntimeUID"]
+  Inject["Host envelope + last_peer_from"]
+  PeerSend["Peer _do_send / ChatSession"]
+  Reply["Peer send_peer_* + peer_ask_id"]
+  Back["Host injects onto caller session"]
 
-  CallerMain --> Gateway --> Resolve --> Inner
-  Inner --> PeerTools --> Finish --> Back --> CallerMain
+  Caller --> Send --> Accept --> Caller
+  Send --> Map --> Inject --> PeerSend --> Reply --> Back --> Caller
 ```
 
-Almost every box is an existing symbol. The new work is: one core tool, a peer `ToolContext` factory (refactor the construction in `run_inner_read_agent` so research stays read-only and peer-ask does not share that flag; **same factory for Calc and Draw**), prompt lines, and later a live-panel map for A1.
+New work: one core tool, schema-time visibility, production panel map, envelope + `peer_ask_id` + `last_peer_from`, extracted non-click send, prompt lines. Not a `ToolContext` factory on the caller. Not a bus.
 
-### 4.4 GMP staging — not a PDF product
+**Hypothesis:** A1 for Draw is the same as Calc — look up the uid in the panel map, inject, `_do_send`. No Draw-specific send path. (A2 Draw retarget would also match Calc; that path is demoted.)
+
+### 4.7 GMP staging — not a PDF product
 
 GDPval GMP change-control ([`docs/eval/gdpval/58ac1cc5-…`](../eval/gdpval/58ac1cc5-5754-4580-8c9c-8c67e1a9d619/README.md)) ships a **gold PDF** form. That gold file is **not** a v1 peer surface.
 
-**Port path:** the harness **pre-opens** an **editable Draw (or Writer) stand-in** for the form — text boxes / shapes the Draw (or Writer) agent can already write. `ask_peer_agent` fills that stand-in. It does **not** fill arbitrary PDFs.
+**Port path:** the harness **pre-opens** an **editable Draw (or Writer) stand-in** for the form (text boxes / shapes). `send_peer_*` targets that stand-in. It does **not** fill arbitrary PDFs.
 
-**Staging fact, not a product claim:** LibreOffice’s File → Open on a PDF often imports as **editable Draw text and shapes**, not live AcroForm widgets. A headed poke may therefore land the gold PDF in Draw. That is a convenient **eval/harness staging** choice (convert or import once, then treat the result as a normal Draw document). It is **not** “WriterAgent edits PDFs” and **not** an AcroForm API. v1 must not claim `ask_peer_agent` fills PDFs.
+**Staging fact, not a product claim:** LibreOffice File → Open on a PDF often imports as **editable Draw text and shapes**, not live AcroForm widgets. A headed poke may land the gold PDF in Draw. That is eval/harness staging. It is **not** “WriterAgent edits PDFs” and **not** an AcroForm API.
 
-Fill the staged Draw form with Draw tools the inner loop already has: `get_draw_tree` (compact DOM / reply), `delegate_to_specialized_draw_toolset` → `shape_upsert` / tree edits, and shared `form_*` **if** those tools apply to the stand-in. Do not add a PDF-specific tool for this gold.
+The Draw sidebar fills the stand-in with Draw tools (`get_draw_tree`, `delegate_to_specialized_draw_toolset` → `shape_upsert` / tree, shared `form_*` if present). Then it `send_peer_*`s back with the `peer_ask_id`.
 
-### 4.5 Worked scenarios
+### 4.8 Worked scenarios
 
-**SAR / floorstand (Writer ↔ Calc).** User (Writer sidebar): “Take Q4 revenue from the open budget workbook and add a table here.”
+**SAR / floorstand (Writer ↔ Calc).** User (Writer): “Take Q4 revenue from the open budget workbook and add a table here.”
 
-1. Writer main keeps Writer tools. It may `document_research` **or** `ask_peer_agent` depending on whether it only needs figures or needs the **Calc agent** to compute/format on the sheet.
-2. For writes on the workbook: `ask_peer_agent(document_url=<budget uid>, task="Compute Q4 revenue by region and return an HTML table plus the ranges you used.")`.
-3. Inner Calc-context loop: `get_sheet_summary` / `read_cell_range` / maybe `delegate_to_specialized_calc_toolset(domain=…)` / `write_formula_range` **on the Calc model only**.
-4. Finish tool returns a compact payload to Writer.
-5. Writer main `apply_document_content` on the **Writer** doc.
+1. Writer schemas stay Writer-only. `send_peer_message` is visible because the budget `.ods` is a resolvable other peer.
+2. `send_peer_message(document_url=<budget uid>, task="Compute Q4 revenue by region and reply with an HTML table plus the ranges you used.")` → `{accepted, peer_ask_id}`.
+3. Host injects envelope + task on the **Calc** sidebar. Calc `_do_send` uses Calc tools / `delegate_to_specialized_calc_toolset` / `write_formula_range` **on the Calc model only**.
+4. Calc `send_peer_message` back (`peer_ask_id`, body = table + ranges; `document_url` may default from `last_peer_from`).
+5. Host injects that reply onto **Writer**. Writer `apply_document_content` on the Writer doc.
 
-The reverse (Calc asks Writer to draft a paragraph) is the same tool with a Writer uid.
+Writer may draft locally after `accepted`. If the table is required to finish, do not Ready until the reply injects.
 
-**GMP-style (Writer ↔ Draw), staged form.** Writer risk memo is open; harness has already opened the **editable Draw stand-in** of the change-control form (not the gold PDF as the write target).
+**GMP-style (Writer ↔ Draw), staged form.** Writer risk memo open; harness pre-opened the **editable Draw stand-in** (not the gold PDF as the write target). User opened the Draw sidebar once.
 
-1. Writer main drafts the risk memo with Writer tools. It does not grow Draw write tools.
-2. `ask_peer_agent(document_url=<stand-in uid>, task="Fill the change-control fields from this discrepancy summary: … Return get_draw_tree of the filled page.")`.
-3. Inner Draw-context loop: `get_draw_tree` to locate text/shape fields → `delegate_to_specialized_draw_toolset` (`shape_upsert`, tree, `form_*` if present) **on the Draw model only**.
-4. Compact tree/summary returns to Writer. Writer cites the form in the memo; it does not edit the Draw doc itself.
+1. Writer drafts the memo with Writer tools.
+2. `send_peer_message(document_url=<stand-in uid>, task="Fill the change-control fields from this discrepancy summary: … Reply with a short confirmation.")` → `{accepted, peer_ask_id}`.
+3. Draw sidebar runs `get_draw_tree` / specialized shapes or `form_*` **on the Draw model only**.
+4. Draw sends back with `peer_ask_id`. Writer cites the form in the memo.
 
-The reverse (Draw asks Writer for a risk paragraph to paste into a shape) is the same tool with a Writer uid.
+Reverse (Draw asks Writer for a paragraph) is the same tool with a Writer uid.
 
-Harness pre-open of both documents is enough. Do not spawn the Draw form from the Writer send.
+Harness pre-open + “open the peer sidebar once” is enough. Do not spawn the form from the Writer send.
 
 ---
 
@@ -308,48 +283,52 @@ Harness pre-open of both documents is enough. Do not spawn the Draw form from th
 
 | Topic | Notes |
 | ----- | ----- |
-| **Who initiates** | Any of the three sidebars. The tool is symmetric. No supervisor process. |
-| **A1 vs A2** | A2 is implementable with today’s specialized_base + `run_inner_read_agent` retargeting for Writer, Calc, and Draw. A1 is the literal “other sidebar’s agent” but needs a production panel map (uid-keyed, all three apps) and a non-click send entry. Product call: is the peer **transcript** part of the feature, or only peer **tools + that doc**? |
-| **Focus steal** | Frame-bound `_get_document_model` is already the right binding. Inner UNO must not activate the peer frame. Hidden research opens already have this constraint. |
-| **Wrong-doc writes** | Defense is `ToolContext.doc` + `tool_supports_document`, not a bus key. Never execute Calc or Draw writes with the Writer `ctx.doc`. Copy the research pattern of building a **new** context; do not mutate the caller’s. |
-| **Nested drain / latency** | Writer send is waiting on a `long_running` async tool while the inner loop does more LLM rounds. That is **already** how `delegate_to_specialized_*` and `document_research` work (`is_async`, worker + main-thread marshal). A1 must **not** nest a second `_start_tool_calling_async` on the **same** listener (see comment in `tool_loop.py`). Peer listener is a different host — still two drains; UI thread must stay one `processEventsToIdle` owner. Prefer A2’s smol `execute_safe` on the worker (known pattern) until A1 is designed against [streaming-and-threading.md](../framework/streaming-and-threading.md). |
-| **Peer sidebar busy** | A1: fail or wait if the peer is already sending. A2: independent inner loop; user may also type in the peer — two writers on one model. MCP already serializes mutating `tools/call` per uid; sidebar chat does **not** take that gate. Decide whether peer-ask should take the same per-document lock (`ToolBase.requires_document_lock`). |
-| **Peer sidebar not constructed** | LibreOffice may not create the Calc/Draw deck until the user opens it. A2 still works (open model + registry). A1 cannot. Error: “No peer-context agent available” vs silent A2 fallback — pick one and prompt it. v1 is A2, so “deck not built” is not a failure. |
-| **No matching open peer** | Hard error. Do not create, load, or pick another app’s doc. |
-| **Ambiguous peers** | Two Calcs or two Draws: require `document_url` / uid (or an unambiguous name). Never default to first. |
-| **Auth** | None beyond the user’s machine. Same as sidebar tools today. Do not route through MCP just to feel like auth. |
-| **Cycles** | Writer asks Calc asks Writer (or Draw). Cap depth (research already nests only outer→inner once). Inner peer-ask should be forbidden or depth=1. |
-| **Untitled / many of one app** | `RuntimeUID` is the handle (`get_runtime_uid`). Gateway errors if the ask is ambiguous. |
-| **Prompt vs tool** | Without a prompt line, models will keep using `document_research` for everything or hallucinate Calc/Draw tools. Teach the split explicitly. |
-| **Impress** | Out of v1 even though `get_open_documents` may label it `draw`. Same tool can grow a PresentationDocument check later. |
-| **GMP gold PDF** | Stay on the staged Draw/Writer stand-in. Do not let prompts talk as if `ask_peer_agent` edits PDFs. |
+| **Who initiates** | Any of the three. Symmetric tool. No supervisor. |
+| **A1 vs A2** | A1 is v1. A2 is later / explicit escape hatch only. |
+| **Correlation** | `peer_ask_id` on every accept and every reply. Concurrent Calc + Draw, or a second ask before the first reply, depend on this. |
+| **Reply must land** | Host injection + prompt. Fail the design if replies only exist in the peer transcript. |
+| **Ready before reply** | Soft: prompt wait. Reply still injects as a follow-up turn when idle. |
+| **Peer busy** | v1 fail fast, clear error. v1.1 queue-on-listener. No silent drop. |
+| **Deck not built** | Error: open the peer sidebar once. No silent A2. |
+| **Caller busy on reply** | Same busy rule as any target. Soft: prefer Ready-or-idle before expecting the reply inject; v1.1 queue helps. |
+| **Focus steal** | No `toFront` unless asked. |
+| **Per-doc lock** | Soft: consider lock on peer uid for the injected send. |
+| **Wrong-doc writes** | Defense is the **peer** sidebar’s `ToolContext.doc`, not a bus key. Caller never executes Calc/Draw writes. |
+| **Nested drain** | Caller `execute` must not start a second drain on itself. Peer drain is a different host. |
+| **Ambiguous / none** | Require url/uid (or unique name). Error if none. No spawn. |
+| **Two Writer docs** | Legal peers if uids differ. Visibility uses resolvable other uid, not “count ≥ 2 components.” |
+| **Auth** | User’s machine only. Do not route through MCP for a sense of auth. |
+| **Cycles** | Send-back is required. Do not forbid reply `send_peer_*`. A third hop (Writer→Calc→Draw) is optional; keep prompts to ask/reply pairs in v1. |
+| **Impress** | Out of v1. |
+| **GMP gold PDF** | Staged Draw/Writer stand-in only. |
 
 ---
 
 ## 6. Non-goals
 
-- **In-process or OS IPC as the feature.** No new mailbox, socket, named pipe, `storeToURL` bus, udprop mailbox, or file-drop protocol. Same-process is why a Python call can start the inner loop — not why we invent a bus.
-- **Cross-process soffice.** If two user profiles / two processes ever appear, live-panel lookup and in-process `ToolContext` retargeting do not apply. Do not design for that. MCP might reach the other process by accident; that is not this feature.
-- **Collabora Online / coolwsd service bus** or kit-protocol AI ([collabora-online-ai.md](collabora-online-ai.md)).
+- **Blocking v1 `ask_*`** that waits for a compact inner result. Optional later sync wrapper.
+- **Silent A2** when the peer deck is missing.
+- **Queue-on-listener** as a v1 requirement (v1.1).
+- **In-process or OS IPC as the feature.** No new mailbox, socket, named pipe, `storeToURL` bus, udprop mailbox, or file-drop protocol.
+- **Cross-process soffice.** Live-panel lookup does not apply across profiles/processes.
+- **Collabora Online / coolwsd** ([collabora-online-ai.md](collabora-online-ai.md)).
 - **One mega-agent** that lists Writer, Calc, and Draw write tools together.
 - **Write-enable `document_research`** or hidden-open of closed files for mutation.
-- **Mid-session create / spawn** of a peer document. v1 requires the peer already open (user or harness). Error if none matches.
-- **Product PDF editing / AcroForm API.** Gold PDFs are not peer surfaces. LO PDF→Draw import is harness staging, not a shipped PDF filler.
-- **Impress as a v1 peer.** Optional later wedge; Draw (`DrawingDocument`) ships with Writer and Calc.
+- **Mid-session create / spawn.** Error if no matching open peer.
+- **Product PDF editing / AcroForm API.** Gold PDFs are not peer surfaces. LO PDF→Draw import is harness staging.
+- **Impress as a v1 peer.**
 - **Menu “Chat with Document”** (no tool-calling today).
-- **Hermes / ACP** as the peer transport (optional later if a backend is the sidebar, not required).
+- **Hermes / ACP** as the peer transport.
 - **Per-client MCP LLM profiles** or exposing specialized tiers on MCP for this.
 
 ---
 
 ## 7. Related docs
 
-- [specialized-toolsets (Writer)](../writer/specialized-toolsets.md) — gateway, tiers, `USE_SUB_AGENT`
-- [specialized-toolsets (Calc)](../calc/specialized-toolsets.md) — Calc domains and in-process PyUNO
-- [specialized-toolsets (Draw/Impress)](../draw/impress-specialized-toolsets.md) — `delegate_to_specialized_draw_toolset`, `get_draw_tree`, shapes/forms
-- [smol-tool-architecture.md](smol-tool-architecture.md) — two runtimes, one `LlmClient`
-- [multi-document-dev-plan.md](multi-document-dev-plan.md) — open docs, read-only research, `ToolContext` retarget (peer-ask is the write-side complement)
-- [sidebar-implementation.md](sidebar-implementation.md) — frame-bound panel, send pipeline
-- [mcp-protocol.md](../mcp-protocol.md) — external host, `document_url`, not sidebar-to-sidebar
-- [uno-thread-safety.md](../framework/uno-thread-safety.md) / [threading.md](../framework/threading.md) — RED/BLUE, `execute_on_main_thread`
+- [sidebar-implementation.md](sidebar-implementation.md) — frame-bound panel, `_do_send`, drain
+- [specialized-toolsets (Writer)](../writer/specialized-toolsets.md) / [Calc](../calc/specialized-toolsets.md) / [Draw/Impress](../draw/impress-specialized-toolsets.md) — each sidebar’s own gateway; A2 contrast
+- [smol-tool-architecture.md](smol-tool-architecture.md) — A2 only
+- [multi-document-dev-plan.md](multi-document-dev-plan.md) — open docs, read-only research
+- [mcp-protocol.md](../mcp-protocol.md) — external host, `document_url`
+- [uno-thread-safety.md](../framework/uno-thread-safety.md) / [threading.md](../framework/threading.md) / [streaming-and-threading.md](../framework/streaming-and-threading.md)
 - [GDPval GMP gold `58ac1cc5`](../eval/gdpval/58ac1cc5-5754-4580-8c9c-8c67e1a9d619/README.md) — materials only; peer/Draw port is separate work
