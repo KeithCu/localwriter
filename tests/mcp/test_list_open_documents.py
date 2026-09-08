@@ -95,6 +95,16 @@ def test_list_open_documents_execute():
         assert docs[1]["modified"] is False
 
 
+def test_get_open_documents_magicmock_enum_does_not_hang():
+    """Default MagicMock.hasMoreElements() is always truthy; must not spin."""
+    from plugin.doc.document_research import get_open_documents
+
+    desktop = MagicMock()
+    with patch("plugin.framework.uno_context.get_desktop", return_value=desktop):
+        docs = get_open_documents(MagicMock(), active_model=None)
+    assert docs == []
+
+
 def test_get_open_documents_lists_untitled_even_when_type_lookup_fails():
     """D5: an untitled doc (no URL) must never be dropped from the listing on a type-lookup error --
     its uid is the only handle a caller can target it by. It's listed with doc_type 'unknown'."""

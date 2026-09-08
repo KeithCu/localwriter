@@ -135,6 +135,22 @@ def test_impress_rejected_on_model_not_catalog_draw():
     assert v1_peer_type_label(draw) == "draw"
 
 
+def test_list_v1_peers_magicmock_ctx_does_not_hang():
+    """Regression: prompt/schema catalog with ctx=MagicMock() must not spin."""
+    from plugin.doc.peer_message import list_v1_peers
+    from plugin.framework.prompts import get_chat_system_prompt_for_document
+
+    ctx = MagicMock()
+    doc = MagicMock()
+    doc.getRuntimeUID.return_value = "self"
+    assert list_v1_peers(ctx, doc) == []
+    model = MagicMock()
+    model.supportsService.return_value = False
+    prompt = get_chat_system_prompt_for_document(model, ctx=ctx)
+    assert isinstance(prompt, str)
+    assert "send_peer_message" not in prompt
+
+
 def test_visibility_filter_alone_hides_tool():
     schemas = [
         {"type": "function", "function": {"name": PEER_TOOL_NAME, "description": "base"}},
