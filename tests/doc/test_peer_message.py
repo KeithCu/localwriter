@@ -538,6 +538,13 @@ def test_prompts_outer_thin_inner_choice():
     assert "specialized_workflow_finished immediately" in PEER_INNER_CHOICE_RULES
     assert "you MUST send_peer_message" in PEER_INNER_CHOICE_RULES
     assert "one HTML/result string" in PEER_INNER_CHOICE_RULES
+    assert "peer_ask_id" in PEER_INNER_CHOICE_RULES
+    assert "before specialized_workflow_finished" in PEER_INNER_CHOICE_RULES
+    assert "peer sidebar never sees it" in PEER_INNER_CHOICE_RULES
+    assert "message argument to send_peer_message" in PEER_INNER_CHOICE_RULES
+    assert "KPI text in the task" in PEER_INNER_CHOICE_RULES
+    assert "answer from the task alone" in PEER_INNER_CHOICE_RULES
+    assert "tool side effect" in PEER_INNER_CHOICE_RULES
     assert "not a JSON array" in PEER_OUTER_DELEGATE_HINT
     assert "PEER SIDEBARS" not in PEER_INNER_CHOICE_RULES
     # Idle-after-send: outer must Ready, not keep tooling in the same turn.
