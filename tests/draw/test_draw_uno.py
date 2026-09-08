@@ -340,6 +340,79 @@ def test_insert_math_draw(ctx, doc):
 
 
 @native_test
+@with_native_doc("draw")
+def test_get_draw_tree_marks_blank_and_label_hint(ctx, doc):
+    page_idx = _active_draw_page_index(doc)
+    _exec_tool(doc, ctx, "shape_upsert", {
+        "action": "create",
+        "shape_type": "text",
+        "x": 500, "y": 2000, "width": 3500, "height": 800,
+        "text": "Product:",
+        "name": "lbl_product",
+        "page": page_idx,
+    })
+    _exec_tool(doc, ctx, "shape_upsert", {
+        "action": "create",
+        "shape_type": "text",
+        "x": 4500, "y": 2000, "width": 5000, "height": 800,
+        "text": "",
+        "name": "fld_product",
+        "page": page_idx,
+    })
+
+    result = _exec_tool(doc, ctx, "get_draw_tree", {"page": page_idx})
+    data = json.loads(result)
+    assert data.get("status") == "ok", f"get_draw_tree failed: {result}"
+    blanks = [n for n in data.get("tree", []) if n.get("fillable")]
+    assert blanks, f"expected a fillable blank in tree: {data.get('tree')}"
+    named = [n for n in blanks if n.get("name") == "fld_product"]
+    assert named, f"blank named fld_product missing: {blanks}"
+    assert named[0].get("label_hint") == "Product:"
+    assert "geometry" in named[0]
+
+
+@native_test
+@with_native_doc("draw")
+def test_shape_upsert_edit_by_name(ctx, doc):
+    page_idx = _active_draw_page_index(doc)
+    create = json.loads(_exec_tool(doc, ctx, "shape_upsert", {
+        "action": "create",
+        "shape_type": "text",
+        "x": 1000, "y": 1000, "width": 4000, "height": 800,
+        "text": "",
+        "name": "fld_stable",
+        "page": page_idx,
+    }))
+    assert create.get("status") == "ok", f"create failed: {create}"
+
+    # A later shape would shift a naive "last index" fill; Name stays stable.
+    _exec_tool(doc, ctx, "shape_upsert", {
+        "action": "create",
+        "shape_type": "rectangle",
+        "x": 100, "y": 100, "width": 500, "height": 500,
+        "page": page_idx,
+    })
+
+    edit = json.loads(_exec_tool(doc, ctx, "shape_upsert", {
+        "action": "edit",
+        "name": "fld_stable",
+        "text": "filled-by-name",
+        "page": page_idx,
+    }))
+    assert edit.get("status") == "ok", f"edit by name failed: {edit}"
+
+    page = doc.getCurrentController().getCurrentPage()
+    found = None
+    for i in range(page.getCount()):
+        shape = page.getByIndex(i)
+        if getattr(shape, "Name", "") == "fld_stable":
+            found = shape
+            break
+    assert found is not None, "named shape missing after edit"
+    assert found.getString() == "filled-by-name"
+
+
+@native_test
 def test_shape_upsert_validation():
     from plugin.main import get_tools
     shape_upsert_tool = get_tools().get("shape_upsert")
@@ -355,10 +428,15 @@ def test_shape_upsert_validation():
     assert not ok
     assert "required when action is 'create'" in err
 
-    # Test validation when action='edit' but missing index
+    # Test validation when action='edit' but missing index and name
     ok, err = shape_upsert_tool.validate(action="edit")
     assert not ok
-    assert "Parameter 'index' is required" in err
+    assert "index" in err and "name" in err
+
+    # Name-only edit is valid (paper-form fill by stable Name)
+    ok, err = shape_upsert_tool.validate(action="edit", name="fld_product")
+    assert ok
+    assert err is None
 
     # Test validation when action='create' and all required parameters are present
     ok, err = shape_upsert_tool.validate(action="create", shape_type="rectangle", x=1000, y=1000, width=5000, height=3000)
