@@ -109,7 +109,12 @@ def guess_doc_type_from_path(path: str) -> DocTypeGuess:
 
 
 def get_document_research_workflow_hint(ctx=None, doc=None) -> str:
-    """Outer document_research sub-agent workflow text."""
+    """Outer document_research sub-agent workflow text.
+
+    The peer-choice suffix calls ``list_v1_peers`` (RuntimeUID / desktop).
+    Specialized execute gathers this on the main thread; the suffix also
+    marshals if invoked off-main.
+    """
     from plugin.framework.constants import folder_search_enabled
     from plugin.framework.prompts import get_peer_inner_choice_block
 

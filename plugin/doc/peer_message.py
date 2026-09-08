@@ -178,10 +178,16 @@ def format_peer_catalog(peers: list[dict[str, str]]) -> str:
 
 
 def list_v1_peers(uno_ctx: Any, self_doc: Any) -> list[dict[str, str]]:
-    """Resolvable other v1 peers (distinct uid, supported model, addressable)."""
+    """Resolvable other v1 peers (distinct uid, supported model, addressable).
+
+    Desktop catalog + RuntimeUID. Callers marshal to the main thread
+    (specialized scaffolding / ``get_peer_inner_choice_block``) or this asserts.
+    """
     from plugin.doc.document_research import get_open_documents
+    from plugin.framework.thread_guard import assert_main_thread
     from plugin.framework.uno_context import get_runtime_uid, resolve_document_by_url
 
+    assert_main_thread("peer_message.list_v1_peers")
     self_uid = ""
     if self_doc is not None:
         try:

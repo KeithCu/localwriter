@@ -30,7 +30,6 @@ from plugin.framework.prompts import DELEGATE_SPECIALIZED_TASK_PARAM_HINT, pytho
 from plugin.framework.i18n import _
 from plugin.chatbot.smol_agent import build_toolcalling_agent, SmolAgentExecutor, SmolToolAdapter
 from plugin.chatbot.smol_examples import get_examples_block
-from plugin.doc.document_research import get_document_research_workflow_hint
 from plugin.doc.specialized_shapes_context import format_shapes_canvas_context
 from plugin.framework import queue_executor
 
@@ -194,8 +193,12 @@ class DelegateToSpecializedBase(ToolBase):
                 ctx=ctx.ctx,
             )
             peer_catalog = ""
+            document_research_hint = ""
             if domain == "document_research":
-                from plugin.doc.document_research import filter_document_research_discovery_tools
+                from plugin.doc.document_research import (
+                    filter_document_research_discovery_tools,
+                    get_document_research_workflow_hint,
+                )
                 from plugin.doc.peer_message import (
                     PEER_TOOL_NAME,
                     filter_peer_tools_for_specialized,
@@ -207,10 +210,18 @@ class DelegateToSpecializedBase(ToolBase):
                 tools = filter_peer_tools_for_specialized(tools, ctx.ctx, ctx.doc)
                 if any(getattr(t, "name", None) == PEER_TOOL_NAME for t in tools):
                     peer_catalog = format_peer_catalog(list_v1_peers(ctx.ctx, ctx.doc))
-            return tools, peer_catalog
+                # #673 added list_v1_peers / getRuntimeUID to this hint. Specialized
+                # execute is async: gather the catalog here with get_tools, not on
+                # the tool-async worker.
+                document_research_hint = get_document_research_workflow_hint(
+                    ctx.ctx, getattr(ctx, "doc", None)
+                )
+            return tools, peer_catalog, document_research_hint
 
         # get_tools(doc=...) calls doc.supportsService — must not run on the sub-agent worker.
-        domain_tools, peer_catalog = queue_executor.execute_on_main_thread(_fetch_domain_tools)
+        domain_tools, peer_catalog, document_research_hint = queue_executor.execute_on_main_thread(
+            _fetch_domain_tools
+        )
 
         if not domain_tools:
             return self._tool_error(f"No specialized tools found for domain '{domain}'. Ensure the tools are implemented and registered.")
@@ -263,11 +274,6 @@ class DelegateToSpecializedBase(ToolBase):
                 except Exception as e:
                     log.warning("Failed to get Calc context for sub-agent: %s", e)
 
-            document_research_hint = (
-                get_document_research_workflow_hint(ctx.ctx, getattr(ctx, "doc", None))
-                if domain == "document_research"
-                else ""
-            )
             open_docs_context = ""
             if domain == "document_research":
                 try:
