@@ -334,7 +334,9 @@ def test_writer_delegate_marshals_document_research_scaffolding(
 
     assert result["status"] == "ok"
     mock_enqueue_index.assert_called_once_with(ctx.ctx, ctx.services, mock_doc)
-    mock_get_open_docs.assert_called_once_with(ctx.ctx, mock_doc)
+    # Open-docs context plus list_v1_peers (peer catalog / inner PEER vs READ hint).
+    assert mock_get_open_docs.call_count >= 1
+    mock_get_open_docs.assert_called_with(ctx.ctx, mock_doc)
     instructions = mock_agent_class.call_args.kwargs["instructions"]
     assert "[OPEN DOCUMENTS CONTEXT]" in instructions
     assert "/tmp/a.odt" in instructions
