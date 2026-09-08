@@ -103,7 +103,7 @@ Collaborative Cadaver Program Proposal for General Surgery, Thoracic
 Surgery, Otolaryngology, and Orthopedic Surgery.
 
 This overview honors donors and their final wishes. The hospital charter
-does not use the standalone chart token.
+is the governing document for shared specimens.
 
 Cost Savings
 Baseline is 4 cadavers/year for General Surgery. Annual cost is
@@ -397,6 +397,7 @@ def test_gemini_shaped_softened_proposal_passes() -> None:
     assert "Introduction" not in text
     assert "1-1.5" not in text
     assert "up to 4" not in text
+    assert not _has_chart_or_graph_word(text)
     result = score_text(
         text,
         para_count=18,
