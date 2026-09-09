@@ -20,8 +20,8 @@ Box run artifacts cited below may be untracked locally; paths are under `docs/ev
 | 4 | GMP Change Control | `gmp-…/20260909-0103` then `…-0225` (gpt-oss-120b) | 0103 **NOT HAPPY** → 0225 **HAPPY** | 0225 FAIL cite only | **Peer polarity** dump→fill; then product OK |
 | 5 | Floorstand Writer→Calc | `writer-calc-peer-write/…/20260909-0323-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (empty) | **Peer polarity** extract-not-fill + LO crash |
 | 6 | Calc-primary | `calc-primary-model/…/20260909-0400-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (Regions A–G) | **CSV-row dump** into col A + wrong factor + `#NAME?` invented sheet |
-| 8 | Draw-primary | — | no headed yet | soft oracle ready | Predicted: title-only canvas / no connectors |
-| 9 | Reverse Tenant | — | no headed yet | soft oracle ready | Predicted: invent rates / ignore CBA brief |
+| 8 | Draw-primary | `draw-primary-deliverable/…/20260909-0411-…` (gpt-oss-120b) | **NOT HAPPY** (garbled layout) | FAIL (Clearbend / failure / triage) | Non-empty map; **identity labels + layout overlap** |
+| 9 | Reverse Tenant | `reverse-tenant/…/20260909-0414-…` (gpt-oss-120b) | **NOT HAPPY** (blank Sheet1) | FAIL (0 cells) | **Talk-not-write** + PreContractError; Sheet2/3 only in chat |
 | 10 | Long Writer pack | — | no headed yet | soft oracle ready | Predicted: no TOC field / bold-as-heading / no comments |
 
 ---
@@ -169,20 +169,50 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 
 **Next headed (after product write fix):** re-run same model; expect real multi-column grids, Regions A–G labels, no CSV-in-A, ARPU denom = `Revenue (Units)`.
 
-### 8 — Draw-primary (process map)
+### 8 — Draw-primary (process map) — LANDED NOT HAPPY
 
-- Title-only canvas (<6 shapes).  
-- No connectors.  
-- PDF habit (prompt remaps to open Draw).  
-**Next headed:** paste in **Draw** sidebar; score `get_draw_tree`.
+**`draw-primary-deliverable/runs/20260909-0411-gpt-oss-120b`** — tip `c9ad7a08`; model `openai/gpt-oss-120b:nitro`; **max 50**; observer ~**10s**; UNO=0 / PreContract=0; no LO crash. Shots: `/workspace/drawprim-*.png`.
 
-### 9 — Reverse Tenant (Theatre CBA)
+**What worked (rules out title-only / no-connectors):**
+- Oracle: `labeled_shapes: 20`, `connectors: 13`, `labeled_chars: 354`.
+- Automation + Manual lanes, start/end, decision diamonds, scan/sort/packaging, connectors.
+- Not the predicted empty / title-only husk.
 
-- Invent wages; ignore Writer CBA brief.  
-- Blank workbook Ready.  
-**Next headed:** Calc-primary chat; confirm brief is research-only.
+**Product NOT HAPPY:**
 
-**Watcher (overnight):** calc-primary stamp folded (`20260909-0400`). Still empty: `draw-primary-deliverable/runs/`, `reverse-tenant/runs/`, `long-writer-pack/runs/` (`.gitkeep` only).
+1. **Layout overlap / garbled** — overlapping titles; decision text **one character per line** vertically (`drawprim-final.png`); dense stacking. Leadership-usable map fails despite healthy shape counts.
+2. **Identity labels missing:** **Clearbend Logistics Hub** (0 hits); **automation failure/exception/jam** path absent; **manual triage/rework** absent (manual lane = handling/inspection/packaging only).
+
+**Solutions (DO + why):**
+1. **DO — Clearbend Logistics Hub in map title/header** — gold facility claim, not soft alias.
+2. **DO — Explicit failure→manual edge** (jam/no-read/reject) — prompt’s overflow story was dropped in the 10s one-shot.
+3. **DO — Manual triage/rework step** — oracle check 11 / ad hoc manual pain point.
+4. **DO — Draw layout teaching** — wrap text in-box (not vertical char-per-line); one title; gap lanes; `get_draw_tree` before Ready.
+5. **Investigate early Ready** — max 50 / ~10s suggests one-shot; retest at 80–150 only after (1)–(4); don’t raise everyday default.
+6. **Don’t** soften Clearbend / failure / triage. **Don’t** score a Writer memo as the map.
+
+**Next headed:** identity + layout teaching; readable non-overlapping Clearbend map with failure→manual + triage/rework.
+
+### 9 — Reverse Tenant (Theatre CBA) — LANDED NOT HAPPY
+
+**`reverse-tenant/runs/20260909-0414-gpt-oss-120b`** — tip `c9ad7a08`; model `openai/gpt-oss-120b:nitro`; **max 150**; **under 1 minute**; UNO=0; **PreContractError=1**; no LO crash. Shots: `/workspace/revten-*.png`.
+
+**Outcome:** Sheet1 **blank only** (`scored_cells: 0`, `sheets: Sheet1`, no formulas). Chat essay describes **Sheet 2** contract rates + **Sheet 3** totals formatting — **no sheets created, no cells written** (`revten-final.png`). Oracle: missing CBA/theatre/roster anchors; `pay_categories` / `instruments` empty; `brief_present: False` (score-time brief path — secondary to empty workbook).
+
+**Miss class:** **Talk-not-write / Ready-empty** (predicted blank workbook Ready) + tool **PreContractError** (one Deal reject) — opposite of invent-rates-with-content. Model narrated a multi-sheet payroll template instead of actuating Calc.
+
+**Solutions (DO + why):**
+1. **DO — Actuation-first / refuse Ready on empty Sheet1** — write ≥12 cells (rates + roster labels) before Ready; chat formatting tips are not a deliverable.  
+   **Why:** under-1-min Ready with blank grid is the happy-bar fail.
+2. **DO — Dig the PreContractError** — which tool/args Deal rejected; fix schema teaching or caller so writes aren’t blocked mid-plan.  
+   **Why:** PreContractError=1 with 0 cells suggests a failed write path, not a finished model.
+3. **DO — `create_sheet` + cell writes for rates/roster tabs** — if the design needs Sheet2/Sheet3, create and populate them; never leave them as chat fiction.
+4. **DO — Read CBA Writer sibling before inventing** (`document_research` / open brief) — rates must come from the excerpt; blank grid also means brief was unused.
+5. **Don’t** soften 0-cell oracle. **Don’t** treat chat Sheet2/3 prose as product success.
+
+**Next headed:** after PreContract dig + actuation teaching; expect populated payroll model (≥12 cells, CBA/theatre/roster anchors, real multi-sheet or single-sheet tables).
+
+**Watcher (overnight):** calc-primary (`0400`) + draw-primary (`0411`) + reverse-tenant (`0414`) folded. Still empty: `long-writer-pack/runs/` (`.gitkeep` only).
 
 ### 10 — Long Writer pack
 
@@ -199,8 +229,8 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 2. **Calc-primary CSV-dump / factor retest** — after cell-write teaching (§5.6); same model; expect multi-column grids, Regions A–G, no comma-joined A cells, ARPU denom `Revenue (Units)`, no phantom `headcount` sheet.  
 3. **Tiny peer-fill crash repro** — one `send_peer` that writes 3 cells; see if LO still dies.  
 4. **GMP oracle cite soften** (optional) — secondary; product already HAPPY.  
-5. **Draw-primary first headed** — Draw-as-product, not form stand-in.  
-6. **Reverse Tenant headed** — Calc write + Writer brief read.  
+5. **Draw-primary identity + layout retest** — after §5.8; Clearbend title, failure→manual, triage/rework, readable layout (consider max 80–150 only if still one-shot).  
+6. **Reverse Tenant actuation retest** — after PreContract dig + refuse-empty-Ready; ≥12 cells, CBA/theatre/roster anchors, real sheets not chat fiction.  
 7. **Long Writer headed** — TOC/styles/comments pack.  
 8. Keep folding Scrolly stamps into §1 / §5; amend this file or open follow-up PRs.
 
