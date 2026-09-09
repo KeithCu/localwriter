@@ -19,7 +19,7 @@ Box run artifacts cited below may be untracked locally; paths are under `docs/ev
 | 2 | Cadaver Proposal | `cadaver-…/runs/20260908-2246-…` (Gemini) | **HAPPY** (real proposal + charts) | FAIL → soften PR | Oracle false-red (aliases, Figure/draw:frame, length) |
 | 4 | GMP Change Control | `gmp-…/20260909-0103` then `…-0225` (gpt-oss-120b) | 0103 **NOT HAPPY** → 0225 **HAPPY** | 0225 FAIL cite only | **Peer polarity** dump→fill; then product OK |
 | 5 | Floorstand Writer→Calc | `0323` gpt-oss; private `1733` gpt-oss; **`1748` Gemini private-patch** | **NOT HAPPY** (all) | FAIL (empty) | `1748`: polarity **HIT** but empty+stall; gpt-oss still extract MISS |
-| 6 | Calc-primary | `calc-primary-model/…/20260909-0400-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (Regions A–G) | **CSV-row dump** into col A + wrong factor + `#NAME?` invented sheet |
+| 6 | Calc-primary | `0400` gpt-oss; **`1755` Gemini private-patch** | **NOT HAPPY** (both) | FAIL | `0400` CSV-dump; **`1755` no schedule sheets** (CSV patch unexercised) |
 | 8 | Draw-primary | `draw-primary-deliverable/…/20260909-0411-…` (gpt-oss-120b) | **NOT HAPPY** (garbled layout) | FAIL (Clearbend / failure / triage) | Non-empty map; **identity labels + layout overlap** |
 | 9 | Reverse Tenant | `reverse-tenant/…/20260909-0414-…` (gpt-oss-120b) | **NOT HAPPY** (blank Sheet1) | FAIL (0 cells) | **Talk-not-write** + PreContractError; Sheet2/3 only in chat |
 | 10 | Long Writer pack | `long-writer-pack/…/20260909-0419-…` (gpt-oss-120b) | **NOT HAPPY** (wrong facts) | FAIL (money/dates/purpose/comment) | TOC+headings OK; **invented budget/dates**; **0 comments** |
@@ -229,6 +229,15 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 5. **Don’t** call this an empty-tab or pin miss. **Don’t** soften Regions A–G away — product package is incomplete. Soft oracle can still keep husk/#DIV thresholds as secondary once grids are real cells.
 
 **Next headed (after product write fix):** re-run same model; expect real multi-column grids, Regions A–G labels, no CSV-in-A, ARPU denom = `Revenue (Units)`.
+
+#### Gemini private-patch `20260909-1755` (FYI — not the Floorstand dig)
+
+Tip `a58ab1ad` + same local patches. Model `google/gemini-3.8-flash` · max 150. Shots: `/workspace/calc3-*.png`.
+
+- **NOT HAPPY:** only **Raw Data** remains (`schedule_sheets: 0`, `formulas: 0`). No income/trend/rank/region/metrics tabs.
+- CSV-in-A: **none** (and no multi-column grids either) — the private `write_formula_range` “one value per cell” sentence was **never exercised**.
+- Differs from gpt-oss `0400` (5 schedules + CSV dumps + wrong factor). Gemini miss is **no create_sheet / no schedule build**, not bad row writes.
+- **Gate (Keith/Chief):** do **not** PR the private patches yet off this stamp. Floorstand empty+stall (§2.4) remains the main dig; this only shows the Calc CSV teaching needs a run that actually writes schedule cells.
 
 ### 8 — Draw-primary (process map) — LANDED NOT HAPPY
 
