@@ -711,15 +711,20 @@ def _is_smol_research(tool_names: set[str]) -> bool:
 
 
 def _is_specialized_inner(tool_names: set[str]) -> bool:
-    # Live document_research inner HTTP advertises specialized_workflow_finished
-    # plus domain tools; get_document_tree is often *not* on that list (core
-    # tree is not a specialized_domain tool). Phrase "outline this" must not
-    # fall through to the main-chat delegate scenario (Packet E7).
-    if "specialized_workflow_finished" in tool_names:
+    # Live document_research inner HTTP no longer advertises
+    # specialized_workflow_finished (one-shot host exit). Detect the inner
+    # wire by domain tools so Packet P / peer scripts do not fall through to
+    # main-chat HTML. Packet E unit lists may still include finish.
+    if tool_names & {
+        "specialized_workflow_finished",
+        "send_peer_message",
+        "delegate_read_document",
+        "list_nearby_files",
+        "grep_nearby_files",
+        "search_nearby_files",
+    }:
         return True
-    return "get_document_tree" in tool_names and bool(
-        tool_names & {"final_answer", "specialized_workflow_finished"}
-    )
+    return "get_document_tree" in tool_names and "final_answer" in tool_names
 
 
 def _is_main_chat(tool_names: set[str]) -> bool:
@@ -1000,7 +1005,7 @@ def _should_script_peer_inner(
     tool_names: set[str],
     config: MockLLMConfig | None,
 ) -> bool:
-    """True when this specialized POST should send_peer_message / finish-after-accepted."""
+    """True when this specialized POST should send_peer_message (host then exits)."""
     if _PEER_TOOL in tool_names:
         return True
     forced = config.scenario if config is not None else "none"
@@ -1087,9 +1092,8 @@ def _peer_specialized_inner(
     if _PEER_TOOL in tool_names:
         return Completion(tool_name=_PEER_TOOL, tool_args=args, finish_reason="tool_calls")
     return Completion(
-        tool_name=finish_name,
-        tool_args={"answer": "No send_peer_message on this inner wire."},
-        finish_reason="tool_calls",
+        content="No send_peer_message on this inner wire.",
+        finish_reason="stop",
     )
 
 
@@ -1101,7 +1105,12 @@ def _specialized_inner_completion(
     if _should_script_peer_inner(messages, tool_names, config):
         return _peer_specialized_inner(messages, tool_names, config)
     called = _called_tool_names(messages)
-    finish_name = "final_answer" if "final_answer" in tool_names else "specialized_workflow_finished"
+    if "final_answer" in tool_names:
+        finish_name: str | None = "final_answer"
+    elif "specialized_workflow_finished" in tool_names:
+        finish_name = "specialized_workflow_finished"
+    else:
+        finish_name = None
     user_text = _last_user_text(messages)
     forced = config.scenario if config is not None else "none"
     scenario = detect_scenario(_current_query(messages, user_text), forced)
@@ -1109,11 +1118,13 @@ def _specialized_inner_completion(
     empty = bool(config and config.empty_nested_answer) or scenario == "empty_nested"
 
     def _finish(answer: str) -> Completion:
-        return Completion(
-            tool_name=finish_name,
-            tool_args={"answer": answer},
-            finish_reason="tool_calls",
-        )
+        if finish_name:
+            return Completion(
+                tool_name=finish_name,
+                tool_args={"answer": answer},
+                finish_reason="tool_calls",
+            )
+        return Completion(content=answer, finish_reason="stop")
 
     if never:
         # Keep calling discovery so smol/specialized hits max_steps (Packet E22).

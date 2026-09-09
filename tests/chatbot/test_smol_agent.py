@@ -179,7 +179,7 @@ class TestToolcallingPromptExamples(unittest.TestCase):
         self.assertIn("scipy", block)
         self.assertIn("DO NOT import numpy", block)
         self.assertNotIn('"code": "import', block)
-        self.assertNotIn("specialized_workflow_finished", block)
+        self.assertNotIn('"name": "specialized_workflow_finished"', block)
 
     def test_specialized_agent_prompt_hides_finish_when_not_advertised(self):
         from plugin.contrib.smolagents.agents import ToolCallingAgent
