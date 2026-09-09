@@ -274,15 +274,12 @@ def attach_soffice_proc(proc: Any) -> None:
     stream = getattr(proc, "stderr", None)
     if stream is None:
         return
-    # Harness-only: bootstrap is before plugin worker_pool. Dedicated daemon so
-    # a full stderr pipe cannot deadlock soffice (AGENTS.md pipe-drain rule).
-    thread = threading.Thread(
-        target=_drain_soffice_stderr,
-        args=(stream,),
-        name="soffice-stderr-drain",
-        daemon=True,
-    )
-    thread.start()
+    from plugin.framework.worker_pool import run_in_background
+
+    def _loop() -> None:
+        _drain_soffice_stderr(stream)
+
+    run_in_background(_loop, name="soffice-stderr-drain", dedicated=True)
 
 
 def _drain_soffice_stderr(stream: Any) -> None:
