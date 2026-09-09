@@ -26,6 +26,21 @@ _STUBS = (
     "reverse-tenant",
     "long-writer-pack",
 )
+# Preferred gold trees landed for 5–9; slot 10 is still materials-TODO.
+_GOLD_STUBS = {
+    "writer-calc-peer-write": "c3525d4d-2012-45df-853e-2d2a0e902991",
+    "calc-primary-model": "5f6c57dd-feb6-4e70-b152-4969d92d1608",
+    "writer-headed-template": "a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5",
+    "draw-primary-deliverable": "8a7b6fca-60cc-4ae3-b649-971753cbf8b9",
+    "reverse-tenant": "4520f882-715a-482d-8e87-1cb3cbdfe975",
+}
+_TODO_STUBS = ("long-writer-pack",)
+_READY_GOLD_IDS = (
+    "ed2bc14c-99ac-4a2a-8467-482a1a5d67f3",
+    "61b0946a-5c1c-4bf6-8607-84d7c7e0dfe0",
+    "83d10b06-26d1-4636-a32c-23f92c57f30b",
+    "58ac1cc5-5754-4580-8c9c-8c67e1a9d619",
+)
 _STUB_FILES = (
     "notes.md",
     "SOURCE.md",
@@ -50,14 +65,6 @@ _BANNED_STEERING = (
     "web not required",
     "already named",
 )
-_IN_TREE_GOLD_IDS = (
-    "ed2bc14c-99ac-4a2a-8467-482a1a5d67f3",
-    "61b0946a-5c1c-4bf6-8607-84d7c7e0dfe0",
-    "83d10b06-26d1-4636-a32c-23f92c57f30b",
-    "58ac1cc5-5754-4580-8c9c-8c67e1a9d619",
-)
-
-
 def test_readme_lists_siblings_1_to_10() -> None:
     text = _README.read_text(encoding="utf-8")
     for slug in _READY + _STUBS:
@@ -76,18 +83,30 @@ def test_stub_folders_have_required_files() -> None:
             assert path.is_file(), path
 
 
-def test_stub_source_is_todo_not_in_tree_gold() -> None:
-    """Stubs must not claim an in-repo gdpval package they do not have."""
-    for slug in _STUBS:
+def test_golded_stub_source_points_at_untouched_tree() -> None:
+    """Slots 5–9 keep an untouched gdpval tree; they are not the ready four."""
+    gdpval = _REPO / "docs" / "eval" / "gdpval"
+    for slug, gold_id in _GOLD_STUBS.items():
+        source = (_EVAL2 / slug / "SOURCE.md").read_text(encoding="utf-8")
+        assert gold_id in source, slug
+        assert f"docs/eval/gdpval/{gold_id}/" in source, slug
+        assert "Needs gold materials" not in source, slug
+        gold_prompt = gdpval / gold_id / "prompt.txt"
+        exp_prompt = _EVAL2 / slug / "prompt.gdpval.txt"
+        assert gold_prompt.is_file(), gold_prompt
+        assert exp_prompt.is_file(), exp_prompt
+        assert gold_prompt.read_bytes() == exp_prompt.read_bytes(), slug
+        for ready_id in _READY_GOLD_IDS:
+            assert f"docs/eval/gdpval/{ready_id}/" not in source, (slug, ready_id)
+
+
+def test_long_writer_pack_source_still_todo() -> None:
+    for slug in _TODO_STUBS:
         source = (_EVAL2 / slug / "SOURCE.md").read_text(encoding="utf-8")
         assert "Needs gold materials" in source, slug
-        assert "docs/eval/gdpval/" in source
-        # Candidate HF ids are fine; claiming an in-tree gold tree is not.
-        assert "Gold task id | TODO" in source or "Gold task id" in source
         assert "TODO — not in-repo" in source, slug
-        for gold_id in _IN_TREE_GOLD_IDS:
-            claimed = f"docs/eval/gdpval/{gold_id}/"
-            assert claimed not in source, (slug, gold_id)
+        for gold_id in (*_READY_GOLD_IDS, *_GOLD_STUBS.values()):
+            assert f"docs/eval/gdpval/{gold_id}/" not in source, (slug, gold_id)
 
 
 def test_stub_prompts_are_todo_and_avoid_product_internals() -> None:
