@@ -16,16 +16,23 @@ from eval_2_headed import (  # noqa: E402
     CADAVER_BUDGET_XLSX_NAME,
     CADAVER_PROPOSAL_NAME,
     DEFAULT_MAX_TOOL_ROUNDS,
+    EVAL_2_GMP_MAX_TOOL_ROUNDS,
     EVAL_2_MAX_TOOL_ROUNDS,
+    GMP_COA_PDF_NAME,
+    GMP_FORM_ODG_NAME,
+    GMP_MEMO_NAME,
+    GMP_SPEC_ODT_NAME,
     LETTER_ODT_NAME,
     MAX_TOOL_ROUNDS_KEY,
     POPULATION_ODS_NAME,
     SURVEY_XLSX_NAME,
     TASK_CADAVER,
+    TASK_GMP,
     TASK_TENANT,
     TENANT_MEMO_NAME,
     _AFC_DIR,
     _CADAVER_DIR,
+    _GMP_DIR,
     _TENANT_DIR,
     apply_max_tool_rounds,
     default_eval2_trial_dir,
@@ -34,7 +41,9 @@ from eval_2_headed import (  # noqa: E402
     restore_max_tool_rounds,
     stage_cadaver_trial,
     stage_clean_trial_ods,
+    stage_gmp_trial,
     stage_tenant_trial,
+    task_max_tool_rounds,
     temporary_max_tool_rounds,
 )
 
@@ -185,6 +194,16 @@ def test_default_eval2_trial_dir_is_tmp_subdir() -> None:
     cadaver = default_eval2_trial_dir(TASK_CADAVER)
     assert cadaver.name == "writeragent-eval2-cadaver"
     assert cadaver.parent == Path(tempfile.gettempdir())
+    gmp = default_eval2_trial_dir(TASK_GMP)
+    assert gmp.name == "writeragent-eval2-gmp"
+    assert gmp.parent == Path(tempfile.gettempdir())
+
+
+def test_task_max_tool_rounds_gmp_is_150() -> None:
+    assert task_max_tool_rounds(TASK_TENANT) == EVAL_2_MAX_TOOL_ROUNDS
+    assert task_max_tool_rounds(TASK_CADAVER) == EVAL_2_MAX_TOOL_ROUNDS
+    assert task_max_tool_rounds(TASK_GMP) == EVAL_2_GMP_MAX_TOOL_ROUNDS
+    assert EVAL_2_GMP_MAX_TOOL_ROUNDS == 150
 
 
 def test_stage_tenant_trial_contains_only_refs_and_blank_memo(tmp_path: Path) -> None:
@@ -225,3 +244,30 @@ def test_stage_cadaver_trial_contains_only_budget_and_blank_proposal(tmp_path: P
 def test_stage_cadaver_trial_refuses_real_task_dir() -> None:
     with pytest.raises(ValueError, match="protected"):
         stage_cadaver_trial(_CADAVER_DIR)
+
+
+def test_stage_gmp_trial_contains_only_refs_memo_and_form(tmp_path: Path) -> None:
+    dest = tmp_path / "trial"
+    dest.mkdir()
+    (dest / "prompt.writeragent.txt").write_text("PROMPT-LEAK", encoding="utf-8")
+    (dest / "rubric.eval2.md").write_text("RUBRIC-LEAK", encoding="utf-8")
+    memo, form = stage_gmp_trial(dest)
+    names = sorted(p.name for p in dest.iterdir())
+    assert names == sorted(
+        [GMP_COA_PDF_NAME, GMP_SPEC_ODT_NAME, GMP_FORM_ODG_NAME, GMP_MEMO_NAME]
+    )
+    assert memo == dest / GMP_MEMO_NAME
+    assert form == dest / GMP_FORM_ODG_NAME
+    assert memo.is_file()
+    assert form.is_file()
+    assert "Change Control Form.pdf" not in names
+    assert not any(
+        "PROMPT-LEAK" in p.read_text(encoding="utf-8", errors="ignore")
+        for p in dest.iterdir()
+        if p.suffix in {".txt", ".md"}
+    )
+
+
+def test_stage_gmp_trial_refuses_real_task_dir() -> None:
+    with pytest.raises(ValueError, match="protected"):
+        stage_gmp_trial(_GMP_DIR)
