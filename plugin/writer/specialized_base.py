@@ -138,7 +138,9 @@ class ToolWriterChartBase(ToolWriterSpecialBase):
 
 class ToolWriterIndexBase(ToolWriterSpecialBase):
     specialized_domain: ClassVar[str | None] = "indexes"
-    specialized_domain_description: ClassVar[str | None] = "Manage Table of Contents and alphabetical indexes."
+    specialized_domain_description: ClassVar[str | None] = (
+        "Manage Table of Contents, alphabetical indexes, and native bibliography cites plus the reference table."
+    )
 
 
 class ToolWriterFieldBase(ToolWriterSpecialBase):
