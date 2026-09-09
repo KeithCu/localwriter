@@ -238,6 +238,130 @@ def test_clear_writeragent_udprops_skips_set_document_scripts():
     assert written["WriterAgentSessionID"] == ""
 
 
+def test_reraise_native_open_failure_names_previous_test(capsys, monkeypatch):
+    """Factory-open DisposedException must name the previous TEST end in the message."""
+    import plugin.testing_runner as tr
+    from plugin.tests.testing_utils import _reraise_native_open_failure
+
+    monkeypatch.setattr(tr, "_soffice_pids", lambda: "7")
+    tr.reset_lifecycle_breadcrumb()
+    tr.record_test_end("draw.test_draw_uno.test_duplicate_slide_copies_shapes", "OK")
+    tr.record_test_start("draw.test_draw_uno.test_duplicate_rename_move_slide")
+
+    with pytest.raises(RuntimeError, match="previous=draw.test_draw_uno.test_duplicate_slide_copies_shapes") as caught:
+        try:
+            raise RuntimeError("Binary URP bridge disposed during call")
+        except RuntimeError as exc:
+            _reraise_native_open_failure(exc, "private:factory/sdraw")
+    assert "create_native_doc loadComponentFromURL(private:factory/sdraw)" in str(caught.value)
+    assert "pre_open=" in str(caught.value)
+    assert "Binary URP bridge" in str(caught.value)
+    err = capsys.readouterr().err
+    assert "LIFECYCLE native_doc open FAIL" in err
+    assert "previous=draw.test_draw_uno.test_duplicate_slide_copies_shapes" in err
+    tr.reset_lifecycle_breadcrumb()
+
+
+def test_reraise_native_open_failure_passthrough_non_urp():
+    from plugin.tests.testing_utils import _reraise_native_open_failure
+
+    with pytest.raises(ValueError, match="not a bridge"):
+        try:
+            raise ValueError("not a bridge")
+        except ValueError as exc:
+            _reraise_native_open_failure(exc, "private:factory/sdraw")
+
+
+def test_create_native_doc_skips_load_when_bridge_already_dead(monkeypatch):
+    from unittest.mock import MagicMock, patch
+
+    import plugin.testing_runner as tr
+    from plugin.tests.testing_utils import TestingFactory
+
+    tr.reset_lifecycle_breadcrumb()
+    tr.record_test_end("draw.test_draw_uno.test_duplicate_slide_copies_shapes", "OK")
+    tr.record_test_start("draw.test_draw_uno.test_duplicate_rename_move_slide")
+
+    class _DeadCtx:
+        def getServiceManager(self) -> None:
+            raise RuntimeError("Binary URP bridge disposed during call")
+
+    desktop = MagicMock()
+    with (
+        patch("plugin.framework.uno_context.get_desktop", return_value=desktop),
+        patch("uno.createUnoStruct", return_value=MagicMock()),
+        pytest.raises(RuntimeError, match="pre_open=disposed") as caught,
+    ):
+        TestingFactory.create_native_doc(_DeadCtx(), "draw")
+    assert "already disposed before loadComponentFromURL" in str(caught.value)
+    assert "previous=draw.test_draw_uno.test_duplicate_slide_copies_shapes" in str(caught.value)
+    desktop.loadComponentFromURL.assert_not_called()
+    tr.reset_lifecycle_breadcrumb()
+
+
+def test_create_native_doc_wraps_disposed_exception(monkeypatch):
+    from unittest.mock import MagicMock, patch
+
+    import plugin.testing_runner as tr
+    from plugin.tests.testing_utils import TestingFactory
+
+    tr.reset_lifecycle_breadcrumb()
+    tr.record_test_end("draw.test_draw_uno.test_get_draw_tree", "OK")
+    tr.record_test_start("draw.test_draw_uno.test_insert_math_draw")
+
+    desktop = MagicMock()
+    desktop.loadComponentFromURL.side_effect = RuntimeError("Binary URP bridge disposed during call")
+    with (
+        patch("plugin.framework.uno_context.get_desktop", return_value=desktop),
+        patch("uno.createUnoStruct", return_value=MagicMock()),
+        pytest.raises(RuntimeError, match="previous=draw.test_draw_uno.test_get_draw_tree"),
+    ):
+        TestingFactory.create_native_doc(object(), "draw")
+    tr.reset_lifecycle_breadcrumb()
+
+
+def test_log_close_doc_failure_and_office_health(capsys, monkeypatch):
+    from unittest.mock import MagicMock, patch
+
+    import plugin.testing_runner as tr
+    from plugin.tests.testing_utils import _log_close_doc_failure, _log_office_health_after_close
+
+    monkeypatch.setattr(tr, "_soffice_pids", lambda: "-")
+    tr.reset_lifecycle_breadcrumb()
+    tr.record_test_end("draw.test_draw_uno.test_get_draw_tree", "OK")
+
+    _log_close_doc_failure(RuntimeError("Binary URP bridge disposed during call"))
+    err = capsys.readouterr().err
+    assert "LIFECYCLE close_doc dispose" in err
+    assert "previous=draw.test_draw_uno.test_get_draw_tree" in err
+
+    desktop = MagicMock()
+    desktop.getComponents.side_effect = RuntimeError("Binary URP bridge disposed during call")
+    with patch("plugin.framework.uno_context.get_desktop", return_value=desktop):
+        _log_office_health_after_close(object(), "draw")
+    err = capsys.readouterr().err
+    assert "LIFECYCLE office dead after close doc_type=draw" in err
+    assert "previous=draw.test_draw_uno.test_get_draw_tree" in err
+    tr.reset_lifecycle_breadcrumb()
+
+
+def test_close_doc_logs_urp_dispose(capsys, monkeypatch):
+    from unittest.mock import MagicMock
+
+    import plugin.testing_runner as tr
+    from plugin.tests.testing_utils import TestingFactory
+
+    monkeypatch.setattr(tr, "_soffice_pids", lambda: "8")
+    tr.reset_lifecycle_breadcrumb()
+    tr.record_test_start("draw.test_draw_uno.test_get_draw_tree")
+    doc = MagicMock()
+    doc.close.side_effect = RuntimeError("Binary URP bridge disposed during call")
+    TestingFactory.close_doc(doc)
+    err = capsys.readouterr().err
+    assert "LIFECYCLE close_doc dispose" in err
+    tr.reset_lifecycle_breadcrumb()
+
+
 def test_testing_factory_execute_tool_unknown_name():
     from unittest.mock import MagicMock, patch
 

@@ -275,6 +275,119 @@ def test_is_uno_bridge_disposed() -> None:
     assert not tr._is_uno_bridge_disposed(RuntimeError("no desktop"))
 
 
+def test_parse_cli_repeat_and_soak_env(monkeypatch) -> None:
+    monkeypatch.setattr(tr, "use_user_profile", False)
+    monkeypatch.setattr(tr, "show_window", False)
+    monkeypatch.delenv("WRITERAGENT_UNO_USER_PROFILE", raising=False)
+    monkeypatch.delenv("WRITERAGENT_UNO_SOAK", raising=False)
+    rest = tr._parse_cli_args(["--repeat", "7", "test_draw_uno"])
+    assert rest == ["test_draw_uno"]
+    assert tr._soak_repeat == 7
+
+    rest = tr._parse_cli_args(["--repeat=3", "test_get_draw_tree"])
+    assert rest == ["test_get_draw_tree"]
+    assert tr._soak_repeat == 3
+
+    monkeypatch.setenv("WRITERAGENT_UNO_SOAK", "11")
+    rest = tr._parse_cli_args(["test_draw_uno"])
+    assert rest == ["test_draw_uno"]
+    assert tr._soak_repeat == 11
+
+    rest = tr._parse_cli_args(["--repeat", "2", "test_draw_uno"])
+    assert tr._soak_repeat == 2
+
+    rest = tr._parse_cli_args(["--repeat", "nope", "test_draw_uno"])
+    assert tr._soak_repeat == 1
+
+    rest = tr._parse_cli_args(["--pair", "tree-math", "--repeat", "4"])
+    assert rest == ["test_get_draw_tree", "test_insert_math_draw"]
+    assert tr._soak_repeat == 4
+    rest = tr._parse_cli_args(["--pair=dup-move"])
+    assert rest == [
+        "test_duplicate_slide_copies_shapes",
+        "test_duplicate_rename_move_slide",
+    ]
+
+
+def test_run_module_suite_fail_names_previous_test(capsys, monkeypatch) -> None:
+    """URP dispose on the second test must print previous=<first> result=OK."""
+    monkeypatch.setattr(tr, "_soffice_pids", lambda: "99")
+    tr.reset_lifecycle_breadcrumb()
+
+    def test_ok(ctx=None):
+        return None
+
+    def test_victim(ctx=None):
+        raise RuntimeError("Binary URP bridge disposed during call")
+
+    test_ok._is_test = True
+    test_victim._is_test = True
+
+    class _Mod:
+        pass
+
+    module = _Mod()
+    module.test_ok = test_ok
+    module.test_victim = test_victim
+
+    tr._urp_bridge_dead = False
+    passed, failed, suite_log = tr.run_module_suite(object(), module, "draw.crumb")
+    assert passed == 1
+    assert failed == 1
+    err = capsys.readouterr().err
+    assert "previous=draw.crumb.test_ok" in err
+    assert "result=OK" in err
+    assert "current=draw.crumb.test_victim" in err
+    assert "LIFECYCLE URP dispose at draw.crumb.test_victim" in err
+    assert any("LIFECYCLE" in line and "previous=draw.crumb.test_ok" in line for line in suite_log)
+    tr._urp_bridge_dead = False
+    tr.reset_lifecycle_breadcrumb()
+
+
+def test_run_module_suite_fails_ok_test_when_bridge_dies_after_return(capsys) -> None:
+    """Harness attribution: TEST returned OK but getServiceManager is already disposed."""
+    tr.reset_lifecycle_breadcrumb()
+    ran: list[str] = []
+
+    class _Ctx:
+        dead = False
+
+        def getServiceManager(self) -> object:
+            if self.dead:
+                raise RuntimeError("Binary URP bridge disposed during call")
+            return object()
+
+    def test_ok(ctx=None):
+        ran.append("ok")
+        ctx.dead = True
+
+    def test_second(ctx=None):
+        ran.append("second")
+
+    test_ok._is_test = True
+    test_second._is_test = True
+
+    class _Mod:
+        pass
+
+    module = _Mod()
+    module.test_ok = test_ok
+    module.test_second = test_second
+
+    ctx = _Ctx()
+    tr._urp_bridge_dead = False
+    passed, failed, suite_log = tr.run_module_suite(ctx, module, "draw.teardown")
+    assert ran == ["ok"]
+    assert passed == 0
+    assert failed == 1
+    assert tr._urp_bridge_dead is True
+    err = capsys.readouterr().err
+    assert "LIFECYCLE office dead after TEST returned draw.teardown.test_ok" in err
+    assert any("office dead after TEST returned" in line for line in suite_log)
+    tr._urp_bridge_dead = False
+    tr.reset_lifecycle_breadcrumb()
+
+
 def test_run_module_suite_stops_after_urp_dispose() -> None:
     ran: list[str] = []
 

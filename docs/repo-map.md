@@ -45,7 +45,7 @@ Start here by task.
 | Vision / OCR | Host runner + venv worker + `run_vision` | [`plugin/vision/`](../plugin/vision/), [`plugin/vision/venv/`](../plugin/vision/venv/), [`plugin/scripting/client.py`](../plugin/scripting/client.py), [`plugin/vision/vision_availability.py`](../plugin/vision/vision_availability.py) — [images/recognition.md](images/recognition.md) |
 | PPT-Master | Impress/Draw adapters and session | [`plugin/contrib/ppt_master/`](../plugin/contrib/ppt_master/) ([README](../plugin/contrib/ppt_master/README.md)), [`plugin/ppt_master/`](../plugin/ppt_master/), [`plugin/chatbot/ppt_master.py`](../plugin/chatbot/ppt_master.py) — [integration plan](archive/ppt-master-integration-plan.md#roadmap) |
 | Tests (unit pytest) | Headless pytest; no live soffice | `make pytest` — `-m "not slow and not integration" --ignore-glob='*_uno.py'` |
-| Tests (UNO runner) | Native UNO tests (`@native_test`, `ctx`) | [`plugin/testing_runner.py`](../plugin/testing_runner.py) (`make test-uno`; mock-LLM sidebar: `make test-mock-sidebar`; `make test-run` includes pytest) |
+| Tests (UNO runner) | Native UNO tests (`@native_test`, `ctx`) | [`plugin/testing_runner.py`](../plugin/testing_runner.py) (`make test-uno`; Draw lifecycle soak: `make test-uno-soak`; mock-LLM sidebar: `make test-mock-sidebar`; `make test-run` includes pytest) — [framework/uno-test-lifecycle.md](framework/uno-test-lifecycle.md) |
 | Eval / benchmarks | CLI eval harness and prompt optimization | [`scripts/benchmark.py`](../scripts/benchmark.py), [`scripts/prompt_optimization/`](../scripts/prompt_optimization/) |
 | Mock LLM (dev) | Fake OpenAI `/v1/chat/completions` for sidebar soak: HTML/scroll, research, Stop, empty replies, reasoning, delegate, parallel tools, HTTP fail/hang (`make mock-llm`, port 18766) | [`scripts/mock_llm_server.py`](../scripts/mock_llm_server.py) — [chat/rich-text-control-sidebar.md](chat/rich-text-control-sidebar.md#mock-llm-for-sidebar-soak) |
 | Extension packaging | OXT resources; register new components in manifest | [`extension/`](../extension/) (`Dialogs/`, `idl/`, `metadata/`), [`extension/META-INF/manifest.xml`](../extension/META-INF/manifest.xml) |
@@ -90,6 +90,7 @@ Start here by task.
 | Math / HTML import design | [writer/math-tex.md](writer/math-tex.md) |
 | Grammar pipeline (cache, queue) | [writer/grammar-checker-plan.md](writer/grammar-checker-plan.md) |
 | Test Architecture | [archive/test_architecture_analysis.md](archive/test_architecture_analysis.md) |
+| Native UNO lifecycle / URP dispose breadcrumbs | [framework/uno-test-lifecycle.md](framework/uno-test-lifecycle.md) |
 | Type checking | [framework/type-checking.md](framework/type-checking.md) |
 | UNO Dialogs & Wizards | [framework/uno-dialogs.md](framework/uno-dialogs.md) |
 | UNO exception policy (disposed vs leaf catches) | [framework/exception-policy.md](framework/exception-policy.md) |

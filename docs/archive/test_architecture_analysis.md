@@ -83,6 +83,8 @@ Windows unit pytest on GHA (33453184665) failed 10 cases after the hang was isol
 
 macOS `make test-uno` (33453203864) reached LibreOfficePython and a live soffice (final `lo-kill` PID 18456) but the URP bridge died while creating the keeper document (`Binary URP bridge disposed during call`). `SUITE` lines printed `soffice.bin=-` because `pgrep -x soffice.bin` misses the Darwin process name `soffice`. `testing_runner` now strips runner Python env on **both** bootstrap paths (`PYTHONPATH` / `PYTHONHOME` / `VIRTUAL_ENV` / `__PYVENV_LAUNCHER__`), prints `BOOTSTRAP` breadcrumbs (path, stripped keys, soffice command, pids/exit), and **aborts after the first URP dispose** instead of running 200+ dead suites. This does **not** claim Darwin UNO is green.
 
+Draw factory-open `DisposedException` (victim often `test_duplicate_rename_move_slide` or `test_insert_math_draw`) now names the **previous** TEST end on the FAIL line. See [uno-test-lifecycle.md](../framework/uno-test-lifecycle.md) (`LIFECYCLE`, `make test-uno-soak`). Not a product fix.
+
 Opt-in hang diagnostics (`WRITERAGENT_CI_DEBUG=1`, or PR CI `workflow_dispatch` `ci_debug`): per-worker `start`/`end` nodeid trail + faulthandler dump at 240s under `WRITERAGENT_CI_DEBUG_DIR`, and `--max-worker-restart=0` so xdist prints the crashitem nodeid instead of replacing the worker and wedging on re-collection (Windows CI 33447705893: gw3 vanished at 261s with no `Failed: Timeout`; pytest-timeout did not fire). `pytest_serial` sets `PYTEST_WORKERS=0`. This is instrumentation, not a hang fix.
 
 Profile hotspots without the LO native suite:

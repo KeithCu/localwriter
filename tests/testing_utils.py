@@ -800,6 +800,79 @@ def _native_teardown_progress(msg: str) -> None:
     _progress(msg)
 
 
+def _reraise_native_open_failure(
+    exc: BaseException, factory_url: str, pre_open: str = "no_probe"
+) -> None:
+    """Re-raise factory-open failures with the previous-test breadcrumb attached.
+
+    URP ``DisposedException`` on ``loadComponentFromURL`` usually means the
+    *previous* ``@with_native_doc`` close killed soffice/the bridge. Keep
+    ``Binary URP bridge`` in the message so ``_is_uno_bridge_disposed`` still
+    matches and the runner aborts remaining suites. ``pre_open`` is the cheap
+    getServiceManager probe taken *before* load (alive vs already disposed).
+    """
+    from plugin.testing_runner import (
+        _is_uno_bridge_disposed,
+        _progress,
+        format_lifecycle_breadcrumb,
+    )
+
+    crumb = format_lifecycle_breadcrumb()
+    if _is_uno_bridge_disposed(exc):
+        msg = (
+            "create_native_doc loadComponentFromURL(%s) DisposedException / URP dead "
+            "pre_open=%s (%s: %s) %s"
+            % (factory_url, pre_open, type(exc).__name__, exc, crumb)
+        )
+        _progress("LIFECYCLE native_doc open FAIL %s" % msg)
+        raise RuntimeError("Binary URP bridge disposed during call; %s" % msg) from exc
+    raise
+
+
+def _log_close_doc_failure(exc: BaseException) -> None:
+    """Log (do not re-raise) a dispose during ``close_doc`` so the trail is named."""
+    from plugin.testing_runner import (
+        _is_uno_bridge_disposed,
+        _progress,
+        _soffice_pids,
+        format_lifecycle_breadcrumb,
+    )
+
+    if not (_is_uno_bridge_disposed(exc) or type(exc).__name__ == "DisposedException"):
+        return
+    _progress(
+        "LIFECYCLE close_doc dispose pids=%s %s"
+        % (_soffice_pids(), format_lifecycle_breadcrumb())
+    )
+
+
+def _log_office_health_after_close(ctx, doc_type: str) -> None:
+    """Harness-only: probe the desktop after close; log if the office is already dead.
+
+    Draw/Impress never reuse a pooled doc, so each test closes. If that close
+    (or a delayed crash) kills URP, the next factory open is the named victim.
+    This probe prints at close time. It does not restart office or skip tests.
+    """
+    from plugin.testing_runner import (
+        _is_uno_bridge_disposed,
+        _progress,
+        _soffice_pids,
+        format_lifecycle_breadcrumb,
+    )
+
+    try:
+        from plugin.framework.uno_context import get_desktop
+
+        desktop = get_desktop(ctx)
+        desktop.getComponents()
+    except Exception as exc:
+        if _is_uno_bridge_disposed(exc) or type(exc).__name__ == "DisposedException":
+            _progress(
+                "LIFECYCLE office dead after close doc_type=%s pids=%s %s"
+                % (doc_type, _soffice_pids(), format_lifecycle_breadcrumb())
+            )
+
+
 def _default_native_doc_reuse(doc_type: str) -> bool:
     return doc_type == "calc"
 
@@ -1148,7 +1221,13 @@ class TestingFactory:
 
     @staticmethod
     def create_native_doc(ctx, doc_type="writer", hidden=True):
-        """Creates a real hidden document in LibreOffice."""
+        """Creates a real hidden document in LibreOffice.
+
+        On URP ``DisposedException``, logs the previous native test (and PIDs)
+        then re-raises a ``RuntimeError`` that still matches
+        ``_is_uno_bridge_disposed`` so the runner names the *previous* test,
+        not only this factory open. See ``docs/framework/uno-test-lifecycle.md``.
+        """
         from plugin.framework.uno_context import get_desktop
         import uno
 
@@ -1167,7 +1246,22 @@ class TestingFactory:
                 "impress": "private:factory/simpress"
             }.get(doc_type, "private:factory/swriter")
 
-        doc = desktop.loadComponentFromURL(factory_url, "_blank", 0, tuple(props))
+        from plugin.testing_runner import probe_uno_bridge
+
+        # Distinguish "bridge already dead" (previous test) from "died during load".
+        pre_open = probe_uno_bridge(ctx)
+        if pre_open == "disposed":
+            _reraise_native_open_failure(
+                RuntimeError("Binary URP bridge already disposed before loadComponentFromURL"),
+                factory_url,
+                pre_open=pre_open,
+            )
+            raise
+        try:
+            doc = desktop.loadComponentFromURL(factory_url, "_blank", 0, tuple(props))
+        except Exception as exc:
+            _reraise_native_open_failure(exc, factory_url, pre_open=pre_open)
+            raise
         return doc
 
     @staticmethod
@@ -1194,8 +1288,10 @@ class TestingFactory:
                 doc.close(True)
             elif hasattr(doc, "dispose"):
                 doc.dispose()
-        except Exception:
-            pass
+        except Exception as exc:
+            # Harness-only: close used to swallow DisposedException, so the
+            # *next* factory open became the named victim. Log the trail here.
+            _log_close_doc_failure(exc)
 
 
     @staticmethod
@@ -1262,6 +1358,9 @@ class TestingFactory:
             else:
                 _native_teardown_progress("native_doc: teardown close_doc start")
                 TestingFactory.close_doc(doc)
+                # Harness probe (not a product fix): if close toasted URP, name
+                # it now instead of waiting for the next loadComponentFromURL.
+                _log_office_health_after_close(ctx, doc_type)
                 _native_teardown_progress("native_doc: teardown close_doc done")
 
 
@@ -1333,7 +1432,8 @@ def with_native_doc(doc_type="writer", hidden=True, reuse=None):
 
     Calc: experimental wipe-and-reuse of one hidden spreadsheet (faster than factory+close).
     Writer: factory load/close by default (reuse leaks HTML/CharWeight). Pass reuse=True to try pooling.
-    Draw/Impress never reuse.
+    Draw/Impress never reuse. Factory-open DisposedException is annotated with
+    the previous native test (docs/framework/uno-test-lifecycle.md).
     """
     def decorator(func):
         import functools
