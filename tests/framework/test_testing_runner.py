@@ -10,10 +10,16 @@ from pathlib import Path
 
 from plugin.testing_runner import (
     _cli_filters,
+    _fail_reason,
+    _fail_reason_with_lifecycle,
     _function_name_matches,
     _is_case_id,
     _module_matches_filters,
     _test_function_filters,
+    format_lifecycle_breadcrumb,
+    record_test_end,
+    record_test_start,
+    reset_lifecycle_breadcrumb,
 )
 
 
@@ -94,3 +100,37 @@ def test_module_matches_filters_by_packet_letter(tmp_path: Path) -> None:
 
 def test_cli_filters_default_empty() -> None:
     assert isinstance(_cli_filters, list)
+
+
+def test_lifecycle_breadcrumb_names_previous_and_current(monkeypatch) -> None:
+    """DisposedException on the next open must name the last TEST end, not only the victim."""
+    monkeypatch.setattr("plugin.testing_runner._soffice_pids", lambda: "4242")
+    reset_lifecycle_breadcrumb()
+    assert "previous=-" in format_lifecycle_breadcrumb()
+    assert "current=-" in format_lifecycle_breadcrumb()
+
+    record_test_start("draw.test_draw_uno.test_get_draw_tree")
+    crumb = format_lifecycle_breadcrumb()
+    assert "current=draw.test_draw_uno.test_get_draw_tree" in crumb
+    assert "start_pids=4242" in crumb
+    assert "now_pids=4242" in crumb
+
+    record_test_end("draw.test_draw_uno.test_get_draw_tree", "OK")
+    record_test_start("draw.test_draw_uno.test_insert_math_draw")
+    crumb = format_lifecycle_breadcrumb()
+    assert "previous=draw.test_draw_uno.test_get_draw_tree" in crumb
+    assert "result=OK" in crumb
+    assert "end_pids=4242" in crumb
+    assert "current=draw.test_draw_uno.test_insert_math_draw" in crumb
+
+
+def test_fail_reason_with_lifecycle_keeps_crumb_after_cap() -> None:
+    reset_lifecycle_breadcrumb()
+    record_test_end("suite.test_ok", "OK")
+    record_test_start("suite.test_victim")
+    long_exc = AssertionError("n" * 500)
+    out = _fail_reason_with_lifecycle(long_exc)
+    assert _fail_reason(long_exc).endswith("...")
+    assert "previous=suite.test_ok" in out
+    assert "result=OK" in out
+    assert "current=suite.test_victim" in out

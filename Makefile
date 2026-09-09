@@ -189,7 +189,7 @@ endif
         dev-deploy dev-deploy-remove \
         lo-start lo-start-full lo-kill lo-restart \
         clean-cache nuke-cache nuke-cache-force unbundle \
-        log log-tail lo-log test pytest test-uno test-mock-sidebar test-run test-durations slowtests vhs test-visible lo-test-threadguard lo-test-threadguard-visible typecheck typecheck-full check-ext check-setup deploy ensure-uno _check-lo-python \
+        log log-tail lo-log test pytest test-uno test-uno-soak test-mock-sidebar test-run test-durations slowtests vhs test-visible lo-test-threadguard lo-test-threadguard-visible typecheck typecheck-full check-ext check-setup deploy ensure-uno _check-lo-python \
         verify crosshair-check crosshair-cover crosshair-check-all crosshair-check-all-deep \
         crosshair-cover-all crosshair-cover-all-deep \
         lo-start-log opengrep-lint opengrep-lint-advisory opengrep-rules-sync opengrep-rules-audit uno-thread-lint uno-thread-lint-advisory opengrep-install \
@@ -261,6 +261,7 @@ help:
 	@echo "  make mock-llm               Fake OpenAI chat server on :18766 (sidebar soak: scroll, tools, Stop, errors)"
 	@echo "  make test-uno               UNO tests only via testing_runner (serial live soffice)"
 	@echo "  make test-uno FILTER=…      Same; FILTER=path or test_* name (native runner)"
+	@echo "  make test-uno-soak          Repeat Draw UNO (or FILTER=) in one soffice; REPEAT=20"
 	@echo "  make test-mock-sidebar      Packet F+B+C+D+E+G+P mock-LLM sidebar (visible soffice, your user profile)"
 	@echo "  make test-mock-sidebar FILTER=E   Packet letter (B/C/D/E/F/G/P), case id (e12 / g17 / p1), or test_* name"
 	@echo "  make test-mock-sidebar FILTER=P   Dual Writer+Calc peer Packet (specialized-inner #673)"
@@ -800,6 +801,15 @@ _check-lo-python:
 test-uno: _check-lo-python
 	@$(MAKE) -C "$(PROJECT_ROOT)" lo-kill
 	PYTHONUNBUFFERED=1 $(LO_PYTHON_UNSET) $(LO_PYTHON_ENV) "$(LO_PYTHON)" -u -m plugin.testing_runner $(FILTER); EXIT_CODE=$$?; $(MAKE) -C "$(PROJECT_ROOT)" lo-kill; exit $$EXIT_CODE
+
+# Same office process, N times: stress Draw factory-open / close (URP DisposedException flakes).
+# FILTER defaults to the Draw native suite; override to pair two tests, e.g.
+#   make test-uno-soak FILTER="test_get_draw_tree test_insert_math_draw" REPEAT=50
+# See docs/framework/uno-test-lifecycle.md
+REPEAT ?= 20
+test-uno-soak: _check-lo-python
+	@$(MAKE) -C "$(PROJECT_ROOT)" lo-kill
+	PYTHONUNBUFFERED=1 $(LO_PYTHON_UNSET) $(LO_PYTHON_ENV) "$(LO_PYTHON)" -u -m plugin.testing_runner --repeat $(REPEAT) $(or $(FILTER),test_draw_uno); EXIT_CODE=$$?; $(MAKE) -C "$(PROJECT_ROOT)" lo-kill; exit $$EXIT_CODE
 
 test-mock-sidebar: _check-lo-python
 	@$(MAKE) -C "$(PROJECT_ROOT)" lo-kill

@@ -10,6 +10,10 @@
 #
 # It aggregates existing in-LO tests (Writer/Calc, etc.) and returns
 # a JSON summary that external tools or agents can consume.
+#
+# URP DisposedException on the next factory open: FAIL lines include
+# previous=<last TEST end> (see format_lifecycle_breadcrumb). Soak:
+# --repeat N / make test-uno-soak. docs/framework/uno-test-lifecycle.md
 
 import logging
 import json
@@ -146,6 +150,87 @@ def _fail_reason(exc: BaseException) -> str:
     return text
 
 
+# Last completed native test + soffice PIDs. A DisposedException on the *next*
+# factory open is often leftover from this test's close, not a bug in the victim.
+# Reset at the start of run_all_tests / run_module_suite.
+_lifecycle_last_qual: str = ""
+_lifecycle_last_result: str = ""
+_lifecycle_last_end_pids: str = ""
+_lifecycle_current_qual: str = ""
+_lifecycle_current_start_pids: str = ""
+
+# ``--repeat N`` / ``WRITERAGENT_UNO_SOAK``: re-run selected suites in one office.
+_soak_repeat: int = 1
+
+
+def reset_lifecycle_breadcrumb() -> None:
+    """Clear the previous/current TEST trail (start of a suite or unit test)."""
+    global _lifecycle_last_qual, _lifecycle_last_result, _lifecycle_last_end_pids
+    global _lifecycle_current_qual, _lifecycle_current_start_pids
+    _lifecycle_last_qual = ""
+    _lifecycle_last_result = ""
+    _lifecycle_last_end_pids = ""
+    _lifecycle_current_qual = ""
+    _lifecycle_current_start_pids = ""
+
+
+def record_test_start(qual: str) -> None:
+    """Remember the test about to run and soffice PIDs at TEST start."""
+    global _lifecycle_current_qual, _lifecycle_current_start_pids
+    _lifecycle_current_qual = qual
+    _lifecycle_current_start_pids = _soffice_pids()
+
+
+def record_test_end(qual: str, result: str) -> None:
+    """Promote the current test to 'previous' after TEST end (OK / FAIL / SKIP)."""
+    global _lifecycle_last_qual, _lifecycle_last_result, _lifecycle_last_end_pids
+    global _lifecycle_current_qual, _lifecycle_current_start_pids
+    _lifecycle_last_qual = qual
+    _lifecycle_last_result = result
+    _lifecycle_last_end_pids = _soffice_pids()
+    _lifecycle_current_qual = ""
+    _lifecycle_current_start_pids = ""
+
+
+def format_lifecycle_breadcrumb() -> str:
+    """One line naming the previous TEST end, current test, and soffice PIDs.
+
+    Intermittent URP ``DisposedException`` on ``loadComponentFromURL`` usually
+    names the *victim* (next ``@with_native_doc`` open). This string names the
+    last test that finished — the likely killer — plus PIDs at that end and now.
+    """
+    prev = _lifecycle_last_qual or "-"
+    prev_result = _lifecycle_last_result or "-"
+    prev_pids = _lifecycle_last_end_pids or "-"
+    current = _lifecycle_current_qual or "-"
+    start_pids = _lifecycle_current_start_pids or "-"
+    return (
+        "previous=%s result=%s end_pids=%s current=%s start_pids=%s now_pids=%s"
+        % (prev, prev_result, prev_pids, current, start_pids, _soffice_pids())
+    )
+
+
+def _fail_reason_with_lifecycle(exc: BaseException) -> str:
+    """FAIL reason plus previous-test breadcrumb (never truncated off the crumb)."""
+    return "%s | %s" % (_fail_reason(exc), format_lifecycle_breadcrumb())
+
+
+def _parse_positive_int(raw: str, default: int = 1) -> int:
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return default
+
+
+def _apply_soak_repeat_from_env() -> None:
+    """``WRITERAGENT_UNO_SOAK=N`` when CLI did not pass ``--repeat``."""
+    global _soak_repeat
+    raw = os.environ.get("WRITERAGENT_UNO_SOAK")
+    if not raw:
+        return
+    _soak_repeat = _parse_positive_int(raw, default=1)
+
+
 def _is_case_id(token: str) -> bool:
     """True for packet case ids like ``f3a``, ``b1a``, ``e9`` (not a lone packet letter)."""
     if len(token) < 2 or not token[0].isalpha():
@@ -257,21 +342,41 @@ def _parse_cli_args(argv: Sequence[str]) -> list[str]:
     ``python -m plugin.testing_runner`` runs as ``__main__``, so tests that
     ``import plugin.testing_runner`` would miss module-level flags. Mirror
     ``--user-profile`` into ``WRITERAGENT_UNO_USER_PROFILE`` as well.
+
+    ``--repeat N`` (or ``WRITERAGENT_UNO_SOAK``) re-runs selected suites in the
+    same soffice process to stress native-doc open/close. See
+    ``docs/framework/uno-test-lifecycle.md``.
     """
-    global show_window, use_user_profile
+    global show_window, use_user_profile, _soak_repeat
     filters: list[str] = []
-    for arg in argv:
+    _soak_repeat = 1
+    soak_from_cli = False
+    skip_next = False
+    for i, arg in enumerate(argv):
+        if skip_next:
+            skip_next = False
+            continue
         if arg in ("--visible", "--show-window"):
             show_window = True
         elif arg == "--user-profile":
             use_user_profile = True
             show_window = True
             os.environ["WRITERAGENT_UNO_USER_PROFILE"] = "1"
+        elif arg == "--repeat":
+            if i + 1 < len(argv):
+                _soak_repeat = _parse_positive_int(argv[i + 1], default=1)
+                soak_from_cli = True
+                skip_next = True
+        elif arg.startswith("--repeat="):
+            _soak_repeat = _parse_positive_int(arg.split("=", 1)[1], default=1)
+            soak_from_cli = True
         else:
             filters.append(str(arg))
     if os.environ.get("WRITERAGENT_UNO_USER_PROFILE") == "1":
         use_user_profile = True
         show_window = True
+    if not soak_from_cli:
+        _apply_soak_repeat_from_env()
     return filters
 
 
@@ -776,6 +881,8 @@ def run_module_suite(ctx, module, name, doc_model=None):
             except Exception as e:
                 return 0, 1, [f"EXCEPTION in {fallback_func_name}: {e}", traceback.format_exc()]
 
+    # Do not reset the lifecycle trail here: the first test of this suite may
+    # fail on factory open because the *previous suite's last test* killed URP.
     _progress(f"SUITE start {name} python_pid={os.getpid()} soffice.bin={_soffice_pids()}")
     name_filters = _test_function_filters(_cli_filters)
     if name_filters:
@@ -807,7 +914,8 @@ def run_module_suite(ctx, module, name, doc_model=None):
         for test_func in selected:
             test_line = f"Running test: {test_func.__name__}"
             qual = f"{name}.{test_func.__name__}"
-            _progress(f"TEST start {qual}")
+            record_test_start(qual)
+            _progress(f"TEST start {qual} soffice={_lifecycle_current_start_pids}")
             # Per-test faulthandler abort (30s). Silent — TEST start/end is enough.
             _arm_native_test_watchdog(qual)
             try:
@@ -831,35 +939,45 @@ def run_module_suite(ctx, module, name, doc_model=None):
                 _progress(f"TEST returned {qual}")
                 total_passed += 1
                 suite_log.append(f"{test_line} — OK")
-                _progress(f"TEST end {qual} OK")
+                record_test_end(qual, "OK")
+                _progress(f"TEST end {qual} OK soffice={_lifecycle_last_end_pids}")
             except ModuleNotFoundError as e:
                 # Some "native" tests attempt to use pytest.skip, but LibreOffice's
                 # Python may not have pytest installed.
                 if getattr(e, "name", None) == "pytest":
                     suite_log.append(f"{test_line} — SKIP (pytest not available)")
+                    record_test_end(qual, "SKIP")
                     _progress(f"TEST end {qual} SKIP")
                     continue
                 total_failed += 1
                 suite_log.append(f"{test_line} — FAIL (ModuleNotFoundError: {e})")
                 suite_log.append(traceback.format_exc())
-                _progress(f"TEST end {qual} FAIL {_fail_reason(e)}")
+                _progress(f"TEST end {qual} FAIL {_fail_reason_with_lifecycle(e)}")
+                record_test_end(qual, "FAIL")
             except unittest.SkipTest as e:
                 total_passed += 1
                 suite_log.append(f"{test_line} — OK (skipped) ({e})")
+                record_test_end(qual, "SKIP")
                 _progress(f"TEST end {qual} SKIP")
             except AssertionError as e:
                 total_failed += 1
                 suite_log.append(f"{test_line} — FAIL (AssertionError: {e})")
                 suite_log.append(traceback.format_exc())
-                _progress(f"TEST end {qual} FAIL {_fail_reason(e)}")
+                _progress(f"TEST end {qual} FAIL {_fail_reason_with_lifecycle(e)}")
+                record_test_end(qual, "FAIL")
             except Exception as e:
                 total_failed += 1
+                crumb = format_lifecycle_breadcrumb()
                 suite_log.append(f"{test_line} — FAIL ({type(e).__name__}: {e})")
+                suite_log.append(f"LIFECYCLE {crumb}")
                 suite_log.append(traceback.format_exc())
-                _progress(f"TEST end {qual} FAIL {_fail_reason(e)}")
+                _progress(f"TEST end {qual} FAIL {_fail_reason_with_lifecycle(e)}")
                 if _is_uno_bridge_disposed(e):
+                    _progress("LIFECYCLE URP dispose at %s %s" % (qual, crumb))
                     _mark_urp_dead(e, qual)
+                    record_test_end(qual, "FAIL")
                     break
+                record_test_end(qual, "FAIL")
             finally:
                 _disarm_native_test_watchdog(qual)
 
@@ -916,6 +1034,7 @@ def run_all_tests(ctx: Any) -> str:
     """
     global _urp_bridge_dead
     _urp_bridge_dead = False
+    reset_lifecycle_breadcrumb()
     # Mock doc.agent_edit_review_mode during tests to default to "off"
     # and only track its test-specific overrides in memory.
     import plugin.framework.config
@@ -1125,65 +1244,77 @@ def run_all_tests(ctx: Any) -> str:
                     if _module_matches_filters(full_path, filename, filter_strs):
                         test_candidates.append(full_path)
 
-        for module_path in sorted(test_candidates):
+        soak_rounds = max(1, _soak_repeat)
+        if soak_rounds > 1:
+            _progress(
+                "SOAK start rounds=%s suites=%s filter=%s"
+                % (soak_rounds, len(test_candidates), filter_strs or "-")
+            )
+        for soak_i in range(soak_rounds):
+            if soak_rounds > 1:
+                _progress("SOAK iter %s/%s" % (soak_i + 1, soak_rounds))
             if _urp_bridge_dead:
-                _progress("SUITE skip remaining: URP already disposed")
+                _progress("SOAK stop: URP already disposed")
                 break
-            ctx = _ensure_live_ctx(ctx)
-            if _urp_bridge_dead:
-                _progress("SUITE skip remaining: URP already disposed")
-                break
-            filename = os.path.basename(module_path)
-            module_name = filename[:-3]
-            
-            # Construct a unique module name for sys.modules to avoid collisions
-            # during the recursive walk.
-            rel_path = os.path.relpath(module_path, tests_root)
-            sys_module_name = "plugin.tests." + rel_path[:-3].replace(os.sep, ".")
+            for module_path in sorted(test_candidates):
+                if _urp_bridge_dead:
+                    _progress("SUITE skip remaining: URP already disposed")
+                    break
+                ctx = _ensure_live_ctx(ctx)
+                if _urp_bridge_dead:
+                    _progress("SUITE skip remaining: URP already disposed")
+                    break
+                filename = os.path.basename(module_path)
+                module_name = filename[:-3]
+                
+                # Construct a unique module name for sys.modules to avoid collisions
+                # during the recursive walk.
+                rel_path = os.path.relpath(module_path, tests_root)
+                sys_module_name = "plugin.tests." + rel_path[:-3].replace(os.sep, ".")
 
-            restore_snapshot: Dict[str, Any] | None = None
-            try:
-                restore_snapshot = {k: sys.modules.get(k, _MISSING) for k in NATIVE_TEST_SYS_MODULE_SNAPSHOT_KEYS}
-                spec = importlib.util.spec_from_file_location(sys_module_name, module_path)
-                if spec is None or spec.loader is None:
-                    continue
-                test_module = importlib.util.module_from_spec(spec)
-                sys.modules[sys_module_name] = test_module
-                spec.loader.exec_module(test_module)
+                restore_snapshot: Dict[str, Any] | None = None
+                try:
+                    restore_snapshot = {k: sys.modules.get(k, _MISSING) for k in NATIVE_TEST_SYS_MODULE_SNAPSHOT_KEYS}
+                    spec = importlib.util.spec_from_file_location(sys_module_name, module_path)
+                    if spec is None or spec.loader is None:
+                        continue
+                    test_module = importlib.util.module_from_spec(spec)
+                    sys.modules[sys_module_name] = test_module
+                    spec.loader.exec_module(test_module)
 
-                # Menu-only facade (e.g. calc ``test_calc_uno``): aggregates other UNO
-                # modules via ``run_calc_tests`` / ``run_integration_tests`` and must not
-                # run here — ``'_uno.py' in filename`` matches it, but it has no
-                # ``@native_test`` and the generic fallback name would not map to those runners.
-                if getattr(test_module, "SKIP_NATIVE_RUN_ALL", False):
-                    continue
+                    # Menu-only facade (e.g. calc ``test_calc_uno``): aggregates other UNO
+                    # modules via ``run_calc_tests`` / ``run_integration_tests`` and must not
+                    # run here — ``'_uno.py' in filename`` matches it, but it has no
+                    # ``@native_test`` and the generic fallback name would not map to those runners.
+                    if getattr(test_module, "SKIP_NATIVE_RUN_ALL", False):
+                        continue
 
-                doc_to_pass = None
-                if "writer" in module_name or "format" in module_name:
-                    # Writer core tests mutate the document and assume an empty starting state,
-                    # so we pass None to force it to create its own hidden temporary document.
-                    if "test_writer" not in module_name or module_name == "test_writer_uno":
-                        doc_to_pass = writer_doc
-                elif "calc" in module_name:
-                    doc_to_pass = calc_doc
-                elif "draw" in module_name or "impress" in module_name:
-                    doc_to_pass = draw_doc
+                    doc_to_pass = None
+                    if "writer" in module_name or "format" in module_name:
+                        # Writer core tests mutate the document and assume an empty starting state,
+                        # so we pass None to force it to create its own hidden temporary document.
+                        if "test_writer" not in module_name or module_name == "test_writer_uno":
+                            doc_to_pass = writer_doc
+                    elif "calc" in module_name:
+                        doc_to_pass = calc_doc
+                    elif "draw" in module_name or "impress" in module_name:
+                        doc_to_pass = draw_doc
 
-                p, f = _run_suite(ctx, suites, sys_module_name.replace("plugin.tests.", ""), test_module, doc_to_pass)
-                total_passed += p
-                total_failed += f
-            except ImportError as e:
-                print(f"Skipping {filename} due to ImportError: {e}")
-            except Exception as e:
-                print(f"Error loading {filename}: {e}")
-            finally:
-                # Prevent sys.modules mocking from polluting later native tests.
-                if restore_snapshot is not None:
-                    for k, v in restore_snapshot.items():
-                        if v is _MISSING:
-                            sys.modules.pop(k, None)
-                        else:
-                            sys.modules[k] = v
+                    p, f = _run_suite(ctx, suites, sys_module_name.replace("plugin.tests.", ""), test_module, doc_to_pass)
+                    total_passed += p
+                    total_failed += f
+                except ImportError as e:
+                    print(f"Skipping {filename} due to ImportError: {e}")
+                except Exception as e:
+                    print(f"Error loading {filename}: {e}")
+                finally:
+                    # Prevent sys.modules mocking from polluting later native tests.
+                    if restore_snapshot is not None:
+                        for k, v in restore_snapshot.items():
+                            if v is _MISSING:
+                                sys.modules.pop(k, None)
+                            else:
+                                sys.modules[k] = v
 
         if keeper_doc is not None:
             try:
@@ -1242,10 +1373,19 @@ def main() -> int:
         python -m plugin.testing_runner
         python -m plugin.testing_runner tests/chatbot/test_mock_llm_sidebar_uno.py E
         python -m plugin.testing_runner --user-profile …/test_mock_llm_sidebar_uno.py f3a
+        python -m plugin.testing_runner --repeat 20 test_draw_uno
 
     Extra tokens select tests: packet letter (``B``/``C``/``D``/``E``/``F``/``G``/``P``), case id
     (``f3a`` / ``p1``), or full ``test_*`` name. Prefer ``make test-mock-sidebar FILTER=P``
     for the dual-sidebar peer Packet.
+
+    ``--repeat N`` (or ``WRITERAGENT_UNO_SOAK=N``) re-runs selected suites in the
+    same soffice process to stress native-doc open/close. Draw subset::
+
+        make test-uno-soak
+        make test-uno-soak FILTER=test_get_draw_tree,test_insert_math_draw REPEAT=50
+
+    See ``docs/framework/uno-test-lifecycle.md``.
 
     The import of officehelper/uno is done lazily so that this module
     can still be imported inside LibreOffice without pulling them in.
