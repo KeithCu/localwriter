@@ -572,6 +572,10 @@ def annotate_outer_peer_wait(payload: dict, *, peer_send_invoked: bool = False) 
 # Open-peer hard fork: a matching Open peers entry means send_peer_message, not
 # silent delegate_read_document. Soft "change/compute/write vs file fact" let the
 # inner agent reopen a live peer (wasted work, races the peer reply).
+# Ask polarity: inner agents asked the peer only to dump blank/current content so
+# they could fill it in another app. That skips the peer write path — the live
+# sidebar owns the write tools for that file. Message must ask that peer to
+# perform the edit/fill and include the values/facts to write.
 # Reply path: send_peer_message is a side effect. Outer already stuffed the HTML/result
 # into task, so the smol "answer from the task alone → finish" rule otherwise skips
 # the send and the peer sidebar never sees the reply.
@@ -582,6 +586,9 @@ PEER_INNER_CHOICE_RULES = (
     "silent reopen only peeks, duplicates work, and races the peer reply.\n"
     "Do delegate_read_document only when the file is not in Open peers (nearby on disk / no live sidebar). "
     "Why: there is no live sidebar to ask.\n"
+    "When sending to an Open peer about that peer's own document and the task needs a change, fill, or write, "
+    "Do ask that peer in message to perform the edit/fill and include the values/facts to write. "
+    "Why: that live sidebar owns the write tools for that file; asking only for a dump of blank/current content so you can fill it elsewhere skips the peer write path.\n"
     "When the task includes a peer_ask_id or says reply to a [Peer from: …] envelope you MUST send_peer_message("
     "document_url=<uid or url from the envelope>, message=<one HTML/result string>, peer_ask_id=<id from the envelope>) "
     "before specialized_workflow_finished. "
