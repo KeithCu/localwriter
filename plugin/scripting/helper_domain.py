@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from plugin.framework.deal_shim import DEAL_MAX_SOURCE, DEAL_MAX_TOKEN, ascii_bounded, str_bounded, deal
 from plugin.framework.i18n import _
+
+log = logging.getLogger("writeragent.scripting")
 
 if TYPE_CHECKING:
     from collections.abc import Collection
@@ -323,6 +326,17 @@ def rps_error_outcome(
 def rps_insert_failed_outcome(error: BaseException, *, t0: float) -> dict[str, Any]:
     """Outcome when domain insert/egress fails after a successful helper run."""
     import sys
+
+    # UNO often sets str(exc) to the method name only (e.g. insertDocumentFromURL);
+    # log type/str/repr + traceback so Arch debug.log matches the RPS dialog.
+    # Prefer exc_info=error so we still get a stack if called outside an except.
+    log.error(
+        "rps_insert_failed_outcome: type=%s str=%r repr=%r",
+        type(error).__name__,
+        str(error),
+        repr(error),
+        exc_info=error,
+    )
 
     elapsed_total = 0.0 if "crosshair" in sys.modules else (time.perf_counter() - t0)
     formatted_time_total = format_elapsed_time(elapsed_total)

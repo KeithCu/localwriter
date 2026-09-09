@@ -368,7 +368,20 @@ def insert_html_fragment_at_cursor(
     with format_mod._with_temp_buffer(prepared, config_svc) as (_path, file_url):
         filter_name, _unused = format_mod._get_format_props(config_svc)
         filter_props = (format_mod.create_property_value("FilterName", filter_name),)
-        cursor.insertDocumentFromURL(file_url, filter_props)
+        try:
+            cursor.insertDocumentFromURL(file_url, filter_props)
+        except Exception as e:
+            # Mid-script apply_document_content / insert_content paths used to bubble with no log.
+            log.error(
+                "insertDocumentFromURL failed: type=%s str=%r repr=%r filter=%r url=%r",
+                type(e).__name__,
+                str(e),
+                repr(e),
+                filter_name,
+                file_url,
+                exc_info=e,
+            )
+            raise
     if model is not None:
         _cursor_goto_document_end(model, cursor)
 

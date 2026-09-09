@@ -493,6 +493,8 @@ def execute_and_insert_result(
             else:
                 return {"ok": False, "message": _("Unsupported document type for result insertion. (took {time})").format(time=formatted_time)}
         except Exception as e:
+            # Logging (type/str/repr + traceback) lives in rps_insert_failed_outcome —
+            # previously this catch painted the RPS dialog with no debug-log line.
             return rps_insert_failed_outcome(e, t0=t0)
 
     if stdout:
