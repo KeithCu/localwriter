@@ -1,6 +1,5 @@
 from plugin.testing_runner import native_test
 from plugin.tests.testing_utils import with_native_doc
-import uno
 
 
 @native_test

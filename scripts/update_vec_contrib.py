@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Harvest script for writeragent_vec Cython binaries.
-Extracts .so and .pyd files from wheels and places them in plugin/contrib/vec_pack.
+Extracts .so and .pyd files from wheels and places them in contrib/vec_pack.
 """
 
 import os
@@ -14,7 +14,7 @@ from pathlib import Path
 import argparse
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
-DEST_DIR = REPO_ROOT / "plugin" / "contrib" / "vec_pack"
+DEST_DIR = REPO_ROOT / "contrib" / "vec_pack"
 WORKFLOW_NAME = "build-vec-wheels.yml"
 
 def strip_binary(filepath):
@@ -125,9 +125,9 @@ def main():
 
     DEST_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Copy __init__.py if it doesn't exist or to ensure it's up to date
+    # Copy __init__.py only if it doesn't exist
     init_src = REPO_ROOT / "native" / "writeragent_vec" / "src" / "writeragent_vec" / "__init__.py"
-    if init_src.exists():
+    if init_src.exists() and not (DEST_DIR / "__init__.py").exists():
         shutil.copy2(init_src, DEST_DIR / "__init__.py")
 
     if args.fetch:

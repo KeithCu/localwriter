@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from unittest.mock import patch
 
 from plugin.scripting.helper_domain import rps_insert_failed_outcome
 
