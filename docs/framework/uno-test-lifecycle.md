@@ -45,7 +45,7 @@ Headless/user-profile bootstrap now `PIPE`s soffice **stderr** and drains it
 on a dedicated thread so the SalAbort line is not only inherited onto the
 terminal. `TEST end … OK` also prints `exit=` (`-` while the child lives).
 
-## Findings: Unspecified Application Error (still unproven LO cause)
+## Findings: Unspecified Application Error
 
 QA soak (`make test-uno-soak PAIR=dup-move REPEAT=20`): mid
 `test_duplicate_slide_copies_shapes` stderr prints `Unspecified Application
@@ -66,10 +66,27 @@ if (rErrorText.isEmpty())
     std::fprintf(stderr, "Unspecified Application Error\n");
 ```
 
-So the Error **is** office death (empty-text SalAbort). Why Draw UNO trips
-`Application::Abort("")` / `SalAbort` is still **unknown**. `#687`'s
-post-OK `getServiceManager` probe can miss this: SalAbort can print while
-URP still answers, then the process exits before the next open.
+So the Error **is** office death (empty-text SalAbort).
+
+### gdb catch (box QA on this branch)
+
+Attached gdb to soak `soffice.bin` during solo
+`FILTER=test_duplicate_slide_copies_shapes`. Faulting `cppu_threadpool`
+thread:
+
+`Application::Abort` ← signal handler ← `SfxItemSet::ClearSingleItem_PrepareRemove`
+← `ClearAllItemsImpl` / `~SfxItemSet` ← `~SdrObject` ← `~SdrRectObj` ←
+`~SvxShape` ← `OWeakAggObject::release` ← URP / `uno_Environment_invoke`.
+
+**Reading:** SalAbort during **SvxShape / SdrRectObj destruction** while
+clearing an `SfxItemSet` on a URP release thread after close — same general
+family as the historical octagon `SfxItemPool::unregisterNameOrIndex` abort
+on rect teardown. Exact LO invariant still needs dbgsyms / source mapping;
+product fixes are parked until Chief/Keith pick next steps.
+
+Full write-up: [salabort-svxshape-close.md](salabort-svxshape-close.md).
+`#687`'s post-OK `getServiceManager` probe can miss the race: SalAbort can
+print while URP still answers, then the process exits before the next open.
 
 ### Ranked hypotheses
 
