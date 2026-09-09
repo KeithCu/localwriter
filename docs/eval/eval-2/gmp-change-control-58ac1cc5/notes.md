@@ -58,6 +58,10 @@ do **not** change `prompt.writeragent.txt`):
 6. Identity ids fold hyphen-like characters (U+2010, U+2011, U+2212, NBSP)
    to ASCII before the RMS-3333 / QY-GEL checks. Do **not** drop the
    RMS-3333 requirement — only the encoding false-red.
+7. Form-cite aliases include prompt wording (Change Control Request / CCR /
+   completed … change control), not only tracking form / filled form /
+   Form-920. Still fail if the memo never acknowledges the form-side
+   deliverable.
 
 ## Not changed
 

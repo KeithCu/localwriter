@@ -24,7 +24,7 @@ fails. Extract ODT `text:h` and `text:p`; Draw `draw:frame` text by
 | 4 | Endotoxin mismatch: **Report Result** and **`< 1` EU** (aliases: less than 1 / below 1) | Prompt + COA / RMS | Either anchor missing |
 | 5 | Discrepancy / mismatch / non-conforming | Prompt | Theme missing |
 | 6 | Quarantine / hold + RMS update / change control | Prompt §1 | Either theme missing |
-| 7 | Memo **cites** the filled form (change-control form / Form-920 / draft change control) | Writer prompt §4 | No form cite in the memo |
+| 7 | Memo **cites** the filled form (change-control form / Form-920 / Change Control Request / CCR / draft or completed change control) | Writer prompt §4 | No form cite in the memo |
 | 8 | QA escalation email section + deviation **or** requalification ask | Writer prompt §2 | Missing section or ask |
 | 9 | Internal / Teams / status summary | Writer prompt §3 | Missing note |
 | 10 | Vendor notification (two months / report only / vendor memo); departed employee; centralized tracking; SOP | Writer prompt §4 | Any of those four themes missing |

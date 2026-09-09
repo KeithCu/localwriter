@@ -15,6 +15,7 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 from eval_2_gmp_oracle import (  # noqa: E402
+    _FORM_CITE_RE,
     main as oracle_main,
     normalize_hyphen_like,
     read_odg_frames,
@@ -225,6 +226,67 @@ def test_synonym_sections_pass() -> None:
         filled_chars=120,
     )
     assert result.passed, result.failures
+
+
+_CITE_SENTENCE = (
+    "A draft change control\n"
+    "request is on the filled Change Control Tracking Form. "
+)
+
+
+def _memo_without_form_cite() -> str:
+    """Keep change-control theme; drop form / request / Form-920 cites."""
+    stripped = _padded().replace(_CITE_SENTENCE, "")
+    assert "Change Control Request" not in stripped
+    assert "filled Change Control Tracking Form" not in stripped
+    assert "draft change control" not in stripped.lower()
+    return stripped
+
+
+def test_form_cite_accepts_change_control_request_alias() -> None:
+    """Headed HAPPY (20260909-0225) used prompt wording, not tracking form."""
+    happy_phrases = (
+        "Change Control Request",
+        "Change Control Request completed",
+        "drafted a Change Control Request",
+        "completed the change control",
+        "CCR filed for RMS-3333",
+    )
+    for phrase in happy_phrases:
+        assert _FORM_CITE_RE.search(phrase), phrase
+    # Theme-only "change control" is the RMS-update check, not a form cite.
+    assert not _FORM_CITE_RE.search("change control initiated")
+    assert not _FORM_CITE_RE.search("formal change control")
+    assert not _FORM_CITE_RE.search("ACCRINT")
+    text = _memo_without_form_cite() + " I drafted a Change Control Request."
+    result = score_pair(
+        text,
+        "Change Title: RMS-3333 QY-GEL CompCello Report Result < 1 EU/ml hold",
+        para_count=16,
+        filled_fields=9,
+        filled_chars=1497,
+    )
+    assert result.passed, result.failures
+    assert not any("cite" in item for item in result.failures)
+
+
+def test_form_cite_still_fails_without_deliverable_cite() -> None:
+    result = score_pair(
+        _memo_without_form_cite(),
+        "Change Title: RMS-3333 QY-GEL CompCello Report Result < 1 EU/ml hold",
+        para_count=16,
+        filled_fields=9,
+        filled_chars=1497,
+    )
+    assert not result.passed
+    assert any("cite the filled change-control form" in item for item in result.failures)
+    # Form fill / identity / husk bands are unchanged — only the cite fails.
+    assert result.filled_fields == 9
+    assert result.filled_chars == 1497
+    assert not any("RMS-3333" in item for item in result.failures)
+    assert not any("CompCello" in item for item in result.failures)
+    assert not any("husk" in item for item in result.failures)
+    assert not any("substantially filled" in item for item in result.failures)
 
 
 def test_resolve_sibling_form(tmp_path: Path) -> None:
