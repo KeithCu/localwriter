@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 
 from docx import Document
 from odf.opendocument import OpenDocumentText
-from odf.text import H, P
+from odf.text import P
 
 _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS) not in sys.path:
