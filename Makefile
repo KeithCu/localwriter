@@ -806,6 +806,7 @@ test-uno: _check-lo-python
 # FILTER defaults to the Draw native suite. PAIR=tree-math | dup-move expands --pair.
 #   make test-uno-soak PAIR=tree-math REPEAT=50
 #   make test-uno-soak FILTER="test_get_draw_tree test_insert_math_draw" REPEAT=50
+# FILTER prefix-matches (test_get_draw_tree also selects the blank/label test). PAIR= is exact.
 # See docs/framework/uno-test-lifecycle.md
 REPEAT ?= 20
 PAIR ?=
