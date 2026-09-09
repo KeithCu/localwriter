@@ -450,10 +450,23 @@ class DrawShapes:
             raise DrawError(f"Failed to create shape: {str(e)}", code="DRAW_SHAPE_CREATION_ERROR", details={"shape_type": shape_type, "position": position, "size": size, "original_error": str(e), "error_type": type(e).__name__}) from e
 
 
+def _clamp_shape_text_autogrow(shape) -> None:
+    """Keep explicit Size after setString (Writer AT_PAGE custom shapes shrink to text)."""
+    for prop, value in (
+        ("TextAutoGrowHeight", False),
+        ("TextAutoGrowWidth", False),
+    ):
+        try:
+            shape.setPropertyValue(prop, value)
+        except Exception:
+            pass
+
+
 def _apply_shape_properties(shape, kwargs):
     """Helper to apply rich formatting properties to a shape."""
     # "text" in kwargs (not truthy) so paper-form fills can write "" or keep a Name-only edit.
     if "text" in kwargs and hasattr(shape, "setString"):
+        _clamp_shape_text_autogrow(shape)
         shape.setString("" if kwargs["text"] is None else str(kwargs["text"]))
 
     if kwargs.get("name") and hasattr(shape, "Name"):
@@ -691,6 +704,8 @@ class UpsertShape(ToolDrawShapeBase):
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
 
             _apply_shape_properties(shape, kwargs)
+            # setString can still resize Writer AT_PAGE custom shapes (Arch: 4001x4001 → 2249x489).
+            _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
             _try_writer_invalidate_and_pump(ctx.doc)
             _try_writer_select_created_shape(ctx.doc, shape)
             _log_shape_uno_snapshot("after_formatting", shape)
@@ -732,6 +747,9 @@ class UpsertShape(ToolDrawShapeBase):
                 shape.setSize(Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height)))
 
             _apply_shape_properties(shape, kwargs)
+            if "text" in kwargs and ("width" in kwargs or "height" in kwargs):
+                size = shape.getSize()
+                shape.setSize(Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height)))
 
             return {"status": "ok", "message": "Shape updated", "page": actual_idx, "index": shape_idx, "name": getattr(shape, "Name", "") or ""}
 
