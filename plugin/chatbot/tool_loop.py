@@ -398,8 +398,8 @@ class ToolCallingMixin:
     def _refresh_active_tools_for_session(self: ToolLoopHost) -> None:
         """Recompute OpenAI tool schemas from ``session.active_specialized_domain``.
 
-        In-place specialized delegation updates the session after ``delegate`` or
-        ``specialized_workflow_finished``; each LLM round must see the matching list.
+        In-place specialized delegation updates the session after ``delegate``;
+        each LLM round must see the matching list (finish tool is not advertised).
         """
         try:
             from plugin.main import get_tools

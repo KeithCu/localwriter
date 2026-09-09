@@ -59,7 +59,7 @@ LlmClient (core schemas)
    │  delegate_to_specialized_* (domain=shapes|ranges)
    ▼
 inner LlmClient loop (domain schemas, same world)
-   │  specialized_workflow_finished → parent
+   │  inner loop exit (scripted finish name or text) → parent
    ▼
 WriterWorld / DrawWorld / CalcWorld
    │  export HTML / draw tree / calc snapshot   → result oracles

@@ -382,7 +382,7 @@ def test_execute_status_ok_accepted():
     assert result["status"] == "ok"
     assert result["accepted"] is True
     assert result["peer_ask_id"]
-    assert "specialized_workflow_finished immediately" in result["message"]
+    assert "host returns to the outer loop" in result["message"]
     assert listener.session.add_user_message.called
     assert listener.appended
 
@@ -535,11 +535,12 @@ def test_prompts_outer_thin_inner_choice():
     assert "[Peer from:" in PEER_OUTER_DELEGATE_HINT
     assert "send_peer_message" in PEER_INNER_CHOICE_RULES
     assert "delegate_read_document" in PEER_INNER_CHOICE_RULES
-    assert "specialized_workflow_finished immediately" in PEER_INNER_CHOICE_RULES
+    assert "specialized_workflow_finished" not in PEER_INNER_CHOICE_RULES
+    assert "one-shot" in PEER_INNER_CHOICE_RULES
+    assert "host returns to the outer loop" in PEER_INNER_CHOICE_RULES
     assert "you MUST send_peer_message" in PEER_INNER_CHOICE_RULES
     assert "one HTML/result string" in PEER_INNER_CHOICE_RULES
     assert "peer_ask_id" in PEER_INNER_CHOICE_RULES
-    assert "before specialized_workflow_finished" in PEER_INNER_CHOICE_RULES
     assert "peer sidebar never sees it" in PEER_INNER_CHOICE_RULES
     assert "message argument to send_peer_message" in PEER_INNER_CHOICE_RULES
     assert "other result text in the task" in PEER_INNER_CHOICE_RULES

@@ -1019,13 +1019,14 @@ def _peer_specialized_inner(
     tool_names: set[str],
     config: MockLLMConfig | None,
 ) -> Completion:
-    """#673: send_peer_message then specialized_workflow_finished immediately.
+    """#673: send_peer_message. Host auto-exits after accepted (one-shot).
 
-    ``peer_wait`` / ``peer_wait_after_accepted`` skips finish so the peer
-    never starts — that is the Scrolly hang lock.
+    ``peer_wait`` / ``peer_wait_after_accepted`` keeps calling discovery so a
+    missing host exit still deadlocks the peer — that is the Floorstand /
+    Gemini 3.8 Flash miss lock (Packet P2). The host must return without a
+    finish tool.
     """
     called = _called_tool_names(messages)
-    finish_name = "final_answer" if "final_answer" in tool_names else "specialized_workflow_finished"
     user_raw = _last_user_raw(messages)
     forced = config.scenario if config is not None else "none"
     scenario = detect_scenario(_current_query(messages, user_raw), forced)
@@ -1042,10 +1043,11 @@ def _peer_specialized_inner(
                 tool_args=_specialized_inner_args(name),
                 finish_reason="tool_calls",
             )
+        # Host already ended the specialize after accepted. If a follow-up
+        # POST still arrives, reply as text — do not require a finish tool.
         return Completion(
-            tool_name=finish_name,
-            tool_args={"answer": "Peer message accepted; finished immediately so the peer can run."},
-            finish_reason="tool_calls",
+            content="Peer message accepted; specialize is done.",
+            finish_reason="stop",
         )
 
     env = parse_peer_envelope(user_raw)

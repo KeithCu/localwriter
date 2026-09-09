@@ -66,7 +66,7 @@ def test_filter_document_research_discovery_tools_respects_config():
     assert "list_nearby_files" in names
     assert "grep_nearby_files" in names
     assert "delegate_read_document" in names
-    assert "specialized_workflow_finished" in names
+    assert "specialized_workflow_finished" not in names
     assert "search_embeddings" not in names
     assert "search_nearby_files" not in names
 
@@ -358,6 +358,117 @@ def test_document_research_return_idles_outer_after_peer_send(
     assert PEER_OUTER_IDLE_AFTER_SEND in result["result"]
 
 
+def test_hide_specialized_finish_tools_and_peer_accepted_helpers():
+    from plugin.contrib.smolagents.memory import ActionStep, ToolCall
+    from plugin.contrib.smolagents.monitoring import Timing
+    from plugin.doc.specialized_base import (
+        action_step_accepted_peer_send,
+        hide_specialized_finish_tools,
+        observations_show_peer_accepted,
+        peer_accepted_specialize_result,
+    )
+
+    finish = SpecializedWorkflowFinished()
+    kept = hide_specialized_finish_tools([ListNearbyFiles(), finish])
+    assert [t.name for t in kept] == ["list_nearby_files"]
+    assert observations_show_peer_accepted("{'status': 'ok', 'accepted': True}")
+    assert observations_show_peer_accepted('{"status": "ok", "accepted": true}')
+    assert not observations_show_peer_accepted("{'status': 'error', 'message': 'no'}")
+    assert not observations_show_peer_accepted("still thinking")
+    step = ActionStep(step_number=1, timing=Timing(start_time=0, end_time=0))
+    step.tool_calls = [ToolCall(name="send_peer_message", arguments={}, id="1")]
+    step.observations = "{'status': 'ok', 'accepted': True, 'peer_ask_id': 'ask-1'}"
+    assert action_step_accepted_peer_send(step) is True
+    payload = peer_accepted_specialize_result(step)
+    assert payload["status"] == "ok"
+    assert payload["accepted"] is True
+    miss = ActionStep(step_number=1, timing=Timing(start_time=0, end_time=0))
+    miss.tool_calls = [ToolCall(name="list_nearby_files", arguments={}, id="2")]
+    miss.observations = "[]"
+    assert action_step_accepted_peer_send(miss) is False
+
+
+@patch(
+    "plugin.chatbot.smol_agent.get_config_int",
+    side_effect=_mock_get_config_int_for_sub_agent,
+)
+@patch("plugin.chatbot.smol_agent.get_api_config", create=True)
+@patch("plugin.chatbot.smol_agent.ToolCallingAgent")
+@patch("plugin.chatbot.smol_agent.WriterAgentSmolModel")
+@patch("plugin.chatbot.smol_agent.LlmClient")
+@patch("plugin.doc.specialized_base.SmolAgentExecutor")
+def test_document_research_auto_exits_after_accepted_peer_send(
+    mock_executor_cls,
+    mock_llm,
+    mock_smol_model,
+    mock_agent_class,
+    mock_get_config,
+    _mock_get_config_int,
+):
+    """Host ends specialize after accepted send — no model finish call."""
+    from plugin.contrib.smolagents.memory import ActionStep, ToolCall
+    from plugin.contrib.smolagents.monitoring import Timing
+    from plugin.framework.prompts import PEER_OUTER_IDLE_AFTER_SEND
+
+    agent = MagicMock()
+    mock_agent_class.return_value = agent
+
+    def fake_execute_safe(agent_arg, task, tool_call_handler=None, action_step_handler=None, **kwargs):
+        if tool_call_handler:
+            tool_call_handler(
+                ToolCall(
+                    name="send_peer_message",
+                    arguments={"document_url": "u2", "message": "Get KPIs"},
+                    id="peer-send-1",
+                )
+            )
+        step = ActionStep(step_number=1, timing=Timing(start_time=0, end_time=0))
+        step.tool_calls = [ToolCall(name="send_peer_message", arguments={}, id="peer-send-1")]
+        step.observations = "{'status': 'ok', 'accepted': True, 'peer_ask_id': 'ask-1'}"
+        if action_step_handler:
+            early = action_step_handler(step)
+            if early is not None:
+                return early
+        return "should not reach — host must auto-exit"
+
+    mock_executor_cls.return_value.execute_safe.side_effect = fake_execute_safe
+
+    r = ToolRegistry(services={})
+    r.register(ListNearbyFiles())
+    r.register(DelegateReadDocument())
+    r.register(SpecializedWorkflowFinished())
+    r.register(DelegateToSpecializedWriter())
+
+    mock_get_config.return_value = {}
+    ctx = MagicMock()
+    ctx.doc = MagicMock()
+    ctx.doc.supportsService = lambda svc: svc == "com.sun.star.text.TextDocument"
+    ctx.ctx = MagicMock()
+    ctx.services = {"tools": r}
+    ctx.stop_checker = lambda: False
+
+    gw = r.get("delegate_to_specialized_writer_toolset")
+    with patch("plugin.doc.document_research.get_open_documents", return_value=[]):
+        result = gw.execute_safe(ctx, domain="document_research", task="Get KPIs from the open sheet")
+    assert result["status"] == "ok"
+    assert result.get("accepted") is True
+    assert PEER_OUTER_IDLE_AFTER_SEND in result["message"]
+    agent.interrupt.assert_called_once()
+    assert mock_agent_class.call_args.kwargs.get("advertise_final_answer_tool") is False
+
+
+def test_specialized_schemas_omit_finish_tool():
+    r = ToolRegistry(services={})
+    r.register(ListNearbyFiles())
+    r.register(SpecializedWorkflowFinished())
+    names = {t.name for t in r.get_tools(doc=MagicMock(), active_domain="document_research", exclude_tiers=())}
+    assert "list_nearby_files" in names
+    assert "specialized_workflow_finished" not in names
+    schemas = r.get_schemas("openai", doc_type="writer", active_domain="document_research")
+    schema_names = [s["function"]["name"] for s in schemas]
+    assert "specialized_workflow_finished" not in schema_names
+
+
 @patch("plugin.doc.document_research_specialized.build_toolcalling_agent")
 @patch("plugin.doc.document_research_specialized.SmolAgentExecutor")
 def test_run_inner_read_agent_uses_allowlist(mock_executor_cls, mock_build_agent):
@@ -387,6 +498,8 @@ def test_run_inner_read_agent_uses_allowlist(mock_executor_cls, mock_build_agent
     tool_names = [t.name for t in tools_arg]
     assert "read_cell_range" in tool_names
     assert "get_sheet_summary" in tool_names
+    assert "specialized_workflow_finished" not in tool_names
+    assert mock_build_agent.call_args.kwargs.get("advertise_final_answer_tool") is False
     inner_ctx = mock_build_agent.call_args[0][0]
     assert inner_ctx.read_only_target is True
 

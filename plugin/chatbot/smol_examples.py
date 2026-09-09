@@ -12,7 +12,7 @@
 - **deep_research** — multi-step web research + `apply_document_content` (`reply_to_user`, `deep_research_web`).
 - **web_research** — web sub-agent (`final_answer`).
 - **``*:python``** — venv demo (`run_venv_python_script` + ``sp.prime``; no numpy imports).
-- **All other keys** — shared delegate demo (`specialized_workflow_finished`).
+- **All other keys** — shared delegate demo (one-shot; no advertised finish tool).
 
 Refresh librarian text with: ``python scripts/generate_smol_examples.py``
 """
@@ -184,11 +184,7 @@ Action:
 }
 Observation: {"status": "ok", "result": [8017, 8039, 8053, 8059, 8069, 8081, 8087, 8089, 8093, 8101, 8111], "stdout": "", "stderr": ""}
 
-Action:
-{
-  "name": "specialized_workflow_finished",
-  "arguments": {"answer": "I have successfully calculated the prime numbers and stored them in the `result` variable as a NumPy array. The values are: [8017, 8039, 8053, 8059, 8069, 8081, 8087, 8089, 8093, 8101, 8111]."}
-}
+I have successfully calculated the prime numbers and stored them in the `result` variable as a NumPy array. The values are: [8017, 8039, 8053, 8059, 8069, 8081, 8087, 8089, 8093, 8101, 8111].
 """
 )
 
@@ -252,9 +248,8 @@ def get_examples_block(key: str) -> str:
     """Return the few-shot block for *key*.
 
     Specialized keys (``writer:shapes``, ``document_research:calc``, …) share
-    ``DELEGATE_GENERIC_EXAMPLES_BLOCK`` so the DONE tool is always
-    ``specialized_workflow_finished``. Keys ending in ``:python`` use
-    ``PYTHON_SPECIALIZED_EXAMPLES``.
+    ``DELEGATE_GENERIC_EXAMPLES_BLOCK`` (one-shot; no advertised finish tool).
+    Keys ending in ``:python`` use ``PYTHON_SPECIALIZED_EXAMPLES``.
     """
     if key == "librarian":
         return LIBRARIAN_EXAMPLES

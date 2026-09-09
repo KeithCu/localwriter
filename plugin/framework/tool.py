@@ -728,8 +728,8 @@ class ToolRegistry:
             exclude_tiers: Tiers to omit from the result. If omitted, excludes
                 ``specialized`` and ``specialized_control`` so nested Writer tools
                 stay off the main tool list. Pass ``()`` or ``frozenset()`` to include all tiers.
-            active_domain: If provided, dynamically includes specialized tools for this domain
-                and the specialized_workflow_finished tool.
+            active_domain: If provided, dynamically includes specialized tools for this domain.
+                ``specialized_workflow_finished`` is not advertised (one-shot host exit).
         """
         # crosshair: off
         tools = self._tools.values()
@@ -755,8 +755,9 @@ class ToolRegistry:
 
         tools = [t for t in tools if supports_doc(t)]
 
-        # If we have an active domain, we want to include its tools (and the finish tool),
-        # even if they are in the excluded tiers.
+        # If we have an active domain, include its tools even if they are in the
+        # excluded tiers. Do not advertise specialized_workflow_finished — the
+        # host ends a specialize (one-shot; auto-return after accepted peer send).
 
         if exclude_tiers is _UNSET_EXCLUDE_TIERS:
             to_exclude = _DEFAULT_EXCLUDE_TIERS
@@ -766,11 +767,11 @@ class ToolRegistry:
             to_exclude = frozenset(cast("typing.Iterable[typing.Any]", exclude_tiers)) if exclude_tiers else frozenset()
 
         if active_domain:
-            # If an active domain is set, restrict the list ONLY to the specialized tools
-            # for that domain and the finish tool. Do not include normal default-tier tools.
-            # However, we also include any core tools explicitly requested by the domain.
+            # Restrict to specialized tools for this domain. Do not include the
+            # finish tool — models treated it as optional and skipped it (Floorstand
+            # Gemini 3.8 Flash), which held the drain owner. Host one-shot exit
+            # replaces it. Still include core tools the domain lists as required.
 
-            # First, find which core tools are required by any tool in this domain
             required_core = set()
             for t in tools:
                 if _is_specialized_domain_tool(t, active_domain):
@@ -778,16 +779,12 @@ class ToolRegistry:
                     if req:
                         required_core.update(req)
 
-            from plugin.framework.prompts import WRITER_SIDEBAR_ONLY_DOMAINS
-
             filtered_tools = []
             for t in tools:
+                if getattr(t, "name", None) == "specialized_workflow_finished":
+                    continue
                 if _is_specialized_domain_tool(t, active_domain):
                     filtered_tools.append(t)
-                elif t.name == "specialized_workflow_finished" and active_domain not in WRITER_SIDEBAR_ONLY_DOMAINS:
-                    # Sidebar-only domains (brainstorming, writing_plan) use bespoke finish tools.
-                    filtered_tools.append(t)
-                # Dynamically include core tools required for this domain
                 elif getattr(t, "tier", None) == "core" and t.name in required_core:
                     filtered_tools.append(t)
             tools = filtered_tools

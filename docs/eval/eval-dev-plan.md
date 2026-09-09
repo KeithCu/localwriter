@@ -7,7 +7,7 @@ no LO ranking). This file is the older hybrid/LO roadmap. Phase F
 `=PY` dest rows (`py_refuse_overlap`, `py_no_bulk_read`) and DrawWorld
 (flowchart tree + `shape_connect`) are **shipped** in the 17-task pack.
 
-This plan covers the WriterAgent prompt optimization + evaluation system (`scripts/prompt_optimization/`). Ranking is `--backend string` only (17 tasks). Specialized Draw/Calc work uses a bounded inner `LlmClient` loop (`delegate_to_specialized_*` → domain schemas → `specialized_workflow_finished`), not SmolAgents. See `ideas.md` for the original ~50 ideas; the shipped pack is the 17 in `dataset.py`.
+This plan covers the WriterAgent prompt optimization + evaluation system (`scripts/prompt_optimization/`). Ranking is `--backend string` only (17 tasks). Specialized Draw/Calc work uses a bounded inner `LlmClient` loop (`delegate_to_specialized_*` → domain schemas), not SmolAgents. Production specialize hides `specialized_workflow_finished` (one-shot host exit); the string harness still accepts that name as an inner-loop exit for scripted students. See `ideas.md` for the original ~50 ideas; the shipped pack is the 17 in `dataset.py`.
 
 ## Current Status
 

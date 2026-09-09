@@ -155,7 +155,7 @@ Cross-file reads use **two** ephemeral sub-agent runs (outer, then one or more i
 | Layer | Responsibility | Tool surface |
 | ----- | -------------- | ------------ |
 | **Main agent** | User intent; edits **active** doc only. | **Core** tools on active `ToolContext.doc` + `delegate_to_specialized_{writer\|calc\|draw}_toolset` (domain enum includes **`document_research`**). No specialized-tier tools on main’s wire schema. |
-| **Outer sub-agent** | Natural-language **task** from main. Lists nearby files, resolves names, calls **inner** per file, aggregates. | `list_nearby_files`, `delegate_read_document(path, task)`, `specialized_workflow_finished` / final answer. **No** `apply_*` / `write_*`. |
+| **Outer sub-agent** | Natural-language **task** from main. Lists nearby files, resolves names, calls **inner** per file, aggregates. | `list_nearby_files`, `delegate_read_document(path, task)`. Host one-shot exit (no advertised finish tool). **No** `apply_*` / `write_*`. |
 | **Inner sub-agent** | One run per opened file; `doc_type` known. | **Read tools for that type only** — Writer inner never sees `read_cell_range`; Calc inner never sees `get_document_tree`. Same production schemas; **no writes.** |
 
 ### Reference scenario
@@ -200,9 +200,9 @@ Cross-file reads use **two** ephemeral sub-agent runs (outer, then one or more i
 ### Handoff mechanism (implemented)
 
 - [`DelegateReadDocument`](../../plugin/doc/nearby_specialized.py): dedicated tool — **not** recursive `DelegateToSpecializedBase.execute`. Resolves name via [`resolve_path_or_name`](../../plugin/doc/nearby.py), opens via [`open_document_for_read`](../../plugin/doc/nearby.py) on the main thread (`execute_on_main_thread`).
-- [`run_inner_read_agent`](../../plugin/doc/nearby_specialized.py): builds `ToolContext(doc=opened_model, read_only_target=True, …)`; runs smol with `READ_TOOLS_BY_DOC_TYPE[doc_type]` + `specialized_workflow_finished`.
+- [`run_inner_read_agent`](../../plugin/doc/document_research_specialized.py): builds `ToolContext(doc=opened_model, read_only_target=True, …)`; runs smol with `READ_TOOLS_BY_DOC_TYPE[doc_type]` only (`specialized_workflow_finished` is hidden).
 - Outer document_research sub-agent is still launched by [`DelegateToSpecializedBase`](../../plugin/doc/specialized_base.py) with `active_domain="document_research"` (tools from [`nearby_tools.py`](../../plugin/doc/nearby_tools.py) + `DelegateReadDocument`).
-- Inner ends with `specialized_workflow_finished` / `final_answer`; outer accumulates and returns one payload to main.
+- Specialize is one-shot: no advertised finish tool. Inner read ends with compact text; after an accepted `send_peer_message` the host returns to the outer automatically.
 
 ---
 
@@ -347,7 +347,7 @@ flowchart LR
 
 - [`ListNearbyFiles`](../../plugin/doc/nearby_tools.py) → [`list_nearby_files`](../../plugin/doc/nearby.py): `NEARBY_FILE_EXTENSIONS`, newest first, exclude active path, optional `filter`, `truncated` when capped (default 100).
 - [`DelegateReadDocument`](../../plugin/doc/nearby_specialized.py): `path_or_name` + `task`; hidden+read-only open (or reuse open); spawns inner; returns `{ path, doc_type, result }`.
-- `specialized_workflow_finished` / final answer to main (same as other specialized domains).
+- One-shot host exit (no advertised `specialized_workflow_finished`); after accepted peer send the host returns to the outer. Other domains end when the inner turn is done (implicit text answer).
 
 **Inner sub-agent (per opened file):**
 

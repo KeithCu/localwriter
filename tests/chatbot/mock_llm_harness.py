@@ -267,25 +267,27 @@ def calc_total_formula(calc: Any) -> str:
 
 
 def finish_immediately_after_peer_sends(captures: list[dict[str, Any]]) -> bool:
-    """True when each ``send_peer_message`` decision is followed by a finish tool.
+    """True when each ``send_peer_message`` is not followed by a wait-loop.
 
-    Locks #673: waiting after accepted deadlocks the peer.
+    Host auto-exits after accepted (Floorstand Gemini 3.8 Flash miss). A
+    following finish tool also counts as exited. Discovery-after-send hangs.
     """
+    hang_tools = frozenset({"list_nearby_files", "grep_nearby_files", "search_nearby_files"})
     decided_rows = [row.get("decided_tools") or [] for row in captures]
     saw_send = False
-    finished_after = 0
+    hung_after = 0
     sends = 0
     for tools in decided_rows:
         if "send_peer_message" in tools:
             saw_send = True
             sends += 1
             continue
-        if saw_send and (
-            "specialized_workflow_finished" in tools or "final_answer" in tools
-        ):
-            finished_after += 1
+        if saw_send:
+            finished = "specialized_workflow_finished" in tools or "final_answer" in tools
+            if hang_tools.intersection(tools) and not finished:
+                hung_after += 1
             saw_send = False
-    return sends > 0 and finished_after >= sends
+    return sends > 0 and hung_after == 0
 
 
 __all__ = (

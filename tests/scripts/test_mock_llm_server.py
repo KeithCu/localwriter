@@ -1548,7 +1548,6 @@ _CALC_OUTER = (
 )
 _INNER_PEER = (
     "send_peer_message",
-    "specialized_workflow_finished",
     "list_nearby_files",
     "delegate_read_document",
 )
@@ -1611,7 +1610,7 @@ def test_peer_total_writer_outer_delegates_not_send_peer():
     assert "send_peer_message" not in names
 
 
-def test_peer_total_writer_inner_sends_then_finishes_immediately():
+def test_peer_total_writer_inner_sends_then_host_exits():
     cfg = MockLLMConfig(delay_ms=0)
     first = decide_completion(
         _payload("Ask the budget workbook to add a Total row", _INNER_PEER, system=_PEER_SYS),
@@ -1629,13 +1628,14 @@ def test_peer_total_writer_inner_sends_then_finishes_immediately():
             prior=_tool_follow(
                 "send_peer_message",
                 '{"status":"ok","accepted":true,"peer_ask_id":"ask-1",'
-                '"message":"Queued. You MUST call specialized_workflow_finished immediately."}',
+                '"message":"Queued. This specialize is done — the host returns to the outer loop."}',
             ),
         ),
         cfg,
     )
-    assert second.tool_name == "specialized_workflow_finished"
-    assert "immediately" in ((second.tool_args or {}).get("answer") or "").lower()
+    assert second.tool_name is None
+    assert second.tool_name != "specialized_workflow_finished"
+    assert "accepted" in (second.content or "").lower() or "done" in (second.content or "").lower()
 
 
 def test_peer_wait_after_accepted_never_finishes():
@@ -1688,7 +1688,7 @@ def test_calc_envelope_writes_formula_then_delegates_reply():
     assert "send_peer_message" not in [n for n, _a in completion_tool_calls(delegate)]
 
 
-def test_calc_inner_reply_copies_peer_ask_id_then_finishes():
+def test_calc_inner_reply_copies_peer_ask_id_then_host_exits():
     envelope = (
         "[Peer from: Memo.odt | uid=writer-uid | url=file:///tmp/Memo.odt | peer_ask_id=ask-1]\n\n"
         "Add a Total row."
@@ -1697,11 +1697,12 @@ def test_calc_inner_reply_copies_peer_ask_id_then_finishes():
     assert send.tool_name == "send_peer_message"
     assert (send.tool_args or {}).get("peer_ask_id") == "ask-1"
     assert (send.tool_args or {}).get("document_url") == "writer-uid"
-    finish = decide_completion(
+    after = decide_completion(
         _payload(envelope, _INNER_PEER, system=_WRITER_SYS, prior=_tool_follow("send_peer_message")),
         MockLLMConfig(delay_ms=0),
     )
-    assert finish.tool_name == "specialized_workflow_finished"
+    assert after.tool_name is None
+    assert after.tool_name != "specialized_workflow_finished"
 
 
 def test_writer_followup_applies_peer_reply():

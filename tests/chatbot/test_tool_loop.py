@@ -698,10 +698,10 @@ def test_specialized_delegation_sub_agent_mode(
     assert call_args is not None
     smol_tools = call_args.kwargs.get("tools", [])
 
-    # Sub-agent gets domain tools plus specialized_workflow_finished (active_domain registry rules).
+    # Sub-agent gets domain tools; finish is hidden (one-shot host exit).
     smol_tool_names = [t.name for t in smol_tools]
     assert "dummy_table_tool" in smol_tool_names
-    assert "specialized_workflow_finished" in smol_tool_names
+    assert "specialized_workflow_finished" not in smol_tool_names
 
 
 @patch(
@@ -804,7 +804,7 @@ def test_run_venv_python_script_in_schemas_for_writer_when_domain_python(registr
     schemas = registry.get_schemas("openai", doc=mock_writer, active_domain="python")
     names = [s["function"]["name"] for s in schemas]
     assert "run_venv_python_script" in names
-    assert "specialized_workflow_finished" in names
+    assert "specialized_workflow_finished" not in names
     py_schema = next(s for s in schemas if s["function"]["name"] == "run_venv_python_script")
     props = py_schema["function"]["parameters"].get("properties", {})
     assert "code" in props
@@ -828,7 +828,7 @@ def test_active_domain_schemas_include_calc_and_draw(registry):
     schemas = registry.get_schemas("openai", doc=mock_sheet, active_domain="images")
     names = [s["function"]["name"] for s in schemas]
     assert "dummy_calc_images_tool" in names
-    assert "specialized_workflow_finished" in names
+    assert "specialized_workflow_finished" not in names
 
     mock_draw = MagicMock()
 
@@ -840,7 +840,7 @@ def test_active_domain_schemas_include_calc_and_draw(registry):
     schemas_d = registry.get_schemas("openai", doc=mock_draw, active_domain="draw_test_domain")
     names_d = [s["function"]["name"] for s in schemas_d]
     assert "dummy_draw_special_tool" in names_d
-    assert "specialized_workflow_finished" in names_d
+    assert "specialized_workflow_finished" not in names_d
 
 
 @patch(
@@ -962,7 +962,7 @@ def test_writer_delegate_python_includes_cross_cutting_venv_tool(mock_executor_c
     tools_passed = mock_build.call_args[0][1]
     names = [t.name for t in tools_passed]
     assert "run_venv_python_script" in names
-    assert "specialized_workflow_finished" in names
+    assert "specialized_workflow_finished" not in names
     venv_tool = next(t for t in tools_passed if t.name == "run_venv_python_script")
     assert "does not inject spreadsheet" in venv_tool.description
     assert "Optional data_range" not in venv_tool.description

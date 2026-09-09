@@ -35,6 +35,62 @@ from plugin.framework import queue_executor
 
 log = logging.getLogger("writeragent.specialized")
 
+SPECIALIZED_FINISH_TOOL = "specialized_workflow_finished"
+
+# Host one-shot: specialize has no advertised finish tool. After accepted
+# send_peer_message the inner loop must return immediately — waiting for the
+# model to call finish held the drain owner (Floorstand / Packet P2).
+_PEER_ACCEPTED_MARKERS = (
+    "'accepted': true",
+    '"accepted": true',
+    '"accepted":true',
+    "accepted: true",
+)
+_PEER_ERROR_MARKERS = (
+    "'status': 'error'",
+    '"status": "error"',
+    '"status":"error"',
+)
+
+
+def hide_specialized_finish_tools(tools: list[Any]) -> list[Any]:
+    """Drop ``specialized_workflow_finished`` so it is not on the inner wire."""
+    return [t for t in tools if getattr(t, "name", None) != SPECIALIZED_FINISH_TOOL]
+
+
+def observations_show_peer_accepted(blob: str) -> bool:
+    """True when a send_peer_message observation is ok/accepted, not an error."""
+    text = (blob or "").lower()
+    if not text or "accepted" not in text:
+        return False
+    if any(marker in text for marker in _PEER_ERROR_MARKERS):
+        return False
+    return any(marker in text for marker in _PEER_ACCEPTED_MARKERS)
+
+
+def action_step_accepted_peer_send(step: Any) -> bool:
+    """True when this ActionStep executed send_peer_message and it was accepted."""
+    calls = getattr(step, "tool_calls", None) or []
+    if not any(getattr(tc, "name", None) == "send_peer_message" for tc in calls):
+        return False
+    blob = str(getattr(step, "observations", None) or "")
+    extra = getattr(step, "action_output", None)
+    if extra is not None:
+        blob = f"{blob} {extra}"
+    return observations_show_peer_accepted(blob)
+
+
+def peer_accepted_specialize_result(step: Any) -> dict[str, Any]:
+    """Compact ok payload so the outer Readys after host auto-exit."""
+    obs = str(getattr(step, "observations", None) or "").strip()
+    summary = obs or "Peer message accepted."
+    return {
+        "status": "ok",
+        "accepted": True,
+        "message": summary,
+        "result": summary,
+    }
+
 
 def _field_from_tool_arguments(arguments: Any, field: str) -> Any:
     """Read *field* from tool arguments (dict or JSON string), or None."""
@@ -160,7 +216,7 @@ class DelegateToSpecializedBase(ToolBase):
             if callback:
                 callback(domain, python_tool_domain=python_tool_domain)
 
-            msg = _("Tool call switched to '{0}'. You are in a specialized toolset mode. You must call 'specialized_workflow_finished' when done to restore the full set of APIs.").format(domain)
+            msg = _("Tool call switched to '{0}'. You are in a specialized toolset mode.").format(domain)
 
             if status_callback:
                 status_callback(f"Switched to '{domain}' tools.")
@@ -222,6 +278,7 @@ class DelegateToSpecializedBase(ToolBase):
         domain_tools, peer_catalog, document_research_hint = queue_executor.execute_on_main_thread(
             _fetch_domain_tools
         )
+        domain_tools = hide_specialized_finish_tools(domain_tools)
 
         if not domain_tools:
             return self._tool_error(f"No specialized tools found for domain '{domain}'. Ensure the tools are implemented and registered.")
@@ -304,14 +361,29 @@ class DelegateToSpecializedBase(ToolBase):
                 else ""
             )
             python_hint = python_specialized_sub_agent_hint(self._agent_label) if domain == "python" else ""
+            # One-shot: no advertised finish tool. After accepted peer send the host
+            # returns immediately. If more work is needed, the outer specializes again.
+            one_shot_hint = (
+                " This specialize is one-shot: after your tools have done the task, stop. "
+                "There is no specialized_workflow_finished tool — the host returns to the outer loop. "
+                "If more work is needed, the outer can specialize again."
+            )
             instructions = (
                 f"You are a specialized {self._agent_label} task executor focused on the '{domain}' domain. "
                 f"You have a focused set of tools to accomplish your task. Use them to fulfill the user's request."
-                f"{footnotes_hint}{shapes_canvas}{charts_hint}{calc_ctx}{document_research_hint}{open_docs_context}{images_hint}{python_hint}"
+                f"{one_shot_hint}{footnotes_hint}{shapes_canvas}{charts_hint}{calc_ctx}{document_research_hint}{open_docs_context}{images_hint}{python_hint}"
             )
 
             examples_key = f"{self._agent_label.lower()}:{domain}"
-            agent = build_toolcalling_agent(ctx, smol_tools, instructions=instructions, final_answer_tool_name="specialized_workflow_finished", examples_block=get_examples_block(examples_key), status_callback=status_callback)
+            agent = build_toolcalling_agent(
+                ctx,
+                smol_tools,
+                instructions=instructions,
+                final_answer_tool_name=SPECIALIZED_FINISH_TOOL,
+                examples_block=get_examples_block(examples_key),
+                status_callback=status_callback,
+                advertise_final_answer_tool=False,
+            )
 
             executor = SmolAgentExecutor(ctx)
 
@@ -332,7 +404,24 @@ class DelegateToSpecializedBase(ToolBase):
                 if status_callback:
                     status_callback(f"Tool: {step.name}...")
 
-            final_ans = executor.execute_safe(agent, cast("str", task), tool_call_handler=tool_call_handler, stop_message="Specialized task stopped by user.", error_prefix="Specialized agent failed")
+            def action_step_handler(step):
+                # Floorstand hang: Gemini 3.8 Flash skipped finish after accepted;
+                # drain owner stayed held and the peer never started. Host exits.
+                if domain == "document_research" and action_step_accepted_peer_send(step):
+                    interrupt = getattr(agent, "interrupt", None)
+                    if callable(interrupt):
+                        interrupt()
+                    return peer_accepted_specialize_result(step)
+                return None
+
+            final_ans = executor.execute_safe(
+                agent,
+                cast("str", task),
+                tool_call_handler=tool_call_handler,
+                action_step_handler=action_step_handler,
+                stop_message="Specialized task stopped by user.",
+                error_prefix="Specialized agent failed",
+            )
         finally:
             ctx.active_domain = prev_active_domain
 

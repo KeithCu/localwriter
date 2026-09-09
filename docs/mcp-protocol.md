@@ -303,7 +303,7 @@ The outer MCP model never holds the specialized tool schemas in its context; it 
 | Mode | Constant | Outer model (main chat or MCP host) | Inner work |
 |------|----------|--------------------------------------|------------|
 | **Sub-agent delegation** | `USE_SUB_AGENT = True` | Calls `delegate` with a natural-language `task` | smol sub-agent runs domain tools |
-| **In-place tool switching** | `USE_SUB_AGENT = False` | Receives “switched to domain X”; **same** model calls specialized tools until `specialized_workflow_finished` | No nested agent; tools swapped on the outer loop |
+| **In-place tool switching** | `USE_SUB_AGENT = False` | Receives “switched to domain X”; **same** model calls specialized tools (finish tool hidden; one-shot host exit) | No nested agent; tools swapped on the outer loop |
 
 MCP today always follows the **`USE_SUB_AGENT = True`** path when the host uses `delegate`. In-place switching is a main-chat FSM feature ([`plugin/chatbot/tool_loop.py`](../plugin/chatbot/tool_loop.py)); it is **not** exposed over HTTP unless you deliberately change MCP tool exposure and protocol (future work).
 
@@ -385,7 +385,7 @@ WriterAgent’s primary integration path—sidebar chat and MCP via `delegate_to
 
 An outer MCP model that **alternates** between unrelated tool groups in one long thread (document edits, then styles, then charts, then research) carries stale assumptions, bloated schemas, and cross-domain mistakes. We intentionally keep **`tools/list` small** and push complexity behind `delegate`.
 
-**In-place tool switching** (`USE_SUB_AGENT = False` in main chat) is a different model: the *same* outer loop swaps specialized tools until `specialized_workflow_finished`. That may never be desirable for MCP even if more tools are exposed later—the failure mode is the same: **tool-set thrashing** without a clean sub-context.
+**In-place tool switching** (`USE_SUB_AGENT = False` in main chat) is a different model: the *same* outer loop swaps specialized tools (finish tool hidden; one-shot host exit). That may never be desirable for MCP even if more tools are exposed later—the failure mode is the same: **tool-set thrashing** without a clean sub-context.
 
 **Low priority for now:** MCP could be extended to expose additional tools on `tools/list` (specialized-tier tools or other surfaces). That could work for some hosts, especially if they **clear or compact context** so earlier tool-call history does not accumulate. It has not been a development focus because delegation matches the main use cases today.
 

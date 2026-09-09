@@ -40,4 +40,4 @@ def test_images_domain_includes_list_nearby_image_files_not_document_research_li
 
     assert "image_list_nearby_files" in names
     assert "list_nearby_files" not in names
-    assert "specialized_workflow_finished" in names
+    assert "specialized_workflow_finished" not in names

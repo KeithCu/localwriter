@@ -50,4 +50,7 @@ def test_finish_immediately_after_peer_sends():
         {"decided_tools": ["list_nearby_files"]},
     ]
     assert finish_immediately_after_peer_sends(hang) is False
+    # Host auto-exit: send with no following inner tools (no model finish).
+    host_exit = [{"decided_tools": ["send_peer_message"]}]
+    assert finish_immediately_after_peer_sends(host_exit) is True
     assert finish_immediately_after_peer_sends([{"decided_tools": ["hello"]}]) is False

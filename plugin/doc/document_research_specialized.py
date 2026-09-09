@@ -57,20 +57,15 @@ def run_inner_read_agent(parent_ctx: ToolContext, opened_model: Any, doc_type: s
     )
 
     def _fetch_inner_tools():
-        domain_tools = registry.get_tools(doc=opened_model, doc_type=doc_type, names=list(allowlist), exclude_tiers=())
-        finish_tools = registry.get_tools(names=["specialized_workflow_finished"], exclude_tiers=())
-        return domain_tools, finish_tools
+        return registry.get_tools(doc=opened_model, doc_type=doc_type, names=list(allowlist), exclude_tiers=())
 
-    domain_tools, finish_tools = _run_on_main(_fetch_inner_tools)
+    domain_tools = _run_on_main(_fetch_inner_tools)
     missing = allowlist - {t.name for t in domain_tools if t.name}
     if missing:
         log.warning("Inner document_research agent missing tools: %s", sorted(missing))
 
-    tools_by_name = {t.name: t for t in domain_tools + finish_tools if t.name}
+    tools_by_name = {t.name: t for t in domain_tools if t.name}
     ordered = [tools_by_name[n] for n in allowlist if n in tools_by_name]
-    for t in finish_tools:
-        if t.name == "specialized_workflow_finished" and t not in ordered:
-            ordered.append(t)
 
     if not ordered:
         return {"status": "error", "message": "No read tools available for opened document"}
@@ -80,7 +75,8 @@ def run_inner_read_agent(parent_ctx: ToolContext, opened_model: Any, doc_type: s
     instructions = (
         f"You are a read-only assistant for one {doc_type} file. "
         "Extract only the information needed for the task. Do not modify the document. "
-        "Call specialized_workflow_finished with a compact summary when done."
+        "When done, reply with a compact summary as text. There is no finish tool — "
+        "the host ends this read and returns to the outer specialize."
     )
 
     agent = build_toolcalling_agent(
@@ -90,6 +86,7 @@ def run_inner_read_agent(parent_ctx: ToolContext, opened_model: Any, doc_type: s
         final_answer_tool_name="specialized_workflow_finished",
         examples_block=get_examples_block(f"document_research:{doc_type}"),
         status_callback=parent_ctx.status_callback,
+        advertise_final_answer_tool=False,
     )
     executor = SmolAgentExecutor(inner_ctx)
 

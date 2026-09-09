@@ -70,8 +70,8 @@ The mock server matches incoming user queries (case-insensitive, first match win
 | `two tools` / `in parallel` | Calls `search_in_document` + `get_document_tree` in a single round. |
 | `insert filler` / `append a paragraph` | Calls `apply_document_content` to mutate the document end. |
 | `list sheets` / `list pages` | Calls Calc/Draw list tools (`list_sheets` / `list_pages`) when advertised. |
-| `ask the budget workbook` / `add a Total row` / `peer total` | Packet P: outer delegates `document_research`; inner `send_peer_message` then `specialized_workflow_finished` immediately. Calc envelope → `write_formula_range` then reply via specialized. |
-| `wait after accepted` / `do not finish peer` | Packet P hang lock: inner sends then never finishes (peer does not start). |
+| `ask the budget workbook` / `add a Total row` / `peer total` | Packet P: outer delegates `document_research`; inner `send_peer_message`; host auto-exits after accepted (no finish tool). Calc envelope → `write_formula_range` then reply via specialized. |
+| `wait after accepted` / `do not finish peer` | Packet P2: mock would keep discovery after accepted (Floorstand Gemini miss). Host must still exit so the peer can start. |
 | `crash the stream` / `error 500` | Returns HTTP 500 JSON error payload. |
 | `rate limit` / `error 429` | Returns HTTP 429 Rate Limit error. |
 | `error 401` / `unauthorized` | Returns HTTP 401 Unauthorized error. |
@@ -385,13 +385,13 @@ Every test must satisfy:
 
 - **Focus:** Writer + Calc sidebars sharing one process-global mock OpenAI server. Scripts branch on advertised tools, `[Peer from:]` envelopes, and the specialized-inner wire.
 - **Mode:** Automated (`make test-mock-sidebar FILTER=P`). Unit scripts always run in `make pytest` (`tests/scripts/test_mock_llm_server.py`).
-- **Protocol locked:** outer main delegates `document_research` (never advertises `send_peer_message`); inner `send_peer_message` then `specialized_workflow_finished` immediately; Calc does `write_formula_range` then delegates to reply with `peer_ask_id`.
+- **Protocol locked:** outer main delegates `document_research` (never advertises `send_peer_message`); inner `send_peer_message` then host auto-exits (finish tool hidden); Calc does `write_formula_range` then delegates to reply with `peer_ask_id`.
 - **Calc open:** same `open_calc_document` / `adopt_chat_sidebar` helper as E12/G17 (VCL-posted `factory/scalc` + `_blank`; keep Writer open). Never `loadComponentFromURL("private:factory/scalc")` from the URP client after a Writer deck. After Writer Ready, P1 dispatches `KICK_PEERS` so soffice starts the queued extracted send. If dual decks cannot be wired, P1–P3 SkipTest — unit scripts still lock finish-after-accepted, reply-via-specialized, and busy-then-queue.
 
 | ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
 |:--:|:----:|----------------|-----------------|------------------------|:--------------:|
 | **P1** | mock-sidebar | `Ask the budget workbook to add a Total row` | Dual decks; Writer send | Both Ready; Calc wrote Total; Writer saw reply; finish immediately after accepted; no outer `send_peer_message` | **Landed** (SkipTest if Calc deck cannot open) |
-| **P2** | mock-sidebar | `wait after accepted then hang` | Writer send; assert before max_steps | Specialized stays in discovery after accepted; Calc does not `write_formula_range` (inject-now envelope is OK) | **Landed** (same skip) |
+| **P2** | mock-sidebar | `wait after accepted then hang` | Writer send; host must exit without a finish call | Host auto-exits after accepted (Floorstand Gemini miss); Calc can `write_formula_range` once drain clears | **Landed** (same skip) |
 | **P3** | mock-sidebar + unit | Writer Ready, then `keep talking` (slow SSE); `KICK_PEERS` after Stop enabled | Writer busy when Calc `send_peer_message`s | Reply queues (no inject); after Stop/Ready + kick, extracted send starts | **Landed** (live may SkipTest if dual-deck Send misses ramble; units `test_p3_*` always lock; E12 follow-up if Calc deck missing) |
 
 See [peer-messaging.md](../chat/peer-messaging.md#dual-mock-peer-tests).

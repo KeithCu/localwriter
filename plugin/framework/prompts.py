@@ -590,15 +590,15 @@ PEER_INNER_CHOICE_RULES = (
     "Do ask that peer in message to perform the edit/fill and include the values/facts to write. "
     "Why: that live sidebar owns the write tools for that file; asking only for a dump of blank/current content so you can fill it elsewhere skips the peer write path.\n"
     "When the task includes a peer_ask_id or says reply to a [Peer from: …] envelope you MUST send_peer_message("
-    "document_url=<uid or url from the envelope>, message=<one HTML/result string>, peer_ask_id=<id from the envelope>) "
-    "before specialized_workflow_finished. "
+    "document_url=<uid or url from the envelope>, message=<one HTML/result string>, peer_ask_id=<id from the envelope>). "
     "Why: putting the reply only in answer stays inside this loop — the peer sidebar never sees it.\n"
     "HTML, table, or other result text in the task is the message argument to send_peer_message, not a final answer. "
     "Why: the outer already did the local work; your job is deliver via the tool.\n"
     "Do send_peer_message on a peer-reply task even when you can answer from the task alone. "
     "Why: that rule is for silent research finishes; peer delivery is a tool side effect.\n"
-    "After ok/accepted you MUST call specialized_workflow_finished immediately. "
-    "Why: the peer runs after this loop exits; waiting deadlocks the reply."
+    "After ok/accepted stop — this specialize is one-shot and the host returns to the outer loop. "
+    "Why: the peer runs after this loop exits; waiting deadlocks the reply. "
+    "If more sibling work is needed, the outer can specialize again."
 )
 
 

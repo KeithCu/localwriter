@@ -147,11 +147,11 @@ class TestToolcallingPromptExamples(unittest.TestCase):
 
         self.assertNotIn("image_transformer", SYSTEM_PROMPT_TEMPLATE)
 
-    def test_get_examples_block_delegate_uses_specialized_workflow_finished(self):
+    def test_get_examples_block_delegate_has_no_finish_tool(self):
         from plugin.chatbot.smol_examples import get_examples_block
 
         block = get_examples_block("writer:shapes")
-        self.assertIn("specialized_workflow_finished", block)
+        self.assertNotIn("specialized_workflow_finished", block)
         self.assertNotIn('"name": "final_answer"', block)
         self.assertIn("web_search", block)
 
@@ -179,9 +179,9 @@ class TestToolcallingPromptExamples(unittest.TestCase):
         self.assertIn("scipy", block)
         self.assertIn("DO NOT import numpy", block)
         self.assertNotIn('"code": "import', block)
-        self.assertIn("specialized_workflow_finished", block)
+        self.assertNotIn("specialized_workflow_finished", block)
 
-    def test_specialized_agent_prompt_examples_use_finish_tool_name(self):
+    def test_specialized_agent_prompt_hides_finish_when_not_advertised(self):
         from plugin.contrib.smolagents.agents import ToolCallingAgent
         from plugin.contrib.smolagents.toolcalling_agent_prompts import DELEGATE_GENERIC_EXAMPLES_BLOCK
         from plugin.chatbot.smol_examples import get_examples_block
@@ -192,9 +192,11 @@ class TestToolcallingPromptExamples(unittest.TestCase):
             model=model,
             system_prompt_examples=get_examples_block("calc:charts"),
             final_answer_tool_name="specialized_workflow_finished",
+            advertise_final_answer_tool=False,
         )
         prompt = agent.initialize_system_prompt()
-        self.assertIn("specialized_workflow_finished", prompt)
+        self.assertNotIn("specialized_workflow_finished", prompt)
+        self.assertIn("no finish tool", prompt.lower())
         self.assertEqual(get_examples_block("calc:charts"), DELEGATE_GENERIC_EXAMPLES_BLOCK)
 
 

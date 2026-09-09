@@ -122,8 +122,8 @@ The shared ReAct **system template** lives in [`toolcalling_agent_prompts.py`](.
 |-----|--------|-------------------------|
 | `librarian` | `LIBRARIAN_EXAMPLES` in `smol_examples.py` | `reply_to_user` |
 | `web_research` | `WEB_RESEARCH_EXAMPLES_BLOCK` | `final_answer` |
-| `writer:python`, `calc:python`, `draw:python`, … | `PYTHON_SPECIALIZED_EXAMPLES` | **`specialized_workflow_finished`** (after `run_venv_python_script`) |
-| Any other (`writer:shapes`, `document_research:calc`, …) | `DELEGATE_GENERIC_EXAMPLES_BLOCK` | **`specialized_workflow_finished`** |
+| `writer:python`, `calc:python`, `draw:python`, … | `PYTHON_SPECIALIZED_EXAMPLES` | none (one-shot; host ends after the last tool) |
+| Any other (`writer:shapes`, `document_research:calc`, …) | `DELEGATE_GENERIC_EXAMPLES_BLOCK` | none (one-shot; host ends after the last tool) |
 
 The delegate block reuses the web-research *shape* (two `web_search` steps) only to teach the ReAct JSON format; those tool names are not on the specialized tool list. The real task is the manager’s user message; domain behavior is in `instructions=` and `__TOOLS_LIST__`.
 
@@ -153,7 +153,7 @@ Do **not** merge **`tool_loop`** with **`ToolCallingAgent`** without a product d
 |----------|---------|
 | Transcript shape | OpenAI multi-turn vs ReAct steps |
 | Streaming / FSM | Chat drain + sidebar state vs sub-agent `run()` |
-| Final-answer tools | `reply_to_user` (sticky modes: leave via flags `switch_to_document_mode` / `brainstorming_finished` / `writing_plan_finished`), `specialized_workflow_finished` |
+| Final-answer tools | `reply_to_user` (sticky modes: leave via flags `switch_to_document_mode` / `brainstorming_finished` / `writing_plan_finished`). Specialized loops hide `specialized_workflow_finished` and exit one-shot (host auto-return after accepted peer send). |
 | Threading | `SmolToolAdapter` marshals all synchronous tools (`execute` / `execute_safe`) to the main thread by default |
 
 ---

@@ -48,18 +48,20 @@ _IMPRESS_SERVICE = "com.sun.star.presentation.PresentationDocument"
 _BASE_DESCRIPTION = (
     "Send a natural-language turn to another already-open Writer, Calc, or Draw "
     "sidebar (not Impress). Returns immediately {status: ok, accepted: true, "
-    "peer_ask_id}. After ok/accepted you MUST call specialized_workflow_finished "
-    "immediately — the peer runs after this loop exits; waiting deadlocks the reply. "
-    "document_url is the one target argument: a file URL, RuntimeUID, or a "
-    "display name that matches exactly one open peer. Required on every call. "
-    "Never put your own path, uid, or URL in message — the gateway inserts "
-    "[Peer from: name | uid | url | peer_ask_id]. On replies, pass peer_ask_id "
-    "copied from the inbound envelope. Never invent the other app's write tools."
+    "peer_ask_id}. After ok/accepted this specialize is done — the host returns "
+    "to the outer loop. Do not wait or call more tools. Why: the peer runs after "
+    "this loop exits; waiting deadlocks the reply. document_url is the one target "
+    "argument: a file URL, RuntimeUID, or a display name that matches exactly one "
+    "open peer. Required on every call. Never put your own path, uid, or URL in "
+    "message — the gateway inserts [Peer from: name | uid | url | peer_ask_id]. "
+    "On replies, pass peer_ask_id copied from the inbound envelope. Never invent "
+    "the other app's write tools."
 )
 
-# Reinforces the prompt: specialized agents must exit after accepted.
+# Host auto-exits after accepted; this is the observation the inner model may see
+# if it gets another token before the host returns (it should not need to act).
 PEER_ACCEPTED_FINISH_HINT = (
-    "Queued. You MUST call specialized_workflow_finished immediately. "
+    "Queued. This specialize is done — the host returns to the outer loop. "
     "Why: the reply arrives later as a follow-up user turn on the caller sidebar; "
     "waiting in this loop blocks the peer."
 )

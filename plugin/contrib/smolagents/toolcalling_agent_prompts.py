@@ -35,7 +35,8 @@ Action:
 }
 """
 
-# Shared by specialized delegate + document_research inner smol agents (web-style ReAct; finish = DONE tool).
+# Shared by specialized delegate + document_research inner smol agents (web-style ReAct).
+# No finish tool — specialize is one-shot; the host returns after the last tool result.
 DELEGATE_GENERIC_EXAMPLES_BLOCK = """Task: "Which city has the highest population, Guangzhou or Shanghai?"
 
 The manager's real task is in the user message below; this example only shows the Action/Observation call format.
@@ -55,11 +56,7 @@ Action:
 }
 Observation: '26 million (2019)'
 
-Action:
-{
-  "name": "specialized_workflow_finished",
-  "arguments": {"answer": "Shanghai has the larger population."}
-}
+Shanghai has the larger population.
 """
 
 # Default few-shot when ToolCallingAgent gets system_prompt_examples=None (CLI harnesses).

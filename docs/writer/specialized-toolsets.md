@@ -192,11 +192,11 @@ flowchart LR
   end
   subgraph sub [Specialized sub-agent]
     T[Domain tools only]
-    F[specialized_workflow_finished]
+    H[Host one-shot exit]
   end
   M --> D
   D --> T
-  T --> F
+  T --> H
 ```
 
 
@@ -237,7 +237,7 @@ flowchart LR
 - `tier = "core"`, `long_running = True`, `is_async()` → **True** so the sidebar drain loop is not blocked.
 - Tool gathering:
   - `registry.get_tools(filter_doc_type=False, exclude_tiers=())` — **all** tiers, no doc filter (needed so specialized tools are discoverable server-side).
-  - Filter to `ToolWriterSpecialBase` with matching `specialized_domain`, plus `specialized_workflow_finished`.
+  - Filter to `ToolWriterSpecialBase` with matching `specialized_domain`. Do **not** advertise `specialized_workflow_finished` — specialize is one-shot; the host returns after the turn (and immediately after an accepted `send_peer_message`). If more work is needed, the outer specializes again.
 - Depending on the `USE_SUB_AGENT` toggle, it either uses `ToolCallingAgent` + `WriterAgentSmolModel` to execute the task autonomously, or calls `ctx.set_active_domain_callback(domain)` to switch the context for the main model.
 - **Sub-agent UNO threading (USE_SUB_AGENT=True):** the gateway runs on a background worker (`is_async()`). Before the smol loop starts, UNO scaffolding (`ToolRegistry.get_tools(doc=…)`, shapes canvas context, document-research open-doc list, embeddings index wakeup) is marshalled via `execute_on_main_thread` in [`plugin/doc/specialized_base.py`](../../plugin/doc/specialized_base.py). Sync domain tools are wrapped with `SmolToolAdapter` so each tool call marshals to the main thread by default; async tools must marshal UNO internally (e.g. `image_generate`, `delegate_read_document`). See [../framework/uno-thread-safety.md](../framework/uno-thread-safety.md).
 

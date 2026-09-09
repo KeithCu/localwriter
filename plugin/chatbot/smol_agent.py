@@ -310,7 +310,16 @@ class SmolAgentExecutor:
             return format_error_payload(err)
 
 
-def build_toolcalling_agent(ctx: ToolContext, tools: Sequence[SmolTool], *, instructions: str, final_answer_tool_name: str, examples_block: str, status_callback: object | None = None) -> ToolCallingAgent:
+def build_toolcalling_agent(
+    ctx: ToolContext,
+    tools: Sequence[SmolTool],
+    *,
+    instructions: str,
+    final_answer_tool_name: str,
+    examples_block: str,
+    status_callback: object | None = None,
+    advertise_final_answer_tool: bool = True,
+) -> ToolCallingAgent:
     """Shared construction for smolagents runs (same config as main chat: model, max_tokens, max_steps)."""
     uno_ctx = ctx.ctx
     config = get_api_config()
@@ -320,7 +329,15 @@ def build_toolcalling_agent(ctx: ToolContext, tools: Sequence[SmolTool], *, inst
     stop_checker = getattr(ctx, "stop_checker", None)
     cancel_scope = getattr(ctx, "send_cancellation", None)
     smol_model = WriterAgentSmolModel(LlmClient(config, uno_ctx, cancellation_scope=cancel_scope), max_tokens=max_tokens, status_callback=status_callback, stop_checker=stop_checker)
-    return ToolCallingAgent(tools=list(tools), model=smol_model, max_steps=max_steps, instructions=instructions, final_answer_tool_name=final_answer_tool_name, system_prompt_examples=examples_block)
+    return ToolCallingAgent(
+        tools=list(tools),
+        model=smol_model,
+        max_steps=max_steps,
+        instructions=instructions,
+        final_answer_tool_name=final_answer_tool_name,
+        system_prompt_examples=examples_block,
+        advertise_final_answer_tool=advertise_final_answer_tool,
+    )
 
 
 def run_subagent_tool(

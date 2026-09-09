@@ -39,7 +39,7 @@ This is the focused evolution of the high-level analysis ideas previously sketch
 - Delegation & sub-agents:
   - `plugin/calc/specialized.py`: `DelegateToSpecializedCalc` (gateway, `delegate_to_specialized_calc_toolset`).
   - `plugin/calc/base.py`: Many `ToolCalc*Base` with `specialized_domain` (solvers, python, pivot_tables, charts, ranges, search, sheets, conditional_formatting, etc.).
-  - `plugin/doc/specialized_base.py` (shared): When `USE_SUB_AGENT` (default True), spins smol `ToolCallingAgent` with `SmolToolAdapter`s from `registry.get_tools(..., active_domain=domain)`. Uses `build_toolcalling_agent` + `SmolAgentExecutor`. Supports `specialized_workflow_finished`.
+  - `plugin/doc/specialized_base.py` (shared): When `USE_SUB_AGENT` (default True), spins smol `ToolCallingAgent` with `SmolToolAdapter`s from `registry.get_tools(..., active_domain=domain)`. Uses `build_toolcalling_agent` + `SmolAgentExecutor`. Does not advertise `specialized_workflow_finished` (one-shot host exit; auto-return after accepted peer send).
   - In-process fallback (no sub-agent) just switches `active_domain` via callback.
 - No broad "data_analysis", "numeric_analysis", or expanded "analysis" domain yet that combines data discovery + trusted heavy compute. The "python" domain + raw code is the current way to do pandas/numpy work. Sheet summary and solvers are the only dedicated analysis surface.
 

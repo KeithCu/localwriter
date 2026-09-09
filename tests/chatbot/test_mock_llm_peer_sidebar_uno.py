@@ -392,20 +392,23 @@ def _capture_tools() -> list[list[str]]:
 
 
 def _outer_advertised_send_peer() -> bool:
-    """True if a main-chat POST (no specialized finish tool) advertised send_peer_message."""
+    """True if a main-chat POST advertised send_peer_message.
+
+    Inner specialize advertises send_peer without the outer gateway. Outer
+    must never list send_peer even after finish is hidden from specialize.
+    """
     for row in _captures():
         advertised = set(row.get("advertised_tools") or [])
         if "send_peer_message" not in advertised:
             continue
-        if "specialized_workflow_finished" in advertised or "final_answer" in advertised:
-            continue
-        return True
+        if any(name.startswith("delegate_to_specialized_") for name in advertised):
+            return True
     return False
 
 
 @native_test
 def test_p1_total_row_peer_roundtrip(ctx):
-    """Writer → document_research → send → finish; Calc writes Total and replies."""
+    """Writer → document_research → send → host exit; Calc writes Total and replies."""
     _skip_without_dual()
     from plugin.chatbot.sidebar_test_hooks import clear_sidebar_chat
 
@@ -459,7 +462,7 @@ def test_p1_total_row_peer_roundtrip(ctx):
         "Writer follow-up never saw the reply: %r" % writer_txt[-400:]
     )
     snaps = _captures()
-    assert finish_immediately_after_peer_sends(snaps), "specialized did not finish immediately after accepted: %r" % [
+    assert finish_immediately_after_peer_sends(snaps), "specialized hung after accepted (host should auto-exit): %r" % [
         row.get("decided_tools") for row in snaps
     ]
     assert not _outer_advertised_send_peer(), "outer main advertised send_peer_message: %r" % [
@@ -473,8 +476,8 @@ def test_p1_total_row_peer_roundtrip(ctx):
 
 
 @native_test
-def test_p2_wait_after_accepted_deadlocks_peer(ctx):
-    """If specialized does not finish after accepted, Calc never starts (Scrolly hang)."""
+def test_p2_wait_after_accepted_host_exits_and_peer_starts(ctx):
+    """Host auto-exits after accepted even if the model would not finish (Floorstand)."""
     _skip_without_dual()
     from plugin.chatbot.sidebar_test_hooks import clear_sidebar_chat
 
@@ -505,41 +508,43 @@ def test_p2_wait_after_accepted_deadlocks_peer(ctx):
         time.sleep(0.2)
         uno_click(controls["send"])
 
-    # Inject-now may paint [Peer from:] on Calc immediately. Lock the hang:
-    # while specialized keeps calling discovery (not finish), Calc must not
-    # start write_formula_range. Do not wait for max_steps — that Readys Writer
-    # and finally-kicks the peer.
-    deadline = time.monotonic() + 4.0
+    deadline = time.monotonic() + 8.0
     saw_send = False
-    saw_wait_loop = False
     while time.monotonic() <= deadline:
         decided = _capture_tools()
         flat = [name for row in decided for name in row]
         if "send_peer_message" in flat:
             saw_send = True
-        if saw_send and "list_nearby_files" in flat and "specialized_workflow_finished" not in flat:
-            saw_wait_loop = True
+        if saw_send and not _is_busy("writer"):
             break
         time.sleep(0.12)
+    time.sleep(0.6)
+    _kick_pending_in_soffice(ctx)
+    # Envelope can inject while the caller drain is still held. Peer *start*
+    # is write_formula_range after the host returns and the kick runs.
+    peer_deadline = time.monotonic() + 45.0
+    formula_started = False
+    while time.monotonic() <= peer_deadline:
+        decided = _capture_tools()
+        if any("write_formula_range" in row for row in decided):
+            formula_started = True
+            break
+        time.sleep(0.2)
     snaps = _captures()
     decided = [row.get("decided_tools") or [] for row in snaps]
-    finished_after_send = finish_immediately_after_peer_sends(snaps)
-    formula_started = any("write_formula_range" in row for row in decided)
     try:
         assert saw_send, "specialized never called send_peer_message: %r" % decided
-        assert saw_wait_loop or _is_busy("writer"), (
-            "specialized did not stay in the wait loop after accepted: decided=%r" % decided
+        assert finish_immediately_after_peer_sends(snaps), (
+            "host did not close the wait-after-accepted lock: decided=%r" % decided
         )
-        assert not formula_started, (
-            "peer started (write_formula_range) while specialized waited: decided=%r" % decided
+        assert formula_started, (
+            "peer did not start after host exit: decided=%r calc=%r" % (decided, _transcript("calc")[-300:])
         )
-        assert not finished_after_send
     finally:
         _session.config.scenario = "none"
         _session.config.peer_wait_after_accepted = False
         _press_stop("writer")
         _press_stop("calc")
-        # Consume the inject-now envelope so P3 does not inherit a Calc reply.
         _kick_pending_in_soffice(ctx)
         _wait_both_idle(timeout=12.0)
         _press_stop("writer")

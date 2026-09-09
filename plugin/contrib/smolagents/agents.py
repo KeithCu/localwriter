@@ -885,6 +885,10 @@ class ToolCallingAgent(MultiStepAgent):
             in the current thread, in list order (same as the main-chat pending_tools queue).
         system_prompt_examples (`str`, *optional*): Few-shot Action/Observation examples inserted at `__EXAMPLES_BLOCK__`
             in the default system prompt. Defaults to web-search-style examples from `toolcalling_agent_prompts`.
+        advertise_final_answer_tool (`bool`, *optional*, default `True`): When False, keep the
+            finish tool internally (implicit text-as-answer) but omit it from the wire
+            schema and system tool list. Specialized loops use this — the host exits
+            one-shot / after accepted peer send instead of teaching a finish call.
         **kwargs: Additional keyword arguments.
     """
 
@@ -898,9 +902,11 @@ class ToolCallingAgent(MultiStepAgent):
         max_tool_threads: int | None = None,
         final_answer_tool_name: str = "final_answer",
         system_prompt_examples: str | None = None,
+        advertise_final_answer_tool: bool = True,
         **kwargs,
     ):
         self.final_answer_tool_name = final_answer_tool_name
+        self.advertise_final_answer_tool = advertise_final_answer_tool
         self.system_prompt_examples = system_prompt_examples
         if prompt_templates is None:
             from .toolcalling_agent_prompts import TOOLCALLING_PROMPT_TEMPLATES
@@ -924,22 +930,43 @@ class ToolCallingAgent(MultiStepAgent):
 
     @property
     def tools_and_managed_agents(self):
-        """Returns a combined list of tools and managed agents."""
-        return list(self.tools.values()) + list(self.managed_agents.values())
+        """Tools advertised to the model. May omit the internal finish tool."""
+        tools = list(self.tools.values())
+        if not getattr(self, "advertise_final_answer_tool", True):
+            fa = getattr(self, "final_answer_tool_name", "final_answer")
+            tools = [t for t in tools if t.name != fa]
+        return tools + list(self.managed_agents.values())
 
     def initialize_system_prompt(self) -> str:
         from .toolcalling_agent_prompts import DEFAULT_EXAMPLES_BLOCK
 
-        # Inject the dynamically configured final_answer tool name
-        template_str = self.prompt_templates["system_prompt"].replace("final_answer", self.final_answer_tool_name)
+        advertise = getattr(self, "advertise_final_answer_tool", True)
+        template_str = self.prompt_templates["system_prompt"]
         examples_block = (
             self.system_prompt_examples if self.system_prompt_examples is not None else DEFAULT_EXAMPLES_BLOCK
         )
-        if self.final_answer_tool_name != "final_answer":
-            examples_block = examples_block.replace("final_answer", self.final_answer_tool_name)
+        if advertise:
+            # Inject the dynamically configured final_answer tool name
+            template_str = template_str.replace("final_answer", self.final_answer_tool_name)
+            if self.final_answer_tool_name != "final_answer":
+                examples_block = examples_block.replace("final_answer", self.final_answer_tool_name)
+            prompt_tools = self.tools
+        else:
+            # Host one-shot: do not teach a finish tool the model cannot call.
+            template_str = template_str.replace(
+                "To complete the task, call the finish tool (see below) with your result. It is the only way to end the run.",
+                "When the tools have done the task, reply with a compact summary as text. "
+                "There is no finish tool — the host ends this specialize and returns to the outer loop.",
+            )
+            template_str = template_str.replace(
+                "If you can answer from the task alone, use {{final_answer_tool_name}}.",
+                "If you can answer from the task alone, reply with that answer as text.",
+            )
+            fa = self.final_answer_tool_name
+            prompt_tools = {k: v for k, v in self.tools.items() if k != fa}
         return _render_toolcalling_system_prompt(
             template_str,
-            tools=self.tools,
+            tools=prompt_tools,
             managed_agents=self.managed_agents,
             custom_instructions=self.instructions or "",
             examples_block=examples_block,
