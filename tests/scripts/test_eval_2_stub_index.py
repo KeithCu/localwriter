@@ -26,7 +26,7 @@ _STUBS = (
     "draw-primary-deliverable",
     "reverse-tenant",
 )
-# Preferred gold trees landed for 5–9; slot 10 is native (no HF gold).
+# Preferred gold trees landed for 5–9; slot 10 is native (no in-repo gold).
 _GOLD_STUBS = {
     "writer-calc-peer-write": "c3525d4d-2012-45df-853e-2d2a0e902991",
     "calc-primary-model": "5f6c57dd-feb6-4e70-b152-4969d92d1608",

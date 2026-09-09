@@ -3,7 +3,9 @@
 Manual Writer chat trial. Not wired into `dataset.py` / `run_eval`.
 Harness debug, not a multi-model benchmark.
 
-WriterAgent-native fixture (no HF gold). See [`SOURCE.md`](SOURCE.md).
+WriterAgent-native fixture (no in-repo GDPval gold). See
+[`SOURCE.md`](SOURCE.md). Do not download from Hugging Face for this
+slot.
 
 ## Setup
 

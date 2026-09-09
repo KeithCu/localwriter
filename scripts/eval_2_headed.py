@@ -29,7 +29,7 @@ the Writer memo and the Draw form (v1 pre-open cheat). The gold PDF is
 ``--task long-writer-pack --launch`` copies the two native research ODTs
 into ``$TMP/writeragent-eval2-long-writer``, writes a blank
 ``Northhaven Civic Library Capital Brief.odt``, and opens Writer. No
-peer. This sibling is WriterAgent-native (no HF gold tree).
+peer. This sibling is WriterAgent-native (no in-repo gold tree).
 
 Do not open ``fixtures/`` or the task folder.
 

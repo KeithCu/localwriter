@@ -1,37 +1,36 @@
 # Source
 
 This directory is a **WriterAgent-native** headed experiment, not a
-GDPval gold rewrite. There is **no** Hugging Face task id and **no**
-tree under [`docs/eval/gdpval/`](../../gdpval/). Do not invent a fake
-GDPval id.
+GDPval gold rewrite. There is **no** task id and **no** new tree under
+[`docs/eval/gdpval/`](../../gdpval/). Do not invent a fake GDPval id.
+Do **not** download from Hugging Face for this slot — decision used
+only the nine gold trees already in this repo.
 
 | Field | Value |
 |-------|--------|
 | Gold task id | none — WriterAgent-native fixture |
-| Untouched gold tree | none (add-only rule: no new `gdpval/<uuid>/` because no HF row fits) |
+| Untouched gold tree | none (no in-repo tree is a TOC + styles + comments pack; add-only if one lands later) |
 | Upstream | n/a — harness debug pack for TOC + named styles + comments |
 
-## Why not a GDPval gold
+## Why not an in-repo GDPval gold
 
-A rescan of the 220-row [openai/gdpval](https://huggingface.co/datasets/openai/gdpval)
-gold subset (2026-09-09) still did **not** yield one Word deliverable
-that needs a table of contents **and** named heading styles **and**
-review comments in a single long pack:
+The local catalog is nine trees. None ask for a table of contents,
+named heading styles, and review comments in one long Writer pack:
 
-| Looked at | Why it is not this slot |
-|-----------|-------------------------|
-| `8314d1b1-5b0f-42a4-b5d5-91c0867b0913` Clarivon legal memo | TOC appears only as a word-count exclusion; 3.5k memo, not a pack |
-| `0353ee0c-18b5-4ad3-88e8-e001d223e1d7` PACT Act guide | Long structured guide, but the deliverable is PDF |
-| `c2e8f271-7858-412f-b460-472463ad81d9` Coding Standards | “Comments” are code-review opinions; no TOC; ≤6 pages |
-| `5d0feb24-e8b6-4ace-b64f-d5cd1a8b563d` TRAPPIST-1 edit | Word comments + track changes on an existing draft; no new pack / TOC |
-| `c9bf9801-9640-45fa-8166-1ab01f2d98e4` OIIDP mentorship guide | Multi-file pack; “style” is CDC branding, not named Writer styles |
-| `85d95ce5-b20c-41e2-834e-e788ce9622b6` social-history template | Form / template; too close to parked slot 7 |
-| `62f04c2f-e0f7-4710-876c-54ee9c2e8256` Gravon exchange overview | One-page overview + xlsx form |
-| `46b34f78-6c06-4416-87e2-77b6d8b20ce9` Energy trading strategy | ≤10pp memo; “index” is a market index |
-| Impress / PPTX golds | Peer v1 rejects `PresentationDocument` |
+| Local tree | Why it is not this slot |
+|------------|-------------------------|
+| `ed2bc14c-…` Tenant Retention | Short memo; already Ready (slot 1) |
+| `61b0946a-…` Cadaver proposal | Mini proposal; already Ready (slot 2) |
+| `83d10b06-…` AFC sample | Calc / sampling workbook; already Ready (slot 3) |
+| `58ac1cc5-…` GMP change control | Form + memo pair; already Ready (slot 4) |
+| `c3525d4d-…` Floorstand / SAR | Writer email + Calc budget; slot 5 stub |
+| `5f6c57dd-…` Branch profitability | Calc-primary workbook; slot 6 stub |
+| `a46d5cd2-…` Company letterhead | Headed **template** fidelity; slot 7 **PARKED** |
+| `8a7b6fca-…` Process flow map | Draw-primary PDF; slot 8 stub |
+| `4520f882-…` Theatre CBA | Calc deliverable; slot 9 stub |
 
-Tenant, Cadaver, and GMP are already used Writer-adjacent golds. None
-ask for TOC + named styles + comments together.
+No other gold ids exist under `docs/eval/gdpval/` in this checkout.
+Do not invent a fake GDPval id. Do not download from Hugging Face.
 
 ## Native fixtures
 

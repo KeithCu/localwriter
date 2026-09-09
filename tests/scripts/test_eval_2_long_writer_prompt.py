@@ -48,6 +48,15 @@ def test_source_is_native_and_does_not_invent_gdpval_id() -> None:
     assert "Needs gold materials" not in source
     assert "TODO — not in-repo" not in source
     assert "do not invent a fake" in source.lower() or "Do not invent a fake" in source
+    assert "download from hugging face" in source.lower()
+    assert "huggingface.co" not in source.lower()
+    assert "220-row" not in source
+    assert "8314d1b1" not in source
+    assert "0353ee0c" not in source
+    assert "Clarivon" not in source
+    assert "PACT Act" not in source
+    # Catalog short prefixes of the nine in-repo trees may appear as rejected
+    # rows. Claiming any of those trees as this slot's gold path is not allowed.
     for gold_id in _READY_OR_STUB_GOLD_IDS:
         assert f"docs/eval/gdpval/{gold_id}/" not in source, gold_id
     assert not (_EXP / "prompt.gdpval.txt").exists()
