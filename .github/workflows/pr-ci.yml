@@ -72,6 +72,12 @@ jobs:
       - name: Install LibreOffice and system tools (Ubuntu)
         if: runner.os == 'Linux'
         run: |
+          # ubuntu-latest ships Chrome's apt source. Chrome's Packages.gz
+          # Hash-Sum-mismatches periodically (PR CI 34384169659) and fails
+          # this step before LibreOffice. This job never installs from that repo.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+                     /etc/apt/sources.list.d/google-chrome.sources \
+                     /etc/apt/sources.list.d/google.list
           sudo add-apt-repository -y ppa:libreoffice/ppa
           sudo apt-get update
           # libreoffice-dev ships unoidl-write; make build-core / rdb-core needs it.
