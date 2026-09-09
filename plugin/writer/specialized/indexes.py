@@ -15,7 +15,7 @@ The reference table is ``indexes_create(kind="bibliography")``. After cite
 changes, ``indexes_update_all`` refreshes that table.
 """
 
-from typing import Any
+from typing import Any, cast
 
 from ..specialized_base import ToolWriterIndexBase
 from ..target_resolver import resolve_target_cursor
@@ -280,7 +280,7 @@ def is_bibliography_text_field(field: Any) -> bool:
 def _create_property_value(name: str, value: Any) -> Any:
     import uno
 
-    prop = uno.createUnoStruct("com.sun.star.beans.PropertyValue")
+    prop = cast("Any", uno.createUnoStruct("com.sun.star.beans.PropertyValue"))
     prop.Name = name
     prop.Value = value
     return prop
@@ -295,12 +295,11 @@ def set_bibliography_field_values(field: Any, pairs: list[tuple[str, Any]]) -> N
     Set this on the descriptor *before* insert so attach() applies aPropSeq.
     """
     import uno
-    from typing import cast
 
     uno_any = getattr(uno, "Any")
     seq = tuple(_create_property_value(name, value) for name, value in pairs)
-    typed = uno_any("[]com.sun.star.beans.PropertyValue", cast("object", seq))
-    uno.invoke(field, "setPropertyValue", cast("object", ("Fields", typed)))
+    typed = uno_any("[]com.sun.star.beans.PropertyValue", cast("Any", seq))
+    uno.invoke(field, "setPropertyValue", cast("Any", ("Fields", typed)))
 
 
 class IndexesUpdateAll(ToolWriterIndexBase):
