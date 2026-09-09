@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 from plugin.chatbot.panel import SendButtonListener
 from plugin.chatbot.rich_text import finalize_sidebar_assistant_response
+from plugin.framework.deal_shim import DEAL_MAX_HTML_CHUNK
 from plugin.framework.html_stripper import StreamingHTMLStripper
 
 
@@ -68,6 +69,20 @@ class TestPanelHTMLStripper:
         with patch("plugin.chatbot.panel.threading.current_thread", return_value=threading.main_thread()):
             send._append_response("<p>Hello</p>", role="user")
             mock_set_text.assert_called_with(send.response_control, "Current: Hello")
+
+    @patch("plugin.chatbot.dialogs.get_control_text", return_value="Current: ")
+    @patch("plugin.chatbot.dialogs.set_control_text")
+    def test_append_response_long_assistant_chunk_does_not_precontract(
+        self, mock_set_text, mock_get_text
+    ):
+        """One assistant chunk > DEAL_MAX_HTML_CHUNK must still append (debug deal)."""
+        send = _make_plain_send_listener()
+        long_text = "<p>" + ("y" * (DEAL_MAX_HTML_CHUNK + 1)) + "</p>"
+        with patch("plugin.chatbot.panel.threading.current_thread", return_value=threading.main_thread()):
+            send._append_response(long_text, role="assistant")
+        mock_set_text.assert_called_with(
+            send.response_control, "Current: " + ("y" * (DEAL_MAX_HTML_CHUNK + 1))
+        )
 
     @patch("plugin.chatbot.dialogs.get_control_text", return_value="Current: ")
     @patch("plugin.chatbot.dialogs.set_control_text")

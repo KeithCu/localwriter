@@ -27,10 +27,11 @@ from plugin.framework.deal_shim import (
     deal,
 )
 
-# Wider than DEAL_MAX_SOURCE (16 under CrossHair): feed() must still reach the
-# 256-char tag flush under pytest. Pytest binds DEAL_MAX_HTML_CHUNK=4096 so
-# long tool-result HTML chunks; CrossHair uses 16. strip_html_tags has no
-# whole-string @deal.pre — it feeds in DEAL_MAX_HTML_CHUNK slices.
+# Wider than DEAL_MAX_SOURCE (16 under CrossHair): _feed_chunk() must still
+# reach the 256-char tag flush under pytest. Pytest binds DEAL_MAX_HTML_CHUNK=4096;
+# CrossHair uses 16. Public feed() / strip_html_tags have no whole-string
+# @deal.pre — they slice to DEAL_MAX_HTML_CHUNK so long _append_response
+# assistant/tool-result HTML cannot PreContract in debug OXTs.
 _DEAL_MAX_HTML_CHUNK = DEAL_MAX_HTML_CHUNK
 # Import-time only: pytest keeps Unicode body text (café); CrossHair uses ASCII
 # so SMT is not on 16-char Unicode (strip_html_tags 2:16, check-all 32877875221).
@@ -53,11 +54,12 @@ class StreamingHTMLStripper:
 
     @deal.pre(lambda self, chunk: str_bounded(chunk, _DEAL_MAX_HTML_CHUNK))
     @deal.post(lambda result: isinstance(result, str))
-    def feed(self, chunk: str) -> str:
-        """Feed a chunk of text, return the approved cleaned string without HTML tags.
-        
-        Holds back any potential HTML tags in a buffer until they are either confirmed
-        (closed with '>') or rejected (invalid tag start, new '<', or size limit exceeded).
+    def _feed_chunk(self, chunk: str) -> str:
+        """Process one deal-bounded slice. feed() slices so callers never trip this pre.
+
+        Debug OXTs keep live @deal.pre. _append_response used to pass a whole
+        assistant chunk here; one slice >4096 raised PreContractError, which
+        suppress_disposed swallowed (UI Ready, log PreContractError=1).
         """
         # crosshair: off  # char-by-char tag machine (cover-all 33451622787: ~1800s module, 2 examples despite DEAL_MAX_HTML_CHUNK=16). Doable later: dual-profile ASCII + smaller chunk.
         out: list[str] = []
@@ -96,6 +98,25 @@ class StreamingHTMLStripper:
         return "".join(out)
 
     @deal.post(lambda result: isinstance(result, str))
+    def feed(self, chunk: str) -> str:
+        """Feed a chunk of text, return the approved cleaned string without HTML tags.
+
+        Holds back any potential HTML tags in a buffer until they are either confirmed
+        (closed with '>') or rejected (invalid tag start, new '<', or size limit exceeded).
+
+        Slices to _DEAL_MAX_HTML_CHUNK like strip_html_tags so a single long
+        assistant append cannot trip debug @deal.pre on _feed_chunk.
+        """
+        # crosshair: off  # unbounded stream wrapper; deal bound lives on _feed_chunk.
+        if not chunk:
+            return ""
+        size = _DEAL_MAX_HTML_CHUNK
+        if len(chunk) <= size:
+            return self._feed_chunk(chunk)
+        parts = [self._feed_chunk(chunk[i : i + size]) for i in range(0, len(chunk), size)]
+        return "".join(parts)
+
+    @deal.post(lambda result: isinstance(result, str))
     def finalize(self) -> str:
         """Return any remaining buffered text when the stream is completed."""
         if self.in_tag and self.tag_buffer:
@@ -106,7 +127,7 @@ class StreamingHTMLStripper:
         return ""
 
 
-# Chunk through feed() so live deal never requires the whole string ≤ DEAL_MAX_HTML_CHUNK.
+# feed() slices so live deal never requires the whole string ≤ DEAL_MAX_HTML_CHUNK.
 @deal.post(lambda result: isinstance(result, str))
 def strip_html_tags(text: str) -> str:
     """Synchronous utility to strip HTML tags from a complete string."""
@@ -114,8 +135,4 @@ def strip_html_tags(text: str) -> str:
     if not text:
         return ""
     stripper = StreamingHTMLStripper()
-    parts = []
-    chunk = _DEAL_MAX_HTML_CHUNK
-    for i in range(0, len(text), chunk):
-        parts.append(stripper.feed(text[i : i + chunk]))
-    return "".join(parts) + stripper.finalize()
+    return stripper.feed(text) + stripper.finalize()

@@ -123,7 +123,7 @@ def deal_maxima(*, crosshair: bool) -> DealMaxima:
         retry=retry,
         backoff=backoff,
         backoff_factor=backoff_factor,
-        html_chunk=4096,  # long tool-result HTML in debug; strip_html_tags feeds in chunks (was 512)
+        html_chunk=4096,  # long tool-result HTML in debug; feed() / strip_html_tags slice to this (was 512)
     )
 
 

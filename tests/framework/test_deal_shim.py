@@ -153,10 +153,11 @@ def test_crosshair_env_binds_short_table_and_rejects_pytest_width() -> None:
     is_safe_origin(product_origin)
     with pytest.raises(deal.PreContractError):
         is_safe_origin("h" * (DEAL_MAX_ORIGIN + 1))
-    # strip_html_tags chunks through feed(); overflow is per-chunk, not whole-string.
+    # feed() / strip_html_tags slice; overflow is per-slice on _feed_chunk.
     strip_html_tags("x" * (DEAL_MAX_HTML_CHUNK + 1))
+    StreamingHTMLStripper().feed("x" * (DEAL_MAX_HTML_CHUNK + 1))
     with pytest.raises(deal.PreContractError):
-        StreamingHTMLStripper().feed("x" * (DEAL_MAX_HTML_CHUNK + 1))
+        StreamingHTMLStripper()._feed_chunk("x" * (DEAL_MAX_HTML_CHUNK + 1))
     strip_html_tags("x" * 256)
 
     script = textwrap.dedent(
@@ -186,12 +187,13 @@ def test_crosshair_env_binds_short_table_and_rejects_pytest_width() -> None:
         strip_html_tags("x" * 16)
         strip_html_tags("x" * 17)
         StreamingHTMLStripper().feed("x" * 16)
+        StreamingHTMLStripper().feed("x" * 17)
         try:
-            StreamingHTMLStripper().feed("x" * 17)
+            StreamingHTMLStripper()._feed_chunk("x" * 17)
         except deal.PreContractError:
             pass
         else:
-            raise SystemExit("html feed 17 must fail under CrossHair table")
+            raise SystemExit("html _feed_chunk 17 must fail under CrossHair table")
         _("x" * 1024)
         try:
             _("x" * 1025)
