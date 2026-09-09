@@ -259,7 +259,7 @@ _DEFAULT_PYTHON_SCRIPTS = {
             print("Unsupported document type for rich text insertion.")
 
         # 2. 24-sided star (sizes in 100ths of a mm; 4000 = 4cm)
-        wa.shape.upsert(action="create", shape_type="star24", x=2000, y=5000, width=4000, height=4000, fill_color="blue", text="24-sided Star")
+        _ = wa.shape.upsert(action="create", shape_type="star24", x=2000, y=5000, width=4000, height=4000, fill_color="blue", text="24-sided Star")
         print("Inserted a 24-sided blue star shape.")
         """).strip(),
 }
