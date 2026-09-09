@@ -230,38 +230,6 @@ def _try_writer_invalidate_and_pump(doc) -> None:
         log.debug("create_shape writer_invalidate: %s", ex)
 
 
-def _try_writer_select_created_shape(doc, shape) -> None:
-    """Select the new shape so the view shows handles and scrolls to it if needed."""
-    try:
-        if doc is None or not doc.supportsService("com.sun.star.text.TextDocument"):
-            return
-        ctrl = doc.getCurrentController()
-        if ctrl is None:
-            return
-        import uno
-
-        sel = None
-        try:
-            t = uno.getTypeByName("com.sun.star.view.XSelectionSupplier")
-            sel = ctrl.queryInterface(t)
-        except Exception:
-            pass
-        if sel is None:
-            try:
-                from com.sun.star.view import XSelectionSupplier
-
-                sel = ctrl.queryInterface(XSelectionSupplier)
-            except Exception:
-                sel = None
-        if sel is None:
-            log.debug("create_shape writer_select: no XSelectionSupplier")
-            return
-        sel.select(shape)
-        log.debug("create_shape writer_select: controller.select(shape) ok")
-    except Exception as ex:
-        log.debug("create_shape writer_select: %s: %s", type(ex).__name__, ex)
-
-
 def _log_create_shape_page_context(doc, bridge, page) -> None:
     """How the target draw page was chosen (Writer vs Draw / controller vs first page)."""
     try:
@@ -719,7 +687,8 @@ class UpsertShape(ToolDrawShapeBase):
             # setString can still resize Writer AT_PAGE custom shapes (Arch: 4001x4001 → 2249x489).
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
             _try_writer_invalidate_and_pump(ctx.doc)
-            _try_writer_select_created_shape(ctx.doc, shape)
+            # Do not select after create: selected Writer AT_PAGE CustomShapes often
+            # show handles-only / no fill on Arch and headed Universal Sample.
             _log_shape_uno_snapshot("after_formatting", shape)
             if is_custom_shape:
                 _log_custom_shape_geometry_dump(shape, "after_formatting")
