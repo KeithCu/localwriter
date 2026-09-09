@@ -1,0 +1,9 @@
+TODO: PARKED. Do not treat this file as a headed-ready prompt.
+
+After gold materials land and letterhead fidelity is unlocked, remap the
+gold claim to this open Writer template (keep the letterhead / first-page
+header / named styles). Do not ask the agent to “rebuild the header from
+scratch.” Do not name product internals.
+
+Gold-specific claimant names, case numbers, and letterhead brands stay
+out of this stub.

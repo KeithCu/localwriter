@@ -1,0 +1,15 @@
+TODO: paste a WriterAgent delta after gold materials land (see SOURCE.md).
+
+Shape only — not a headed-ready claim:
+
+- This spreadsheet is already open. Build the requested schedules in this
+  workbook (separate sheets if the gold asks for them).
+- Use ordinary spreadsheet formulas for row-wise amounts, rates, and
+  allocations. A new empty sheet is not the deliverable.
+- Periods, branch names, and rate inputs come from the files in this
+  folder. If a value is missing, leave the cell blank.
+
+Gold-specific WACC, branch totals, and roster rates stay out of this
+stub. When gold lands, keep the gold claim and only remap “create a new
+Excel file” to this open workbook (same spirit as AFC’s in-workbook
+variant).
