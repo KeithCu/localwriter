@@ -230,38 +230,6 @@ def _try_writer_invalidate_and_pump(doc) -> None:
         log.debug("create_shape writer_invalidate: %s", ex)
 
 
-def _try_writer_select_created_shape(doc, shape) -> None:
-    """Select the new shape so the view shows handles and scrolls to it if needed."""
-    try:
-        if doc is None or not doc.supportsService("com.sun.star.text.TextDocument"):
-            return
-        ctrl = doc.getCurrentController()
-        if ctrl is None:
-            return
-        import uno
-
-        sel = None
-        try:
-            t = uno.getTypeByName("com.sun.star.view.XSelectionSupplier")
-            sel = ctrl.queryInterface(t)
-        except Exception:
-            pass
-        if sel is None:
-            try:
-                from com.sun.star.view import XSelectionSupplier
-
-                sel = ctrl.queryInterface(XSelectionSupplier)
-            except Exception:
-                sel = None
-        if sel is None:
-            log.debug("create_shape writer_select: no XSelectionSupplier")
-            return
-        sel.select(shape)
-        log.debug("create_shape writer_select: controller.select(shape) ok")
-    except Exception as ex:
-        log.debug("create_shape writer_select: %s: %s", type(ex).__name__, ex)
-
-
 def _log_create_shape_page_context(doc, bridge, page) -> None:
     """How the target draw page was chosen (Writer vs Draw / controller vs first page)."""
     try:
@@ -450,10 +418,23 @@ class DrawShapes:
             raise DrawError(f"Failed to create shape: {str(e)}", code="DRAW_SHAPE_CREATION_ERROR", details={"shape_type": shape_type, "position": position, "size": size, "original_error": str(e), "error_type": type(e).__name__}) from e
 
 
+def _clamp_shape_text_autogrow(shape) -> None:
+    """Keep explicit Size after setString (Writer AT_PAGE custom shapes shrink to text)."""
+    for prop, value in (
+        ("TextAutoGrowHeight", False),
+        ("TextAutoGrowWidth", False),
+    ):
+        try:
+            shape.setPropertyValue(prop, value)
+        except Exception:
+            pass
+
+
 def _apply_shape_properties(shape, kwargs):
     """Helper to apply rich formatting properties to a shape."""
     # "text" in kwargs (not truthy) so paper-form fills can write "" or keep a Name-only edit.
     if "text" in kwargs and hasattr(shape, "setString"):
+        _clamp_shape_text_autogrow(shape)
         shape.setString("" if kwargs["text"] is None else str(kwargs["text"]))
 
     if kwargs.get("name") and hasattr(shape, "Name"):
@@ -690,9 +671,24 @@ class UpsertShape(ToolDrawShapeBase):
             _try_writer_at_page_shape_finalize(ctx.doc, bridge, page, shape)
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
 
+            # Writer: re-apply EnhancedCustomShapeGeometry after AT_PAGE anchor (pre-#527
+            # upsert path). Before-add alone can leave handles-only / invisible on some LO.
+            if (
+                is_custom_shape
+                and custom_shape_type
+                and ctx.doc is not None
+                and ctx.doc.supportsService("com.sun.star.text.TextDocument")
+            ):
+                geometry_applied, geometry_error = _apply_enhanced_custom_shape_type(
+                    shape, custom_shape_type
+                )
+
             _apply_shape_properties(shape, kwargs)
+            # setString can still resize Writer AT_PAGE custom shapes (Arch: 4001x4001 → 2249x489).
+            _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
             _try_writer_invalidate_and_pump(ctx.doc)
-            _try_writer_select_created_shape(ctx.doc, shape)
+            # Do not select after create: selected Writer AT_PAGE CustomShapes often
+            # show handles-only / no fill on Arch and headed Universal Sample.
             _log_shape_uno_snapshot("after_formatting", shape)
             if is_custom_shape:
                 _log_custom_shape_geometry_dump(shape, "after_formatting")
@@ -732,6 +728,9 @@ class UpsertShape(ToolDrawShapeBase):
                 shape.setSize(Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height)))
 
             _apply_shape_properties(shape, kwargs)
+            if "text" in kwargs and ("width" in kwargs or "height" in kwargs):
+                size = shape.getSize()
+                shape.setSize(Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height)))
 
             return {"status": "ok", "message": "Shape updated", "page": actual_idx, "index": shape_idx, "name": getattr(shape, "Name", "") or ""}
 

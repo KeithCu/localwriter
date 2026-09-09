@@ -111,6 +111,20 @@ def _format_list_to_table(data: list, *, headers: list | None = None) -> str:
 
 
 
+
+def is_shape_tool_status_result(result: Any) -> bool:
+    """True for shape_upsert/edit status dicts that must not be HTML-dumped into Writer."""
+    if not isinstance(result, dict) or not result:
+        return False
+    if "geometry_applied" in result or "shape_count_after" in result or "custom_shape_engine" in result:
+        return True
+    msg = str(result.get("message") or "")
+    if result.get("status") == "ok" and ("index" in result or "page" in result):
+        if msg.startswith("Created ") or msg == "Shape updated":
+            return True
+    return False
+
+
 def format_result_for_writer(result: Any) -> str:
     """Format the Python execution result for insertion into Writer.
 
@@ -479,20 +493,28 @@ def execute_and_insert_result(
             if is_calc(doc):
                 insert_result_into_calc(doc, ctx, result_data)
             elif is_writer(doc):
-                formatted = format_result_for_writer(result_data)
-                if formatted:
-                    from plugin.writer.format import run_writer_mutation_with_optional_review
-
-                    run_writer_mutation_with_optional_review(
-                        doc,
-                        ctx,
-                        lambda: insert_content_at_position(doc, ctx, formatted, "selection"),
+                if is_shape_tool_status_result(result_data):
+                    log.debug(
+                        "Skipping Writer result insert for shape tool status dict (keys=%s)",
+                        sorted(result_data.keys()) if isinstance(result_data, dict) else type(result_data).__name__,
                     )
+                else:
+                    formatted = format_result_for_writer(result_data)
+                    if formatted:
+                        from plugin.writer.format import run_writer_mutation_with_optional_review
+
+                        run_writer_mutation_with_optional_review(
+                            doc,
+                            ctx,
+                            lambda: insert_content_at_position(doc, ctx, formatted, "selection"),
+                        )
             elif is_draw(doc):
                 insert_result_into_draw(doc, ctx, result_data)
             else:
                 return {"ok": False, "message": _("Unsupported document type for result insertion. (took {time})").format(time=formatted_time)}
         except Exception as e:
+            # Logging (type/str/repr + traceback) lives in rps_insert_failed_outcome —
+            # previously this catch painted the RPS dialog with no debug-log line.
             return rps_insert_failed_outcome(e, t0=t0)
 
     if stdout:

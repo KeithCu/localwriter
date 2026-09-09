@@ -443,3 +443,31 @@ def test_shape_upsert_validation():
     assert ok
     assert err is None
 
+
+@native_test
+@with_native_doc("writer")
+def test_writer_star24_with_text_keeps_explicit_size(ctx, doc):
+    """Writer AT_PAGE custom shapes must not collapse after setString (Arch Universal Sample)."""
+    page = doc.getDrawPages().getByIndex(0)
+    before = page.getCount()
+    result = _exec_tool(doc, ctx, "shape_upsert", {
+        "action": "create",
+        "shape_type": "star24",
+        "x": 2000,
+        "y": 5000,
+        "width": 4000,
+        "height": 4000,
+        "fill_color": "blue",
+        "text": "24-sided Star",
+    })
+    data = json.loads(result)
+    assert data.get("status") == "ok", result
+    assert data.get("geometry_applied") is True, data
+    assert page.getCount() == before + 1
+    shape = page.getByIndex(page.getCount() - 1)
+    size = shape.getSize()
+    # Allow 1 HMM rounding; reject Arch-style collapse to ~2249x489
+    assert abs(size.Width - 4000) <= 2, f"Width collapsed: {size.Width}x{size.Height}"
+    assert abs(size.Height - 4000) <= 2, f"Height collapsed: {size.Width}x{size.Height}"
+    assert shape.String == "24-sided Star" or shape.getString() == "24-sided Star"
+
