@@ -182,6 +182,44 @@ def test_insert_content_at_position_text_selection_clears_range():
     text_rng.setString.assert_called_once_with("")
 
 
+def test_insert_content_at_position_shape_selection_falls_back_to_doc_end():
+    """After shape.upsert, controller selects the Draw shape — HTML insert must not use it."""
+    from unittest.mock import MagicMock, patch
+
+    from plugin.writer.format import insert_content_at_position
+
+    shape = MagicMock()
+    shape.supportsService.side_effect = lambda s: s == "com.sun.star.drawing.Shape"
+
+    sel = MagicMock()
+    sel.getCount.return_value = 1
+    sel.getByIndex.return_value = shape
+
+    controller = MagicMock()
+    controller.getSelection.return_value = sel
+    # View cursor also unusable / shape-like → force document end
+    controller.getViewCursor.side_effect = Exception("no view cursor")
+
+    body_cursor = MagicMock()
+    body_text = MagicMock()
+    body_text.createTextCursor.return_value = body_cursor
+
+    model = MagicMock()
+    model.getCurrentController.return_value = controller
+    model.getText.return_value = body_text
+
+    with patch("plugin.doc.visual_helpers.is_graphic_object", return_value=False), patch(
+        "plugin.writer.html_import._insert_mixed_or_plain_html"
+    ) as mock_insert:
+        insert_content_at_position(model, MagicMock(), "<p>hi</p>", "selection")
+
+    body_cursor.gotoEnd.assert_called_once_with(False)
+    mock_insert.assert_called_once()
+    assert mock_insert.call_args.args[2] is body_cursor
+    shape.setString.assert_not_called()
+
+
+
 def test_replace_preserving_format_atomic_when_split_author_false_even_in_undo_context():
     # Configurable coloring: split_author=False forces the SINGLE atomic setString (one author -> one
     # color) even INSIDE an open undo context, where split_author=True (the default) would use the

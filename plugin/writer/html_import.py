@@ -498,6 +498,33 @@ def insert_html_at_cursor(model, ctx, cursor, unescaped_content, config_svc=None
 
 
 
+
+def _selection_is_draw_shape(obj) -> bool:
+    """True when the controller selection is a Draw/Writer shape, not a text range.
+
+    After ``create_shape`` / ``shape.upsert``, Writer selects the new shape so the
+    user can see handles. That selection is not an ``XTextCursor`` host:
+    ``insertDocumentFromURL`` then raises ``AttributeError: insertDocumentFromURL``
+    (opaque dialog: Failed to insert result: insertDocumentFromURL).
+    """
+    if obj is None:
+        return False
+    try:
+        from plugin.doc.visual_helpers import is_graphic_object
+
+        if is_graphic_object(obj):
+            return True
+    except Exception:
+        pass
+    try:
+        # Require exact True — MagicMock.supportsService is truthy without side_effect.
+        if obj.supportsService("com.sun.star.drawing.Shape") is True:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def insert_content_at_position(model, ctx, content, position, config_svc=None):
     """Insert formatted content at *position* (``'beginning'``,
     ``'end'``, or ``'selection'``) using ``insertDocumentFromURL``.
@@ -516,6 +543,9 @@ def insert_content_at_position(model, ctx, content, position, config_svc=None):
         # table cell / frame is a different XText, and gotoRange on a body cursor raises. The
         # old blanket `except: cursor.gotoEnd(False)` meant a failure DELETED the selection and
         # appended the content at the document end while reporting ok. Never fall back silently.
+        #
+        # Draw/Writer shape selections (post shape.upsert) are not text ranges — fall back to
+        # the view text cursor or document end so insertDocumentFromURL always gets an XTextCursor.
         try:
             controller = model.getCurrentController()
             sel = controller.getSelection() if controller else None
@@ -526,10 +556,33 @@ def insert_content_at_position(model, ctx, content, position, config_svc=None):
                         rng = sel.getByIndex(0)
                 except Exception:
                     rng = None
+            if rng is not None and _selection_is_draw_shape(rng):
+                log.debug(
+                    "insert_content_at_position: selection is Draw/Writer shape; "
+                    "using view/document text cursor for HTML insert"
+                )
+                rng = None
             if rng is None:
-                rng = controller.getViewCursor()
-            cursor = rng.getText().createTextCursorByRange(rng.getStart())
-            rng.setString("")  # clear the selection only AFTER the insert cursor is anchored
+                try:
+                    rng = controller.getViewCursor() if controller else None
+                except Exception:
+                    rng = None
+                if rng is not None and _selection_is_draw_shape(rng):
+                    rng = None
+            if rng is None:
+                cursor = text.createTextCursor()
+                cursor.gotoEnd(False)
+            else:
+                cursor = rng.getText().createTextCursorByRange(rng.getStart())
+                if not hasattr(cursor, "insertDocumentFromURL"):
+                    log.debug(
+                        "insert_content_at_position: resolved cursor lacks insertDocumentFromURL; "
+                        "falling back to document end"
+                    )
+                    cursor = text.createTextCursor()
+                    cursor.gotoEnd(False)
+                else:
+                    rng.setString("")  # clear text selection only AFTER insert cursor is anchored
         except Exception as e:
             raise ToolExecutionError(
                 "Could not resolve the current selection (%s). Select text first, or use "
