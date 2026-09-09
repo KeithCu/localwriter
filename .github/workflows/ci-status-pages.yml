@@ -30,11 +30,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Generate CI status HTML and SVG
+      - name: Restore CI status cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/ci-status
+          key: ci-status-${{ github.run_id }}
+          restore-keys: |
+            ci-status-
+
+      - name: Generate CI status HTML, SVG, and JSON
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python3 scripts/generate_ci_status.py --out _site
+        run: python3 scripts/generate_ci_status.py --out _site --cache .cache/ci-status/status.json
+
+      - name: Save CI status cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .cache/ci-status
+          key: ci-status-${{ github.run_id }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

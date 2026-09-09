@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
@@ -15,9 +16,12 @@ from scripts.generate_ci_status import (
     StatusRow,
     SuiteSpec,
     collect_status,
+    is_expired,
     job_matches,
     main,
+    parse_cached_rows,
     render_html,
+    render_json,
     render_svg,
     short_sha,
     suite_specs,
@@ -318,3 +322,241 @@ def test_generator_and_workflow_live_outside_docs() -> None:
     assert suites.count("CrossHair cover-all") == 1
     assert suites.count("Test & Typecheck") == 3
     assert suites.count("Mock LLM Sidebar") == 3
+
+
+def test_is_expired_within_and_outside_window() -> None:
+    now = datetime(2026, 9, 9, 12, 0, 0, tzinfo=timezone.utc)
+    # 6 days old: within 60 days
+    assert not is_expired("2026-09-03T18:15:33Z", max_age_days=60, now=now)
+    # 59 days old: within 60 days
+    assert not is_expired("2026-07-12T00:00:00Z", max_age_days=60, now=now)
+    # 61 days old: expired
+    assert is_expired("2026-07-09T00:00:00Z", max_age_days=60, now=now)
+    # 100 days old: expired
+    assert is_expired("2026-06-01T00:00:00Z", max_age_days=60, now=now)
+    # Empty string is expired
+    assert is_expired("", max_age_days=60, now=now)
+    # Unparseable string does not crash and is safe fallback
+    assert not is_expired("invalid-date", max_age_days=60, now=now)
+
+
+def test_parse_cached_rows_filters_expired_and_no_run() -> None:
+    specs = suite_specs()
+    now = datetime(2026, 9, 9, 12, 0, 0, tzinfo=timezone.utc)
+    cached = {
+        "rows": [
+            {
+                "suite": "Test & Typecheck",
+                "os": "macos-latest",
+                "conclusion": "success",
+                "sha": "589df34",
+                "when": "2026-09-03T16:54:58Z",
+                "run_url": "https://github.com/KeithCu/writeragent/actions/runs/33780513241",
+                "run_id": 33780513241,
+            },
+            {
+                "suite": "Test & Typecheck",
+                "os": "windows-latest",
+                "conclusion": "success",
+                "sha": "96912c4",
+                "when": "2026-06-01T00:00:00Z",  # Expired (> 60 days)
+                "run_url": "https://github.com/KeithCu/writeragent/actions/runs/100",
+                "run_id": 100,
+            },
+            {
+                "suite": "Mock LLM Sidebar",
+                "os": "ubuntu-latest",
+                "conclusion": "no run",  # Empty
+                "sha": "",
+                "when": "",
+                "run_url": "",
+                "run_id": 0,
+            },
+        ]
+    }
+    rows = parse_cached_rows(cached, specs, max_age_days=60, now=now)
+    # macos-latest is retained
+    assert any(r.suite == "Test & Typecheck" and r.os == "macos-latest" and r.sha == "589df34" for r in rows.values())
+    # windows-latest was expired, so not retained
+    assert not any(r.suite == "Test & Typecheck" and r.os == "windows-latest" for r in rows.values())
+    # no run was not retained
+    assert not any(r.suite == "Mock LLM Sidebar" and r.os == "ubuntu-latest" for r in rows.values())
+
+
+def test_collect_status_uses_cached_hints_and_stops_early() -> None:
+    now = datetime(2026, 9, 9, 12, 0, 0, tzinfo=timezone.utc)
+    cached_data = {
+        "rows": [
+            {
+                "suite": "Test & Typecheck",
+                "os": "macos-latest",
+                "conclusion": "success",
+                "sha": "589df34",
+                "when": "2026-09-03T16:54:58Z",
+                "run_url": "https://github.com/KeithCu/writeragent/actions/runs/33780513241",
+                "run_id": 33780513241,
+            },
+            {
+                "suite": "Test & Typecheck",
+                "os": "windows-latest",
+                "conclusion": "success",
+                "sha": "96912c4",
+                "when": "2026-09-03T18:15:33Z",
+                "run_url": "https://github.com/KeithCu/writeragent/actions/runs/33788378302",
+                "run_id": 33788378302,
+            },
+            {
+                "suite": "Mock LLM Sidebar",
+                "os": "ubuntu-latest",
+                "conclusion": "success",
+                "sha": "85f7a76",
+                "when": "2026-09-03T15:28:00Z",
+                "run_url": "url",
+                "run_id": 33788378302,
+            },
+            {
+                "suite": "Mock LLM Sidebar",
+                "os": "macos-latest",
+                "conclusion": "success",
+                "sha": "85f7a76",
+                "when": "2026-09-03T15:29:00Z",
+                "run_url": "url",
+                "run_id": 33788378302,
+            },
+            {
+                "suite": "Mock LLM Sidebar",
+                "os": "windows-latest",
+                "conclusion": "success",
+                "sha": "85f7a76",
+                "when": "2026-09-03T15:30:00Z",
+                "run_url": "url",
+                "run_id": 33788378302,
+            },
+        ]
+    }
+    # Run 4000 is a newer run that has ubuntu-latest
+    # Run 33780513241 is at or before the checkpoint for all remaining specs
+    runs = {
+        "crosshair-deep.yml": [],
+        "pr-ci.yml": [
+            {"id": 40000000000, "head_sha": "new_sha123", "html_url": "https://github.com/KeithCu/writeragent/actions/runs/40000000000", "created_at": "2026-09-09T10:00:00Z", "event": "pull_request"},
+            {"id": 33780513241, "head_sha": "589df340000", "html_url": "https://github.com/KeithCu/writeragent/actions/runs/33780513241", "created_at": "2026-09-03T16:50:00Z", "event": "workflow_dispatch"},
+        ],
+    }
+    jobs_called: list[int] = []
+
+    def fetch(url: str) -> dict[str, Any]:
+        if "crosshair-deep.yml" in url:
+            return {"workflow_runs": []}
+        if "pr-ci.yml" in url and "/jobs" not in url:
+            return {"workflow_runs": runs["pr-ci.yml"]}
+        if "/40000000000/jobs" in url:
+            jobs_called.append(40000000000)
+            return {"jobs": [_job("Test & Typecheck (ubuntu-latest)", "success", "2026-09-09T10:05:00Z")]}
+        if "/33780513241/jobs" in url:
+            jobs_called.append(33780513241)
+            return {"jobs": [_job("Test & Typecheck (macos-latest)", "success", "2026-09-03T16:54:58Z")]}
+        raise AssertionError(f"unexpected URL: {url}")
+
+    rows = collect_status(fetch, "KeithCu/writeragent", cached_data=cached_data, max_age_days=60, now=now)
+    by_key = {(r.suite, r.os): r for r in rows}
+    # Ubuntu got the new run
+    assert by_key[("Test & Typecheck", "ubuntu-latest")].sha == "new_sha"
+    assert by_key[("Test & Typecheck", "ubuntu-latest")].conclusion == "success"
+    # MacOS retained the cached run
+    assert by_key[("Test & Typecheck", "macos-latest")].sha == "589df34"
+    assert by_key[("Test & Typecheck", "macos-latest")].run_id == 33780513241
+    # Windows retained the cached run
+    assert by_key[("Test & Typecheck", "windows-latest")].sha == "96912c4"
+    # Because all checkpoints were reached, jobs were NOT requested for 33780513241
+    assert 33780513241 not in jobs_called
+
+
+def test_collect_status_supersedes_cached_hint_when_newer_run_exists() -> None:
+    now = datetime(2026, 9, 9, 12, 0, 0, tzinfo=timezone.utc)
+    cached_data = {
+        "rows": [
+            {
+                "suite": "Test & Typecheck",
+                "os": "macos-latest",
+                "conclusion": "failure",
+                "sha": "old_sha",
+                "when": "2026-09-01T00:00:00Z",
+                "run_url": "https://github.com/KeithCu/writeragent/actions/runs/100",
+                "run_id": 100,
+            }
+        ]
+    }
+    runs = {
+        "crosshair-deep.yml": [],
+        "pr-ci.yml": [
+            {"id": 200, "head_sha": "new_mac_sha", "html_url": "https://github.com/KeithCu/writeragent/actions/runs/200", "created_at": "2026-09-08T00:00:00Z", "event": "workflow_dispatch"},
+        ],
+    }
+
+    def fetch(url: str) -> dict[str, Any]:
+        if "crosshair-deep.yml" in url:
+            return {"workflow_runs": []}
+        if "pr-ci.yml" in url and "/jobs" not in url:
+            return {"workflow_runs": runs["pr-ci.yml"]}
+        if "/200/jobs" in url:
+            return {"jobs": [_job("Test & Typecheck (macos-latest)", "success", "2026-09-08T00:10:00Z")]}
+        raise AssertionError(f"unexpected URL: {url}")
+
+    rows = collect_status(fetch, "KeithCu/writeragent", cached_data=cached_data, max_age_days=60, now=now)
+    by_key = {(r.suite, r.os): r for r in rows}
+    assert by_key[("Test & Typecheck", "macos-latest")].conclusion == "success"
+    assert by_key[("Test & Typecheck", "macos-latest")].sha == "new_mac"
+    assert by_key[("Test & Typecheck", "macos-latest")].run_id == 200
+
+
+def test_collect_status_skips_pr_runs_when_ubuntu_typecheck_resolved() -> None:
+    now = datetime(2026, 9, 9, 12, 0, 0, tzinfo=timezone.utc)
+    # Run 500: PR run (gives ubuntu-latest)
+    # Runs 499, 498, 497: PR runs that should be skipped without calling jobs
+    runs = {
+        "crosshair-deep.yml": [],
+        "pr-ci.yml": [
+            {"id": 500, "head_sha": "sha500", "html_url": "url500", "created_at": "2026-09-09T10:00:00Z", "event": "pull_request"},
+            {"id": 499, "head_sha": "sha499", "html_url": "url499", "created_at": "2026-09-09T09:00:00Z", "event": "pull_request"},
+            {"id": 498, "head_sha": "sha498", "html_url": "url498", "created_at": "2026-09-09T08:00:00Z", "event": "pull_request"},
+        ],
+    }
+    job_calls = []
+
+    def fetch(url: str) -> dict[str, Any]:
+        if "crosshair-deep.yml" in url:
+            return {"workflow_runs": []}
+        if "pr-ci.yml" in url and "/jobs" not in url:
+            return {"workflow_runs": runs["pr-ci.yml"]}
+        if "/500/jobs" in url:
+            job_calls.append(500)
+            return {"jobs": [_job("Test & Typecheck (ubuntu-latest)", "success", "2026-09-09T10:05:00Z")]}
+        if "/499/jobs" in url or "/498/jobs" in url:
+            job_calls.append(int(url.split("/runs/")[1].split("/")[0]))
+            return {"jobs": []}
+        raise AssertionError(f"unexpected URL: {url}")
+
+    rows = collect_status(fetch, "KeithCu/writeragent", max_age_days=60, now=now)
+    assert job_calls == [500]  # Only run 500 called jobs; 499 and 498 were skipped!
+    by_key = {(r.suite, r.os): r for r in rows}
+    assert by_key[("Test & Typecheck", "ubuntu-latest")].conclusion == "success"
+
+
+def test_render_json_includes_run_ids() -> None:
+    rows = [
+        StatusRow("Test & Typecheck", "macos-latest", "success", "589df34", "2026-09-03T16:54:58Z", "url", run_id=33780513241),
+    ]
+    raw = render_json(rows, repo="KeithCu/writeragent", generated_at="2026-09-09T12:00:00Z", max_age_days=60)
+    import json
+    data = json.loads(raw)
+    assert data["max_age_days"] == 60
+    assert data["rows"][0]["suite"] == "Test & Typecheck"
+    assert data["rows"][0]["run_id"] == 33780513241
+
+
+def test_workflow_restores_and_saves_cache() -> None:
+    text = _WORKFLOW.read_text(encoding="utf-8")
+    assert "actions/cache/restore" in text
+    assert "actions/cache/save" in text
+    assert "--cache .cache/ci-status/status.json" in text

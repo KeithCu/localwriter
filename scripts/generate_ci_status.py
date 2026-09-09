@@ -23,7 +23,7 @@ import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
 from urllib.parse import quote
@@ -32,8 +32,9 @@ DEFAULT_REPO = "KeithCu/writeragent"
 API_ROOT = "https://api.github.com"
 USER_AGENT = "writeragent-ci-status"
 API_VERSION = "2022-11-28"
-RUNS_PER_PAGE = 50
-MAX_RUN_PAGES = 5
+RUNS_PER_PAGE = 100
+MAX_RUN_PAGES = 50
+DEFAULT_MAX_AGE_DAYS = 60
 OS_LABELS = ("ubuntu-latest", "macos-latest", "windows-latest")
 
 # Each row is the newest job whose name contains every needle. CrossHair
@@ -73,10 +74,39 @@ class StatusRow:
     sha: str
     when: str
     run_url: str
+    run_id: int = 0
 
 
 def suite_specs() -> tuple[SuiteSpec, ...]:
     return tuple(SuiteSpec(*item) for item in SUITE_SPECS)
+
+
+def parse_iso_timestamp(ts: str) -> datetime | None:
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+def is_expired(
+    ts_str: str,
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+    now: datetime | None = None,
+) -> bool:
+    """True when timestamp is older than max_age_days (2 months by default)."""
+    if not ts_str:
+        return True
+    dt = parse_iso_timestamp(ts_str)
+    if dt is None:
+        return False
+    if now is None:
+        now = datetime.now(timezone.utc)
+    return (now - dt) > timedelta(days=max_age_days)
 
 
 def job_matches(job_name: str, spec: SuiteSpec) -> bool:
@@ -148,9 +178,17 @@ def make_fetcher(token: str) -> Fetcher:
     return fetch
 
 
-def iter_workflow_runs(fetch: Fetcher, repo: str, workflow: str) -> Iterator[JsonDict]:
+def iter_workflow_runs(
+    fetch: Fetcher,
+    repo: str,
+    workflow: str,
+    *,
+    max_pages: int = MAX_RUN_PAGES,
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+    now: datetime | None = None,
+) -> Iterator[JsonDict]:
     encoded = quote(workflow, safe="")
-    for page in range(1, MAX_RUN_PAGES + 1):
+    for page in range(1, max_pages + 1):
         url = (
             f"{API_ROOT}/repos/{repo}/actions/workflows/{encoded}/runs"
             f"?per_page={RUNS_PER_PAGE}&page={page}"
@@ -161,6 +199,9 @@ def iter_workflow_runs(fetch: Fetcher, repo: str, workflow: str) -> Iterator[Jso
             return
         for run in runs:
             if isinstance(run, dict):
+                created = run.get("created_at")
+                if isinstance(created, str) and is_expired(created, max_age_days, now):
+                    return
                 yield run
         if len(runs) < RUNS_PER_PAGE:
             return
@@ -183,20 +224,109 @@ def _empty_row(spec: SuiteSpec) -> StatusRow:
         sha="",
         when="",
         run_url="",
+        run_id=0,
     )
 
 
-def collect_status(fetch: Fetcher, repo: str) -> list[StatusRow]:
-    """Newest matching job per suite row (workflow runs are newest-first)."""
+def parse_cached_rows(
+    cached_data: JsonDict,
+    specs: tuple[SuiteSpec, ...],
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+    now: datetime | None = None,
+) -> dict[int, StatusRow]:
+    raw_rows = cached_data.get("rows")
+    if not isinstance(raw_rows, list):
+        return {}
+    cached_by_key: dict[tuple[str, str], StatusRow] = {}
+    for item in raw_rows:
+        if not isinstance(item, dict):
+            continue
+        suite = str(item.get("suite", ""))
+        os_name = str(item.get("os", ""))
+        conclusion = str(item.get("conclusion", ""))
+        when = str(item.get("when", ""))
+        run_id = int(item.get("run_id", 0) or 0)
+        # Expired cached runs revert to "no run" and are not accepted as hints
+        if conclusion == "no run" or is_expired(when, max_age_days, now):
+            continue
+        cached_by_key[(suite, os_name)] = StatusRow(
+            suite=suite,
+            os=os_name,
+            conclusion=conclusion,
+            sha=str(item.get("sha", "")),
+            when=when,
+            run_url=str(item.get("run_url", "")),
+            run_id=run_id,
+        )
+
+    result: dict[int, StatusRow] = {}
+    for index, spec in enumerate(specs):
+        key = (spec.suite, spec.os)
+        if key in cached_by_key:
+            result[index] = cached_by_key[key]
+    return result
+
+
+def fetch_remote_cache(repo: str) -> JsonDict | None:
+    """Try fetching the previous status.json published to GitHub Pages."""
+    if not repo or "/" not in repo:
+        return None
+    owner, repo_name = repo.split("/", 1)
+    url = f"https://{owner}.github.io/{repo_name}/status.json"
+    headers = {"User-Agent": USER_AGENT}
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=10) as resp:
+            raw = resp.read()
+            parsed = json.loads(raw.decode("utf-8"))
+            if isinstance(parsed, dict) and "rows" in parsed:
+                return parsed
+    except Exception:
+        return None
+    return None
+
+
+def load_cache(
+    cache_path: str = "",
+    repo: str = "",
+) -> JsonDict | None:
+    if cache_path:
+        p = Path(cache_path)
+        if p.is_file():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "rows" in data:
+                    return data
+            except Exception:
+                pass
+    return fetch_remote_cache(repo)
+
+
+def collect_status(
+    fetch: Fetcher,
+    repo: str,
+    *,
+    cached_data: JsonDict | None = None,
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+    now: datetime | None = None,
+) -> list[StatusRow]:
+    """Newest matching job per suite row within max_age_days.
+
+    If cached_data is provided, cached rows within max_age_days serve as
+    checkpoints: we only scan runs newer than the cached run ID / timestamp,
+    avoiding re-fetching hundreds of historical runs.
+    """
     specs = suite_specs()
-    found: dict[int, StatusRow] = {}
+    cached_rows = parse_cached_rows(cached_data, specs, max_age_days, now) if cached_data else {}
+    found: dict[int, StatusRow] = dict(cached_rows)
+
     pending_by_workflow: dict[str, list[int]] = {}
     for index, spec in enumerate(specs):
         pending_by_workflow.setdefault(spec.workflow, []).append(index)
 
     for workflow, indexes in pending_by_workflow.items():
         pending = set(indexes)
-        for run in iter_workflow_runs(fetch, repo, workflow):
+        for run in iter_workflow_runs(fetch, repo, workflow, max_age_days=max_age_days, now=now):
             if not pending:
                 break
             run_id = run.get("id")
@@ -204,9 +334,41 @@ def collect_status(fetch: Fetcher, repo: str) -> list[StatusRow]:
                 continue
             run_url = run.get("html_url") if isinstance(run.get("html_url"), str) else ""
             sha = short_sha(run.get("head_sha") if isinstance(run.get("head_sha"), str) else "")
+            created_dt = parse_iso_timestamp(str(run.get("created_at", "")))
+
+            # Checkpoints from cached hints:
+            # If we reach or pass the run_id of a cached hint, no newer run exists
+            # for that spec. We retain the cached hint and discard from pending.
+            for index in list(pending):
+                if index in cached_rows:
+                    cached_row = cached_rows[index]
+                    if cached_row.run_id and run_id <= cached_row.run_id:
+                        pending.discard(index)
+                    elif not cached_row.run_id and cached_row.when and created_dt:
+                        cached_dt = parse_iso_timestamp(cached_row.when)
+                        if cached_dt and created_dt <= cached_dt:
+                            pending.discard(index)
+
+            if not pending:
+                break
+
+            # Optimization for pr-ci.yml: pull_request events ONLY matrix ubuntu-latest
+            # and test_mock_sidebar=false. If Test & Typecheck (ubuntu-latest) is not
+            # pending, no job in this pull_request run can match any pending spec.
+            if workflow == "pr-ci.yml" and run.get("event") == "pull_request":
+                ubuntu_pending = any(
+                    specs[i].suite == "Test & Typecheck" and specs[i].os == "ubuntu-latest"
+                    for i in pending
+                )
+                if not ubuntu_pending:
+                    continue
+
             jobs = list_run_jobs(fetch, repo, run_id)
             for job in jobs:
                 name = job.get("name") if isinstance(job.get("name"), str) else ""
+                when = job_when(job)
+                if is_expired(when, max_age_days, now):
+                    continue
                 still_pending = list(pending)
                 for index in still_pending:
                     spec = specs[index]
@@ -217,8 +379,9 @@ def collect_status(fetch: Fetcher, repo: str) -> list[StatusRow]:
                         os=spec.os or extract_os(name),
                         conclusion=job_conclusion(job),
                         sha=sha,
-                        when=job_when(job),
+                        when=when,
                         run_url=run_url or "",
+                        run_id=run_id,
                     )
                     pending.discard(index)
 
@@ -416,17 +579,59 @@ def render_html(
     )
 
 
+def render_json(
+    rows: list[StatusRow],
+    *,
+    repo: str,
+    generated_at: str,
+    max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+) -> str:
+    """JSON output containing all row fields and run_ids to serve as hints for future runs."""
+    payload = {
+        "repo": repo,
+        "generated_at": generated_at,
+        "max_age_days": max_age_days,
+        "rows": [
+            {
+                "suite": r.suite,
+                "os": r.os,
+                "conclusion": r.conclusion,
+                "sha": r.sha,
+                "when": r.when,
+                "run_url": r.run_url,
+                "run_id": r.run_id,
+            }
+            for r in rows
+        ],
+    }
+    return json.dumps(payload, indent=2) + "\n"
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def write_site(out_dir: Path, html_text: str, svg_text: str) -> tuple[Path, Path]:
+def write_site(
+    out_dir: Path,
+    html_text: str,
+    svg_text: str,
+    json_text: str = "",
+    cache_file: Path | None = None,
+) -> tuple[Path, Path, Path | None]:
     out_dir.mkdir(parents=True, exist_ok=True)
     index = out_dir / "index.html"
     svg = out_dir / "status.svg"
+    status_json = out_dir / "status.json"
     index.write_text(html_text, encoding="utf-8")
     svg.write_text(svg_text, encoding="utf-8")
-    return index, svg
+    json_path: Path | None = None
+    if json_text:
+        status_json.write_text(json_text, encoding="utf-8")
+        json_path = status_json
+    if cache_file is not None and json_text:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(json_text, encoding="utf-8")
+    return index, svg, json_path
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -434,12 +639,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--out",
         default="_site",
-        help="Directory to write index.html and status.svg into (default: _site)",
+        help="Directory to write index.html, status.svg, and status.json into (default: _site)",
     )
     parser.add_argument(
         "--repo",
         default="",
         help="owner/name (default: GITHUB_REPOSITORY or KeithCu/writeragent)",
+    )
+    parser.add_argument(
+        "--cache",
+        default="",
+        help="Path to previous status.json cache file to load from and save to",
+    )
+    parser.add_argument(
+        "--max-age-days",
+        type=int,
+        default=DEFAULT_MAX_AGE_DAYS,
+        help=f"Maximum age in days before a test run expires (default: {DEFAULT_MAX_AGE_DAYS})",
     )
     return parser.parse_args(argv)
 
@@ -448,14 +664,32 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     repo = (args.repo or os.environ.get("GITHUB_REPOSITORY") or DEFAULT_REPO).strip()
     token = os.environ.get("GITHUB_TOKEN", "")
-    rows = collect_status(make_fetcher(token), repo)
+    cached_data = load_cache(cache_path=args.cache, repo=repo)
+    rows = collect_status(
+        make_fetcher(token),
+        repo,
+        cached_data=cached_data,
+        max_age_days=args.max_age_days,
+    )
     generated_at = utc_now()
     page = render_html(rows, repo=repo, generated_at=generated_at)
     svg = render_svg(rows, repo=repo, generated_at=generated_at)
-    if token and (token in page or token in svg):
+    json_text = render_json(
+        rows,
+        repo=repo,
+        generated_at=generated_at,
+        max_age_days=args.max_age_days,
+    )
+    if token and (token in page or token in svg or token in json_text):
         raise RuntimeError("refusing to write output that contains GITHUB_TOKEN")
-    index, svg_path = write_site(Path(args.out), page, svg)
-    print(f"Wrote {index} and {svg_path} ({len(rows)} rows)")
+    cache_file = Path(args.cache) if args.cache else None
+    index, svg_path, json_path = write_site(
+        Path(args.out), page, svg, json_text, cache_file=cache_file
+    )
+    status_msg = f"Wrote {index}, {svg_path}"
+    if json_path:
+        status_msg += f", and {json_path}"
+    print(f"{status_msg} ({len(rows)} rows)")
     return 0
 
 
