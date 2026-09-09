@@ -554,6 +554,13 @@ def test_prompts_outer_thin_inner_choice():
     assert "only when the file is not in Open peers" in PEER_INNER_CHOICE_RULES
     assert "nearby on disk" in PEER_INNER_CHOICE_RULES
     assert "no live sidebar" in PEER_INNER_CHOICE_RULES
+    # Ask polarity: peer does the edit; do not request a content dump for local fill.
+    assert "that peer's own document" in PEER_INNER_CHOICE_RULES
+    assert "perform the edit/fill" in PEER_INNER_CHOICE_RULES
+    assert "values/facts to write" in PEER_INNER_CHOICE_RULES
+    assert "owns the write tools" in PEER_INNER_CHOICE_RULES
+    assert "dump of blank/current content" in PEER_INNER_CHOICE_RULES
+    assert "skips the peer write path" in PEER_INNER_CHOICE_RULES
     assert "silent file fact" not in PEER_INNER_CHOICE_RULES
     assert "must change, compute, write" not in PEER_INNER_CHOICE_RULES
     assert "not a JSON array" in PEER_OUTER_DELEGATE_HINT

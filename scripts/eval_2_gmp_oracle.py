@@ -6,9 +6,10 @@
 
 Pass/fail is document-local. Chat Ready / STREAM_DONE is never consulted.
 Identity facts are gold-hard (RMS-3333, CompCello, QY-GEL / Antifoam,
-endotoxin mismatch). Form fill is a count/length band, not gold-string
-matching. Expert gold uses XX-CELL / Lot A23-044 — those are **not**
-required (and contradict the prompt / COA).
+endotoxin mismatch). Hyphen-like characters fold to ASCII before those
+id checks (RMS‑3333 still counts). Form fill is a count/length band, not
+gold-string matching. Expert gold uses XX-CELL / Lot A23-044 — those are
+**not** required (and contradict the prompt / COA).
 
 Usage:
   .venv/bin/python scripts/eval_2_gmp_oracle.py path/to/final_memo.odt
@@ -95,6 +96,23 @@ _CENTRAL_RE = re.compile(
 )
 _SOP_RE = re.compile(r"\bsops?\b|standard\s+operating", re.I)
 _ENDOTOXIN_RE = re.compile(r"endotoxin", re.I)
+
+# Word/LO often emit U+2011 (non-breaking hyphen) in ids such as RMS‑3333.
+# Fold those to ASCII '-' before identity searches so the gold id still
+# required, without a false-red on encoding. NBSP-adjacent spaces fold too.
+_HYPHEN_LIKE_TO_ASCII = str.maketrans({
+    "\u2010": "-",  # hyphen
+    "\u2011": "-",  # non-breaking hyphen
+    "\u2012": "-",  # figure dash
+    "\u2212": "-",  # minus sign
+    "\u00a0": " ",  # NBSP
+    "\u202f": " ",  # narrow NBSP
+})
+
+
+def normalize_hyphen_like(text: str) -> str:
+    """Fold hyphen-like / NBSP so identity ids match ASCII needles (RMS-3333)."""
+    return (text or "").translate(_HYPHEN_LIKE_TO_ASCII)
 
 
 @dataclass
@@ -258,7 +276,8 @@ def score_pair(
             f"form filled chars {filled_chars} < {_MIN_FILLED_CHARS} "
             "(too thin to count as filled)"
         )
-    combined = f"{memo_text}\n{form_text}"
+    combined = normalize_hyphen_like(f"{memo_text}\n{form_text}")
+    memo_text = normalize_hyphen_like(memo_text)
     if not _RMS_RE.search(combined):
         failures.append("missing RMS-3333")
     if not _VENDOR_RE.search(combined):

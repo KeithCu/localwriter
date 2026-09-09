@@ -55,6 +55,9 @@ do **not** change `prompt.writeragent.txt`):
    Those contradict the prompt (QY-GEL) and the COA lot (`00004515`).
    Eval-2 scores the **saved trial pair**, not that gold file. Do **not**
    require gold’s invented codes.
+6. Identity ids fold hyphen-like characters (U+2010, U+2011, U+2212, NBSP)
+   to ASCII before the RMS-3333 / QY-GEL checks. Do **not** drop the
+   RMS-3333 requirement — only the encoding false-red.
 
 ## Not changed
 

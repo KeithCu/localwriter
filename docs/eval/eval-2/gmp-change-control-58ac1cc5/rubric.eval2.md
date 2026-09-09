@@ -20,7 +20,7 @@ fails. Extract ODT `text:h` and `text:p`; Draw `draw:frame` text by
 |---|--------|--------|-------------|
 | 1 | Writer doc present; body non-empty; word band **200–2500** | Risk memo + QA email + Teams note | Missing / unreadable / no text; `< 200` or `> 2500` |
 | 2 | Draw stand-in **substantially filled**: ≥**5** of 12 named `fld_*` boxes and ≥**80** filled characters | Writer prompt §1; Form-920 Section 1 stand-in | Too few named blanks, or only a few characters |
-| 3 | **RMS-3333**, **CompCello**, **QY-GEL / Antifoam** (accept Antiform) | Prompt + gold rubric; spec typo Antiform | Any identity missing in memo **or** form |
+| 3 | **RMS-3333**, **CompCello**, **QY-GEL / Antifoam** (accept Antiform; hyphen-like chars fold to ASCII `-`) | Prompt + gold rubric; spec typo Antiform | Any identity missing in memo **or** form |
 | 4 | Endotoxin mismatch: **Report Result** and **`< 1` EU** (aliases: less than 1 / below 1) | Prompt + COA / RMS | Either anchor missing |
 | 5 | Discrepancy / mismatch / non-conforming | Prompt | Theme missing |
 | 6 | Quarantine / hold + RMS update / change control | Prompt §1 | Either theme missing |
