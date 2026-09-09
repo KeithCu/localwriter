@@ -545,6 +545,17 @@ def test_prompts_outer_thin_inner_choice():
     assert "other result text in the task" in PEER_INNER_CHOICE_RULES
     assert "answer from the task alone" in PEER_INNER_CHOICE_RULES
     assert "tool side effect" in PEER_INNER_CHOICE_RULES
+    # Open-peer hard fork: matching catalog entry → send_peer, not silent read.
+    assert "matches the file the task is about" in PEER_INNER_CHOICE_RULES
+    assert "not delegate_read_document" in PEER_INNER_CHOICE_RULES
+    assert "that sidebar is live" in PEER_INNER_CHOICE_RULES
+    assert "duplicates work" in PEER_INNER_CHOICE_RULES
+    assert "races the peer reply" in PEER_INNER_CHOICE_RULES
+    assert "only when the file is not in Open peers" in PEER_INNER_CHOICE_RULES
+    assert "nearby on disk" in PEER_INNER_CHOICE_RULES
+    assert "no live sidebar" in PEER_INNER_CHOICE_RULES
+    assert "silent file fact" not in PEER_INNER_CHOICE_RULES
+    assert "must change, compute, write" not in PEER_INNER_CHOICE_RULES
     assert "not a JSON array" in PEER_OUTER_DELEGATE_HINT
     assert "PEER SIDEBARS" not in PEER_INNER_CHOICE_RULES
     # Idle-after-send: outer must Ready, not keep tooling in the same turn.

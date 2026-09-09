@@ -569,14 +569,19 @@ def annotate_outer_peer_wait(payload: dict, *, peer_send_invoked: bool = False) 
     return out
 
 # document_research specialized only. Short DO+why; catalog is appended when peers exist.
+# Open-peer hard fork: a matching Open peers entry means send_peer_message, not
+# silent delegate_read_document. Soft "change/compute/write vs file fact" let the
+# inner agent reopen a live peer (wasted work, races the peer reply).
 # Reply path: send_peer_message is a side effect. Outer already stuffed the HTML/result
 # into task, so the smol "answer from the task alone → finish" rule otherwise skips
 # the send and the peer sidebar never sees the reply.
 PEER_INNER_CHOICE_RULES = (
-    "PEER vs READ: Do send_peer_message(document_url=<peer uid, URL, or unique name>, message=<task>) "
-    "when an Open peers entry is listed and that sidebar must change, compute, write, or run as an agent. "
-    "Why: only that sidebar has the peer's write tools.\n"
-    "Do delegate_read_document when you only need a silent file fact.\n"
+    "PEER vs READ: When an Open peers entry matches the file the task is about, "
+    "Do send_peer_message(document_url=<peer uid, URL, or unique name>, message=<task>), not delegate_read_document. "
+    "Why: that sidebar is live and can change the document, run analysis, and use that app's tools; "
+    "silent reopen only peeks, duplicates work, and races the peer reply.\n"
+    "Do delegate_read_document only when the file is not in Open peers (nearby on disk / no live sidebar). "
+    "Why: there is no live sidebar to ask.\n"
     "When the task includes a peer_ask_id or says reply to a [Peer from: …] envelope you MUST send_peer_message("
     "document_url=<uid or url from the envelope>, message=<one HTML/result string>, peer_ask_id=<id from the envelope>) "
     "before specialized_workflow_finished. "
