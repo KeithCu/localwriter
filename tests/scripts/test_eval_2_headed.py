@@ -23,16 +23,21 @@ from eval_2_headed import (  # noqa: E402
     GMP_MEMO_NAME,
     GMP_SPEC_ODT_NAME,
     LETTER_ODT_NAME,
+    LONG_DECISIONS_ODT_NAME,
+    LONG_FACTS_ODT_NAME,
+    LONG_PACK_NAME,
     MAX_TOOL_ROUNDS_KEY,
     POPULATION_ODS_NAME,
     SURVEY_XLSX_NAME,
     TASK_CADAVER,
     TASK_GMP,
+    TASK_LONG,
     TASK_TENANT,
     TENANT_MEMO_NAME,
     _AFC_DIR,
     _CADAVER_DIR,
     _GMP_DIR,
+    _LONG_DIR,
     _TENANT_DIR,
     apply_max_tool_rounds,
     default_eval2_trial_dir,
@@ -42,6 +47,7 @@ from eval_2_headed import (  # noqa: E402
     stage_cadaver_trial,
     stage_clean_trial_ods,
     stage_gmp_trial,
+    stage_long_writer_trial,
     stage_tenant_trial,
     task_max_tool_rounds,
     temporary_max_tool_rounds,
@@ -197,12 +203,16 @@ def test_default_eval2_trial_dir_is_tmp_subdir() -> None:
     gmp = default_eval2_trial_dir(TASK_GMP)
     assert gmp.name == "writeragent-eval2-gmp"
     assert gmp.parent == Path(tempfile.gettempdir())
+    long_pack = default_eval2_trial_dir(TASK_LONG)
+    assert long_pack.name == "writeragent-eval2-long-writer"
+    assert long_pack.parent == Path(tempfile.gettempdir())
 
 
 def test_task_max_tool_rounds_gmp_is_150() -> None:
     assert task_max_tool_rounds(TASK_TENANT) == EVAL_2_MAX_TOOL_ROUNDS
     assert task_max_tool_rounds(TASK_CADAVER) == EVAL_2_MAX_TOOL_ROUNDS
     assert task_max_tool_rounds(TASK_GMP) == EVAL_2_GMP_MAX_TOOL_ROUNDS
+    assert task_max_tool_rounds(TASK_LONG) == EVAL_2_MAX_TOOL_ROUNDS
     assert EVAL_2_GMP_MAX_TOOL_ROUNDS == 150
 
 
@@ -271,3 +281,27 @@ def test_stage_gmp_trial_contains_only_refs_memo_and_form(tmp_path: Path) -> Non
 def test_stage_gmp_trial_refuses_real_task_dir() -> None:
     with pytest.raises(ValueError, match="protected"):
         stage_gmp_trial(_GMP_DIR)
+
+
+def test_stage_long_writer_trial_contains_only_refs_and_blank_brief(tmp_path: Path) -> None:
+    dest = tmp_path / "trial"
+    dest.mkdir()
+    (dest / "prompt.writeragent.txt").write_text("PROMPT-LEAK", encoding="utf-8")
+    (dest / "rubric.eval2.md").write_text("RUBRIC-LEAK", encoding="utf-8")
+    brief = stage_long_writer_trial(dest)
+    names = sorted(p.name for p in dest.iterdir())
+    assert names == sorted(
+        [LONG_FACTS_ODT_NAME, LONG_DECISIONS_ODT_NAME, LONG_PACK_NAME]
+    )
+    assert brief == dest / LONG_PACK_NAME
+    assert brief.is_file()
+    assert not any(
+        "PROMPT-LEAK" in p.read_text(encoding="utf-8", errors="ignore")
+        for p in dest.iterdir()
+        if p.suffix in {".txt", ".md"}
+    )
+
+
+def test_stage_long_writer_trial_refuses_real_task_dir() -> None:
+    with pytest.raises(ValueError, match="protected"):
+        stage_long_writer_trial(_LONG_DIR)
