@@ -16,6 +16,7 @@ if str(_SCRIPTS) not in sys.path:
 
 from eval_2_gmp_oracle import (  # noqa: E402
     main as oracle_main,
+    normalize_hyphen_like,
     read_odg_frames,
     resolve_gmp_artifacts,
     score_artifacts,
@@ -159,6 +160,27 @@ def test_missing_rms_fails() -> None:
     )
     assert not result.passed
     assert any("RMS-3333" in item for item in result.failures)
+
+
+def test_normalize_hyphen_like_folds_identity_dashes() -> None:
+    assert normalize_hyphen_like("RMS\u20113333") == "RMS-3333"
+    assert normalize_hyphen_like("RMS\u20103333") == "RMS-3333"
+    assert normalize_hyphen_like("RMS\u22123333") == "RMS-3333"
+    assert normalize_hyphen_like("QY\u2010GEL") == "QY-GEL"
+    assert normalize_hyphen_like("RMS\u00a03333") == "RMS 3333"
+
+
+def test_unicode_hyphen_rms_id_matches() -> None:
+    """U+2011 in RMS‑3333 is the same identity as ASCII RMS-3333 (encoding only)."""
+    text = _padded().replace("RMS-3333", "RMS\u20113333")
+    result = score_pair(
+        text,
+        "Change Title: RMS\u20113333 QY\u2010GEL CompCello Report Result < 1 EU/ml hold",
+        para_count=16,
+        filled_fields=6,
+        filled_chars=120,
+    )
+    assert result.passed, result.failures
 
 
 def test_gold_xx_cell_not_required() -> None:
