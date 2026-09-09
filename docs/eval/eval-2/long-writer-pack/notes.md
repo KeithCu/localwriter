@@ -1,12 +1,12 @@
-# Notes — Long Writer pack
+# Notes — Long Writer pack (native)
 
-Purpose: **harness debug** stub for **one** long Writer document that
-needs a table of contents, named styles, and comments together. Prefer
-this over a second form / compliance packet (too close to GMP) and over
-Impress (peer v1 rejects `PresentationDocument`).
+Purpose: **harness debug** for **one** long Writer document that needs a
+table of contents, named heading styles, and review comments together.
+Eval-2 is not a multi-model benchmark yet.
 
-Eval-2 is not a multi-model benchmark yet. This folder is a **stub**, not a
-headed-ready gold.
+This sibling is **WriterAgent-native**. There is no HF gold tree and no
+`prompt.gdpval.txt`. See [`SOURCE.md`](SOURCE.md) for the gold-subset
+scan that did not yield a clean TOC + styles + comments pack.
 
 ## How it differs from existing siblings
 
@@ -18,9 +18,22 @@ headed-ready gold.
 
 One open Writer document. No peer required for v1.
 
-## Not ready
+## WriterAgent prompt
 
-No in-repo gold package, no fixtures, no headed `--task`, no oracle CLI.
-See [`SOURCE.md`](SOURCE.md). A WriterAgent-native pack is allowed later
-if no clean GDPval gold appears — still add an untouched gold id if one
-is ported.
+The user message is [`prompt.writeragent.txt`](prompt.writeragent.txt).
+It remaps “attach a new Word file” to this open document and names the
+two staged research titles. It does **not** name product internals.
+
+## Oracle v1
+
+Soft fail-closed checks live in [`rubric.eval2.md`](rubric.eval2.md):
+pack present, fixture identity, TOC field **or** a Contents index at
+the start, at least three named heading styles (not bold Default), at
+least one non-empty review comment, husk ban. Exact heading wording
+and comment authors are **soft / later**. Do not fail on Word vs ODT.
+
+## Not changed
+
+- Slot 7 (`writer-headed-template/`) stays **PARKED**
+- Slots 5 / 6 / 8 / 9 stay stubs
+- `docs/eval/gdpval/` — no new tree (none fit; add-only if one had)

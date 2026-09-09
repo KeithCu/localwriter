@@ -33,6 +33,11 @@ original store-list ODS + final-matrix ODS + empty budget scaffold into
 the Calc workbook (v1 pre-open cheat). The gold deliverable xlsx is
 **not** the write target. Store lists / email trail are research-only.
 
+``--task long-writer-pack --launch`` copies the two native research ODTs
+into ``$TMP/writeragent-eval2-long-writer``, writes a blank
+``Northhaven Civic Library Capital Brief.odt``, and opens Writer. No
+peer. This sibling is WriterAgent-native (no HF gold tree).
+
 Do not open ``fixtures/`` or the task folder.
 
 Usage:
@@ -43,12 +48,14 @@ Usage:
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --launch
   .venv/bin/python scripts/eval_2_headed.py --task writer-calc-peer-write --launch
+  .venv/bin/python scripts/eval_2_headed.py --task long-writer-pack --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score path/to/final_proposal.odt
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task writer-calc-peer-write --score path/to/final_memo.odt
+  .venv/bin/python scripts/eval_2_headed.py --task long-writer-pack --score path/to/final_pack.odt
 """
 from __future__ import annotations
 
@@ -76,6 +83,7 @@ _TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14
 _CADAVER_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "cadaver-proposal-61b0946a"
 _GMP_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "gmp-change-control-58ac1cc5"
 _FLOORSTAND_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "writer-calc-peer-write"
+_LONG_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "long-writer-pack"
 POPULATION_ODS_NAME = "Population v2.ods"
 LETTER_ODT_NAME = "Current Renewal Letter.odt"
 SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
@@ -93,6 +101,9 @@ FLOORSTAND_BUDGET_ODS_NAME = "Holiday Floorstand Budget.ods"
 FLOORSTAND_EMAIL_NAME = "Draft Floorstand Email.odt"
 FLOORSTAND_COST_SHEET = "Cost Comparison"
 FLOORSTAND_STORE_SHEET = "Final Store List"
+LONG_FACTS_ODT_NAME = "Northhaven Library Program Facts.odt"
+LONG_DECISIONS_ODT_NAME = "Northhaven Decision Log.odt"
+LONG_PACK_NAME = "Northhaven Civic Library Capital Brief.odt"
 # Form-920 Section 1 blanks. Labels sit to the left so get_draw_tree
 # can attach label_hint. Names stay stable for fill_draw_fields / oracle.
 GMP_FILLABLE_FIELDS: tuple[tuple[str, str], ...] = (
@@ -124,17 +135,28 @@ _FLOORSTAND_EMAIL_TRAIL_ODT = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_EMAIL_TR
 _FLOORSTAND_ORIG_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_ORIG_ODS_NAME
 _FLOORSTAND_MATRIX_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_MATRIX_ODS_NAME
 _FLOORSTAND_BUDGET_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_BUDGET_ODS_NAME
+_LONG_FACTS_ODT = _LONG_DIR / "fixtures" / LONG_FACTS_ODT_NAME
+_LONG_DECISIONS_ODT = _LONG_DIR / "fixtures" / LONG_DECISIONS_ODT_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
 DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
 DEFAULT_CADAVER_TRIAL_DIR_NAME = "writeragent-eval2-cadaver"
 DEFAULT_GMP_TRIAL_DIR_NAME = "writeragent-eval2-gmp"
 DEFAULT_FLOORSTAND_TRIAL_DIR_NAME = "writeragent-eval2-writer-calc"
+DEFAULT_LONG_TRIAL_DIR_NAME = "writeragent-eval2-long-writer"
 TASK_AFC = "afc"
 TASK_TENANT = "tenant-retention"
 TASK_CADAVER = "cadaver-proposal"
 TASK_GMP = "gmp-change-control"
 TASK_WRITER_CALC = "writer-calc-peer-write"
-TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP, TASK_WRITER_CALC)
+TASK_LONG = "long-writer-pack"
+TASK_CHOICES = (
+    TASK_AFC,
+    TASK_TENANT,
+    TASK_CADAVER,
+    TASK_GMP,
+    TASK_WRITER_CALC,
+    TASK_LONG,
+)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -273,6 +295,7 @@ def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
         TASK_CADAVER: DEFAULT_CADAVER_TRIAL_DIR_NAME,
         TASK_GMP: DEFAULT_GMP_TRIAL_DIR_NAME,
         TASK_WRITER_CALC: DEFAULT_FLOORSTAND_TRIAL_DIR_NAME,
+        TASK_LONG: DEFAULT_LONG_TRIAL_DIR_NAME,
     }
     name = names.get(task, DEFAULT_TRIAL_DIR_NAME)
     return Path(tempfile.gettempdir()) / name
@@ -285,6 +308,7 @@ def _task_dirs() -> tuple[Path, ...]:
         _CADAVER_DIR.resolve(),
         _GMP_DIR.resolve(),
         _FLOORSTAND_DIR.resolve(),
+        _LONG_DIR.resolve(),
     )
 
 
@@ -332,6 +356,34 @@ def write_blank_writer_odt(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("mimetype", "application/vnd.oasis.opendocument.text", compress_type=zipfile.ZIP_STORED)
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("content.xml", content)
+    return path
+
+
+def write_writer_odt_paragraphs(path: Path, paragraphs: list[str]) -> Path:
+    """Minimal Writer document with body paragraphs (research fixtures)."""
+    body = "".join(f"<text:p>{_xml_escape(para)}</text:p>" for para in paragraphs)
+    manifest = """<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+ <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+ <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+"""
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.2">\n'
+        f" <office:body><office:text>{body}</office:text></office:body>\n"
+        "</office:document-content>\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(
+            "mimetype",
+            "application/vnd.oasis.opendocument.text",
+            compress_type=zipfile.ZIP_STORED,
+        )
         zf.writestr("META-INF/manifest.xml", manifest)
         zf.writestr("content.xml", content)
     return path
@@ -593,6 +645,22 @@ def stage_floorstand_trial(dest_dir: Path) -> tuple[Path, Path]:
     return email, dest_dir / FLOORSTAND_BUDGET_ODS_NAME
 
 
+def find_long_writer_fixtures() -> tuple[Path, Path]:
+    """Program facts + decision log. Both are research / read-only."""
+    if not _LONG_FACTS_ODT.is_file():
+        raise FileNotFoundError(f"Missing {_LONG_FACTS_ODT}")
+    if not _LONG_DECISIONS_ODT.is_file():
+        raise FileNotFoundError(f"Missing {_LONG_DECISIONS_ODT}")
+    return _LONG_FACTS_ODT, _LONG_DECISIONS_ODT
+
+
+def stage_long_writer_trial(dest_dir: Path) -> Path:
+    """Facts + decision log + blank brief. Prompt/notes stay outside."""
+    facts, decisions = find_long_writer_fixtures()
+    stage_clean_trial_files([facts, decisions], dest_dir, label="Long Writer")
+    return write_blank_writer_odt(dest_dir / LONG_PACK_NAME)
+
+
 def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
@@ -640,7 +708,7 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Experiment to launch or score (default: afc). "
             "tenant-retention / cadaver-proposal / gmp-change-control / "
-            "writer-calc-peer-write are Writer-started."
+            "writer-calc-peer-write / long-writer-pack are Writer-started."
         ),
     )
     parser.add_argument(
@@ -648,8 +716,9 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Stage a clean trial dir, then soffice (Calc for AFC, Writer for "
-            "tenant-retention / cadaver-proposal, Writer+Draw for "
-            "gmp-change-control, Writer+Calc for writer-calc-peer-write)"
+            "tenant-retention / cadaver-proposal / long-writer-pack, "
+            "Writer+Draw for gmp-change-control, Writer+Calc for "
+            "writer-calc-peer-write)"
         ),
     )
     parser.add_argument(
@@ -661,8 +730,9 @@ def main(argv: list[str] | None = None) -> int:
             f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME}, "
             f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, "
             f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, "
-            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME}, or "
-            f"$TMP/{DEFAULT_FLOORSTAND_TRIAL_DIR_NAME})"
+            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_FLOORSTAND_TRIAL_DIR_NAME}, or "
+            f"$TMP/{DEFAULT_LONG_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
@@ -685,6 +755,8 @@ def main(argv: list[str] | None = None) -> int:
             from eval_2_gmp_oracle import main as score_main
         elif args.task == TASK_CADAVER:
             from eval_2_cadaver_oracle import main as score_main
+        elif args.task == TASK_LONG:
+            from eval_2_long_writer_oracle import main as score_main
         elif args.task == TASK_TENANT or suffix in {".odt", ".docx"}:
             from eval_2_tenant_oracle import main as score_main
         else:
@@ -737,6 +809,11 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     # Workbook first, email last so Writer is the focused chat doc.
                     launch_office_documents([budget, email])
+                elif args.task == TASK_LONG:
+                    trial_doc = stage_long_writer_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in trial_doc.parent.iterdir()))
+                    print(f"Staged clean trial dir {trial_doc.parent} ({staged})")
+                    launch_office("writer", trial_doc)
                 else:
                     trial_ods = stage_clean_trial_ods(
                         find_afc_population_ods(),
