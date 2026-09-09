@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # WriterAgent - headed eval-2 / AFC tool-round budget
-"""Temporarily write chatbot.max_tool_rounds=50, then restore.
+"""Temporarily write chatbot.max_tool_rounds, then restore.
 
 No new yaml knobs. Everyday chat stays at the schema default (15).
 Schema max is 200 so a trial can temporarily set 80 or 200 without clamp.
-This helper still writes 50.
+AFC / Tenant / Cadaver still write **50**. GMP Change Control writes **150**
+(multidoc + peer).
 
 ``--launch`` (default ``--task afc``) copies only the Population ODS into a
 clean trial directory (default ``$TMP/writeragent-eval2-afc``) so
@@ -19,6 +20,12 @@ survey XLSX into ``$TMP/writeragent-eval2-tenant``, writes a blank
 ``Collaborative Cadaver Program Proposal.odt``, and opens Writer. The
 budget is research-only — do not treat it as a second write.
 
+``--task gmp-change-control --launch`` copies the COA PDF + Material Spec
+ODT + editable Draw form stand-in into ``$TMP/writeragent-eval2-gmp``,
+writes a blank ``MR Risk Assessment Summary.odt``, and opens **both**
+the Writer memo and the Draw form (v1 pre-open cheat). The gold PDF is
+**not** the write target. COA / spec are research-only.
+
 Do not open ``fixtures/`` or the task folder.
 
 Usage:
@@ -27,10 +34,12 @@ Usage:
   .venv/bin/python scripts/eval_2_headed.py --launch --trial-dir /tmp/my-afc
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
+  .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score path/to/final_proposal.odt
+  .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --score path/to/final_memo.odt
 """
 from __future__ import annotations
 
@@ -50,15 +59,38 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_TOOL_ROUNDS_KEY = "chatbot.max_tool_rounds"
 DEFAULT_MAX_TOOL_ROUNDS = 15
 EVAL_2_MAX_TOOL_ROUNDS = 50
+# Multidoc + Draw peer needs more than the Writer-only 50-round start.
+EVAL_2_GMP_MAX_TOOL_ROUNDS = 150
 _AFC_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "afc-sample-83d10b06"
 _TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14c"
 _CADAVER_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "cadaver-proposal-61b0946a"
+_GMP_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "gmp-change-control-58ac1cc5"
 POPULATION_ODS_NAME = "Population v2.ods"
 LETTER_ODT_NAME = "Current Renewal Letter.odt"
 SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
 TENANT_MEMO_NAME = "Tenant Retention Strategy.odt"
 CADAVER_BUDGET_XLSX_NAME = "Cadaver Budget.xlsx"
 CADAVER_PROPOSAL_NAME = "Collaborative Cadaver Program Proposal.odt"
+GMP_COA_PDF_NAME = "Anti foam COA_MR.pdf"
+GMP_SPEC_ODT_NAME = "Material Spec_MR.odt"
+GMP_FORM_ODG_NAME = "Change Control Form.odg"
+GMP_MEMO_NAME = "MR Risk Assessment Summary.odt"
+# Form-920 Section 1 blanks. Labels sit to the left so get_draw_tree
+# can attach label_hint. Names stay stable for fill_draw_fields / oracle.
+GMP_FILLABLE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("fld_change_title", "Change Title"),
+    ("fld_champion", "Change Control Champion"),
+    ("fld_department", "Department"),
+    ("fld_date_initiated", "Date Initiated"),
+    ("fld_product", "Product Description and Item Code"),
+    ("fld_site", "Site Affected by Change"),
+    ("fld_departments_affected", "Department/s Affected by Change"),
+    ("fld_current_situation", "Current Situation"),
+    ("fld_proposed_situation", "Proposed Situation"),
+    ("fld_justification", "Change Justification"),
+    ("fld_risk_outcome", "Outcome of Change Control Risk Assessment"),
+    ("fld_risk_comments", "Risk Assessment Comments"),
+)
 _FIXTURE_ODS = _AFC_DIR / "fixtures" / POPULATION_ODS_NAME
 _FIXTURE_CANDIDATES = (
     _FIXTURE_ODS,
@@ -67,13 +99,18 @@ _FIXTURE_CANDIDATES = (
 _TENANT_LETTER_ODT = _TENANT_DIR / "fixtures" / LETTER_ODT_NAME
 _TENANT_SURVEY_XLSX = _TENANT_DIR / "fixtures" / SURVEY_XLSX_NAME
 _CADAVER_BUDGET_XLSX = _CADAVER_DIR / "fixtures" / CADAVER_BUDGET_XLSX_NAME
+_GMP_COA_PDF = _GMP_DIR / "fixtures" / GMP_COA_PDF_NAME
+_GMP_SPEC_ODT = _GMP_DIR / "fixtures" / GMP_SPEC_ODT_NAME
+_GMP_FORM_ODG = _GMP_DIR / "fixtures" / GMP_FORM_ODG_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
 DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
 DEFAULT_CADAVER_TRIAL_DIR_NAME = "writeragent-eval2-cadaver"
+DEFAULT_GMP_TRIAL_DIR_NAME = "writeragent-eval2-gmp"
 TASK_AFC = "afc"
 TASK_TENANT = "tenant-retention"
 TASK_CADAVER = "cadaver-proposal"
-TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER)
+TASK_GMP = "gmp-change-control"
+TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -199,17 +236,30 @@ def find_afc_population_ods() -> Path:
     )
 
 
+def task_max_tool_rounds(task: str) -> int:
+    """Headed start: 150 for GMP (multidoc + peer), 50 for the others."""
+    if task == TASK_GMP:
+        return EVAL_2_GMP_MAX_TOOL_ROUNDS
+    return EVAL_2_MAX_TOOL_ROUNDS
+
+
 def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
     names = {
         TASK_TENANT: DEFAULT_TENANT_TRIAL_DIR_NAME,
         TASK_CADAVER: DEFAULT_CADAVER_TRIAL_DIR_NAME,
+        TASK_GMP: DEFAULT_GMP_TRIAL_DIR_NAME,
     }
     name = names.get(task, DEFAULT_TRIAL_DIR_NAME)
     return Path(tempfile.gettempdir()) / name
 
 
 def _task_dirs() -> tuple[Path, ...]:
-    return (_AFC_DIR.resolve(), _TENANT_DIR.resolve(), _CADAVER_DIR.resolve())
+    return (
+        _AFC_DIR.resolve(),
+        _TENANT_DIR.resolve(),
+        _CADAVER_DIR.resolve(),
+        _GMP_DIR.resolve(),
+    )
 
 
 def _is_protected_trial_dest(dest_dir: Path, source: Path) -> bool:
@@ -257,6 +307,95 @@ def write_blank_writer_odt(path: Path) -> Path:
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("mimetype", "application/vnd.oasis.opendocument.text", compress_type=zipfile.ZIP_STORED)
         zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("content.xml", content)
+    return path
+
+
+def _xml_escape(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def write_gmp_change_control_odg(path: Path) -> Path:
+    """Editable Draw Form-920 stand-in: labels + empty named text boxes.
+
+    Not the gold PDF. Empty ``fld_*`` frames are fill_draw_fields targets.
+    """
+    frames: list[str] = []
+    frames.append(
+        '<draw:frame draw:name="lbl_form_header" svg:x="1cm" svg:y="0.4cm" '
+        'svg:width="19cm" svg:height="1.1cm"><draw:text-box>'
+        "<text:p>Change Control Tracking Form (Form-920 stand-in)</text:p>"
+        "</draw:text-box></draw:frame>"
+    )
+    y = 1.8
+    for name, label in GMP_FILLABLE_FIELDS:
+        tall = 2.2 if name in {
+            "fld_current_situation",
+            "fld_proposed_situation",
+            "fld_justification",
+            "fld_risk_comments",
+        } else 1.1
+        frames.append(
+            f'<draw:frame draw:name="lbl_{name}" svg:x="1cm" svg:y="{y:.1f}cm" '
+            f'svg:width="6.4cm" svg:height="{tall:.1f}cm"><draw:text-box>'
+            f"<text:p>{_xml_escape(label)}</text:p>"
+            "</draw:text-box></draw:frame>"
+        )
+        frames.append(
+            f'<draw:frame draw:name="{_xml_escape(name)}" svg:x="7.6cm" '
+            f'svg:y="{y:.1f}cm" svg:width="12.4cm" svg:height="{tall:.1f}cm">'
+            "<draw:text-box><text:p/></draw:text-box></draw:frame>"
+        )
+        y += tall + 0.25
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+        'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+        'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" '
+        'office:version="1.2">\n'
+        " <office:automatic-styles/>\n"
+        " <office:body><office:drawing>"
+        '<draw:page draw:name="ChangeControl" draw:master-page-name="Standard">'
+        + "".join(frames)
+        + "</draw:page></office:drawing></office:body>\n"
+        "</office:document-content>\n"
+    )
+    styles = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+        'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+        'office:version="1.2">\n'
+        " <office:master-styles>"
+        '<style:master-page style:name="Standard"/>'
+        "</office:master-styles>\n"
+        "</office:document-styles>\n"
+    )
+    manifest = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" '
+        'manifest:version="1.2">\n'
+        ' <manifest:file-entry manifest:full-path="/" manifest:version="1.2" '
+        'manifest:media-type="application/vnd.oasis.opendocument.graphics"/>\n'
+        ' <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>\n'
+        ' <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>\n'
+        "</manifest:manifest>\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(
+            "mimetype",
+            "application/vnd.oasis.opendocument.graphics",
+            compress_type=zipfile.ZIP_STORED,
+        )
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("styles.xml", styles)
         zf.writestr("content.xml", content)
     return path
 
@@ -328,6 +467,30 @@ def stage_cadaver_trial(dest_dir: Path) -> Path:
     return write_blank_writer_odt(dest_dir / CADAVER_PROPOSAL_NAME)
 
 
+def find_gmp_fixtures() -> tuple[Path, Path, Path]:
+    """COA PDF + spec ODT + Draw stand-in. Gold PDF is not a write target."""
+    if not _GMP_COA_PDF.is_file():
+        raise FileNotFoundError(f"Missing {_GMP_COA_PDF}")
+    if not _GMP_SPEC_ODT.is_file():
+        raise FileNotFoundError(
+            f"Missing {_GMP_SPEC_ODT}. Convert the spec fixture; "
+            "do not open fixtures/ (siblings leak)."
+        )
+    if not _GMP_FORM_ODG.is_file():
+        raise FileNotFoundError(
+            f"Missing {_GMP_FORM_ODG}. Rebuild with write_gmp_change_control_odg."
+        )
+    return _GMP_COA_PDF, _GMP_SPEC_ODT, _GMP_FORM_ODG
+
+
+def stage_gmp_trial(dest_dir: Path) -> tuple[Path, Path]:
+    """COA + spec + Draw stand-in + blank memo. Gold PDF/prompt stay outside."""
+    coa, spec, form = find_gmp_fixtures()
+    stage_clean_trial_files([coa, spec, form], dest_dir, label="GMP")
+    memo = write_blank_writer_odt(dest_dir / GMP_MEMO_NAME)
+    return memo, dest_dir / GMP_FORM_ODG_NAME
+
+
 def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
@@ -344,9 +507,19 @@ def launch_calc(fixture: Path | None) -> None:
     launch_office("calc", fixture)
 
 
-def _wait_for_finish() -> None:
+def launch_office_documents(paths: list[Path]) -> None:
+    """Open several files in one soffice process (Writer + Draw pre-open)."""
+    soffice = shutil.which("soffice")
+    if soffice is None:
+        print("soffice not on PATH; open the documents yourself.", file=sys.stderr)
+        return
+    cmd = [soffice, *[str(path) for path in paths]]
+    subprocess.Popen(cmd)
+
+
+def _wait_for_finish(rounds: int = EVAL_2_MAX_TOOL_ROUNDS) -> None:
     prompt = (
-        f"set to {EVAL_2_MAX_TOOL_ROUNDS}; Ctrl-C / Enter to restore "
+        f"set to {rounds}; Ctrl-C / Enter to restore "
         f"{MAX_TOOL_ROUNDS_KEY}.\n"
     )
     try:
@@ -362,12 +535,18 @@ def main(argv: list[str] | None = None) -> int:
         "--task",
         choices=TASK_CHOICES,
         default=TASK_AFC,
-        help="Experiment to launch or score (default: afc). tenant-retention and cadaver-proposal are Writer.",
+        help=(
+            "Experiment to launch or score (default: afc). "
+            "tenant-retention / cadaver-proposal / gmp-change-control are Writer."
+        ),
     )
     parser.add_argument(
         "--launch",
         action="store_true",
-        help="Stage a clean trial dir, then soffice (Calc for AFC, Writer for tenant-retention / cadaver-proposal)",
+        help=(
+            "Stage a clean trial dir, then soffice (Calc for AFC, Writer for "
+            "tenant-retention / cadaver-proposal, Writer+Draw for gmp-change-control)"
+        ),
     )
     parser.add_argument(
         "--trial-dir",
@@ -376,8 +555,9 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Directory that will contain only the staged refs "
             f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME}, "
-            f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, or "
-            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME})"
+            f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, or "
+            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
@@ -394,7 +574,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.score is not None:
         suffix = args.score.suffix.lower()
-        if args.task == TASK_CADAVER:
+        if args.task == TASK_GMP:
+            from eval_2_gmp_oracle import main as score_main
+        elif args.task == TASK_CADAVER:
             from eval_2_cadaver_oracle import main as score_main
         elif args.task == TASK_TENANT or suffix in {".odt", ".docx"}:
             from eval_2_tenant_oracle import main as score_main
@@ -408,8 +590,9 @@ def main(argv: list[str] | None = None) -> int:
 
     config_path = find_writeragent_json(args.config)
     exit_code = 0
-    with temporary_max_tool_rounds(config_path):
-        print(f"Using {config_path}: {MAX_TOOL_ROUNDS_KEY}={EVAL_2_MAX_TOOL_ROUNDS}")
+    rounds = task_max_tool_rounds(args.task)
+    with temporary_max_tool_rounds(config_path, rounds):
+        print(f"Using {config_path}: {MAX_TOOL_ROUNDS_KEY}={rounds}")
         if command:
             exit_code = subprocess.call(command)
         elif args.launch:
@@ -425,6 +608,17 @@ def main(argv: list[str] | None = None) -> int:
                     staged = ", ".join(sorted(p.name for p in trial_doc.parent.iterdir()))
                     print(f"Staged clean trial dir {trial_doc.parent} ({staged})")
                     launch_office("writer", trial_doc)
+                elif args.task == TASK_GMP:
+                    memo, form = stage_gmp_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in memo.parent.iterdir()))
+                    print(f"Staged clean trial dir {memo.parent} ({staged})")
+                    print(
+                        "Pre-open: Draw form then Writer memo. "
+                        "Open the Draw sidebar once before START. "
+                        "Gold PDF is not the write target."
+                    )
+                    # Form first, memo last so Writer is the focused chat doc.
+                    launch_office_documents([form, memo])
                 else:
                     trial_ods = stage_clean_trial_ods(
                         find_afc_population_ods(),
@@ -435,9 +629,9 @@ def main(argv: list[str] | None = None) -> int:
             except (FileNotFoundError, ValueError) as exc:
                 print(str(exc), file=sys.stderr)
                 return 1
-            _wait_for_finish()
+            _wait_for_finish(rounds)
         else:
-            _wait_for_finish()
+            _wait_for_finish(rounds)
     print(f"Restored previous {MAX_TOOL_ROUNDS_KEY} in {config_path}")
     return exit_code
 

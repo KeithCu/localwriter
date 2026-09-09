@@ -451,5 +451,6 @@ Concrete touch points so this is implementable without rediscovering the review.
 - [multi-document-dev-plan.md](multi-document-dev-plan.md) — open docs, read-only research
 - [mcp-protocol.md](../mcp-protocol.md) — external host; this tool stays off that wire
 - [uno-thread-safety.md](../framework/uno-thread-safety.md) / [threading.md](../framework/threading.md) / [streaming-and-threading.md](../framework/streaming-and-threading.md)
-- [GDPval GMP gold `58ac1cc5`](../eval/gdpval/58ac1cc5-5754-4580-8c9c-8c67e1a9d619/README.md) — materials only; peer/Draw port is separate work
+- [GDPval GMP gold `58ac1cc5`](../eval/gdpval/58ac1cc5-5754-4580-8c9c-8c67e1a9d619/README.md) — untouched gold materials
+- [eval-2 GMP Change Control](../eval/eval-2/gmp-change-control-58ac1cc5/) — Writer + Draw pre-open port
 - [mock-llm-sidebar.md](../tests/mock-llm-sidebar.md) — Packets B–G soak + Packet P dual peer
