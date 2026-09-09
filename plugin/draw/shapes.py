@@ -707,7 +707,9 @@ class UpsertShape(ToolDrawShapeBase):
             # setString can still resize Writer AT_PAGE custom shapes (Arch: 4001x4001 → 2249x489).
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
             _try_writer_invalidate_and_pump(ctx.doc)
-            _try_writer_select_created_shape(ctx.doc, shape)
+            # Skip select-after-create: Writer CustomShape often shows handles-only
+            # (no fill) while selected; Universal Sample / Arch paint needs the shape unselected.
+            # _try_writer_select_created_shape(ctx.doc, shape)
             _log_shape_uno_snapshot("after_formatting", shape)
             if is_custom_shape:
                 _log_custom_shape_geometry_dump(shape, "after_formatting")
