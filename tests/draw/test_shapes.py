@@ -167,3 +167,72 @@ def test_shape_upsert_edit_accepts_name_without_index():
     ok, err = tool.validate(action="edit", index=0)
     assert ok
     assert err is None
+
+
+def test_shape_upsert_calc_customshape_reapplies_geometry_after_page_add():
+    """Calc SpreadsheetDocument: re-apply EnhancedCustomShapeGeometry after page.add.
+
+    Pre-add Type alone leaves geometry Type-only (no Path) so CustomShapes do not
+    paint on the sheet; Writer already re-applies for TextDocument.
+    """
+    events: list = []
+    shape = _RecordingShape(events)
+
+    page = MagicMock()
+    page_shapes: list = []
+
+    def page_add(added):
+        events.append(("page.add",))
+        page_shapes.append(added)
+
+    page.add.side_effect = page_add
+    page.getCount.side_effect = lambda: len(page_shapes)
+    page.getByIndex.side_effect = lambda i: page_shapes[i]
+
+    pages = MagicMock()
+    pages.getCount.return_value = 1
+    pages.getByIndex.return_value = page
+
+    doc = MagicMock()
+
+    def supports(svc: str) -> bool:
+        return svc == "com.sun.star.sheet.SpreadsheetDocument"
+
+    doc.supportsService.side_effect = supports
+    doc.createInstance.side_effect = lambda _type: shape
+
+    ctx = MagicMock()
+    ctx.doc = doc
+    ctx.active_page_index = 0
+
+    with (
+        patch("plugin.draw.bridge.DrawBridge") as bridge_cls,
+        patch("uno.invoke", side_effect=_invoke_set_property),
+        patch("uno.Any", side_effect=lambda _type, value: value),
+    ):
+        bridge = bridge_cls.return_value
+        bridge.get_pages.return_value = pages
+        bridge.get_active_page_index.return_value = 0
+
+        result = UpsertShape().execute(
+            ctx,
+            action="create",
+            shape_type="star24",
+            x=2000,
+            y=5000,
+            width=4000,
+            height=4000,
+            fill_color="blue",
+        )
+
+    assert result["status"] == "ok"
+    assert result["geometry_applied"] is True
+
+    add_idx = next(i for i, ev in enumerate(events) if ev[0] == "page.add")
+    geom_idxs = [i for i, ev in enumerate(events) if ev[0] == "setPropertyValue" and ev[1] == "CustomShapeGeometry"]
+    engine_idxs = [i for i, ev in enumerate(events) if ev[0] == "setPropertyValue" and ev[1] == "CustomShapeEngine"]
+
+    assert any(i < add_idx for i in geom_idxs), events
+    assert any(i > add_idx for i in geom_idxs), events
+    assert any(i < add_idx for i in engine_idxs), events
+    assert any(i > add_idx for i in engine_idxs), events

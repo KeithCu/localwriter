@@ -671,13 +671,17 @@ class UpsertShape(ToolDrawShapeBase):
             _try_writer_at_page_shape_finalize(ctx.doc, bridge, page, shape)
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
 
-            # Writer: re-apply EnhancedCustomShapeGeometry after AT_PAGE anchor (pre-#527
-            # upsert path). Before-add alone can leave handles-only / invisible on some LO.
+            # Re-apply EnhancedCustomShapeGeometry after add. Writer needs this after
+            # AT_PAGE anchor (pre-#527). Calc needs it too: pre-add Type alone stays
+            # Type-only (no Path/ViewBox) and CustomShapes do not paint on the sheet.
             if (
                 is_custom_shape
                 and custom_shape_type
                 and ctx.doc is not None
-                and ctx.doc.supportsService("com.sun.star.text.TextDocument")
+                and (
+                    ctx.doc.supportsService("com.sun.star.text.TextDocument")
+                    or ctx.doc.supportsService("com.sun.star.sheet.SpreadsheetDocument")
+                )
             ):
                 geometry_applied, geometry_error = _apply_enhanced_custom_shape_type(
                     shape, custom_shape_type
