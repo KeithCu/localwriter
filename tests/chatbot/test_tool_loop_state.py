@@ -288,6 +288,97 @@ def test_next_tool_malformed_arguments_and_missing_func():
     assert spawn_eff.func_args == {}  # Handled parsing failure
     assert spawn_eff.func_args_str == "invalid-json"
 
+def test_truncate_delegate_task_accepts_long_ascii_and_unicode():
+    """Chat preview truncates; long / Unicode tasks must not PreContract-fail."""
+    from plugin.chatbot.tool_loop_state import (
+        DELEGATE_TASK_CHAT_MAX,
+        _truncate_delegate_task,
+        format_delegate_running_chat_line,
+    )
+    from plugin.framework.deal_shim import DEAL_MAX_SOURCE
+
+    long_ascii = "Fix the chart legend and axis labels. " * 80
+    assert DELEGATE_TASK_CHAT_MAX < len(long_ascii) <= DEAL_MAX_SOURCE
+    preview = _truncate_delegate_task(long_ascii)
+    assert preview.endswith("...")
+    assert len(preview) == DELEGATE_TASK_CHAT_MAX
+    assert long_ascii.startswith(preview[:-3])
+
+    unicode_task = "Réécrire le titre — 标题 " * 100
+    assert len(unicode_task) > DELEGATE_TASK_CHAT_MAX
+    u_preview = _truncate_delegate_task(unicode_task)
+    assert u_preview.endswith("...")
+    assert len(u_preview) == DELEGATE_TASK_CHAT_MAX
+    # Headed probe: a 2048 pre still rejected a ~2.2k Unicode GMP task.
+    gmp_like = "é" * 2200
+    assert 2048 < len(gmp_like) <= DEAL_MAX_SOURCE
+    assert len(_truncate_delegate_task(gmp_like)) == DELEGATE_TASK_CHAT_MAX
+    assert _truncate_delegate_task("café") == "café"
+    assert _truncate_delegate_task("a\nb\rc") == "a b c"
+
+    line = format_delegate_running_chat_line({"domain": "styles", "task": unicode_task})
+    assert line.startswith("[Running delegate (styles):")
+    assert "..." in line
+    assert unicode_task not in line
+
+
+def test_next_tool_delegate_keeps_full_task_on_spawn():
+    """Sidebar line is a 120-char preview; SpawnToolWorkerEffect keeps the full task."""
+    import json
+
+    from plugin.chatbot.tool_loop_state import DELEGATE_TASK_CHAT_MAX
+
+    task = "Réécrire les styles — " + ("x" * 2200)
+    tool_calls = [
+        {
+            "id": "call_delegate",
+            "function": {
+                "name": "delegate_to_specialized_writer_toolset",
+                "arguments": json.dumps({"domain": "styles", "task": task}, ensure_ascii=False),
+            },
+        }
+    ]
+    state = create_base_state(pending_tools=tool_calls)
+    tr = next_state(state, create_event(EventKind.NEXT_TOOL))
+    spawn_eff = next(e for e in tr.effects if isinstance(e, SpawnToolWorkerEffect))
+    assert spawn_eff.func_args["task"] == task
+    append_eff = next(e for e in tr.effects if isinstance(e, ToolLoopUIEffect) and e.kind == "append")
+    assert task not in append_eff.text
+    assert "..." in append_eff.text
+    assert "Réécrire les styles" in append_eff.text
+    preview_start = append_eff.text.find("Réécrire")
+    preview = append_eff.text[preview_start:].rstrip("]\n")
+    assert len(preview) <= DELEGATE_TASK_CHAT_MAX
+
+
+def test_truncate_delegate_task_pre_rejects_over_sanity_cap():
+    from plugin.chatbot.tool_loop_state import _truncate_delegate_task
+    from plugin.framework.deal_shim import DEAL_MAX_SOURCE
+    from tests.strip_bundle import deal_pre_present
+
+    if not deal_pre_present(_truncate_delegate_task):
+        pytest.skip("@deal.pre stripped in release bundle")
+    with pytest.raises(deal.PreContractError):
+        _truncate_delegate_task("A" * (DEAL_MAX_SOURCE + 1))
+
+
+def test_truncate_delegate_task_crosshair_floors_stay_tiny():
+    """UNDER_CROSSHAIR still floors input/preview maxima to 1; do not widen cover-all."""
+    import inspect
+
+    from plugin.chatbot import tool_loop_state as tls
+    from plugin.framework.deal_shim import DEAL_MAX_SOURCE, UNDER_CROSSHAIR
+
+    assert UNDER_CROSSHAIR is False
+    assert tls._DEAL_TRUNCATE_TASK_LEN == DEAL_MAX_SOURCE
+    assert tls._DEAL_TRUNCATE_MAX_LEN == tls.DELEGATE_TASK_CHAT_MAX
+    src = inspect.getsource(tls)
+    assert "_DEAL_TRUNCATE_TASK_LEN = 1 if UNDER_CROSSHAIR else DEAL_MAX_SOURCE" in src
+    assert "_DEAL_TRUNCATE_MAX_LEN = 1 if UNDER_CROSSHAIR else DELEGATE_TASK_CHAT_MAX" in src
+    assert "str_bounded(task, _DEAL_TRUNCATE_TASK_LEN)" in src
+    assert "ascii_bounded(task, _DEAL_TRUNCATE_TASK_LEN)" not in src
+
+
 def test_next_tool_delegate_gateway_shows_domain_and_task():
     long_task = "Fix the chart legend and axis labels. " * 20
     tool_calls = [
