@@ -65,6 +65,8 @@ _BANNED_STEERING = (
     "web not required",
     "already named",
 )
+
+
 def test_readme_lists_siblings_1_to_10() -> None:
     text = _README.read_text(encoding="utf-8")
     for slug in _READY + _STUBS:
@@ -73,6 +75,11 @@ def test_readme_lists_siblings_1_to_10() -> None:
     assert "Stub" in text
     assert "PARKED" in text
     assert "5–10 are not wired" in text or "5-10 are not wired" in text
+    for gold_id in _GOLD_STUBS.values():
+        assert gold_id in text, gold_id
+    # Only slot 10 stays materials-TODO in the index.
+    assert "Needs gold materials" in text
+    assert text.count("Needs gold materials") == 1
 
 
 def test_stub_folders_have_required_files() -> None:
@@ -91,7 +98,9 @@ def test_golded_stub_source_points_at_untouched_tree() -> None:
         assert gold_id in source, slug
         assert f"docs/eval/gdpval/{gold_id}/" in source, slug
         assert "Needs gold materials" not in source, slug
-        gold_prompt = gdpval / gold_id / "prompt.txt"
+        gold_tree = gdpval / gold_id
+        assert gold_tree.is_dir(), gold_tree
+        gold_prompt = gold_tree / "prompt.txt"
         exp_prompt = _EVAL2 / slug / "prompt.gdpval.txt"
         assert gold_prompt.is_file(), gold_prompt
         assert exp_prompt.is_file(), exp_prompt
@@ -122,9 +131,13 @@ def test_stub_prompts_are_todo_and_avoid_product_internals() -> None:
 
 def test_writer_headed_template_is_parked() -> None:
     notes = (_EVAL2 / "writer-headed-template" / "notes.md").read_text(encoding="utf-8")
+    source = (_EVAL2 / "writer-headed-template" / "SOURCE.md").read_text(encoding="utf-8")
     run = (_EVAL2 / "writer-headed-template" / "run.md").read_text(encoding="utf-8")
     assert "PARKED" in notes
+    assert "PARKED" in source
     assert "#634" in notes
+    assert _GOLD_STUBS["writer-headed-template"] in source
+    assert "Needs gold materials" not in source
     assert "Do not run a headed trial" in run or "Do not run" in run
 
 
