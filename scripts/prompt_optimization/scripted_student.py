@@ -267,13 +267,8 @@ SCRIPTS: dict[str, list[dict[str, Any]]] = {
             _tc("shape_connect", {"start": 2, "end": 3, "label": "Yes"}, "conn_3"),
             _tc("shape_connect", {"start": 2, "end": 1, "label": "No"}, "conn_4"),
         ),
-        _tools(
-            _tc(
-                "specialized_workflow_finished",
-                {"answer": "flowchart created"},
-                "fin_draw_1",
-            )
-        ),
+        # One-shot: no advertised finish tool. Inner loop exits on text.
+        _stop("flowchart created"),
         _tools(_tc("get_draw_tree", {}, "tree_1")),
         _stop(),
     ],
@@ -315,13 +310,8 @@ SCRIPTS: dict[str, list[dict[str, Any]]] = {
                 "sort_rev",
             )
         ),
-        _tools(
-            _tc(
-                "specialized_workflow_finished",
-                {"answer": "sorted"},
-                "fin_calc_1",
-            )
-        ),
+        # One-shot: no advertised finish tool. Inner loop exits on text.
+        _stop("sorted"),
         _stop(),
     ],
     "tax_column": [

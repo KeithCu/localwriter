@@ -124,5 +124,5 @@ def test_scripted_flowchart_inner_loop_nests_shapes() -> None:
     nested = [item for item in trace if item.get("nested")]
     assert any(item["name"] == "shape_upsert" for item in nested)
     assert any(item["name"] == "shape_connect" for item in nested)
-    assert any(item["name"] == "specialized_workflow_finished" for item in nested)
+    assert all(item["name"] != "specialized_workflow_finished" for item in nested)
     assert all(item.get("domain") == "shapes" for item in nested)

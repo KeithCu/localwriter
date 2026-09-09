@@ -210,7 +210,8 @@ def _run_specialized_inner(
                 "content": (
                     f"You are a specialized {kind} task executor for domain '{domain}'. "
                     "Use the provided tools to complete the task. "
-                    f"Call {SPECIALIZED_FINISH} when done."
+                    "This specialize is one-shot: after your tools have done the task, stop. "
+                    "There is no specialized_workflow_finished tool."
                 ),
             },
             {"role": "user", "content": task},
@@ -242,6 +243,7 @@ def _run_specialized_inner(
             asst_msg["tool_calls"] = tool_calls
         messages.append(asst_msg)
         if not tool_calls:
+            finished = True
             break
         stop_inner = False
         for tc in tool_calls:
