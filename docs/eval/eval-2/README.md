@@ -13,11 +13,11 @@ oracle exist. **Stub** means fixture notes only — not headed-ready gold.
 | 2 | [`cadaver-proposal-61b0946a/`](cadaver-proposal-61b0946a/) | Writer + budget research | Ready | `61b0946a-5c1c-4bf6-8607-84d7c7e0dfe0` |
 | 3 | [`afc-sample-83d10b06/`](afc-sample-83d10b06/) | Calc / sampling-style | Ready | `83d10b06-26d1-4636-a32c-23f92c57f30b` |
 | 4 | [`gmp-change-control-58ac1cc5/`](gmp-change-control-58ac1cc5/) | Writer + Draw form, peer fill | Ready | `58ac1cc5-5754-4580-8c9c-8c67e1a9d619` |
-| 5 | [`writer-calc-peer-write/`](writer-calc-peer-write/) | Writer → Calc write (SAR / floorstand) | Stub | Needs gold materials |
-| 6 | [`calc-primary-model/`](calc-primary-model/) | Calc-primary model (not sampling) | Stub | Needs gold materials |
-| 7 | [`writer-headed-template/`](writer-headed-template/) | Writer on a real template | Stub / **PARKED** | Needs gold materials |
-| 8 | [`draw-primary-deliverable/`](draw-primary-deliverable/) | Draw-primary (org chart / process map) | Stub | Needs gold materials |
-| 9 | [`reverse-tenant/`](reverse-tenant/) | Calc deliverable; Writer brief sibling | Stub | Needs gold materials |
+| 5 | [`writer-calc-peer-write/`](writer-calc-peer-write/) | Writer → Calc write (SAR / floorstand) | Stub | `c3525d4d-2012-45df-853e-2d2a0e902991` gold tree in-repo; fixtures/oracle TBD |
+| 6 | [`calc-primary-model/`](calc-primary-model/) | Calc-primary model (not sampling) | Stub | `5f6c57dd-feb6-4e70-b152-4969d92d1608` gold tree in-repo; fixtures/oracle TBD |
+| 7 | [`writer-headed-template/`](writer-headed-template/) | Writer on a real template | Stub / **PARKED** | `a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5` gold tree in-repo; **PARKED** (headed letterhead) |
+| 8 | [`draw-primary-deliverable/`](draw-primary-deliverable/) | Draw-primary (org chart / process map) | Stub | `8a7b6fca-60cc-4ae3-b649-971753cbf8b9` gold tree in-repo; fixtures/oracle TBD |
+| 9 | [`reverse-tenant/`](reverse-tenant/) | Calc deliverable; Writer brief sibling | Stub | `4520f882-715a-482d-8e87-1cb3cbdfe975` gold tree in-repo; fixtures/oracle TBD |
 | 10 | [`long-writer-pack/`](long-writer-pack/) | Long Writer pack (TOC + styles + comments) | Stub | Needs gold materials |
 
 Headed helper: `scripts/eval_2_headed.py` writes `chatbot.max_tool_rounds`

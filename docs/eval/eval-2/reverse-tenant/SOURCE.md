@@ -1,34 +1,24 @@
 # Source
 
-**Needs gold materials.** No reverse-Tenant package exists under
-[`docs/eval/gdpval/`](../../gdpval/).
+This directory is a **WriterAgent variant stub**, not a gold rewrite.
 
 | Field | Value |
 |-------|--------|
-| Gold task id | TODO — not in-repo |
-| Untouched gold tree | TODO |
+| Gold task id | `4520f882-715a-482d-8e87-1cb3cbdfe975` |
+| Untouched gold tree | [`docs/eval/gdpval/4520f882-715a-482d-8e87-1cb3cbdfe975/`](../../gdpval/4520f882-715a-482d-8e87-1cb3cbdfe975/) |
 | Upstream | [openai/gdpval](https://huggingface.co/datasets/openai/gdpval) on Hugging Face |
+| Short label | Theatre CBA |
 
-## In-tree search (`docs/eval/gdpval/`)
+Gold materials landed as an untouched tree under `docs/eval/gdpval/4520f882-715a-482d-8e87-1cb3cbdfe975/`.
+Light copies here (`prompt.gdpval.txt`, optional `gold/` deliverable names) mirror
+prior ports (GMP / cadaver). Fixtures, WriterAgent prompt delta, and oracle remain TBD.
 
-`ed2bc14c-…` is Tenant **forward** (Writer memo; letter + survey reads).
-Do not port that tree into this folder. Cadaver is the same polarity
-(Writer write, sheet read). AFC has no Writer brief.
+## Gold files (HF names)
 
-## HF shortlist (not copied here)
+| Kind | Names |
+|------|-------|
+| References | `Sample roster and schedule.xlsx`, `CBA excerpt.docx` |
+| Deliverables | `Theatre CBA.xlsx` |
 
-Look for a **Writer/DOCX brief** plus a **Calc deliverable**.
-
-| Candidate id | Occupation | Why it fits | Gold refs / dels (HF names) |
-|--------------|------------|-------------|-----------------------------|
-| **`4520f882-715a-482d-8e87-1cb3cbdfe975`** (preferred) | Financial Managers | `CBA excerpt.docx` is the instructions sibling; roster xlsx is data; **Theatre CBA.xlsx** is the product | `CBA excerpt.docx`, `Sample roster and schedule.xlsx` → `Theatre CBA.xlsx` |
-
-`b39a5aa7-…` (orchestra CBA) is Calc-only (roster xlsx → model) — better
-as a slot 6 alternate than as reverse Tenant.
-
-If theatre CBA is taken for slot 6 instead, this stub still needs a
-different gold with a Writer brief. Leave SOURCE TODO rather than
-double-claiming one id.
-
-Port later: new `docs/eval/gdpval/<id>/` tree; stage `.odt` + `.ods` here.
-The headed helper should open **Calc last**.
+Do **not** edit the gold tree when iterating on this experiment. Do not invent
+fixture files until a deliberate port lands.

@@ -1,36 +1,26 @@
 # Source
 
-**Needs gold materials.** No letterhead / first-page-header package exists
-under [`docs/eval/gdpval/`](../../gdpval/). **PARKED** — do not copy gold
-here until headed template fidelity is unlocked.
+This directory is a **WriterAgent variant stub**, not a gold rewrite.
+
+**PARKED for headed use** — gold tree is in-repo for materials, but do not wire a headed template trial until letterhead / first-page-header fidelity is unlocked ([#634](https://github.com/KeithCu/writeragent/pull/634)).
 
 | Field | Value |
 |-------|--------|
-| Gold task id | TODO — not in-repo |
-| Untouched gold tree | TODO |
+| Gold task id | `a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5` |
+| Untouched gold tree | [`docs/eval/gdpval/a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5/`](../../gdpval/a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5/) |
 | Upstream | [openai/gdpval](https://huggingface.co/datasets/openai/gdpval) on Hugging Face |
-| Park reason | [#634](https://github.com/KeithCu/writeragent/pull/634) letterhead / `setString` logo |
+| Short label | Company letterhead / supervisor report |
 
-## In-tree search (`docs/eval/gdpval/`)
+Gold materials landed as an untouched tree under `docs/eval/gdpval/a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5/`.
+Light copies here (`prompt.gdpval.txt`, optional `gold/` deliverable names) mirror
+prior ports (GMP / cadaver). Fixtures, WriterAgent prompt delta, and oracle remain TBD.
 
-None of the four golds are a headed template:
+## Gold files (HF names)
 
-| Id | Open doc |
-|----|----------|
-| Tenant / Cadaver / GMP | Blank Writer (GMP also a Draw stand-in) |
-| AFC | Calc workbook |
+| Kind | Names |
+|------|-------|
+| References | `Company Letterhead 1.pdf`, `Field investigator A.docx`, `Field investigator B.docx`, `Photographs.zip` |
+| Deliverables | `Supervisor_report.pdf` |
 
-## HF shortlist (not copied here)
-
-| Candidate id | Occupation | Why it is a candidate | Gold refs / dels (HF names) |
-|--------------|------------|----------------------|-----------------------------|
-| **`a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5`** | Private Detectives and Investigators | Ships `Company Letterhead 1.pdf` plus investigator notes | `Company Letterhead 1.pdf`, `Field investigator A.docx`, `Field investigator B.docx`, `Photographs.zip` → `Supervisor_report.pdf` |
-
-That gold deliverable is a **PDF supervisor report** on letterhead — a
-fidelity trap, not a blank-memo port. A Writer-friendly template sibling
-(`.odt` with first-page header + logo) would be the eval-2 write target
-once #634-class murder is no longer the default outcome.
-
-`85d95ce5-…` (Social Developmental History **Template**.docx) is a form
-template, not letterhead chrome. Too close to GMP if treated as a fill
-packet; keep it off this slot.
+Do **not** edit the gold tree when iterating on this experiment. Do not invent
+fixture files until a deliberate port lands.

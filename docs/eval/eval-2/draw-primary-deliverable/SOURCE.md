@@ -1,32 +1,24 @@
 # Source
 
-**Needs gold materials.** No Draw-primary package exists under
-[`docs/eval/gdpval/`](../../gdpval/). GMP’s gold PDF form is a **Writer
-side form**, not this slot.
+This directory is a **WriterAgent variant stub**, not a gold rewrite.
 
 | Field | Value |
 |-------|--------|
-| Gold task id | TODO — not in-repo |
-| Untouched gold tree | TODO |
+| Gold task id | `8a7b6fca-60cc-4ae3-b649-971753cbf8b9` |
+| Untouched gold tree | [`docs/eval/gdpval/8a7b6fca-60cc-4ae3-b649-971753cbf8b9/`](../../gdpval/8a7b6fca-60cc-4ae3-b649-971753cbf8b9/) |
 | Upstream | [openai/gdpval](https://huggingface.co/datasets/openai/gdpval) on Hugging Face |
+| Short label | Process flow map |
 
-## In-tree search (`docs/eval/gdpval/`)
+Gold materials landed as an untouched tree under `docs/eval/gdpval/8a7b6fca-60cc-4ae3-b649-971753cbf8b9/`.
+Light copies here (`prompt.gdpval.txt`, optional `gold/` deliverable names) mirror
+prior ports (GMP / cadaver). Fixtures, WriterAgent prompt delta, and oracle remain TBD.
 
-`58ac1cc5-…` is the only Draw-adjacent gold (Change Control PDF). Eval-2
-already ports that as Writer+Draw **form fill**. Do not duplicate it.
+## Gold files (HF names)
 
-## HF shortlist (not copied here)
+| Kind | Names |
+|------|-------|
+| References | *(none in HF row)* |
+| Deliverables | `Process Flow Map.pdf` |
 
-| Candidate id | Occupation | Why it fits | Gold refs / dels (HF names) |
-|--------------|------------|-------------|-----------------------------|
-| **`8a7b6fca-60cc-4ae3-b649-971753cbf8b9`** (preferred Draw product) | Industrial Engineers | Process flow map is the deliverable | (no refs in the HF row) → `Process Flow Map.pdf` |
-| `c44e9b62-7cd8-4f72-8ad9-f8fbddb94083` | Administrative Services Managers | Revised **organizational chart** (plus FTE workbook + briefing note) | `Organizational Chart Administrative Support Services Branch.pdf`, FTE xlsx, Budget Planning Principles.pdf → chart PDF + FTE xlsx + briefing DOCX |
-
-Eval-2 v1 should score the **Draw tree** (nodes, connectors, labels),
-not pixel-match a gold PDF. The org-chart gold is mixed-app; take the
-chart as the Draw-primary slice and leave FTE/briefing off v1 unless a
-later sibling wants them.
-
-Floorstand **layout** (physical display) is not the same HF row as
-floorstand **budget** (`c3525d4d-…`, slot 5). Do not reuse that budget
-task here.
+Do **not** edit the gold tree when iterating on this experiment. Do not invent
+fixture files until a deliberate port lands.
