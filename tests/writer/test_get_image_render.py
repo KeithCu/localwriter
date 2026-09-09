@@ -11,7 +11,7 @@ real total) and view-cursor restore; Draw/Impress page-not-found from getDrawPag
 (no silent empty image). The happy path (storeToURL / GraphicExportFilter + PNG bytes) is
 validated live."""
 import base64
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
