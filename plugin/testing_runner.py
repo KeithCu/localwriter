@@ -924,6 +924,18 @@ def _uno_resolver_for_local_ctx() -> Any:
     )
 
 
+def _headless_connect_delays() -> tuple[float, ...]:
+    """Connect poll budget for headless ``make test-uno``.
+
+    Windows GHA sometimes needs longer than the Linux ~21.5s budget before the
+    named pipe accepts (same SHA: connected in ~5s vs miss at ~22s).
+    """
+    if sys.platform.startswith("win"):
+        # ~44.5s — enough for the slow-accept twin of the intermittent flake.
+        return (0.5, 1, 1, 2, 2, 3, 5, 8, 10, 12)
+    return (0.5, 1, 1, 2, 2, 3, 5, 7)
+
+
 def _connect_uno_accept(
     proc: Any,
     accept: str,
@@ -937,8 +949,11 @@ def _connect_uno_accept(
     resolver = _uno_resolver_for_local_ctx()
     url = "uno:%sStarOffice.ComponentContext" % accept
     last_exc: BaseException | None = None
-    for delay in delays:
+    t0 = time.monotonic()
+    n = len(delays)
+    for i, delay in enumerate(delays, start=1):
         time.sleep(delay)
+        elapsed = time.monotonic() - t0
         code = proc.poll()
         if code is not None:
             raise RuntimeError(
@@ -948,15 +963,20 @@ def _connect_uno_accept(
         try:
             ctx = resolver.resolve(url)
             _progress(
-                "BOOTSTRAP path=%s connected=True soffice_exit=%s pids=%s"
-                % (path_label, proc.poll(), _soffice_pids())
+                "BOOTSTRAP path=%s connected=True attempt=%s/%s elapsed=%.1fs soffice_exit=%s pids=%s"
+                % (path_label, i, n, elapsed, proc.poll(), _soffice_pids())
             )
             return ctx
         except NoConnectException as exc:
             last_exc = exc
+            _progress(
+                "BOOTSTRAP path=%s attempt=%s/%s elapsed=%.1fs no_connect=%s pids=%s"
+                % (path_label, i, n, elapsed, exc, _soffice_pids())
+            )
+    tail = office_stderr_tail()
     _progress(
-        "BOOTSTRAP path=%s connected=False soffice_exit=%s pids=%s last=%s"
-        % (path_label, proc.poll(), _soffice_pids(), last_exc)
+        "BOOTSTRAP path=%s connected=False soffice_exit=%s pids=%s last=%s stderr_tail=%r"
+        % (path_label, proc.poll(), _soffice_pids(), last_exc, tail[-30:])
     )
     raise RuntimeError("could not connect to %s soffice: %s" % (path_label, last_exc))
 
@@ -1006,6 +1026,26 @@ def _accept_from_soffice_argv(cmd: list[str]) -> str:
     raise RuntimeError("soffice argv missing --accept=...")
 
 
+
+def _terminate_bootstrap_soffice() -> None:
+    """Best-effort kill of the harness soffice Popen before a bootstrap retry."""
+    proc = _soffice_proc
+    if proc is None:
+        return
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def _bootstrap_office(officehelper_module: Any) -> Any:
     """Start soffice without leaking the test runner's Python env into the child.
 
@@ -1039,37 +1079,71 @@ def _bootstrap_office(officehelper_module: Any) -> Any:
             resolved,
         )
     )
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            env=child_env,
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            bufsize=1,
-        )
-        attach_soffice_proc(proc)
-        # Headless usually connects faster than GUI; keep the same retry budget.
-        ctx = _connect_uno_accept(
-            proc,
-            _accept_from_soffice_argv(cmd),
-            path_label="headless",
-            delays=(0.5, 1, 1, 2, 2, 3, 5, 7),
-        )
-        _progress(
-            "BOOTSTRAP path=headless returned=%s pids=%s leftover_PYTHONPATH=%s"
-            % (ctx is not None, _soffice_pids(), os.environ.get("PYTHONPATH"))
-        )
-        return ctx
-    except Exception as exc:
-        _progress(
-            "BOOTSTRAP path=headless error=%s:%s pids=%s"
-            % (type(exc).__name__, exc, _soffice_pids())
-        )
-        raise
+    # Windows GHA: intermittent pipe miss while soffice stays alive — longer
+    # budget plus one full restart. Linux keeps the shorter single attempt.
+    attempts = 2 if sys.platform.startswith("win") else 1
+    last_exc: BaseException | None = None
+    for attempt in range(1, attempts + 1):
+        if attempt > 1:
+            cmd = _soffice_bootstrap_command(officehelper_module)
+            if cmd is None:
+                raise RuntimeError(
+                    "soffice not found (PATH, officehelper dir, or common install paths)"
+                )
+            _progress(
+                "BOOTSTRAP path=headless retry=%s/%s after pipe miss; new profile"
+                % (attempt, attempts)
+            )
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                env=child_env,
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1,
+            )
+            attach_soffice_proc(proc)
+            ctx = _connect_uno_accept(
+                proc,
+                _accept_from_soffice_argv(cmd),
+                path_label="headless",
+                delays=_headless_connect_delays(),
+            )
+            _progress(
+                "BOOTSTRAP path=headless returned=%s attempt=%s/%s pids=%s leftover_PYTHONPATH=%s"
+                % (
+                    ctx is not None,
+                    attempt,
+                    attempts,
+                    _soffice_pids(),
+                    os.environ.get("PYTHONPATH"),
+                )
+            )
+            return ctx
+        except Exception as exc:
+            last_exc = exc
+            _progress(
+                "BOOTSTRAP path=headless error=%s:%s attempt=%s/%s pids=%s stderr_tail=%r"
+                % (
+                    type(exc).__name__,
+                    exc,
+                    attempt,
+                    attempts,
+                    _soffice_pids(),
+                    office_stderr_tail()[-30:],
+                )
+            )
+            _terminate_bootstrap_soffice()
+            if attempt >= attempts:
+                raise
+            # Brief pause so Windows releases the named pipe / process handles.
+            time.sleep(2.0)
+    assert last_exc is not None
+    raise last_exc
 
 
 
