@@ -87,6 +87,8 @@ def test_scripted_specialized_names_match_schema_stages() -> None:
     core_calc = schema_names("calc")
     ranges = schema_names("calc", "ranges")
     flow = _script_tool_names("flowchart_gen")
+    assert "specialized_workflow_finished" not in flow
+    assert "specialized_workflow_finished" not in shapes
     assert flow[0] == "delegate_to_specialized_draw_toolset"
     assert flow[0] in core_draw
     for name in flow[1:]:
@@ -95,6 +97,8 @@ def test_scripted_specialized_names_match_schema_stages() -> None:
         else:
             assert name in shapes, name
     sort_names = _script_tool_names("data_sorting")
+    assert "specialized_workflow_finished" not in sort_names
+    assert "specialized_workflow_finished" not in ranges
     assert sort_names[0] == "delegate_to_specialized_calc_toolset"
     assert sort_names[0] in core_calc
     for name in sort_names[1:]:
