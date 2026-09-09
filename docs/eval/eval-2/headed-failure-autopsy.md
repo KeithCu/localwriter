@@ -1,7 +1,7 @@
 # Eval-2 headed failure autopsy
 
 **Audience:** Keith / Chief / Scrolly / harness owners  
-**Status:** Living harness-debug note (not a KPI scoreboard).  
+**Status:** Living harness-debug note (not a KPI scoreboard). **Overnight queue (slots 6/8/9/10) folded 2026-09-09 — morning-ready.**  
 **Bar:** **Product/task success** first. Oracles are for later benchmarking; a headed “HAPPY” means the deliverable did the job even if a soft oracle is red. Prefer **DO + why**.
 
 Box run artifacts cited below may be untracked locally; paths are under `docs/eval/eval-2/*/runs/` or `docs/eval/eval-2/runs/` on the shared machine.
@@ -22,7 +22,7 @@ Box run artifacts cited below may be untracked locally; paths are under `docs/ev
 | 6 | Calc-primary | `calc-primary-model/…/20260909-0400-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (Regions A–G) | **CSV-row dump** into col A + wrong factor + `#NAME?` invented sheet |
 | 8 | Draw-primary | `draw-primary-deliverable/…/20260909-0411-…` (gpt-oss-120b) | **NOT HAPPY** (garbled layout) | FAIL (Clearbend / failure / triage) | Non-empty map; **identity labels + layout overlap** |
 | 9 | Reverse Tenant | `reverse-tenant/…/20260909-0414-…` (gpt-oss-120b) | **NOT HAPPY** (blank Sheet1) | FAIL (0 cells) | **Talk-not-write** + PreContractError; Sheet2/3 only in chat |
-| 10 | Long Writer pack | — | no headed yet | soft oracle ready | Predicted: no TOC field / bold-as-heading / no comments |
+| 10 | Long Writer pack | `long-writer-pack/…/20260909-0419-…` (gpt-oss-120b) | **NOT HAPPY** (wrong facts) | FAIL (money/dates/purpose/comment) | TOC+headings OK; **invented budget/dates**; **0 comments** |
 
 ---
 
@@ -212,14 +212,35 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 
 **Next headed:** after PreContract dig + actuation teaching; expect populated payroll model (≥12 cells, CBA/theatre/roster anchors, real multi-sheet or single-sheet tables).
 
-**Watcher (overnight):** calc-primary (`0400`) + draw-primary (`0411`) + reverse-tenant (`0414`) folded. Still empty: `long-writer-pack/runs/` (`.gitkeep` only).
+**Watcher (overnight):** **queue complete** — calc `0400`, draw `0411`, reverse-tenant `0414`, long-writer `0419` all folded (all NOT HAPPY on gpt-oss-120b overnight).
 
-### 10 — Long Writer pack
+### 10 — Long Writer pack — LANDED NOT HAPPY
 
-- No TOC field / Contents.  
-- Bold Default instead of named Heading styles.  
-- No comments.  
-**Next headed:** one Writer doc; no peer.
+**`long-writer-pack/runs/20260909-0419-gpt-oss-120b`** — tip `6670b802`; model `openai/gpt-oss-120b:nitro`; **max 50** (START ×2 — prompt auto-submitted during sidebar transition); ~3 min; UNO=0 / PreContract=0. Shots: `/workspace/longpack-*.png`.
+
+**What worked (rules out empty / no-TOC / no-headings):**
+- Oracle: `words: 400`, `paras: 63`, `headings: 13`, **`toc: True`**, substantial multi-section brief (~3 pages).
+- Named sections exist (Executive Summary, Scope, Budget, Timeline, Open Decisions, …). Northhaven / CL-2026 identity present.
+- Not the predicted “no TOC / bold-as-heading husk” miss.
+
+**Product NOT HAPPY:**
+
+1. **Invented program facts** (dominant) — body uses **$12.5M total / Renovation $5.0M** and **Q4 2026 → Q4 2027 → Q1 2028** instead of fixture **$4.2M** base, annex **$1.8M / $2.4M**, **April 2027–October 2028**. Oracle fail-closes on those anchors (correct — wrong capital brief).
+2. **Missing purpose / scope section theme** — has “Scope” / Project Description but not the prompt’s Purpose + Scope of Work pairing the oracle accepts.
+3. **Zero review comments** (`comments: 0`) — prompt required comments on annex siting / funding split / weekend staffing; Decision Log content was prose, not `office:annotation` on a real span.
+
+**Solutions (DO + why):**
+1. **DO — Research-before-write** — `document_research` (or open) **Northhaven Library Program Facts** + **Decision Log** before drafting numbers/dates; refuse Ready if $4.2M / annex options / Apr2027–Oct2028 absent.  
+   **Why:** structural TOC success hid a fact-fabricated brief.
+2. **DO — Exact figure/date copy from fixtures** — don’t round to alternate capital stories ($12.5M / quarterly labels).  
+   **Why:** oracle = product identity for native pack.
+3. **DO — Real review comments on spans** — `add_comment` (or equivalent) on open-decision passages, not a Decision Log section alone.  
+   **Why:** comments=0 fails the Decision Log intent.
+4. **DO — Purpose / Scope of Work heading pair** — match prompt section list (or aliases oracle already accepts).  
+5. **Don’t** soften money/date fails. **Don’t** treat toc=True alone as HAPPY.
+
+**Next headed:** after research-before-write teaching; expect fixture dollars/dates, purpose/scope theme, ≥1 real review comment.
+
 
 ---
 
@@ -231,10 +252,24 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 4. **GMP oracle cite soften** (optional) — secondary; product already HAPPY.  
 5. **Draw-primary identity + layout retest** — after §5.8; Clearbend title, failure→manual, triage/rework, readable layout (consider max 80–150 only if still one-shot).  
 6. **Reverse Tenant actuation retest** — after PreContract dig + refuse-empty-Ready; ≥12 cells, CBA/theatre/roster anchors, real sheets not chat fiction.  
-7. **Long Writer headed** — TOC/styles/comments pack.  
+7. **Long Writer fixture-faithful retest** — after research-before-write; $4.2M + annex $1.8M/$2.4M + Apr2027–Oct2028 + purpose/scope + ≥1 review comment on a real span.  
 8. Keep folding Scrolly stamps into §1 / §5; amend this file or open follow-up PRs.
 
 ---
+
+
+## 6b. Overnight queue wrap (2026-09-09 morning)
+
+Scrolly gpt-oss-120b headed stamps for Ready slots **6 / 8 / 9 / 10** all landed **NOT HAPPY**. Prior siblings unchanged: AFC / Tenant / Cadaver / GMP-0225 product HAPPY; Floorstand + GMP-0103 peer polarity; then:
+
+| Stamp | Dominant miss | First fix lever |
+|-------|---------------|-----------------|
+| Calc-primary `0400` | CSV-row dump into col A + wrong ARPU factor + phantom `headcount` | Cell/range write teaching; fixture factor tokens |
+| Draw-primary `0411` | Garbled layout + missing Clearbend / failure / triage | Identity labels + layout; maybe more rounds after teaching |
+| Reverse Tenant `0414` | Talk-not-write blank Sheet1 + PreContractError | Refuse empty Ready; dig PreContract; real sheets |
+| Long Writer `0419` | Invented $12.5M / wrong dates; 0 comments | Research-before-write; fixture dollars/dates; real annotations |
+
+**Morning priority order (product pain):** Floorstand polarity → Calc CSV-dump → Reverse Tenant empty → Long Writer facts → Draw identity/layout. Oracles stay for benchmarking; do not KPI-game softens on these four.
 
 ## 7. Non-goals
 
