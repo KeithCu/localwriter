@@ -19,7 +19,7 @@ Box run artifacts cited below may be untracked locally; paths are under `docs/ev
 | 2 | Cadaver Proposal | `cadaver-…/runs/20260908-2246-…` (Gemini) | **HAPPY** (real proposal + charts) | FAIL → soften PR | Oracle false-red (aliases, Figure/draw:frame, length) |
 | 4 | GMP Change Control | `gmp-…/20260909-0103` then `…-0225` (gpt-oss-120b) | 0103 **NOT HAPPY** → 0225 **HAPPY** | 0225 FAIL cite only | **Peer polarity** dump→fill; then product OK |
 | 5 | Floorstand Writer→Calc | `writer-calc-peer-write/…/20260909-0323-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (empty) | **Peer polarity** extract-not-fill + LO crash |
-| 6 | Calc-primary | — | no headed yet | soft oracle ready | Predicted: wrong factor / pin / empty sheet |
+| 6 | Calc-primary | `calc-primary-model/…/20260909-0400-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (Regions A–G) | **CSV-row dump** into col A + wrong factor + `#NAME?` invented sheet |
 | 8 | Draw-primary | — | no headed yet | soft oracle ready | Predicted: title-only canvas / no connectors |
 | 9 | Reverse Tenant | — | no headed yet | soft oracle ready | Predicted: invent rates / ignore CBA brief |
 | 10 | Long Writer pack | — | no headed yet | soft oracle ready | Predicted: no TOC field / bold-as-heading / no comments |
@@ -127,13 +127,47 @@ Both Gemini headed drafts were **real product solves**. Oracles failed on extrac
 
 From each sibling `notes.md` + soft oracles after #693. Fold real stamps into this section when Scrolly lands runs.
 
-### 6 — Calc-primary (branch profitability)
+### 6 — Calc-primary (branch profitability) — LANDED NOT HAPPY
 
-- **Wrong factor** (ARPU / hours on wrong series).  
-- **Pinned formula** (AFC actuation class, new claim).  
-- **Empty create_sheet** tabs.  
-- Round starve at 50 → empty tabs (helper uses **150**).  
-**Next headed:** watch create_sheet + fill-down; score formula trail not Ready.
+**`calc-primary-model/runs/20260909-0400-gpt-oss-120b`** — tip `7a30dcb4`; model `openai/gpt-oss-120b:nitro`; max 150; ~8–10 min; UNO=0 / PreContract=0; WriterAgent **Error** twice then recovered. Shots: `/workspace/calcprim-*.png`.
+
+**What worked (rules out empty-tab / pin):**
+- Sheets created: Raw Data + **5** schedules (Income Statement, Monthly Trend, Branch Ranking, Regional Comparison, Efficiency Volume Profitability).
+- Oracle: `schedule_sheets: 5`, `formulas: 208`, **`pinned_columns: 0`**, husks 1/243.
+- Not the predicted empty-`create_sheet` miss. Not the AFC-style pin miss.
+
+**Product NOT HAPPY — three real miss classes:**
+
+1. **CSV-row dump (dominant / new)** — whole header and even formula rows written as **one comma-joined string in column A** instead of cell-per-column. Visible on Efficiency Volume Profitability (`calcprim-final.png`: `Implementation Headcount Hours…,0,0,0,…` in A4+; B–J empty bordered husks). ODS also has CSV dumps on Income Statement / Monthly Trend / Branch Ranking / Regional Comparison (header lines and `Revenue,=SUMIFS(...),=SUMIFS(...)` as literal text).  
+   **Why:** model treated Calc write like pasting a CSV line; schedules look “filled” in chat but are unusable grids.
+
+2. **Wrong factor → `#DIV/0!` (×20 on Branch Ranking)** — ARPU-style formulas divide Revenue by SUMIFS criteria **`"Units"`** instead of fixture account **`Revenue (Units)`** (denom zero / no match). Predicted miss mode confirmed.
+
+3. **`#NAME?` (×20)** — `VLOOKUP(...;'headcount'.a:b;2;0)` references an **invented sheet** `headcount` that does not exist. Related product bug: Sales $/Headcount without a real headcount source tab.
+
+4. **Sparse Regions A–G** — oracle: *missing Regions A–G (found A only)*. Regional Comparison under-filled vs prompt §4.
+
+**Solutions (DO + why):**
+
+1. **DO — Cell/range write teaching (product prompt + tool description)**  
+   One cell or rectangular range per write; never dump a CSV/comma row into a single cell. Mid-run: if `get_sheet_summary` sees long comma-joined A-column strings with empty B+, treat as actuation fail and rewrite.  
+   **Why:** CSV-dump is the headed happy-bar killer even when sheet count and formula count look OK.
+
+2. **DO — Factor tokens from fixture in teaching / oracle already soft-fails**  
+   Denominators must use exact Raw Data account labels (`Revenue (Units)`, Implementation Hours, …) — not shortened `"Units"`.  
+   **Why:** `#DIV/0!` ×20 is wrong-factor, not Ready noise.
+
+3. **DO — Ban invented helper sheets** unless `create_sheet` + populate first  
+   Headcount for Sales $/Headcount must come from Raw Data headcount accounts (or an explicitly created sheet), never a phantom `headcount` tab.  
+   **Why:** `#NAME?` VLOOKUP to missing sheet.
+
+4. **DO — Regional Comparison completeness check in headed notes**  
+   Observer tags Region A–G presence before Ready (oracle already fail-closes).  
+   **Why:** found A only is a sparse-schedule miss.
+
+5. **Don’t** call this an empty-tab or pin miss. **Don’t** soften Regions A–G away — product package is incomplete. Soft oracle can still keep husk/#DIV thresholds as secondary once grids are real cells.
+
+**Next headed (after product write fix):** re-run same model; expect real multi-column grids, Regions A–G labels, no CSV-in-A, ARPU denom = `Revenue (Units)`.
 
 ### 8 — Draw-primary (process map)
 
@@ -148,7 +182,7 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 - Blank workbook Ready.  
 **Next headed:** Calc-primary chat; confirm brief is research-only.
 
-**Watcher (overnight):** as of PR open, `calc-primary-model/runs/`, `draw-primary-deliverable/runs/`, `reverse-tenant/runs/`, and `long-writer-pack/runs/` still hold only `.gitkeep`. Fold Scrolly stamps here when they land.
+**Watcher (overnight):** calc-primary stamp folded (`20260909-0400`). Still empty: `draw-primary-deliverable/runs/`, `reverse-tenant/runs/`, `long-writer-pack/runs/` (`.gitkeep` only).
 
 ### 10 — Long Writer pack
 
@@ -162,9 +196,9 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 ## 6. Ordered next experiments
 
 1. **Floorstand polarity retest** (highest product pain) — product peer-prompt/tool description from §2.3 (1)+(3); same model; expect fill peer asks + nonempty Cost Comparison + non-empty email.  
-2. **Tiny peer-fill crash repro** — one `send_peer` that writes 3 cells; see if LO still dies.  
-3. **GMP oracle cite soften** (optional) — secondary; product already HAPPY.  
-4. **Calc-primary first headed** — exercises fill-down / multi-sheet without peer.  
+2. **Calc-primary CSV-dump / factor retest** — after cell-write teaching (§5.6); same model; expect multi-column grids, Regions A–G, no comma-joined A cells, ARPU denom `Revenue (Units)`, no phantom `headcount` sheet.  
+3. **Tiny peer-fill crash repro** — one `send_peer` that writes 3 cells; see if LO still dies.  
+4. **GMP oracle cite soften** (optional) — secondary; product already HAPPY.  
 5. **Draw-primary first headed** — Draw-as-product, not form stand-in.  
 6. **Reverse Tenant headed** — Calc write + Writer brief read.  
 7. **Long Writer headed** — TOC/styles/comments pack.  
@@ -191,3 +225,4 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 | Tenant | `tenant-retention-ed2bc14c/runs/20260908-0121-…` |
 | Cadaver | `cadaver-proposal-61b0946a/runs/20260908-2246-…` |
 | AFC | `docs/eval/eval-2/runs/20260908-0030-…` (+ smoother `afc-sample-83d10b06/SMOOTHER_CHANGES.md`) |
+| Calc-primary | `calc-primary-model/runs/20260909-0400-gpt-oss-120b/` + `/workspace/calcprim-*.png` |
