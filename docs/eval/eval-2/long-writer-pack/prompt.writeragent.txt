@@ -1,16 +1,14 @@
-TODO: paste a WriterAgent delta after gold materials land (see SOURCE.md).
+You are the capital-program officer for Parks & Culture in the City of Northhaven. City Council asked for a multi-section capital brief on the Civic Library renovation and annex (project code CL-2026-ANNEX).
 
-Shape only — not a headed-ready claim:
+This Writer document is already open. Produce the full brief in this document (not a slide deck, not a second form file).
 
-- This Writer document is already open. Produce the full pack in this
-  document (not a slide deck, not a second form file).
-- Use heading styles for the major sections and insert a table of
-  contents at the start.
-- Leave review comments on the passages that still need a human
-  decision.
-- Section titles and facts come from the files in this folder when
-  those files exist.
+Use the files in this folder titled ‘Northhaven Library Program Facts’ and ‘Northhaven Decision Log’ for section titles, figures, and the decisions that are still open.
 
-Gold-specific compliance IDs and slide-deck structure stay out of this
-stub. When gold lands, keep the gold claim and remap “attach a new Word
-file” to this open document.
+The brief must:
+
+- Open with a table of contents
+- Use heading styles for the major sections (Purpose, Scope of Work, Budget and Schedule, Public-Access Impacts, Open Decisions)
+- Cover the program facts from those files (site, construction window, base renovation and both annex options, current and proposed hours)
+- Leave review comments on the passages that still need a human decision (annex siting, funding split, and weekend staffing)
+
+Write the completed capital brief in this open Writer document.

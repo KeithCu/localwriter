@@ -4,8 +4,9 @@
 
 No new yaml knobs. Everyday chat stays at the schema default (15).
 Schema max is 200 so a trial can temporarily set 80 or 200 without clamp.
-AFC / Tenant / Cadaver still write **50**. GMP Change Control and
-Writer→Calc Floorstand write **150** (multidoc + peer).
+AFC / Tenant / Cadaver / Long Writer pack / Draw-primary still write
+**50**. GMP Change Control, Writer→Calc Floorstand, Reverse Tenant
+(Theatre CBA), and Calc-primary model write **150**.
 
 ``--launch`` (default ``--task afc``) copies only the Population ODS into a
 clean trial directory (default ``$TMP/writeragent-eval2-afc``) so
@@ -33,6 +34,24 @@ original store-list ODS + final-matrix ODS + empty budget scaffold into
 the Calc workbook (v1 pre-open cheat). The gold deliverable xlsx is
 **not** the write target. Store lists / email trail are research-only.
 
+``--task calc-primary-model --launch`` copies only the Raw Data ODS into
+``$TMP/writeragent-eval2-calc-primary`` and opens that copy in Calc
+(five schedule sheets + formula fill).
+
+``--task reverse-tenant --launch`` copies the CBA excerpt ODT and sample
+roster XLSX into ``$TMP/writeragent-eval2-reverse-tenant``, writes a blank
+``Theatre CBA.ods``, and opens the Writer brief then the Calc workbook
+(Calc last / prompt in the Calc sidebar). The Writer excerpt is research-only.
+
+``--task long-writer-pack --launch`` copies the two native research ODTs
+into ``$TMP/writeragent-eval2-long-writer``, writes a blank
+``Northhaven Civic Library Capital Brief.odt``, and opens Writer. No
+peer.
+
+``--task draw-primary --launch`` copies only ``Process Flow Map.odg``
+into ``$TMP/writeragent-eval2-draw`` and opens that canvas. The gold
+PDF is **not** the write target. Writer is optional/absent.
+
 Do not open ``fixtures/`` or the task folder.
 
 Usage:
@@ -43,12 +62,20 @@ Usage:
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --launch
   .venv/bin/python scripts/eval_2_headed.py --task writer-calc-peer-write --launch
+  .venv/bin/python scripts/eval_2_headed.py --task calc-primary-model --launch
+  .venv/bin/python scripts/eval_2_headed.py --task reverse-tenant --launch
+  .venv/bin/python scripts/eval_2_headed.py --task long-writer-pack --launch
+  .venv/bin/python scripts/eval_2_headed.py --task draw-primary --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score path/to/final_proposal.odt
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task writer-calc-peer-write --score path/to/final_memo.odt
+  .venv/bin/python scripts/eval_2_headed.py --task calc-primary-model --score path/to/final_workbook.ods
+  .venv/bin/python scripts/eval_2_headed.py --task reverse-tenant --score path/to/final_workbook.ods
+  .venv/bin/python scripts/eval_2_headed.py --task long-writer-pack --score path/to/final_pack.odt
+  .venv/bin/python scripts/eval_2_headed.py --task draw-primary --score path/to/final_drawing.odg
 """
 from __future__ import annotations
 
@@ -69,13 +96,19 @@ MAX_TOOL_ROUNDS_KEY = "chatbot.max_tool_rounds"
 DEFAULT_MAX_TOOL_ROUNDS = 15
 EVAL_2_MAX_TOOL_ROUNDS = 50
 # Multidoc + peer (GMP Draw fill, Floorstand Calc write) needs more than
-# the Writer-only 50-round start.
+# the Writer-only 50-round start. Reverse Tenant and Calc-primary use
+# the same 150-round start (complex payroll / five schedule sheets).
 EVAL_2_GMP_MAX_TOOL_ROUNDS = 150
+EVAL_2_CALC_PRIMARY_MAX_TOOL_ROUNDS = 150
 _AFC_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "afc-sample-83d10b06"
 _TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14c"
 _CADAVER_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "cadaver-proposal-61b0946a"
 _GMP_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "gmp-change-control-58ac1cc5"
 _FLOORSTAND_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "writer-calc-peer-write"
+_CALC_PRIMARY_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "calc-primary-model"
+_REVERSE_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "reverse-tenant"
+_LONG_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "long-writer-pack"
+_DRAW_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "draw-primary-deliverable"
 POPULATION_ODS_NAME = "Population v2.ods"
 LETTER_ODT_NAME = "Current Renewal Letter.odt"
 SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
@@ -93,6 +126,14 @@ FLOORSTAND_BUDGET_ODS_NAME = "Holiday Floorstand Budget.ods"
 FLOORSTAND_EMAIL_NAME = "Draft Floorstand Email.odt"
 FLOORSTAND_COST_SHEET = "Cost Comparison"
 FLOORSTAND_STORE_SHEET = "Final Store List"
+RAW_DATA_ODS_NAME = "Raw Data for Branch Profitability Final.ods"
+CBA_EXCERPT_ODT_NAME = "CBA excerpt.odt"
+ROSTER_XLSX_NAME = "Sample roster and schedule.xlsx"
+THEATRE_CBA_ODS_NAME = "Theatre CBA.ods"
+LONG_FACTS_ODT_NAME = "Northhaven Library Program Facts.odt"
+LONG_DECISIONS_ODT_NAME = "Northhaven Decision Log.odt"
+LONG_PACK_NAME = "Northhaven Civic Library Capital Brief.odt"
+DRAW_PRIMARY_ODG_NAME = "Process Flow Map.odg"
 # Form-920 Section 1 blanks. Labels sit to the left so get_draw_tree
 # can attach label_hint. Names stay stable for fill_draw_fields / oracle.
 GMP_FILLABLE_FIELDS: tuple[tuple[str, str], ...] = (
@@ -124,17 +165,41 @@ _FLOORSTAND_EMAIL_TRAIL_ODT = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_EMAIL_TR
 _FLOORSTAND_ORIG_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_ORIG_ODS_NAME
 _FLOORSTAND_MATRIX_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_MATRIX_ODS_NAME
 _FLOORSTAND_BUDGET_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_BUDGET_ODS_NAME
+_CALC_PRIMARY_ODS = _CALC_PRIMARY_DIR / "fixtures" / RAW_DATA_ODS_NAME
+_REVERSE_CBA_ODT = _REVERSE_DIR / "fixtures" / CBA_EXCERPT_ODT_NAME
+_REVERSE_ROSTER_XLSX = _REVERSE_DIR / "fixtures" / ROSTER_XLSX_NAME
+_LONG_FACTS_ODT = _LONG_DIR / "fixtures" / LONG_FACTS_ODT_NAME
+_LONG_DECISIONS_ODT = _LONG_DIR / "fixtures" / LONG_DECISIONS_ODT_NAME
+_DRAW_PRIMARY_ODG = _DRAW_DIR / "fixtures" / DRAW_PRIMARY_ODG_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
 DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
 DEFAULT_CADAVER_TRIAL_DIR_NAME = "writeragent-eval2-cadaver"
 DEFAULT_GMP_TRIAL_DIR_NAME = "writeragent-eval2-gmp"
 DEFAULT_FLOORSTAND_TRIAL_DIR_NAME = "writeragent-eval2-writer-calc"
+DEFAULT_CALC_PRIMARY_TRIAL_DIR_NAME = "writeragent-eval2-calc-primary"
+DEFAULT_REVERSE_TRIAL_DIR_NAME = "writeragent-eval2-reverse-tenant"
+DEFAULT_LONG_TRIAL_DIR_NAME = "writeragent-eval2-long-writer"
+DEFAULT_DRAW_TRIAL_DIR_NAME = "writeragent-eval2-draw"
 TASK_AFC = "afc"
 TASK_TENANT = "tenant-retention"
 TASK_CADAVER = "cadaver-proposal"
 TASK_GMP = "gmp-change-control"
 TASK_WRITER_CALC = "writer-calc-peer-write"
-TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP, TASK_WRITER_CALC)
+TASK_CALC_PRIMARY = "calc-primary-model"
+TASK_REVERSE = "reverse-tenant"
+TASK_LONG = "long-writer-pack"
+TASK_DRAW = "draw-primary"
+TASK_CHOICES = (
+    TASK_AFC,
+    TASK_TENANT,
+    TASK_CADAVER,
+    TASK_GMP,
+    TASK_WRITER_CALC,
+    TASK_CALC_PRIMARY,
+    TASK_REVERSE,
+    TASK_LONG,
+    TASK_DRAW,
+)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -261,8 +326,10 @@ def find_afc_population_ods() -> Path:
 
 
 def task_max_tool_rounds(task: str) -> int:
-    """Headed start: 150 for GMP / Floorstand (multidoc + peer), 50 otherwise."""
-    if task in {TASK_GMP, TASK_WRITER_CALC}:
+    """Headed start: 150 for GMP / Floorstand / reverse-tenant / calc-primary."""
+    if task == TASK_CALC_PRIMARY:
+        return EVAL_2_CALC_PRIMARY_MAX_TOOL_ROUNDS
+    if task in {TASK_GMP, TASK_WRITER_CALC, TASK_REVERSE}:
         return EVAL_2_GMP_MAX_TOOL_ROUNDS
     return EVAL_2_MAX_TOOL_ROUNDS
 
@@ -273,6 +340,10 @@ def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
         TASK_CADAVER: DEFAULT_CADAVER_TRIAL_DIR_NAME,
         TASK_GMP: DEFAULT_GMP_TRIAL_DIR_NAME,
         TASK_WRITER_CALC: DEFAULT_FLOORSTAND_TRIAL_DIR_NAME,
+        TASK_CALC_PRIMARY: DEFAULT_CALC_PRIMARY_TRIAL_DIR_NAME,
+        TASK_REVERSE: DEFAULT_REVERSE_TRIAL_DIR_NAME,
+        TASK_LONG: DEFAULT_LONG_TRIAL_DIR_NAME,
+        TASK_DRAW: DEFAULT_DRAW_TRIAL_DIR_NAME,
     }
     name = names.get(task, DEFAULT_TRIAL_DIR_NAME)
     return Path(tempfile.gettempdir()) / name
@@ -285,6 +356,10 @@ def _task_dirs() -> tuple[Path, ...]:
         _CADAVER_DIR.resolve(),
         _GMP_DIR.resolve(),
         _FLOORSTAND_DIR.resolve(),
+        _CALC_PRIMARY_DIR.resolve(),
+        _REVERSE_DIR.resolve(),
+        _LONG_DIR.resolve(),
+        _DRAW_DIR.resolve(),
     )
 
 
@@ -332,6 +407,33 @@ def write_blank_writer_odt(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("mimetype", "application/vnd.oasis.opendocument.text", compress_type=zipfile.ZIP_STORED)
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("content.xml", content)
+    return path
+
+
+def write_blank_calc_ods(path: Path) -> Path:
+    """Minimal empty Calc workbook so the open Theatre CBA file lives in the trial dir."""
+    manifest = """<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+ <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+ <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+"""
+    content = """<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.2">
+ <office:body><office:spreadsheet>
+  <table:table table:name="Sheet1"><table:table-row><table:table-cell/></table:table-row></table:table>
+ </office:spreadsheet></office:body>
+</office:document-content>
+"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(
+            "mimetype",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            compress_type=zipfile.ZIP_STORED,
+        )
         zf.writestr("META-INF/manifest.xml", manifest)
         zf.writestr("content.xml", content)
     return path
@@ -424,6 +526,71 @@ def write_gmp_change_control_odg(path: Path) -> Path:
         zf.writestr("styles.xml", styles)
         zf.writestr("content.xml", content)
     return path
+
+
+def _write_odg_zip(path: Path, *, page_name: str, body_inner: str) -> Path:
+    """Minimal Draw package. Same zip shape as the GMP Form-920 stand-in."""
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+        'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+        'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" '
+        'office:version="1.2">\n'
+        " <office:automatic-styles/>\n"
+        " <office:body><office:drawing>"
+        f'<draw:page draw:name="{_xml_escape(page_name)}" draw:master-page-name="Standard">'
+        + body_inner
+        + "</draw:page></office:drawing></office:body>\n"
+        "</office:document-content>\n"
+    )
+    styles = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" '
+        'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" '
+        'office:version="1.2">\n'
+        " <office:master-styles>"
+        '<style:master-page style:name="Standard"/>'
+        "</office:master-styles>\n"
+        "</office:document-styles>\n"
+    )
+    manifest = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" '
+        'manifest:version="1.2">\n'
+        ' <manifest:file-entry manifest:full-path="/" manifest:version="1.2" '
+        'manifest:media-type="application/vnd.oasis.opendocument.graphics"/>\n'
+        ' <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>\n'
+        ' <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>\n'
+        "</manifest:manifest>\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(
+            "mimetype",
+            "application/vnd.oasis.opendocument.graphics",
+            compress_type=zipfile.ZIP_STORED,
+        )
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("styles.xml", styles)
+        zf.writestr("content.xml", content)
+    return path
+
+
+def write_draw_primary_odg(path: Path) -> Path:
+    """Editable Draw process-map canvas. Not the gold PDF.
+
+    Title-only husk so headed fill/build starts from a real ``.odg``.
+    Process steps stay empty — the model builds labeled shapes here.
+    """
+    title = (
+        '<draw:frame draw:name="title" svg:x="1cm" svg:y="0.4cm" '
+        'svg:width="26cm" svg:height="1.2cm"><draw:text-box>'
+        "<text:p>Process Flow Map</text:p>"
+        "</draw:text-box></draw:frame>"
+    )
+    return _write_odg_zip(path, page_name="ProcessFlow", body_inner=title)
 
 
 def write_floorstand_budget_ods(path: Path) -> Path:
@@ -593,12 +760,80 @@ def stage_floorstand_trial(dest_dir: Path) -> tuple[Path, Path]:
     return email, dest_dir / FLOORSTAND_BUDGET_ODS_NAME
 
 
+def find_calc_primary_ods() -> Path:
+    """Raw Data ODS only. XLSX stays in fixtures/ (sibling, researchable)."""
+    if _CALC_PRIMARY_ODS.is_file():
+        return _CALC_PRIMARY_ODS
+    raise FileNotFoundError(
+        f"Missing {_CALC_PRIMARY_ODS}. Convert the xlsx fixture with "
+        "soffice --convert-to ods; do not open fixtures/ (siblings leak)."
+    )
+
+
+def stage_calc_primary_trial(dest_dir: Path) -> Path:
+    """Copy only the Raw Data ODS. Prompt/rubric/gold stay outside the trial dir."""
+    return stage_clean_trial_ods(find_calc_primary_ods(), dest_dir)
+
+
+def find_reverse_tenant_fixtures() -> tuple[Path, Path]:
+    """CBA excerpt ODT + sample roster XLSX. Writer brief is research-only."""
+    if not _REVERSE_CBA_ODT.is_file():
+        raise FileNotFoundError(
+            f"Missing {_REVERSE_CBA_ODT}. Convert the CBA excerpt fixture; "
+            "do not open fixtures/ (siblings leak)."
+        )
+    if not _REVERSE_ROSTER_XLSX.is_file():
+        raise FileNotFoundError(f"Missing {_REVERSE_ROSTER_XLSX}")
+    return _REVERSE_CBA_ODT, _REVERSE_ROSTER_XLSX
+
+
+def stage_reverse_tenant_trial(dest_dir: Path) -> tuple[Path, Path]:
+    """Brief ODT + roster xlsx + blank Theatre CBA. Gold/prompt stay outside."""
+    brief, roster = find_reverse_tenant_fixtures()
+    stage_clean_trial_files([brief, roster], dest_dir, label="Reverse Tenant")
+    workbook = write_blank_calc_ods(dest_dir / THEATRE_CBA_ODS_NAME)
+    return workbook, dest_dir / CBA_EXCERPT_ODT_NAME
+
+
+def find_long_writer_fixtures() -> tuple[Path, Path]:
+    """Program facts + decision log. Both are research / read-only."""
+    if not _LONG_FACTS_ODT.is_file():
+        raise FileNotFoundError(f"Missing {_LONG_FACTS_ODT}")
+    if not _LONG_DECISIONS_ODT.is_file():
+        raise FileNotFoundError(f"Missing {_LONG_DECISIONS_ODT}")
+    return _LONG_FACTS_ODT, _LONG_DECISIONS_ODT
+
+
+def stage_long_writer_trial(dest_dir: Path) -> Path:
+    """Facts + decision log + blank brief. Prompt/notes stay outside."""
+    facts, decisions = find_long_writer_fixtures()
+    stage_clean_trial_files([facts, decisions], dest_dir, label="Long Writer")
+    return write_blank_writer_odt(dest_dir / LONG_PACK_NAME)
+
+
+def find_draw_primary_fixture() -> Path:
+    """Editable Draw canvas. Gold Process Flow Map.pdf is not a write target."""
+    if not _DRAW_PRIMARY_ODG.is_file():
+        raise FileNotFoundError(
+            f"Missing {_DRAW_PRIMARY_ODG}. Rebuild with write_draw_primary_odg."
+        )
+    return _DRAW_PRIMARY_ODG
+
+
+def stage_draw_primary_trial(dest_dir: Path) -> Path:
+    """Draw stand-in only. Gold PDF / prompt / rubric stay outside the trial dir."""
+    canvas = find_draw_primary_fixture()
+    copied = stage_clean_trial_files([canvas], dest_dir, label="Draw-primary")
+    return copied[0]
+
+
 def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
         print("soffice not on PATH; open the document yourself.", file=sys.stderr)
         return
-    flag = "--writer" if mode == "writer" else "--calc"
+    flags = {"writer": "--writer", "calc": "--calc", "draw": "--draw"}
+    flag = flags.get(mode, "--calc")
     cmd = [soffice, flag]
     if fixture is not None:
         cmd.append(str(fixture))
@@ -639,17 +874,21 @@ def main(argv: list[str] | None = None) -> int:
         default=TASK_AFC,
         help=(
             "Experiment to launch or score (default: afc). "
-            "tenant-retention / cadaver-proposal / gmp-change-control / "
-            "writer-calc-peer-write are Writer-started."
+            "tenant-retention / cadaver-proposal / long-writer-pack are Writer; "
+            "gmp-change-control is Writer+Draw; writer-calc-peer-write is "
+            "Writer+Calc; reverse-tenant is Calc (Writer brief is a read); "
+            "calc-primary-model is Calc; draw-primary is Draw."
         ),
     )
     parser.add_argument(
         "--launch",
         action="store_true",
         help=(
-            "Stage a clean trial dir, then soffice (Calc for AFC, Writer for "
-            "tenant-retention / cadaver-proposal, Writer+Draw for "
-            "gmp-change-control, Writer+Calc for writer-calc-peer-write)"
+            "Stage a clean trial dir, then soffice (Calc for AFC / "
+            "calc-primary-model, Writer for tenant-retention / "
+            "cadaver-proposal / long-writer-pack, Writer+Draw for "
+            "gmp-change-control, Writer+Calc for writer-calc-peer-write, "
+            "Writer brief + Calc for reverse-tenant, Draw for draw-primary)"
         ),
     )
     parser.add_argument(
@@ -661,8 +900,12 @@ def main(argv: list[str] | None = None) -> int:
             f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME}, "
             f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, "
             f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, "
-            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME}, or "
-            f"$TMP/{DEFAULT_FLOORSTAND_TRIAL_DIR_NAME})"
+            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_FLOORSTAND_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_CALC_PRIMARY_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_REVERSE_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_LONG_TRIAL_DIR_NAME}, or "
+            f"$TMP/{DEFAULT_DRAW_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
@@ -683,6 +926,14 @@ def main(argv: list[str] | None = None) -> int:
             from eval_2_floorstand_oracle import main as score_main
         elif args.task == TASK_GMP:
             from eval_2_gmp_oracle import main as score_main
+        elif args.task == TASK_REVERSE:
+            from eval_2_reverse_tenant_oracle import main as score_main
+        elif args.task == TASK_CALC_PRIMARY:
+            from eval_2_calc_primary_oracle import main as score_main
+        elif args.task == TASK_LONG:
+            from eval_2_long_writer_oracle import main as score_main
+        elif args.task == TASK_DRAW:
+            from eval_2_draw_oracle import main as score_main
         elif args.task == TASK_CADAVER:
             from eval_2_cadaver_oracle import main as score_main
         elif args.task == TASK_TENANT or suffix in {".odt", ".docx"}:
@@ -737,6 +988,35 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     # Workbook first, email last so Writer is the focused chat doc.
                     launch_office_documents([budget, email])
+                elif args.task == TASK_CALC_PRIMARY:
+                    trial_ods = stage_calc_primary_trial(trial_dir)
+                    print(f"Staged clean trial dir {trial_ods.parent} ({trial_ods.name} only)")
+                    launch_calc(trial_ods)
+                elif args.task == TASK_REVERSE:
+                    workbook, brief = stage_reverse_tenant_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in workbook.parent.iterdir()))
+                    print(f"Staged clean trial dir {workbook.parent} ({staged})")
+                    print(
+                        "Pre-open: Writer CBA excerpt then Calc Theatre CBA. "
+                        "Paste the prompt in the Calc sidebar. "
+                        "The Writer excerpt is research / read-only."
+                    )
+                    # Brief first, workbook last so Calc is the focused chat doc.
+                    launch_office_documents([brief, workbook])
+                elif args.task == TASK_LONG:
+                    trial_doc = stage_long_writer_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in trial_doc.parent.iterdir()))
+                    print(f"Staged clean trial dir {trial_doc.parent} ({staged})")
+                    launch_office("writer", trial_doc)
+                elif args.task == TASK_DRAW:
+                    trial_doc = stage_draw_primary_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in trial_doc.parent.iterdir()))
+                    print(f"Staged clean trial dir {trial_doc.parent} ({staged})")
+                    print(
+                        "Pre-open: Draw canvas only. Open the Draw sidebar. "
+                        "Gold PDF is not the write target. Writer is optional/absent."
+                    )
+                    launch_office("draw", trial_doc)
                 else:
                     trial_ods = stage_clean_trial_ods(
                         find_afc_population_ods(),
