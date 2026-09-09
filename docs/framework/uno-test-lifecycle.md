@@ -81,7 +81,9 @@ thread:
 **Reading:** SalAbort during **SvxShape / SdrRectObj destruction** while
 clearing an `SfxItemSet` on a URP release thread after close — same general
 family as the historical octagon `SfxItemPool::unregisterNameOrIndex` abort
-on rect teardown. Exact LO invariant still needs dbgsyms / source mapping;
+on rect teardown. dbgsym offline resolve confirmed `#5` is that same
+`unregisterNameOrIndex` (.cold) under `SvxShapeRect` teardown (see
+`salabort-svxshape-close.md`); file:line still thin under LTO;
 product fixes are parked until Chief/Keith pick next steps.
 
 Full write-up: [salabort-svxshape-close.md](salabort-svxshape-close.md).
