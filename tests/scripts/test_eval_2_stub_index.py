@@ -17,21 +17,20 @@ _READY = (
     "cadaver-proposal-61b0946a",
     "afc-sample-83d10b06",
     "gmp-change-control-58ac1cc5",
+    "draw-primary-deliverable",
 )
 _STUBS = (
     "writer-calc-peer-write",
     "calc-primary-model",
     "writer-headed-template",
-    "draw-primary-deliverable",
     "reverse-tenant",
     "long-writer-pack",
 )
-# Preferred gold trees landed for 5–9; slot 10 is still materials-TODO.
+# Preferred gold trees landed for remaining stubs 5–7 and 9; slot 10 is still materials-TODO.
 _GOLD_STUBS = {
     "writer-calc-peer-write": "c3525d4d-2012-45df-853e-2d2a0e902991",
     "calc-primary-model": "5f6c57dd-feb6-4e70-b152-4969d92d1608",
     "writer-headed-template": "a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5",
-    "draw-primary-deliverable": "8a7b6fca-60cc-4ae3-b649-971753cbf8b9",
     "reverse-tenant": "4520f882-715a-482d-8e87-1cb3cbdfe975",
 }
 _TODO_STUBS = ("long-writer-pack",)
@@ -40,6 +39,7 @@ _READY_GOLD_IDS = (
     "61b0946a-5c1c-4bf6-8607-84d7c7e0dfe0",
     "83d10b06-26d1-4636-a32c-23f92c57f30b",
     "58ac1cc5-5754-4580-8c9c-8c67e1a9d619",
+    "8a7b6fca-60cc-4ae3-b649-971753cbf8b9",
 )
 _STUB_FILES = (
     "notes.md",
@@ -74,7 +74,7 @@ def test_readme_lists_siblings_1_to_10() -> None:
     assert "Ready" in text
     assert "Stub" in text
     assert "PARKED" in text
-    assert "5–10 are not wired" in text or "5-10 are not wired" in text
+    assert "5–7 and 9–10 are not wired" in text or "5-7 and 9-10 are not wired" in text
     for gold_id in _GOLD_STUBS.values():
         assert gold_id in text, gold_id
     # Only slot 10 stays materials-TODO in the index.
@@ -91,7 +91,7 @@ def test_stub_folders_have_required_files() -> None:
 
 
 def test_golded_stub_source_points_at_untouched_tree() -> None:
-    """Slots 5–9 keep an untouched gdpval tree; they are not the ready four."""
+    """Remaining golded stubs keep an untouched gdpval tree; they are not Ready."""
     gdpval = _REPO / "docs" / "eval" / "gdpval"
     for slug, gold_id in _GOLD_STUBS.items():
         source = (_EVAL2 / slug / "SOURCE.md").read_text(encoding="utf-8")
