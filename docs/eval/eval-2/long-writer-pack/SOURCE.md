@@ -1,32 +1,49 @@
 # Source
 
-**Needs gold materials.** No TOC + styles + comments pack exists under
-[`docs/eval/gdpval/`](../../gdpval/).
+This directory is a **WriterAgent-native** headed experiment, not a
+GDPval gold rewrite. There is **no** task id and **no** new tree under
+[`docs/eval/gdpval/`](../../gdpval/). Do not invent a fake GDPval id.
+Do **not** download from Hugging Face for this slot — decision used
+only the nine gold trees already in this repo.
 
 | Field | Value |
 |-------|--------|
-| Gold task id | TODO — not in-repo |
-| Untouched gold tree | TODO |
-| Upstream | [openai/gdpval](https://huggingface.co/datasets/openai/gdpval) on Hugging Face |
+| Gold task id | none — WriterAgent-native fixture |
+| Untouched gold tree | none (no in-repo tree is a TOC + styles + comments pack; add-only if one lands later) |
+| Upstream | n/a — harness debug pack for TOC + named styles + comments |
 
-## In-tree search (`docs/eval/gdpval/`)
+## Why not an in-repo GDPval gold
 
-Tenant, Cadaver, and GMP are Writer-adjacent and already used. None ask
-for TOC + named styles + comments in one long document. AFC is Calc.
+The local catalog is nine trees. None ask for a table of contents,
+named heading styles, and review comments in one long Writer pack:
 
-## HF shortlist (not copied here)
+| Local tree | Why it is not this slot |
+|------------|-------------------------|
+| `ed2bc14c-…` Tenant Retention | Short memo; already Ready (slot 1) |
+| `61b0946a-…` Cadaver proposal | Mini proposal; already Ready (slot 2) |
+| `83d10b06-…` AFC sample | Calc / sampling workbook; already Ready (slot 3) |
+| `58ac1cc5-…` GMP change control | Form + memo pair; already Ready (slot 4) |
+| `c3525d4d-…` Floorstand / SAR | Writer email + Calc budget; slot 5 stub |
+| `5f6c57dd-…` Branch profitability | Calc-primary workbook; slot 6 stub |
+| `a46d5cd2-…` Company letterhead | Headed **template** fidelity; slot 7 **PARKED** |
+| `8a7b6fca-…` Process flow map | Draw-primary PDF; slot 8 stub |
+| `4520f882-…` Theatre CBA | Calc deliverable; slot 9 stub |
 
-A scan of the gold subset did **not** yield a clean “long Word pack”
-with TOC + styles + comments as the product:
+No other gold ids exist under `docs/eval/gdpval/` in this checkout.
+Do not invent a fake GDPval id. Do not download from Hugging Face.
 
-| Looked at | Why it is not this slot |
-|-----------|-------------------------|
-| `62f04c2f-e0f7-4710-876c-54ee9c2e8256` Gravon exchange overview | One-page overview + xlsx form — too short; form half is GMP-adjacent |
-| `8314d1b1-5b0f-42a4-b5d5-91c0867b0913` draft legal memo | Memo, not a structured pack |
-| `85d95ce5-b20c-41e2-834e-e788ce9622b6` social-history template | Form template; too close to a fill packet |
-| Impress / PPTX golds | Peer v1 rejects `PresentationDocument` |
+## Native fixtures
 
-Keep searching HF for a long DOCX with Heading styles and an index. If
-none is suitable, build a **WriterAgent-native** fixture later (see
-[`docs/eval/ideas.md`](../../ideas.md) Writer #2 styles, #3 comments,
-#8 TOC) and leave this SOURCE as TODO — do not invent a fake GDPval id.
+| File | Provenance |
+|------|------------|
+| `fixtures/Northhaven Library Program Facts.odt` | WriterAgent-native research note (site, project code, budget, hours) |
+| `fixtures/Northhaven Decision Log.odt` | WriterAgent-native open decisions (annex siting, funding split, weekend staffing) |
+
+`--launch` stages **only** those two research ODTs into a clean trial
+dir and writes a blank `Northhaven Civic Library Capital Brief.odt`.
+Prompt, rubric, notes, and fixture siblings stay outside that folder so
+folder listing cannot see them.
+
+One editable document per session: the open Writer brief is the
+deliverable. The two research files are read-only. No peer. No second
+form or deck.

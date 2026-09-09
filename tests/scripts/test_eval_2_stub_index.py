@@ -1,4 +1,4 @@
-# WriterAgent tests for eval-2 sibling stubs 5–10
+# WriterAgent tests for eval-2 sibling stubs
 # Copyright (c) 2026 KeithCu (modifications and relicensing)
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -11,35 +11,34 @@ _REPO = Path(__file__).resolve().parents[2]
 _EVAL2 = _REPO / "docs" / "eval" / "eval-2"
 _README = _EVAL2 / "README.md"
 
-# Ready siblings already have headed helper + oracle. Stubs 6–10 do not.
+# Ready siblings already have headed helper + oracle. Slot 7 stays PARKED.
 _READY = (
     "tenant-retention-ed2bc14c",
     "cadaver-proposal-61b0946a",
     "afc-sample-83d10b06",
     "gmp-change-control-58ac1cc5",
     "writer-calc-peer-write",
-)
-_STUBS = (
     "calc-primary-model",
-    "writer-headed-template",
     "draw-primary-deliverable",
     "reverse-tenant",
     "long-writer-pack",
 )
-# Preferred gold trees landed for remaining stubs 6–9; slot 10 is still materials-TODO.
+_STUBS = (
+    "writer-headed-template",
+)
+# Only the parked letterhead stub still points at an unused gold tree.
 _GOLD_STUBS = {
-    "calc-primary-model": "5f6c57dd-feb6-4e70-b152-4969d92d1608",
     "writer-headed-template": "a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5",
-    "draw-primary-deliverable": "8a7b6fca-60cc-4ae3-b649-971753cbf8b9",
-    "reverse-tenant": "4520f882-715a-482d-8e87-1cb3cbdfe975",
 }
-_TODO_STUBS = ("long-writer-pack",)
 _READY_GOLD_IDS = (
     "ed2bc14c-99ac-4a2a-8467-482a1a5d67f3",
     "61b0946a-5c1c-4bf6-8607-84d7c7e0dfe0",
     "83d10b06-26d1-4636-a32c-23f92c57f30b",
     "58ac1cc5-5754-4580-8c9c-8c67e1a9d619",
     "c3525d4d-2012-45df-853e-2d2a0e902991",
+    "5f6c57dd-feb6-4e70-b152-4969d92d1608",
+    "8a7b6fca-60cc-4ae3-b649-971753cbf8b9",
+    "4520f882-715a-482d-8e87-1cb3cbdfe975",
 )
 _STUB_FILES = (
     "notes.md",
@@ -71,15 +70,16 @@ def test_readme_lists_siblings_1_to_10() -> None:
     text = _README.read_text(encoding="utf-8")
     for slug in _READY + _STUBS:
         assert f"`{slug}/`" in text or f"({slug}/)" in text, slug
-    assert "Ready" in text
+    assert "Ready" in text or "Headed-ready" in text
     assert "Stub" in text
     assert "PARKED" in text
-    assert "6–10 are not wired" in text or "6-10 are not wired" in text
-    for gold_id in _GOLD_STUBS.values():
+    assert "7 stays PARKED" in text or "slot 7 stays PARKED" in text.lower()
+    assert "not wired" in text
+    for gold_id in (*_GOLD_STUBS.values(), *_READY_GOLD_IDS):
         assert gold_id in text, gold_id
-    # Only slot 10 stays materials-TODO in the index.
-    assert "Needs gold materials" in text
-    assert text.count("Needs gold materials") == 1
+    assert "Needs gold materials" not in text
+    assert "long-writer-pack" in text
+    assert "native" in text.lower()
 
 
 def test_stub_folders_have_required_files() -> None:
@@ -91,7 +91,7 @@ def test_stub_folders_have_required_files() -> None:
 
 
 def test_golded_stub_source_points_at_untouched_tree() -> None:
-    """Slots 6–9 keep an untouched gdpval tree; they are not the ready five."""
+    """Parked slot 7 keeps an untouched gdpval tree; it is not Ready."""
     gdpval = _REPO / "docs" / "eval" / "gdpval"
     for slug, gold_id in _GOLD_STUBS.items():
         source = (_EVAL2 / slug / "SOURCE.md").read_text(encoding="utf-8")
@@ -107,15 +107,6 @@ def test_golded_stub_source_points_at_untouched_tree() -> None:
         assert gold_prompt.read_bytes() == exp_prompt.read_bytes(), slug
         for ready_id in _READY_GOLD_IDS:
             assert f"docs/eval/gdpval/{ready_id}/" not in source, (slug, ready_id)
-
-
-def test_long_writer_pack_source_still_todo() -> None:
-    for slug in _TODO_STUBS:
-        source = (_EVAL2 / slug / "SOURCE.md").read_text(encoding="utf-8")
-        assert "Needs gold materials" in source, slug
-        assert "TODO — not in-repo" in source, slug
-        for gold_id in (*_READY_GOLD_IDS, *_GOLD_STUBS.values()):
-            assert f"docs/eval/gdpval/{gold_id}/" not in source, (slug, gold_id)
 
 
 def test_stub_prompts_are_todo_and_avoid_product_internals() -> None:
