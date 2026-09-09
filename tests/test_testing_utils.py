@@ -362,6 +362,32 @@ def test_close_doc_logs_urp_dispose(capsys, monkeypatch):
     tr.reset_lifecycle_breadcrumb()
 
 
+def test_close_doc_settles_urp_before_close(monkeypatch):
+    """GC then settle must run before close so URP can finish ~SvxShape."""
+    from unittest.mock import MagicMock
+
+    from plugin.tests.testing_utils import TestingFactory, _CLOSE_DOC_URP_SETTLE_S
+
+    order = []
+    monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
+    monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
+    doc = MagicMock()
+    doc.close.side_effect = lambda _save: order.append("close")
+    TestingFactory.close_doc(doc)
+    assert order == ["gc", ("sleep", _CLOSE_DOC_URP_SETTLE_S), "close"]
+    doc.close.assert_called_once_with(True)
+
+
+def test_close_doc_none_skips_settle(monkeypatch):
+    from plugin.tests.testing_utils import TestingFactory
+
+    def _fail_sleep(_seconds):
+        raise AssertionError("close_doc(None) must not sleep")
+
+    monkeypatch.setattr("time.sleep", _fail_sleep)
+    TestingFactory.close_doc(None)
+
+
 def test_testing_factory_execute_tool_unknown_name():
     from unittest.mock import MagicMock, patch
 

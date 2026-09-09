@@ -13,7 +13,7 @@ Related: [archive/test_architecture_analysis.md](../archive/test_architecture_an
 | Path | Reuse? | Open | Close |
 |------|--------|------|-------|
 | Calc `@with_native_doc` | Yes (wipe-and-reuse pool) | Factory only on first use / dead pool | Close only if reset fails |
-| Writer `@with_native_doc` | No (unless `reuse=True`) | Factory each test | `close_doc` (`gc.collect` then `close`) |
+| Writer `@with_native_doc` | No (unless `reuse=True`) | Factory each test | `close_doc` (`gc.collect` + 50 ms + `close`) |
 | Draw / Impress | **Never** | Factory each test (`private:factory/sdraw`) | Always `close_doc` |
 
 `create_native_doc` is a thin `loadComponentFromURL`. Draw tests do **not**
@@ -29,6 +29,13 @@ its last hidden Draw doc.
 test body). Dispose during close is now **logged** (`LIFECYCLE close_doc dispose`).
 After a non-pooled close, the harness probes `desktop.getComponents()` and
 prints `LIFECYCLE office dead after close` if URP is already gone.
+
+Before `doc.close(True)`, `close_doc` runs `gc.collect()` then sleeps 50 ms
+(all apps, not Draw-only). That is a **release-order settle** so URP can
+finish `~SvxShape` / `SdrObject` before the drawing item pool dies — not
+proof LibreOffice is healthy. If SalAbort still prints, `#698` fail-closed
+still names that test. Details and soak rates:
+[salabort-svxshape-close.md](salabort-svxshape-close.md).
 
 **Harness-only attribution (not a product fix):** if a test body returns OK
 but the office already aborted, the runner fails *that* test instead of
@@ -83,8 +90,8 @@ clearing an `SfxItemSet` on a URP release thread after close — same general
 family as the historical octagon `SfxItemPool::unregisterNameOrIndex` abort
 on rect teardown. dbgsym offline resolve confirmed `#5` is that same
 `unregisterNameOrIndex` (.cold) under `SvxShapeRect` teardown (see
-`salabort-svxshape-close.md`); file:line still thin under LTO;
-product fixes are parked until Chief/Keith pick next steps.
+`salabort-svxshape-close.md`); file:line still thin under LTO.
+Harness `close_doc` now GC + 50 ms then close (still not an LO cure).
 
 Full write-up: [salabort-svxshape-close.md](salabort-svxshape-close.md).
 `#687`'s post-OK `getServiceManager` probe can miss the race: SalAbort can

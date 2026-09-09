@@ -368,7 +368,9 @@ def test_truncate_delegate_task_crosshair_floors_stay_tiny():
 
     from plugin.chatbot import tool_loop_state as tls
     from plugin.framework.deal_shim import DEAL_MAX_SOURCE, UNDER_CROSSHAIR
+    from tests.strip_bundle import skip_if_release_build
 
+    skip_if_release_build("@deal.pre stripped in release bundle")
     assert UNDER_CROSSHAIR is False
     assert tls._DEAL_TRUNCATE_TASK_LEN == DEAL_MAX_SOURCE
     assert tls._DEAL_TRUNCATE_MAX_LEN == tls.DELEGATE_TASK_CHAT_MAX

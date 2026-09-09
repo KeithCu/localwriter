@@ -876,6 +876,12 @@ def _log_office_health_after_close(ctx, doc_type: str) -> None:
 def _default_native_doc_reuse(doc_type: str) -> bool:
     return doc_type == "calc"
 
+
+# Pre-close URP settle after gc.collect() (see close_doc). Draw soak amplifier
+# was duplicate_slide + held SvxShape proxies; Writer forms/charts/shapes share
+# the SfxItemPool path. Measured 0/80 on the killer; post-close wait did not help.
+_CLOSE_DOC_URP_SETTLE_S = 0.05
+
 # offapi/com/sun/star/sheet/CellFlags.idl — VALUE|DATETIME|STRING|ANNOTATION|FORMULA|HARDATTR|STYLES|OBJECTS|EDITATTR|FORMATTED
 _CALC_CLEAR_ALL = 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512
 
@@ -1280,10 +1286,18 @@ class TestingFactory:
             pass
         try:
             import gc
+            import time
 
             # Release PyUNO sequences before Calc tears down the document.
             # Large getDataArray results held across close can abort soffice (glibc double-free).
             gc.collect()
+            # What was wrong: Draw close raced URP ~SvxShape / SdrRectObj with
+            # SfxItemPool::unregisterNameOrIndex (SalAbort after the test returned).
+            # How: Python still held page/shape proxies; close tore the model down
+            # while cppu_threadpool released the wrappers. Why this: GC then a short
+            # settle lets ~SvxShape finish before close. Unscoped: Writer
+            # ControlShape / charts use the same pool. Post-close wait did not help.
+            time.sleep(_CLOSE_DOC_URP_SETTLE_S)
             if hasattr(doc, "close"):
                 doc.close(True)
             elif hasattr(doc, "dispose"):
