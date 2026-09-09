@@ -5,7 +5,8 @@
 No new yaml knobs. Everyday chat stays at the schema default (15).
 Schema max is 200 so a trial can temporarily set 80 or 200 without clamp.
 AFC / Tenant / Cadaver still write **50**. GMP Change Control writes **150**
-(multidoc + peer).
+(multidoc + peer). Calc-primary model writes **150** (five schedule
+sheets + formula fill).
 
 ``--launch`` (default ``--task afc``) copies only the Population ODS into a
 clean trial directory (default ``$TMP/writeragent-eval2-afc``) so
@@ -26,6 +27,10 @@ writes a blank ``MR Risk Assessment Summary.odt``, and opens **both**
 the Writer memo and the Draw form (v1 pre-open cheat). The gold PDF is
 **not** the write target. COA / spec are research-only.
 
+``--task calc-primary-model --launch`` copies only the Raw Data ODS into
+``$TMP/writeragent-eval2-calc-primary`` and opens that copy in Calc
+(in-workbook, like AFC). The xlsx sibling stays in ``fixtures/``.
+
 Do not open ``fixtures/`` or the task folder.
 
 Usage:
@@ -35,11 +40,13 @@ Usage:
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --launch
+  .venv/bin/python scripts/eval_2_headed.py --task calc-primary-model --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score path/to/final_proposal.odt
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --score path/to/final_memo.odt
+  .venv/bin/python scripts/eval_2_headed.py --task calc-primary-model --score path/to/final_workbook.ods
 """
 from __future__ import annotations
 
@@ -61,10 +68,13 @@ DEFAULT_MAX_TOOL_ROUNDS = 15
 EVAL_2_MAX_TOOL_ROUNDS = 50
 # Multidoc + Draw peer needs more than the Writer-only 50-round start.
 EVAL_2_GMP_MAX_TOOL_ROUNDS = 150
+# Five schedule sheets + formula fill — not AFC's two-tab sampling.
+EVAL_2_CALC_PRIMARY_MAX_TOOL_ROUNDS = 150
 _AFC_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "afc-sample-83d10b06"
 _TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14c"
 _CADAVER_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "cadaver-proposal-61b0946a"
 _GMP_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "gmp-change-control-58ac1cc5"
+_CALC_PRIMARY_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "calc-primary-model"
 POPULATION_ODS_NAME = "Population v2.ods"
 LETTER_ODT_NAME = "Current Renewal Letter.odt"
 SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
@@ -75,6 +85,7 @@ GMP_COA_PDF_NAME = "Anti foam COA_MR.pdf"
 GMP_SPEC_ODT_NAME = "Material Spec_MR.odt"
 GMP_FORM_ODG_NAME = "Change Control Form.odg"
 GMP_MEMO_NAME = "MR Risk Assessment Summary.odt"
+RAW_DATA_ODS_NAME = "Raw Data for Branch Profitability Final.ods"
 # Form-920 Section 1 blanks. Labels sit to the left so get_draw_tree
 # can attach label_hint. Names stay stable for fill_draw_fields / oracle.
 GMP_FILLABLE_FIELDS: tuple[tuple[str, str], ...] = (
@@ -102,15 +113,18 @@ _CADAVER_BUDGET_XLSX = _CADAVER_DIR / "fixtures" / CADAVER_BUDGET_XLSX_NAME
 _GMP_COA_PDF = _GMP_DIR / "fixtures" / GMP_COA_PDF_NAME
 _GMP_SPEC_ODT = _GMP_DIR / "fixtures" / GMP_SPEC_ODT_NAME
 _GMP_FORM_ODG = _GMP_DIR / "fixtures" / GMP_FORM_ODG_NAME
+_CALC_PRIMARY_ODS = _CALC_PRIMARY_DIR / "fixtures" / RAW_DATA_ODS_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
 DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
 DEFAULT_CADAVER_TRIAL_DIR_NAME = "writeragent-eval2-cadaver"
 DEFAULT_GMP_TRIAL_DIR_NAME = "writeragent-eval2-gmp"
+DEFAULT_CALC_PRIMARY_TRIAL_DIR_NAME = "writeragent-eval2-calc-primary"
 TASK_AFC = "afc"
 TASK_TENANT = "tenant-retention"
 TASK_CADAVER = "cadaver-proposal"
 TASK_GMP = "gmp-change-control"
-TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP)
+TASK_CALC_PRIMARY = "calc-primary-model"
+TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP, TASK_CALC_PRIMARY)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -237,9 +251,11 @@ def find_afc_population_ods() -> Path:
 
 
 def task_max_tool_rounds(task: str) -> int:
-    """Headed start: 150 for GMP (multidoc + peer), 50 for the others."""
+    """Headed start: 150 for GMP (multidoc + peer) and calc-primary, 50 else."""
     if task == TASK_GMP:
         return EVAL_2_GMP_MAX_TOOL_ROUNDS
+    if task == TASK_CALC_PRIMARY:
+        return EVAL_2_CALC_PRIMARY_MAX_TOOL_ROUNDS
     return EVAL_2_MAX_TOOL_ROUNDS
 
 
@@ -248,6 +264,7 @@ def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
         TASK_TENANT: DEFAULT_TENANT_TRIAL_DIR_NAME,
         TASK_CADAVER: DEFAULT_CADAVER_TRIAL_DIR_NAME,
         TASK_GMP: DEFAULT_GMP_TRIAL_DIR_NAME,
+        TASK_CALC_PRIMARY: DEFAULT_CALC_PRIMARY_TRIAL_DIR_NAME,
     }
     name = names.get(task, DEFAULT_TRIAL_DIR_NAME)
     return Path(tempfile.gettempdir()) / name
@@ -259,6 +276,7 @@ def _task_dirs() -> tuple[Path, ...]:
         _TENANT_DIR.resolve(),
         _CADAVER_DIR.resolve(),
         _GMP_DIR.resolve(),
+        _CALC_PRIMARY_DIR.resolve(),
     )
 
 
@@ -491,6 +509,21 @@ def stage_gmp_trial(dest_dir: Path) -> tuple[Path, Path]:
     return memo, dest_dir / GMP_FORM_ODG_NAME
 
 
+def find_calc_primary_ods() -> Path:
+    """Raw Data ODS only. XLSX stays in fixtures/ (sibling, researchable)."""
+    if _CALC_PRIMARY_ODS.is_file():
+        return _CALC_PRIMARY_ODS
+    raise FileNotFoundError(
+        f"Missing {_CALC_PRIMARY_ODS}. Convert the xlsx fixture with "
+        "soffice --convert-to ods; do not open fixtures/ (siblings leak)."
+    )
+
+
+def stage_calc_primary_trial(dest_dir: Path) -> Path:
+    """Copy only the Raw Data ODS. Prompt/rubric/gold stay outside the trial dir."""
+    return stage_clean_trial_ods(find_calc_primary_ods(), dest_dir)
+
+
 def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
@@ -537,15 +570,17 @@ def main(argv: list[str] | None = None) -> int:
         default=TASK_AFC,
         help=(
             "Experiment to launch or score (default: afc). "
-            "tenant-retention / cadaver-proposal / gmp-change-control are Writer."
+            "tenant-retention / cadaver-proposal / gmp-change-control are Writer; "
+            "calc-primary-model is Calc."
         ),
     )
     parser.add_argument(
         "--launch",
         action="store_true",
         help=(
-            "Stage a clean trial dir, then soffice (Calc for AFC, Writer for "
-            "tenant-retention / cadaver-proposal, Writer+Draw for gmp-change-control)"
+            "Stage a clean trial dir, then soffice (Calc for AFC / "
+            "calc-primary-model, Writer for tenant-retention / cadaver-proposal, "
+            "Writer+Draw for gmp-change-control)"
         ),
     )
     parser.add_argument(
@@ -556,8 +591,9 @@ def main(argv: list[str] | None = None) -> int:
             "Directory that will contain only the staged refs "
             f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME}, "
             f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, "
-            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, or "
-            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME})"
+            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME}, or "
+            f"$TMP/{DEFAULT_CALC_PRIMARY_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
@@ -578,6 +614,8 @@ def main(argv: list[str] | None = None) -> int:
             from eval_2_gmp_oracle import main as score_main
         elif args.task == TASK_CADAVER:
             from eval_2_cadaver_oracle import main as score_main
+        elif args.task == TASK_CALC_PRIMARY:
+            from eval_2_calc_primary_oracle import main as score_main
         elif args.task == TASK_TENANT or suffix in {".odt", ".docx"}:
             from eval_2_tenant_oracle import main as score_main
         else:
@@ -619,6 +657,13 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     # Form first, memo last so Writer is the focused chat doc.
                     launch_office_documents([form, memo])
+                elif args.task == TASK_CALC_PRIMARY:
+                    trial_ods = stage_calc_primary_trial(trial_dir)
+                    print(
+                        f"Staged clean trial dir {trial_ods.parent} "
+                        f"({trial_ods.name} only)"
+                    )
+                    launch_calc(trial_ods)
                 else:
                     trial_ods = stage_clean_trial_ods(
                         find_afc_population_ods(),
