@@ -118,7 +118,7 @@ Paths (box): `docs/eval/eval-2/writer-calc-peer-write/runs/…` under Scrolly’
 - Observer: peer asks were **fill/write**, not extract/JSON — polarity telemetry **HIT**.
 - UI shots (`fs3-sent` / `fs3-calc`): sidebar **Thinking…** with **blank chat transcript** and blank email (0 words); later `fs3-final`: **Ready**, still blank email, chat UI empty. Calc still in taskbar.
 - computerUse: hard-stall **>3 min** after send → stopped; did not create `*_SAVED` copies (scored live trial files).
-- Debug log for this run was **rotated away** at `17:48:34` when LO restarted into Calc-primary Gemini (`Debug log active` resets the file). Floorstand tool-call trace is **not** in the live `writeragent_debug.log` — reconstruct from notes + shots only. (Do not confuse post-17:48 Calc-primary `Raw Data` / `peer_count=0` lines with Floorstand.)
+- Debug log for this run was **rotated away** at `17:48:34` when LO restarted into Calc-primary Gemini (`Debug log active` resets the file). Floorstand tool-call trace is **not** in the live `writeragent_debug.log` — reconstruct from notes + shots only. (Do not confuse post-17:48 Calc-primary `Raw Data` / `peer_count=0` lines with Floorstand.) **Standing rule:** save the full debug log for every headed run — `--launch` exit snapshots it; mid-stall use `scripts/save_eval2_debug_log.py DEST_DIR` before restart. See [§ Debug log snapshot](#debug-log-snapshot-standing-rule).
 
 #### Ranked causes — why fill polarity still left empty sheets + blank email + stall
 
@@ -154,7 +154,17 @@ Paths (box): `docs/eval/eval-2/writer-calc-peer-write/runs/…` under Scrolly’
 4. **DO — Stall plumbing (separate from polarity)** — fail-loud / timeout when peer drain or LLM stream hangs >N minutes; preserve debug log across LO restarts for headed trials. Not an eval cheat.  
 5. **Don’t** add gold dollar totals to `prompt.writeragent.txt`. **Don’t** wait on gpt-oss polarity for Gemini gating. **Don’t** fight Scrolly’s `writeragent-master` deploy while Calc-primary Gemini runs.
 
-**Next Gemini headed:** same private patches + value-payload peer teaching; expect nonempty Cost Comparison **and** nonempty email; capture `thinking_and_tools` + avoid log rotate before notes.
+**Next Gemini headed:** same private patches + value-payload peer teaching; expect nonempty Cost Comparison **and** nonempty email; capture `thinking_and_tools` + a full `writeragent_debug.log` in the stamp dir (do not rely on the live profile file after the next LO restart).
+
+---
+
+## Debug log snapshot (standing rule)
+
+Keith: **save off the full `writeragent_debug.log` for every headed / eval-2 run.** The live file lives next to `writeragent.json` in the LibreOffice user profile. A later LO restart re-inits logging (`Debug log active`) and can reset that file — that is how Floorstand Gemini `1748` lost its tool-call trace.
+
+- **`--launch` exit:** Enter / Ctrl-C after the trial copies the live log via `shutil.copy2` into `--run-dir/writeragent_debug.log`, or (if `--run-dir` is omitted) `docs/eval/eval-2/<task>/runs/<YYYYMMDD-HHMM>/writeragent_debug.log`. A missing live log warns; config restore still runs.
+- **Mid-stall (before restart):** `.venv/bin/python scripts/save_eval2_debug_log.py DEST_DIR` — prints the source path and dest size; exits non-zero if the live log is missing.
+- Discovery is shared with `scripts/analyze_tool_call_timing.py` (`eval_2_debug_log.py`; same profile dirs as `writeragent.json` / `DEBUG_LOG_FILENAME`). Do not change live-log format or truncate behavior.
 
 ---
 

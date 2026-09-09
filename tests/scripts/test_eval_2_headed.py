@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
+from eval_2_debug_log import DEBUG_LOG_FILENAME  # noqa: E402
 from eval_2_headed import (  # noqa: E402
     CADAVER_BUDGET_XLSX_NAME,
     CADAVER_PROPOSAL_NAME,
@@ -39,6 +41,7 @@ from eval_2_headed import (  # noqa: E402
     RAW_DATA_ODS_NAME,
     ROSTER_XLSX_NAME,
     SURVEY_XLSX_NAME,
+    TASK_AFC,
     TASK_CALC_PRIMARY,
     TASK_CADAVER,
     TASK_DRAW,
@@ -59,9 +62,13 @@ from eval_2_headed import (  # noqa: E402
     _REVERSE_DIR,
     _TENANT_DIR,
     apply_max_tool_rounds,
+    default_eval2_run_dir,
     default_eval2_trial_dir,
     find_writeragent_json,
+    main as headed_main,
     read_max_tool_rounds,
+    resolve_headed_run_dir,
+    task_doc_dir,
     restore_max_tool_rounds,
     stage_calc_primary_trial,
     stage_cadaver_trial,
@@ -451,3 +458,70 @@ def test_stage_draw_primary_trial_contains_only_canvas(tmp_path: Path) -> None:
 def test_stage_draw_primary_trial_refuses_real_task_dir() -> None:
     with pytest.raises(ValueError, match="protected"):
         stage_draw_primary_trial(_DRAW_DIR)
+
+
+def test_default_eval2_run_dir_uses_task_runs_stamp() -> None:
+    now = datetime(2026, 9, 9, 17, 48)
+    path = default_eval2_run_dir(TASK_WRITER_CALC, now=now)
+    assert path == _FLOORSTAND_DIR / "runs" / "20260909-1748"
+    assert resolve_headed_run_dir(TASK_AFC, None, now=now) == _AFC_DIR / "runs" / "20260909-1748"
+    explicit = Path("/tmp/my-stamp")
+    assert resolve_headed_run_dir(TASK_AFC, explicit) == explicit
+    assert task_doc_dir(TASK_AFC) == _AFC_DIR
+
+
+def test_launch_exit_snapshots_debug_log_into_run_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "writeragent.json"
+    config.write_text("{}\n", encoding="utf-8")
+    live = tmp_path / "profile" / DEBUG_LOG_FILENAME
+    live.parent.mkdir()
+    live.write_text("Tool loop round 1: sending\n", encoding="utf-8")
+    run_dir = tmp_path / "runs" / "20260909-1748"
+    trial_dir = tmp_path / "trial"
+    monkeypatch.setattr("eval_2_debug_log.debug_log_candidates", lambda: [live])
+    monkeypatch.setattr("eval_2_headed.launch_calc", lambda fixture: None)
+    monkeypatch.setattr("eval_2_headed._wait_for_finish", lambda rounds=50: None)
+    assert headed_main([
+        "--config",
+        str(config),
+        "--launch",
+        "--trial-dir",
+        str(trial_dir),
+        "--run-dir",
+        str(run_dir),
+    ]) == 0
+    dest = run_dir / DEBUG_LOG_FILENAME
+    assert dest.is_file()
+    assert dest.read_text(encoding="utf-8") == "Tool loop round 1: sending\n"
+    assert "Restored previous" in capsys.readouterr().out
+    assert MAX_TOOL_ROUNDS_KEY not in json.loads(config.read_text(encoding="utf-8"))
+
+
+def test_launch_exit_warns_when_debug_log_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "writeragent.json"
+    config.write_text("{}\n", encoding="utf-8")
+    missing = tmp_path / "absent.log"
+    run_dir = tmp_path / "runs" / "stamp"
+    trial_dir = tmp_path / "trial"
+    monkeypatch.setattr("eval_2_debug_log.debug_log_candidates", lambda: [missing])
+    monkeypatch.setattr("eval_2_headed.launch_calc", lambda fixture: None)
+    monkeypatch.setattr("eval_2_headed._wait_for_finish", lambda rounds=50: None)
+    assert headed_main([
+        "--config",
+        str(config),
+        "--launch",
+        "--trial-dir",
+        str(trial_dir),
+        "--run-dir",
+        str(run_dir),
+    ]) == 0
+    assert not (run_dir / DEBUG_LOG_FILENAME).exists()
+    captured = capsys.readouterr()
+    assert "Warning:" in captured.err
+    assert "Restored previous" in captured.out
+    assert MAX_TOOL_ROUNDS_KEY not in json.loads(config.read_text(encoding="utf-8"))
+
