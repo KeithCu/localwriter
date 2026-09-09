@@ -13,6 +13,7 @@ document boundaries, LibrePy-safe helpers in `plugin/doc/text_helpers.py`).
 Topic docs: [docs/writer/math-tex.md](../../docs/writer/math-tex.md),
 [docs/writer/grammar-checker-plan.md](../../docs/writer/grammar-checker-plan.md),
 [docs/writer/specialized-toolsets.md](../../docs/writer/specialized-toolsets.md),
+[docs/writer/bibliography-via-indexes.md](../../docs/writer/bibliography-via-indexes.md),
 [docs/writer/llm-styles.md](../../docs/writer/llm-styles.md),
 [docs/writer/reviewable-agent-edits.md](../../docs/writer/reviewable-agent-edits.md),
 [docs/writer/lo-dom-semantic-tree.md](../../docs/writer/lo-dom-semantic-tree.md).

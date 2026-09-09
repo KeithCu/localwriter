@@ -143,7 +143,7 @@ DOMAIN_TOOLS = {   'bookmark': [   'bookmark_cleanup',
                   'image_list_nearby_files',
                   'image_replace',
                   'image_set_properties'],
-    'index': ['indexes_add_mark', 'indexes_create', 'indexes_list', 'indexes_update_all'],
+    'index': ['indexes_add_mark', 'indexes_create', 'indexes_list', 'indexes_list_cites', 'indexes_update_all'],
     'mail_merge': [   'mail_merge_insert_field',
                       'mail_merge_list_fields',
                       'mail_merge_list_sources',
@@ -693,20 +693,24 @@ images = _ImagesProxy()
 class _IndexProxy:
     """Proxy for index tools."""
 
-    def add_mark(self, text: str, *, kind: str | None = None, primary_key: str | None = None, secondary_key: str | None = None, target: str | None = None, old_content: str | None = None) -> dict:
-        """Add an index mark (e.g."""
-        return _rpc_call("indexes_add_mark", text=text, kind=kind, primary_key=primary_key, secondary_key=secondary_key, target=target, old_content=old_content)
+    def add_mark(self, text: str, *, kind: str | None = None, primary_key: str | None = None, secondary_key: str | None = None, identifier: str | None = None, author: str | None = None, title: str | None = None, year: str | int | None = None, pages: str | None = None, bibliographic_type: str | int | None = None, fields: dict | None = None, target: str | None = None, old_content: str | None = None) -> dict:
+        """Insert an index mark or a bibliography cite at target."""
+        return _rpc_call("indexes_add_mark", text=text, kind=kind, primary_key=primary_key, secondary_key=secondary_key, identifier=identifier, author=author, title=title, year=year, pages=pages, bibliographic_type=bibliographic_type, fields=fields, target=target, old_content=old_content)
 
     def create(self, kind: str, *, title: str | None = None, create_from_outline: bool | None = None, target: str | None = None, old_content: str | None = None) -> dict:
-        """Create a new document index (e.g."""
+        """Create a document index (toc, alphabetical, user, illustration, table, object, bibliography)."""
         return _rpc_call("indexes_create", kind=kind, title=title, create_from_outline=create_from_outline, target=target, old_content=old_content)
 
     def list(self) -> dict:
-        """List all document indexes (table of contents, alphabetical index, bibliography, etc.)."""
+        """List document indexes (TOC, alphabetical, user, bibliography tables)."""
         return _rpc_call("indexes_list")
 
+    def list_cites(self) -> dict:
+        """List native bibliography cite fields (TextField.Bibliography)."""
+        return _rpc_call("indexes_list_cites")
+
     def update_all(self) -> dict:
-        """Refresh/update all document indexes (table of contents, bibliography, etc.)."""
+        """Refresh all document indexes (TOC, alphabetical, bibliography table)."""
         return _rpc_call("indexes_update_all")
 
 index = _IndexProxy()

@@ -92,6 +92,32 @@ class TestWriterToolsSmoke(unittest.TestCase):
         ):
             self.assertIn(name, names, f"expected structural tool {name!r}")
 
+    def test_indexes_domain_bibliography_overload(self):
+        registry = get_tools()
+        doc = WriterDocStub()
+        names = {t.name for t in registry.get_tools(doc=doc, active_domain="indexes", exclude_tiers=())}
+        for name in (
+            "indexes_add_mark",
+            "indexes_create",
+            "indexes_list",
+            "indexes_list_cites",
+            "indexes_update_all",
+        ):
+            self.assertIn(name, names, f"expected indexes tool {name!r}")
+        for name in (
+            "bibliography_insert_citation",
+            "bibliography_list_citations",
+            "bibliography_generate",
+        ):
+            self.assertNotIn(name, names, f"mock bibliography tool {name!r} must stay unregistered")
+        bib_domain = {t.name for t in registry.get_tools(doc=doc, active_domain="bibliography", exclude_tiers=())}
+        for name in (
+            "bibliography_insert_citation",
+            "bibliography_list_citations",
+            "bibliography_generate",
+        ):
+            self.assertNotIn(name, bib_domain)
+
     def test_mail_merge_domain_tools(self):
         registry = get_tools()
         doc = WriterDocStub()

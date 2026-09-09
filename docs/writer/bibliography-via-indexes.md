@@ -1,6 +1,6 @@
 # Bibliography via the indexes domain
 
-**Status:** Design locked with Keith (2026-09). Implementation not started — this page is a sketch, not a tool contract.  
+**Status:** v1 implemented (indexes overload). Design locked with Keith (2026-09).  
 **Audience:** Implementers of Writer specialized tools.  
 **Gateway:** `delegate_to_specialized_writer_toolset` with `domain=indexes` only. Do **not** productize `domain=bibliography`.
 
@@ -39,10 +39,11 @@ These use the word “bibliography” or “citation” and are **out of scope**
 
 | Tool | Today | Bibliography-relevant gap |
 |------|--------|---------------------------|
-| `indexes_create` | `kind` enum includes `"bibliography"` → `doc.createInstance("com.sun.star.text.Bibliography")`, insert at `target`, `index.update()`. | No FieldMaster settings (brackets, numbering, sort). No cite payload. |
-| `indexes_list` | Enumerates `doc.getDocumentIndexes()`. Remaps `SwXContentIndex` → `toc`, `SwXDocumentIndex` → `alphabetical`, `SwXUserIndex` → `user`. | **No bibliography remap.** A bib table stays whatever `getImplementationName()` returns (often still a generic `SwX*` name). Prefer `XDocumentIndex.getServiceName()` when listing — that is the documented way to recover the creation service (`com.sun.star.text.Bibliography`). |
+| `indexes_create` | `kind` enum includes `"bibliography"` → `doc.createInstance("com.sun.star.text.Bibliography")`, insert at `target`, `index.update()`. | No FieldMaster settings (brackets, numbering, sort). |
+| `indexes_list` | Enumerates `doc.getDocumentIndexes()`. Prefers `XDocumentIndex.getServiceName()` so a bib table is `type=bibliography` (impl name is `SwXDocumentIndex`, same as alphabetical). Keeps `SwX*` remaps as fallback. | — |
 | `indexes_update_all` | `idx.update()` on every document index, including a bibliography table if one exists. | Enough for “refresh the list after cites change.” |
-| `indexes_add_mark` | `kind` enum is **`alphabetical` / `user` only**. Creates `DocumentIndexMark` or `UserIndexMark`. | **Alpha/user only.** A bibliography citation is **not** an index mark. |
+| `indexes_add_mark` | `kind` includes **`bibliography`**. Creates `textfield.Bibliography` and sets `Fields` (typed `[]PropertyValue` via `uno.invoke`). Identifier / Author / Title / Year / Pages / `BibiliographicType`. | Not an index mark — name stretch documented on the tool. |
+| `indexes_list_cites` | Walks `getTextFields()`, keeps bibliography text fields, returns identifier + key Fields + location. | — |
 
 Module docstring already says “TOC, bibliography.” `ToolWriterIndexBase.specialized_domain` is `"indexes"` ([`specialized_base.py`](../../plugin/writer/specialized_base.py)). The gateway prompt lists `indexes`, not `bibliography`.
 
@@ -238,12 +239,14 @@ The library of record is LibreOffice (v1) or Zotero’s own database via its API
 
 ## Open questions
 
-1. **Widen `indexes_add_mark` vs add `indexes_cite`.** Same domain either way. Widening keeps tool count down (fat-leaning, optional keys). A sibling cite tool is clearer for small models. Pick at implement time with one schema trial.
+1. **Widen `indexes_add_mark` vs add `indexes_cite`.** **v1: widen `indexes_add_mark`.** Same domain either way. Widening keeps tool count down (fat-leaning, optional keys). A sibling cite tool is clearer for small models. Pick at implement time with one schema trial.
 2. **Where to park Zotero `key` vs citekey** on `Fields` (`Identifier` vs `CUSTOM*`).
 3. **Locator / pages** (`p. 12`): LO has `Pages` / `Chapter`; no CSL locator object.
 4. **Documents that already have the Zotero LO plugin** — refuse, import, or ignore?
 5. **Default FieldMaster** (`IsNumberEntries` vs short identifier; bracket characters) so v1 cites match Insert → Bibliographic Entry.
-6. **`indexes_list` type string** for bibliography (`"bibliography"` vs raw service name) — should match `indexes_create` `kind`.
-7. **Prompt teaching:** one sentence in `WRITER_SPECIALIZED_DELEGATION_TEMPLATE` under `indexes` (cite + table), not a new domain bullet.
+6. **`indexes_list` type string** for bibliography — **v1: `"bibliography"`** via `getServiceName()`, matching `indexes_create` `kind`.
+7. **Prompt teaching:** one sentence on `ToolWriterIndexBase.specialized_domain_description` (cite + table), not a new domain bullet.
 
-When implementation starts, update [specialized-toolsets.md](specialized-toolsets.md) from ❌ to the shipped `indexes_*` names and keep this page as the why.
+v1 shipped as `indexes_add_mark kind=bibliography`, `indexes_list_cites`, existing create/list/update. [specialized-toolsets.md](specialized-toolsets.md) lists those names. Keep this page as the why.
+
+**Live UNO spelling (probed):** `Fields` `PropertyValue.Name` is the pretty string (`Identifier`, `Author`, `Title`, `Year`, `Pages`). Type is **`BibiliographicType`** (IDL `BIBILIOGRAPHIC_TYPE` — not `BibliographicType`). A Python tuple passed to `setPropertyValue("Fields", …)` is silently dropped; use `uno.Any("[]com.sun.star.beans.PropertyValue", seq)` through `uno.invoke`. Set Fields on the descriptor *before* insert. `getServiceName()` on the table is `com.sun.star.text.Bibliography`; `getImplementationName()` is `SwXDocumentIndex`. FieldMaster attach is not required for insert.
