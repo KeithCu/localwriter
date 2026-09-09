@@ -209,21 +209,6 @@ def _try_writer_reapply_position_after_anchor(doc, shape, position, size) -> Non
         log.warning("create_shape writer_reapply_pos: %s: %s", type(ex).__name__, ex)
 
 
-def _try_writer_shape_force_opaque_paint(doc, shape) -> None:
-    """Writer: Opaque=False CustomShapes can show handles-only (no fill/text) on some LO builds (Arch)."""
-    try:
-        if doc is None or not doc.supportsService("com.sun.star.text.TextDocument"):
-            return
-        shape.setPropertyValue("Opaque", True)
-        try:
-            shape.setPropertyValue("FillTransparence", 0)
-        except Exception:
-            pass
-        log.debug("create_shape writer_opaque_paint: Opaque=True FillTransparence=0")
-    except Exception as ex:
-        log.warning("create_shape writer_opaque_paint: %s: %s", type(ex).__name__, ex)
-
-
 def _try_writer_invalidate_and_pump(doc) -> None:
     """Force a repaint after shape changes (Writer sometimes does not redraw the draw layer)."""
     try:
@@ -721,7 +706,6 @@ class UpsertShape(ToolDrawShapeBase):
             _apply_shape_properties(shape, kwargs)
             # setString can still resize Writer AT_PAGE custom shapes (Arch: 4001x4001 → 2249x489).
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
-            _try_writer_shape_force_opaque_paint(ctx.doc, shape)
             _try_writer_invalidate_and_pump(ctx.doc)
             _try_writer_select_created_shape(ctx.doc, shape)
             _log_shape_uno_snapshot("after_formatting", shape)
@@ -763,7 +747,6 @@ class UpsertShape(ToolDrawShapeBase):
                 shape.setSize(Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height)))
 
             _apply_shape_properties(shape, kwargs)
-            _try_writer_shape_force_opaque_paint(ctx.doc, shape)
             if "text" in kwargs and ("width" in kwargs or "height" in kwargs):
                 size = shape.getSize()
                 shape.setSize(Size(kwargs.get("width", size.Width), kwargs.get("height", size.Height)))

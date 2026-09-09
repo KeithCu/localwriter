@@ -470,9 +470,4 @@ def test_writer_star24_with_text_keeps_explicit_size(ctx, doc):
     assert abs(size.Width - 4000) <= 2, f"Width collapsed: {size.Width}x{size.Height}"
     assert abs(size.Height - 4000) <= 2, f"Height collapsed: {size.Width}x{size.Height}"
     assert shape.String == "24-sided Star" or shape.getString() == "24-sided Star"
-    assert shape.getPropertyValue("Opaque") is True or shape.getPropertyValue("Opaque") == 1
-    try:
-        assert int(shape.getPropertyValue("FillTransparence")) == 0
-    except Exception:
-        pass
 
