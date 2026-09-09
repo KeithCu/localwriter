@@ -4,6 +4,11 @@
 `docs/eval/gdpval/` gold trees except by **adding** a new untouched gold
 id. A multi-model benchmark comes later, when ~10 siblings exist.
 
+`test_gold_prompt_is_byte_copy_of_hf_tree` compares `prompt.txt` and
+`prompt.gdpval.txt` as bytes to the HF `task.json` `prompt` (LF).
+`.gitattributes` pins those files to `eol=lf` so Windows checkout does
+not rewrite them as CRLF.
+
 Living headed autopsy (product bar + peer polarity + next experiments): [`headed-failure-autopsy.md`](headed-failure-autopsy.md).
 
 Each subdirectory is one experiment. **Ready** means headed helper +
