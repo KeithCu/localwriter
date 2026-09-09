@@ -52,7 +52,7 @@ _TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
 
 
 def _padded() -> str:
-    return _PASSING + (" Council review continues on the capital brief. " * 24)
+    return _PASSING + (" Council review continues on the capital brief. " * 40)
 
 
 def _write_docx(path: Path, text: str, *, headings: bool = False) -> Path:
