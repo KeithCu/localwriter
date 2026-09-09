@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-04 14:41-0400\n"
+"POT-Creation-Date: 2026-09-09 14:57-0400\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -63,7 +63,7 @@ msgstr ""
 msgid "Open a Writer document first."
 msgstr ""
 
-#: plugin/notebook/writer_importer.py
+#: plugin/notebook/notebook_controls.py
 msgid "Run code cell"
 msgstr ""
 
@@ -385,7 +385,8 @@ msgid "Status:"
 msgstr ""
 
 #: plugin/calc/python/cell_editor_ui.py plugin/chatbot/panel_wiring.py
-#: plugin/scripting/editor_ui_strings.py plugin/xdl_strings.py
+#: plugin/chatbot/panel.py plugin/scripting/editor_ui_strings.py
+#: plugin/xdl_strings.py
 msgid "Ready"
 msgstr ""
 
@@ -513,9 +514,9 @@ msgstr ""
 #: plugin/calc/python/geometric_recalc.py
 #, python-format
 msgid ""
-"Geometric Recalc Order skipped sheet '%s': found %s or more Python cells "
-"(discovery cap). The sheet was left unchained so a partial list is not "
-"treated as complete."
+"Geometric Recalc Order skipped sheet '%(sheet)s': found %(cap)s or more "
+"Python cells (discovery cap). The sheet was left unchained so a partial list"
+" is not treated as complete."
 msgstr ""
 
 #: plugin/calc/excel_py_convert/auto_open.py
@@ -1251,6 +1252,10 @@ msgstr ""
 msgid ""
 "[Model {0} does not support native audio. Please select an STT Model in "
 "Settings.]"
+msgstr ""
+
+#: plugin/chatbot/panel.py
+msgid "[Peer send requires Chat mode on this sidebar.]"
 msgstr ""
 
 #: plugin/chatbot/web_research_chat.py
@@ -2953,6 +2958,16 @@ msgid "Calc spreadsheet tools"
 msgstr ""
 
 msgid "Max Rows Display"
+msgstr ""
+
+msgid "Cache Excel siblings as ODS"
+msgstr ""
+
+msgid ""
+"Convert sibling .xlsx/.xls to writeragent_ods_cache/ beside the folder so "
+"repeated DuckDB SQL reuses the ODS. Native .ods and the live workbook are "
+"never cached. Set calc.ods_cache_enabled false in writeragent.json to "
+"disable."
 msgstr ""
 
 msgid "Sidebar"
