@@ -299,6 +299,15 @@ def test_parse_cli_repeat_and_soak_env(monkeypatch) -> None:
     rest = tr._parse_cli_args(["--repeat", "nope", "test_draw_uno"])
     assert tr._soak_repeat == 1
 
+    rest = tr._parse_cli_args(["--pair", "tree-math", "--repeat", "4"])
+    assert rest == ["test_get_draw_tree", "test_insert_math_draw"]
+    assert tr._soak_repeat == 4
+    rest = tr._parse_cli_args(["--pair=dup-move"])
+    assert rest == [
+        "test_duplicate_slide_copies_shapes",
+        "test_duplicate_rename_move_slide",
+    ]
+
 
 def test_run_module_suite_fail_names_previous_test(capsys, monkeypatch) -> None:
     """URP dispose on the second test must print previous=<first> result=OK."""
@@ -331,6 +340,50 @@ def test_run_module_suite_fail_names_previous_test(capsys, monkeypatch) -> None:
     assert "current=draw.crumb.test_victim" in err
     assert "LIFECYCLE URP dispose at draw.crumb.test_victim" in err
     assert any("LIFECYCLE" in line and "previous=draw.crumb.test_ok" in line for line in suite_log)
+    tr._urp_bridge_dead = False
+    tr.reset_lifecycle_breadcrumb()
+
+
+def test_run_module_suite_fails_ok_test_when_bridge_dies_after_return(capsys) -> None:
+    """Harness attribution: TEST returned OK but getServiceManager is already disposed."""
+    tr.reset_lifecycle_breadcrumb()
+    ran: list[str] = []
+
+    class _Ctx:
+        dead = False
+
+        def getServiceManager(self) -> object:
+            if self.dead:
+                raise RuntimeError("Binary URP bridge disposed during call")
+            return object()
+
+    def test_ok(ctx=None):
+        ran.append("ok")
+        ctx.dead = True
+
+    def test_second(ctx=None):
+        ran.append("second")
+
+    test_ok._is_test = True
+    test_second._is_test = True
+
+    class _Mod:
+        pass
+
+    module = _Mod()
+    module.test_ok = test_ok
+    module.test_second = test_second
+
+    ctx = _Ctx()
+    tr._urp_bridge_dead = False
+    passed, failed, suite_log = tr.run_module_suite(ctx, module, "draw.teardown")
+    assert ran == ["ok"]
+    assert passed == 0
+    assert failed == 1
+    assert tr._urp_bridge_dead is True
+    err = capsys.readouterr().err
+    assert "LIFECYCLE office dead after TEST returned draw.teardown.test_ok" in err
+    assert any("office dead after TEST returned" in line for line in suite_log)
     tr._urp_bridge_dead = False
     tr.reset_lifecycle_breadcrumb()
 

@@ -800,13 +800,16 @@ def _native_teardown_progress(msg: str) -> None:
     _progress(msg)
 
 
-def _reraise_native_open_failure(exc: BaseException, factory_url: str) -> None:
+def _reraise_native_open_failure(
+    exc: BaseException, factory_url: str, pre_open: str = "no_probe"
+) -> None:
     """Re-raise factory-open failures with the previous-test breadcrumb attached.
 
     URP ``DisposedException`` on ``loadComponentFromURL`` usually means the
     *previous* ``@with_native_doc`` close killed soffice/the bridge. Keep
     ``Binary URP bridge`` in the message so ``_is_uno_bridge_disposed`` still
-    matches and the runner aborts remaining suites.
+    matches and the runner aborts remaining suites. ``pre_open`` is the cheap
+    getServiceManager probe taken *before* load (alive vs already disposed).
     """
     from plugin.testing_runner import (
         _is_uno_bridge_disposed,
@@ -818,7 +821,8 @@ def _reraise_native_open_failure(exc: BaseException, factory_url: str) -> None:
     if _is_uno_bridge_disposed(exc):
         msg = (
             "create_native_doc loadComponentFromURL(%s) DisposedException / URP dead "
-            "(%s: %s) %s" % (factory_url, type(exc).__name__, exc, crumb)
+            "pre_open=%s (%s: %s) %s"
+            % (factory_url, pre_open, type(exc).__name__, exc, crumb)
         )
         _progress("LIFECYCLE native_doc open FAIL %s" % msg)
         raise RuntimeError("Binary URP bridge disposed during call; %s" % msg) from exc
@@ -1242,10 +1246,21 @@ class TestingFactory:
                 "impress": "private:factory/simpress"
             }.get(doc_type, "private:factory/swriter")
 
+        from plugin.testing_runner import probe_uno_bridge
+
+        # Distinguish "bridge already dead" (previous test) from "died during load".
+        pre_open = probe_uno_bridge(ctx)
+        if pre_open == "disposed":
+            _reraise_native_open_failure(
+                RuntimeError("Binary URP bridge already disposed before loadComponentFromURL"),
+                factory_url,
+                pre_open=pre_open,
+            )
+            raise
         try:
             doc = desktop.loadComponentFromURL(factory_url, "_blank", 0, tuple(props))
         except Exception as exc:
-            _reraise_native_open_failure(exc, factory_url)
+            _reraise_native_open_failure(exc, factory_url, pre_open=pre_open)
             raise
         return doc
 

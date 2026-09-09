@@ -261,7 +261,7 @@ help:
 	@echo "  make mock-llm               Fake OpenAI chat server on :18766 (sidebar soak: scroll, tools, Stop, errors)"
 	@echo "  make test-uno               UNO tests only via testing_runner (serial live soffice)"
 	@echo "  make test-uno FILTER=…      Same; FILTER=path or test_* name (native runner)"
-	@echo "  make test-uno-soak          Repeat Draw UNO (or FILTER=) in one soffice; REPEAT=20"
+	@echo "  make test-uno-soak          Repeat Draw UNO (or FILTER=/PAIR=) in one soffice; REPEAT=20"
 	@echo "  make test-mock-sidebar      Packet F+B+C+D+E+G+P mock-LLM sidebar (visible soffice, your user profile)"
 	@echo "  make test-mock-sidebar FILTER=E   Packet letter (B/C/D/E/F/G/P), case id (e12 / g17 / p1), or test_* name"
 	@echo "  make test-mock-sidebar FILTER=P   Dual Writer+Calc peer Packet (specialized-inner #673)"
@@ -803,13 +803,20 @@ test-uno: _check-lo-python
 	PYTHONUNBUFFERED=1 $(LO_PYTHON_UNSET) $(LO_PYTHON_ENV) "$(LO_PYTHON)" -u -m plugin.testing_runner $(FILTER); EXIT_CODE=$$?; $(MAKE) -C "$(PROJECT_ROOT)" lo-kill; exit $$EXIT_CODE
 
 # Same office process, N times: stress Draw factory-open / close (URP DisposedException flakes).
-# FILTER defaults to the Draw native suite; override to pair two tests, e.g.
+# FILTER defaults to the Draw native suite. PAIR=tree-math | dup-move expands --pair.
+#   make test-uno-soak PAIR=tree-math REPEAT=50
 #   make test-uno-soak FILTER="test_get_draw_tree test_insert_math_draw" REPEAT=50
 # See docs/framework/uno-test-lifecycle.md
 REPEAT ?= 20
+PAIR ?=
+ifeq ($(PAIR),)
+SOAK_FILTERS := $(or $(FILTER),test_draw_uno)
+else
+SOAK_FILTERS := --pair $(PAIR) $(FILTER)
+endif
 test-uno-soak: _check-lo-python
 	@$(MAKE) -C "$(PROJECT_ROOT)" lo-kill
-	PYTHONUNBUFFERED=1 $(LO_PYTHON_UNSET) $(LO_PYTHON_ENV) "$(LO_PYTHON)" -u -m plugin.testing_runner --repeat $(REPEAT) $(or $(FILTER),test_draw_uno); EXIT_CODE=$$?; $(MAKE) -C "$(PROJECT_ROOT)" lo-kill; exit $$EXIT_CODE
+	PYTHONUNBUFFERED=1 $(LO_PYTHON_UNSET) $(LO_PYTHON_ENV) "$(LO_PYTHON)" -u -m plugin.testing_runner --repeat $(REPEAT) $(SOAK_FILTERS); EXIT_CODE=$$?; $(MAKE) -C "$(PROJECT_ROOT)" lo-kill; exit $$EXIT_CODE
 
 test-mock-sidebar: _check-lo-python
 	@$(MAKE) -C "$(PROJECT_ROOT)" lo-kill

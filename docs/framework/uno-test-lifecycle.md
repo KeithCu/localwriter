@@ -28,8 +28,14 @@ its last hidden Draw doc.
 `close_doc` still swallows most errors (a failed close must not hide the
 test body). Dispose during close is now **logged** (`LIFECYCLE close_doc dispose`).
 After a non-pooled close, the harness probes `desktop.getComponents()` and
-prints `LIFECYCLE office dead after close` if URP is already gone. That is
-instrumentation, not a retry.
+prints `LIFECYCLE office dead after close` if URP is already gone.
+
+**Harness-only attribution (same PR, not a product fix):** if a test body
+returns OK but `getServiceManager` is already disposed, the runner fails
+*that* test (`LIFECYCLE office dead after TEST returned`) instead of letting
+the next factory open be the named victim. `create_native_doc` probes before
+`loadComponentFromURL` (`pre_open=disposed` skips the load and still raises
+a URP-shaped error). No office auto-restart. No skip/xfail.
 
 ## Hypothesis (unproven)
 
@@ -54,26 +60,33 @@ On every native **FAIL**, stderr `TEST end … FAIL` includes:
 
 ```
 previous=<suite.test> result=OK|FAIL|SKIP|- end_pids=<soffice at that end>
-current=<victim> start_pids=<soffice at TEST start> now_pids=<soffice now>
+last_ok=<last successful TEST> dt_ms=<ms from that end to this start>
+current=<victim> start_pids=… now_pids=… pids_changed=0|1
+bridge=alive|disposed|no_probe|error:…
 ```
 
-A URP dispose also prints a dedicated line:
+`bridge=` is `ctx.getServiceManager()` at **TEST start** (same check as
+`_ensure_live_ctx`). Factory-open failures also include `pre_open=` from a
+probe immediately before `loadComponentFromURL`:
 
-```
-LIFECYCLE URP dispose at <victim> previous=… result=… …
-```
+- `pre_open=disposed` — office was already dead; the previous TEST end is the
+  killer (hypothesis confirmed for that fail).
+- `pre_open=alive` then dispose on load — died *during* this open (less like
+  “previous close toasted the bridge”).
 
-Factory open maps the same trail onto the exception message
-(`LIFECYCLE native_doc open FAIL` + `Binary URP bridge disposed during call`
-so the runner still aborts remaining suites).
+A URP dispose also prints `LIFECYCLE URP dispose at <victim> previous=…`.
+If a test body + `@with_native_doc` teardown **returns OK** but
+`getServiceManager` is already disposed, the runner **fails that test**
+(`LIFECYCLE office dead after TEST returned`) so the killer is named instead
+of the next open. That is harness attribution, not a product retry.
 
 Grep: `LIFECYCLE` and `previous=`. The victim is `current=`; the likely
-killer is `previous=` (last successful TEST end when `result=OK`).
+killer is `previous=` / `last_ok=` when `result=OK`.
 
-Native tests do **not** run under pytest. There is no pytest hook for this
-trail; `record_test_start` / `record_test_end` / `format_lifecycle_breadcrumb`
-in `plugin/testing_runner.py` are the hook. Unit tests live in
-`tests/scripts/test_testing_runner_cli.py` and `tests/test_testing_utils.py`.
+Native tests do **not** run under pytest. `format_lifecycle_breadcrumb` /
+`probe_uno_bridge` in `plugin/testing_runner.py` are the hook. Unit tests:
+`tests/framework/test_testing_runner.py`, `tests/scripts/test_testing_runner_cli.py`,
+`tests/test_testing_utils.py`.
 
 ## Soak / reproduce (same soffice, no new framework)
 
@@ -87,20 +100,21 @@ make test-uno-soak
 make test-uno-soak REPEAT=50
 
 # Historical pair (tree → math OLE factory open)
-make test-uno-soak FILTER="test_get_draw_tree test_insert_math_draw" REPEAT=50
+make test-uno-soak PAIR=tree-math REPEAT=50
 
 # CI victim + its predecessor in file order
-make test-uno-soak FILTER="test_duplicate_slide_copies_shapes test_duplicate_rename_move_slide" REPEAT=50
+make test-uno-soak PAIR=dup-move REPEAT=50
+
+# Same pairs without the alias
+make test-uno-soak FILTER="test_get_draw_tree test_insert_math_draw" REPEAT=50
 ```
 
 Equivalent without the Make target:
 
 ```bash
-# env form
 WRITERAGENT_UNO_SOAK=20 make test-uno FILTER=test_draw_uno
-
-# runner CLI (LibreOffice Python)
 python -m plugin.testing_runner --repeat 20 test_draw_uno
+python -m plugin.testing_runner --repeat 50 --pair tree-math
 ```
 
 Look for `SOAK iter i/N`, then the first `LIFECYCLE` / `previous=` on FAIL.

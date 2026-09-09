@@ -152,62 +152,142 @@ def _fail_reason(exc: BaseException) -> str:
 
 # Last completed native test + soffice PIDs. A DisposedException on the *next*
 # factory open is often leftover from this test's close, not a bug in the victim.
-# Reset at the start of run_all_tests / run_module_suite.
+# Reset at the start of run_all_tests (not per suite — first test of suite N+1
+# may die because suite N's last close toasted URP).
 _lifecycle_last_qual: str = ""
 _lifecycle_last_result: str = ""
 _lifecycle_last_end_pids: str = ""
+_lifecycle_last_ok_qual: str = ""
+_lifecycle_last_end_mono: float = 0.0
 _lifecycle_current_qual: str = ""
 _lifecycle_current_start_pids: str = ""
+_lifecycle_current_start_mono: float = 0.0
+_lifecycle_current_bridge: str = ""
 
 # ``--repeat N`` / ``WRITERAGENT_UNO_SOAK``: re-run selected suites in one office.
 _soak_repeat: int = 1
 
+# Named Draw pairs for ``--pair`` / ``make test-uno-soak PAIR=…`` (same office).
+_SOAK_PAIRS: Dict[str, List[str]] = {
+    "tree-math": ["test_get_draw_tree", "test_insert_math_draw"],
+    "dup-move": [
+        "test_duplicate_slide_copies_shapes",
+        "test_duplicate_rename_move_slide",
+    ],
+}
+
 
 def reset_lifecycle_breadcrumb() -> None:
-    """Clear the previous/current TEST trail (start of a suite or unit test)."""
+    """Clear the previous/current TEST trail (start of a run or unit test)."""
     global _lifecycle_last_qual, _lifecycle_last_result, _lifecycle_last_end_pids
+    global _lifecycle_last_ok_qual, _lifecycle_last_end_mono
     global _lifecycle_current_qual, _lifecycle_current_start_pids
+    global _lifecycle_current_start_mono, _lifecycle_current_bridge
     _lifecycle_last_qual = ""
     _lifecycle_last_result = ""
     _lifecycle_last_end_pids = ""
+    _lifecycle_last_ok_qual = ""
+    _lifecycle_last_end_mono = 0.0
     _lifecycle_current_qual = ""
     _lifecycle_current_start_pids = ""
+    _lifecycle_current_start_mono = 0.0
+    _lifecycle_current_bridge = ""
 
 
-def record_test_start(qual: str) -> None:
-    """Remember the test about to run and soffice PIDs at TEST start."""
+def probe_uno_bridge(ctx: Any = None) -> str:
+    """Cheap URP liveness: ``alive``, ``disposed``, ``no_probe``, or ``error:Type``.
+
+    Uses ``ctx.getServiceManager()`` only (same check as ``_ensure_live_ctx``).
+    Unit-test ctx objects without that method are ``no_probe`` — not a fail.
+    """
+    if ctx is None:
+        return "no_probe"
+    getter = getattr(ctx, "getServiceManager", None)
+    if getter is None or not callable(getter):
+        return "no_probe"
+    try:
+        getter()
+    except Exception as exc:
+        if _is_uno_bridge_disposed(exc):
+            return "disposed"
+        return "error:%s" % type(exc).__name__
+    return "alive"
+
+
+def record_test_start(qual: str, ctx: Any = None) -> None:
+    """Remember the test about to run, soffice PIDs, and a cheap bridge probe."""
     global _lifecycle_current_qual, _lifecycle_current_start_pids
+    global _lifecycle_current_start_mono, _lifecycle_current_bridge
     _lifecycle_current_qual = qual
     _lifecycle_current_start_pids = _soffice_pids()
+    _lifecycle_current_start_mono = time.monotonic()
+    _lifecycle_current_bridge = probe_uno_bridge(ctx)
 
 
 def record_test_end(qual: str, result: str) -> None:
     """Promote the current test to 'previous' after TEST end (OK / FAIL / SKIP)."""
     global _lifecycle_last_qual, _lifecycle_last_result, _lifecycle_last_end_pids
+    global _lifecycle_last_ok_qual, _lifecycle_last_end_mono
     global _lifecycle_current_qual, _lifecycle_current_start_pids
+    global _lifecycle_current_start_mono, _lifecycle_current_bridge
     _lifecycle_last_qual = qual
     _lifecycle_last_result = result
     _lifecycle_last_end_pids = _soffice_pids()
+    _lifecycle_last_end_mono = time.monotonic()
+    if result == "OK":
+        _lifecycle_last_ok_qual = qual
     _lifecycle_current_qual = ""
     _lifecycle_current_start_pids = ""
+    _lifecycle_current_start_mono = 0.0
+    _lifecycle_current_bridge = ""
 
 
 def format_lifecycle_breadcrumb() -> str:
-    """One line naming the previous TEST end, current test, and soffice PIDs.
+    """One line naming the previous TEST end, last OK, current test, PIDs, bridge.
 
     Intermittent URP ``DisposedException`` on ``loadComponentFromURL`` usually
     names the *victim* (next ``@with_native_doc`` open). This string names the
-    last test that finished — the likely killer — plus PIDs at that end and now.
+    last test that finished — the likely killer — plus last successful TEST end,
+    elapsed ms since that end, whether soffice PIDs changed, and a cheap
+    getServiceManager probe.
     """
     prev = _lifecycle_last_qual or "-"
     prev_result = _lifecycle_last_result or "-"
     prev_pids = _lifecycle_last_end_pids or "-"
+    last_ok = _lifecycle_last_ok_qual or "-"
     current = _lifecycle_current_qual or "-"
     start_pids = _lifecycle_current_start_pids or "-"
+    now_pids = _soffice_pids()
+    dt_ms = "-"
+    if _lifecycle_last_end_mono and _lifecycle_current_start_mono:
+        dt_ms = str(int(round((_lifecycle_current_start_mono - _lifecycle_last_end_mono) * 1000)))
+    pids_changed = "0"
+    if start_pids not in ("", "-") and now_pids != start_pids:
+        pids_changed = "1"
+    elif prev_pids not in ("", "-") and now_pids != prev_pids:
+        pids_changed = "1"
+    bridge = _lifecycle_current_bridge or "no_probe"
     return (
-        "previous=%s result=%s end_pids=%s current=%s start_pids=%s now_pids=%s"
-        % (prev, prev_result, prev_pids, current, start_pids, _soffice_pids())
+        "previous=%s result=%s end_pids=%s last_ok=%s dt_ms=%s "
+        "current=%s start_pids=%s now_pids=%s pids_changed=%s bridge=%s"
+        % (
+            prev,
+            prev_result,
+            prev_pids,
+            last_ok,
+            dt_ms,
+            current,
+            start_pids,
+            now_pids,
+            pids_changed,
+            bridge,
+        )
     )
+
+
+def expand_soak_pair(name: str) -> List[str]:
+    """Return ``test_*`` names for a Draw soak pair alias, or empty if unknown."""
+    return list(_SOAK_PAIRS.get(str(name).strip().lower(), ()))
 
 
 def _fail_reason_with_lifecycle(exc: BaseException) -> str:
@@ -344,8 +424,9 @@ def _parse_cli_args(argv: Sequence[str]) -> list[str]:
     ``--user-profile`` into ``WRITERAGENT_UNO_USER_PROFILE`` as well.
 
     ``--repeat N`` (or ``WRITERAGENT_UNO_SOAK``) re-runs selected suites in the
-    same soffice process to stress native-doc open/close. See
-    ``docs/framework/uno-test-lifecycle.md``.
+    same soffice process to stress native-doc open/close. ``--pair tree-math``
+    / ``dup-move`` expands to the two Draw tests that historically sandwich a
+    URP death. See ``docs/framework/uno-test-lifecycle.md``.
     """
     global show_window, use_user_profile, _soak_repeat
     filters: list[str] = []
@@ -370,6 +451,20 @@ def _parse_cli_args(argv: Sequence[str]) -> list[str]:
         elif arg.startswith("--repeat="):
             _soak_repeat = _parse_positive_int(arg.split("=", 1)[1], default=1)
             soak_from_cli = True
+        elif arg == "--pair":
+            if i + 1 < len(argv):
+                names = expand_soak_pair(argv[i + 1])
+                if names:
+                    filters.extend(names)
+                else:
+                    filters.append(str(argv[i + 1]))
+                skip_next = True
+        elif arg.startswith("--pair="):
+            names = expand_soak_pair(arg.split("=", 1)[1])
+            if names:
+                filters.extend(names)
+            else:
+                filters.append(arg.split("=", 1)[1])
         else:
             filters.append(str(arg))
     if os.environ.get("WRITERAGENT_UNO_USER_PROFILE") == "1":
@@ -914,8 +1009,11 @@ def run_module_suite(ctx, module, name, doc_model=None):
         for test_func in selected:
             test_line = f"Running test: {test_func.__name__}"
             qual = f"{name}.{test_func.__name__}"
-            record_test_start(qual)
-            _progress(f"TEST start {qual} soffice={_lifecycle_current_start_pids}")
+            record_test_start(qual, ctx)
+            _progress(
+                "TEST start %s soffice=%s bridge=%s"
+                % (qual, _lifecycle_current_start_pids, _lifecycle_current_bridge or "-")
+            )
             # Per-test faulthandler abort (30s). Silent — TEST start/end is enough.
             _arm_native_test_watchdog(qual)
             try:
@@ -937,6 +1035,27 @@ def run_module_suite(ctx, module, name, doc_model=None):
                 else:
                     test_func()
                 _progress(f"TEST returned {qual}")
+                # Harness attribution (not a product fix): body + @with_native_doc
+                # teardown returned, but getServiceManager is already disposed.
+                # Name *this* test as the killer instead of the next factory open.
+                post_bridge = probe_uno_bridge(ctx)
+                if post_bridge == "disposed":
+                    dead_exc = RuntimeError(
+                        "Binary URP bridge disposed during call; office dead after "
+                        "TEST returned (teardown likely killed URP) %s"
+                        % format_lifecycle_breadcrumb()
+                    )
+                    total_failed += 1
+                    suite_log.append(f"{test_line} — FAIL ({dead_exc})")
+                    suite_log.append("LIFECYCLE %s" % format_lifecycle_breadcrumb())
+                    _progress(
+                        "LIFECYCLE office dead after TEST returned %s %s"
+                        % (qual, format_lifecycle_breadcrumb())
+                    )
+                    _progress(f"TEST end {qual} FAIL {_fail_reason_with_lifecycle(dead_exc)}")
+                    _mark_urp_dead(dead_exc, qual)
+                    record_test_end(qual, "FAIL")
+                    break
                 total_passed += 1
                 suite_log.append(f"{test_line} — OK")
                 record_test_end(qual, "OK")
@@ -1374,6 +1493,7 @@ def main() -> int:
         python -m plugin.testing_runner tests/chatbot/test_mock_llm_sidebar_uno.py E
         python -m plugin.testing_runner --user-profile …/test_mock_llm_sidebar_uno.py f3a
         python -m plugin.testing_runner --repeat 20 test_draw_uno
+        python -m plugin.testing_runner --repeat 50 --pair tree-math
 
     Extra tokens select tests: packet letter (``B``/``C``/``D``/``E``/``F``/``G``/``P``), case id
     (``f3a`` / ``p1``), or full ``test_*`` name. Prefer ``make test-mock-sidebar FILTER=P``
@@ -1383,6 +1503,7 @@ def main() -> int:
     same soffice process to stress native-doc open/close. Draw subset::
 
         make test-uno-soak
+        make test-uno-soak PAIR=tree-math REPEAT=50
         make test-uno-soak FILTER="test_get_draw_tree test_insert_math_draw" REPEAT=50
 
     See ``docs/framework/uno-test-lifecycle.md``.

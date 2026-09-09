@@ -254,6 +254,7 @@ def test_reraise_native_open_failure_names_previous_test(capsys, monkeypatch):
         except RuntimeError as exc:
             _reraise_native_open_failure(exc, "private:factory/sdraw")
     assert "create_native_doc loadComponentFromURL(private:factory/sdraw)" in str(caught.value)
+    assert "pre_open=" in str(caught.value)
     assert "Binary URP bridge" in str(caught.value)
     err = capsys.readouterr().err
     assert "LIFECYCLE native_doc open FAIL" in err
@@ -269,6 +270,33 @@ def test_reraise_native_open_failure_passthrough_non_urp():
             raise ValueError("not a bridge")
         except ValueError as exc:
             _reraise_native_open_failure(exc, "private:factory/sdraw")
+
+
+def test_create_native_doc_skips_load_when_bridge_already_dead(monkeypatch):
+    from unittest.mock import MagicMock, patch
+
+    import plugin.testing_runner as tr
+    from plugin.tests.testing_utils import TestingFactory
+
+    tr.reset_lifecycle_breadcrumb()
+    tr.record_test_end("draw.test_draw_uno.test_duplicate_slide_copies_shapes", "OK")
+    tr.record_test_start("draw.test_draw_uno.test_duplicate_rename_move_slide")
+
+    class _DeadCtx:
+        def getServiceManager(self) -> None:
+            raise RuntimeError("Binary URP bridge disposed during call")
+
+    desktop = MagicMock()
+    with (
+        patch("plugin.framework.uno_context.get_desktop", return_value=desktop),
+        patch("uno.createUnoStruct", return_value=MagicMock()),
+        pytest.raises(RuntimeError, match="pre_open=disposed") as caught,
+    ):
+        TestingFactory.create_native_doc(_DeadCtx(), "draw")
+    assert "already disposed before loadComponentFromURL" in str(caught.value)
+    assert "previous=draw.test_draw_uno.test_duplicate_slide_copies_shapes" in str(caught.value)
+    desktop.loadComponentFromURL.assert_not_called()
+    tr.reset_lifecycle_breadcrumb()
 
 
 def test_create_native_doc_wraps_disposed_exception(monkeypatch):
