@@ -26,7 +26,7 @@ _STUBS = (
     "draw-primary-deliverable",
     "reverse-tenant",
 )
-# Preferred gold trees landed for remaining stubs 6–9; slot 10 is native (no HF gold).
+# Preferred gold trees landed for remaining stubs 6–9; slot 10 is native (no in-repo gold).
 _GOLD_STUBS = {
     "calc-primary-model": "5f6c57dd-feb6-4e70-b152-4969d92d1608",
     "writer-headed-template": "a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5",

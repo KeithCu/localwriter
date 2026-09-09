@@ -4,9 +4,10 @@ Purpose: **harness debug** for **one** long Writer document that needs a
 table of contents, named heading styles, and review comments together.
 Eval-2 is not a multi-model benchmark yet.
 
-This sibling is **WriterAgent-native**. There is no HF gold tree and no
-`prompt.gdpval.txt`. See [`SOURCE.md`](SOURCE.md) for the gold-subset
-scan that did not yield a clean TOC + styles + comments pack.
+This sibling is **WriterAgent-native**. There is no in-repo gold tree
+and no `prompt.gdpval.txt`. See [`SOURCE.md`](SOURCE.md): the nine
+trees already under `docs/eval/gdpval/` were checked locally (no
+Hugging Face download). None are a TOC + styles + comments pack.
 
 ## How it differs from existing siblings
 
@@ -36,4 +37,4 @@ and comment authors are **soft / later**. Do not fail on Word vs ODT.
 
 - Slot 7 (`writer-headed-template/`) stays **PARKED**
 - Slots 5 / 6 / 8 / 9 stay stubs
-- `docs/eval/gdpval/` — no new tree (none fit; add-only if one had)
+- `docs/eval/gdpval/` — no new tree (none of the nine in-repo trees fit)

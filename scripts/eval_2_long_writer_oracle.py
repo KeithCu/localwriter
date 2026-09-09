@@ -5,7 +5,7 @@
 """Soft structural scorer for the eval-2 native long Writer pack.
 
 Pass/fail is document-local. Chat Ready / STREAM_DONE is never consulted.
-This sibling is WriterAgent-native (no HF gold tree). Fail-closed checks
+This sibling is WriterAgent-native (no in-repo gold tree). Fail-closed checks
 are TOC / named heading styles / review comments plus fixture identity
 and a husk ban. Exact heading wording and comment authors stay out of v1.
 

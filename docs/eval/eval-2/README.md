@@ -18,7 +18,7 @@ oracle exist. **Stub** means fixture notes only — not headed-ready gold.
 | 7 | [`writer-headed-template/`](writer-headed-template/) | Writer on a real template | Stub / **PARKED** | `a46d5cd2-55fe-48fa-a4c6-6aaf6b9991b5` gold tree in-repo; **PARKED** (headed letterhead) |
 | 8 | [`draw-primary-deliverable/`](draw-primary-deliverable/) | Draw-primary (org chart / process map) | Stub | `8a7b6fca-60cc-4ae3-b649-971753cbf8b9` gold tree in-repo; fixtures/oracle TBD |
 | 9 | [`reverse-tenant/`](reverse-tenant/) | Calc deliverable; Writer brief sibling | Stub | `4520f882-715a-482d-8e87-1cb3cbdfe975` gold tree in-repo; fixtures/oracle TBD |
-| 10 | [`long-writer-pack/`](long-writer-pack/) | Long Writer pack (TOC + styles + comments) | Headed-ready (native fixture) | WriterAgent-native; no HF gold |
+| 10 | [`long-writer-pack/`](long-writer-pack/) | Long Writer pack (TOC + styles + comments) | Headed-ready (native fixture) | WriterAgent-native; no in-repo gold fits |
 
 Headed helper: `scripts/eval_2_headed.py` writes `chatbot.max_tool_rounds`
 to **50** (AFC / Tenant / Cadaver / Long Writer pack) or **150** (GMP
