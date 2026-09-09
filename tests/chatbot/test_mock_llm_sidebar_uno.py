@@ -1624,16 +1624,36 @@ def _adopt_calc_sidebar(ctx, calc):
 
 
 def _restore_writer_after_calc(ctx, writer, calc, saved_controls, saved_listener) -> None:
-    """Close the E12/G17 Calc window and point the shared session back at Writer."""
+    """Close the E12/G17 Calc window and point the shared session back at Writer.
+
+    Closing Calc leaves ``desktop.getCurrentComponent()`` None even while Writer
+    remains open (box UNO proof). Re-activate Writer like peer ``_focus_doc`` so
+    e13+ ``_set_writer_body`` / Packet G ``execute_debug_sidebar_op`` still see a
+    current document and frame.
+    """
     from plugin.chatbot.sidebar_test_hooks import (
         adopt_runtime_send_listeners,
         close_component,
+        current_component,
+        desktop_from_ctx,
         wait_for_chat_dialog_controls,
     )
 
     close_component(calc)
     if writer is not None:
+        try:
+            frame = writer.getCurrentController().getFrame()
+            try:
+                frame.getContainerWindow().toFront()
+            except Exception:
+                pass
+            desktop_from_ctx(ctx).setActiveFrame(frame)
+        except Exception:
+            pass
         wait_for_chat_dialog_controls(ctx, timeout=15.0, doc=writer)
+        assert current_component(ctx) is not None, (
+            "after closing Calc, Writer was not re-activated as current component"
+        )
     adopt_runtime_send_listeners()
     if _session is not None:
         _session.controls = saved_controls
