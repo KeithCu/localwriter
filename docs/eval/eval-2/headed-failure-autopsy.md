@@ -18,7 +18,7 @@ Box run artifacts cited below may be untracked locally; paths are under `docs/ev
 | 1 | Tenant Retention | `tenant-…/runs/20260908-0121-…` (Gemini) | **HAPPY** (real memo) | FAIL → softened | Oracle false-red (titles in `text:h`, table cells, length) |
 | 2 | Cadaver Proposal | `cadaver-…/runs/20260908-2246-…` (Gemini) | **HAPPY** (real proposal + charts) | FAIL → soften PR | Oracle false-red (aliases, Figure/draw:frame, length) |
 | 4 | GMP Change Control | `gmp-…/20260909-0103` then `…-0225` (gpt-oss-120b) | 0103 **NOT HAPPY** → 0225 **HAPPY** | 0225 FAIL cite only | **Peer polarity** dump→fill; then product OK |
-| 5 | Floorstand Writer→Calc | `writer-calc-peer-write/…/20260909-0323-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (empty) | **Peer polarity** extract-not-fill + LO crash |
+| 5 | Floorstand Writer→Calc | `0323` gpt-oss; private `1733` gpt-oss; **`1748` Gemini private-patch** | **NOT HAPPY** (all) | FAIL (empty) | `1748`: polarity **HIT** but empty+stall; gpt-oss still extract MISS |
 | 6 | Calc-primary | `calc-primary-model/…/20260909-0400-…` (gpt-oss-120b) | **NOT HAPPY** | FAIL (Regions A–G) | **CSV-row dump** into col A + wrong factor + `#NAME?` invented sheet |
 | 8 | Draw-primary | `draw-primary-deliverable/…/20260909-0411-…` (gpt-oss-120b) | **NOT HAPPY** (garbled layout) | FAIL (Clearbend / failure / triage) | Non-empty map; **identity labels + layout overlap** |
 | 9 | Reverse Tenant | `reverse-tenant/…/20260909-0414-…` (gpt-oss-120b) | **NOT HAPPY** (blank Sheet1) | FAIL (0 cells) | **Talk-not-write** + PreContractError; Sheet2/3 only in chat |
@@ -94,6 +94,67 @@ Ordered by leverage for Floorstand / future Writer→Calc:
    **Why:** crash ends the run even if polarity is fixed.
 
 6. **Don’t** gate interactive Ready on peer polarity. **Don’t** add gold dollar totals to the product prompt.
+
+### 2.4 Floorstand private-patch retest — polarity HIT, product still empty (Gemini)
+
+**Keith gate:** eval-2 / GDPval headed = **Gemini 3.8 Flash** until HAPPY; gpt-oss is not the product gate.
+
+**Private local patches** (tip `a58ab1ad`, debug OXT on `writeragent-master`, **not PR’d** — `.bak-scrolly-*`):
+
+1. `PEER_INNER_CHOICE_RULES` (+1 sentence): when the peer doc is meant to be written (empty sheet/form), ask it to **write/fill and include the values** — don’t only extract/return JSON.
+2. `write_formula_range` description (+1 sentence): a table row is **one value per cell**; don’t put a whole comma-joined row in one cell (Calc-primary CSV-dump lesson).
+
+| Stamp | Model | Polarity | Product | Notes |
+|-------|-------|----------|---------|-------|
+| `20260909-0323-gpt-oss-120b` | gpt-oss | MISS (extract/JSON ×3) | empty + **LO crash** | Overnight baseline |
+| `20260909-1733-gpt-oss-120b-private-patch` | gpt-oss + patches | **MISS** (still extract/JSON) | empty email + titles-only tabs | Patches did **not** flip gpt-oss polarity |
+| `20260909-1748-gemini-3.8-flash-private-patch` | **Gemini 3.8 Flash** + patches | **HIT** (fill/write asks) | **still empty** + **hard stall >3 min** | No LO crash; UNO=0; PreContract=0; no `*_SAVED` |
+
+Paths (box): `docs/eval/eval-2/writer-calc-peer-write/runs/…` under Scrolly’s `writeragent-master`; shots `/workspace/fs3-*.png` (Gemini), `/workspace/fs2-*.png` (gpt-oss private), `/workspace/fs-*.png` (overnight).
+
+#### Gemini `1748` product evidence
+
+- Oracle / ODS: `nonempty_cells=2` (Cost Comparison + Final Store List **titles only**); `words: 0` email; `formulas: 0`.
+- Observer: peer asks were **fill/write**, not extract/JSON — polarity telemetry **HIT**.
+- UI shots (`fs3-sent` / `fs3-calc`): sidebar **Thinking…** with **blank chat transcript** and blank email (0 words); later `fs3-final`: **Ready**, still blank email, chat UI empty. Calc still in taskbar.
+- computerUse: hard-stall **>3 min** after send → stopped; did not create `*_SAVED` copies (scored live trial files).
+- Debug log for this run was **rotated away** at `17:48:34` when LO restarted into Calc-primary Gemini (`Debug log active` resets the file). Floorstand tool-call trace is **not** in the live `writeragent_debug.log` — reconstruct from notes + shots only. (Do not confuse post-17:48 Calc-primary `Raw Data` / `peer_count=0` lines with Floorstand.)
+
+#### Ranked causes — why fill polarity still left empty sheets + blank email + stall
+
+1. **Writer hard-stall / incomplete outer loop (highest confidence for “empty + Thinking”)**  
+   Shots show prolonged **Thinking…** with empty transcript and **0-word** email; computerUse aborted after >3 min. Outer Writer never reached a finished “peer filled → draft email here” end state.  
+   **Why empty both sides:** if Writer stalls before/during peer wait, Calc may never get a completed drain cycle *or* Writer never drafts the email after peer returns. Matches blank Ready at the end (UI recovered / stopped) with scaffold unchanged.
+
+2. **Fill ask without value payload (high — product teaching gap)**  
+   Private `PEER_INNER` already says include values. GMP-0225 HAPPY peer asks carried **concrete field values**. A polarity-HIT ask that only says “please fill Cost Comparison” (no shelf-strip delta / store counts / cost lines) leaves Calc with nothing to write → titles-only scaffold.  
+   **Why:** polarity telemetry keys on fill/write verbs; product needs **verbs + numbers**.
+
+3. **Calc peer did not execute durable writes (medium — consistent with titles-only ODS)**  
+   Even with a fill ask, peer may have researched (`document_research` / read trail) or hung mid-tool-loop without `write_formula_range` on Cost Comparison. Cannot confirm tool names without the rotated log. Outcome matches research-only / no-write peer: `nonempty_cells=2`.
+
+4. **Nested peer drain / wait-forever (medium — explains stall, not polarity)**  
+   Writer `send_peer_message` → Calc sidebar drain → Writer waits. Nested drain / stuck LLM stream can leave Writer on Thinking with no transcript paint (UI grey box). Related to overnight LO crash class but here **no crash** — soft hang instead. Later Calc-primary log shows at least one Gemini stream `finish_reason=None` / `used_model='unknown'` (different run; signal that Gemini streams can die oddly).
+
+5. **Wrong peer / peer not on wire (lower for this stamp)**  
+   Observer recorded fill asks to the budget peer; workbook is the open Cost Comparison scaffold. Post-restart logs show `peer_count=0` on Calc-primary alone — not evidence for Floorstand. Keep as a check if a future run logs `on_wire=False` while two docs are open.
+
+6. **Ruled out / secondary**  
+   - **Polarity MISS:** ruled out for Gemini `1748` (HIT). Still true for gpt-oss `1733`/`0323`.  
+   - **CSV-in-one-cell:** N/A — nothing written.  
+   - **UNO / PreContract:** 0 / 0.  
+   - **LO crash:** none on `1748` (progress vs overnight).  
+   - **Eval oracle false-red:** no — empty is honest.
+
+#### Light product next steps (few / small; minimal eval cheats)
+
+1. **DO — Keep the private `PEER_INNER` polarity sentence** for Gemini (it flipped polarity vs gpt-oss). Land as a tiny product PR when Scrolly’s tree is free — don’t block on gpt-oss still missing.  
+2. **DO — One more general peer sentence: fill asks must carry the values to write** (counts, shelf-strip +$0.25, line labels) — mirror GMP-0225 payload style. Prefer `PEER_INNER` / `send_peer_message` description over Floorstand eval gold cheats.  
+3. **DO — Outer Writer: after peer returns, write the email in this doc; if peer workbook still titles-only, one retry peer ask with explicit numbers — then draft what you can.** Small prompt; fights Ready-empty + stall-without-email.  
+4. **DO — Stall plumbing (separate from polarity)** — fail-loud / timeout when peer drain or LLM stream hangs >N minutes; preserve debug log across LO restarts for headed trials. Not an eval cheat.  
+5. **Don’t** add gold dollar totals to `prompt.writeragent.txt`. **Don’t** wait on gpt-oss polarity for Gemini gating. **Don’t** fight Scrolly’s `writeragent-master` deploy while Calc-primary Gemini runs.
+
+**Next Gemini headed:** same private patches + value-payload peer teaching; expect nonempty Cost Comparison **and** nonempty email; capture `thinking_and_tools` + avoid log rotate before notes.
 
 ---
 
@@ -269,7 +330,7 @@ Scrolly gpt-oss-120b headed stamps for Ready slots **6 / 8 / 9 / 10** all landed
 | Reverse Tenant `0414` | Talk-not-write blank Sheet1 + PreContractError | Refuse empty Ready; dig PreContract; real sheets |
 | Long Writer `0419` | Invented $12.5M / wrong dates; 0 comments | Research-before-write; fixture dollars/dates; real annotations |
 
-**Morning priority order (product pain):** Floorstand polarity → Calc CSV-dump → Reverse Tenant empty → Long Writer facts → Draw identity/layout. Oracles stay for benchmarking; do not KPI-game softens on these four.
+**Morning priority order (product pain):** Floorstand **value-payload peer + stall** (polarity HIT on Gemini `1748` still empty) → Calc CSV-dump → Reverse Tenant empty → Long Writer facts → Draw identity/layout. Oracles stay for benchmarking; do not KPI-game softens on these four.
 
 ## 7. Non-goals
 
@@ -285,7 +346,7 @@ Scrolly gpt-oss-120b headed stamps for Ready slots **6 / 8 / 9 / 10** all landed
 
 | Sibling | Path |
 |---------|------|
-| Floorstand | `writer-calc-peer-write/runs/20260909-0323-gpt-oss-120b/` + `/workspace/fs-*.png` |
+| Floorstand | `0323` + `/workspace/fs-*.png`; private `1733` + `fs2-*.png`; Gemini private `1748` + `/workspace/fs3-*.png` (under `writeragent-master` runs/) |
 | GMP | `gmp-change-control-58ac1cc5/runs/20260909-0103-…` and `…-0225-…` + `/workspace/gmp*.png` |
 | Tenant | `tenant-retention-ed2bc14c/runs/20260908-0121-…` |
 | Cadaver | `cadaver-proposal-61b0946a/runs/20260908-2246-…` |
