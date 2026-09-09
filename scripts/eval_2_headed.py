@@ -4,8 +4,8 @@
 
 No new yaml knobs. Everyday chat stays at the schema default (15).
 Schema max is 200 so a trial can temporarily set 80 or 200 without clamp.
-AFC / Tenant / Cadaver still write **50**. GMP Change Control writes **150**
-(multidoc + peer).
+AFC / Tenant / Cadaver still write **50**. GMP Change Control and Reverse
+Tenant (Theatre CBA) write **150** (multidoc / complex model).
 
 ``--launch`` (default ``--task afc``) copies only the Population ODS into a
 clean trial directory (default ``$TMP/writeragent-eval2-afc``) so
@@ -26,6 +26,12 @@ writes a blank ``MR Risk Assessment Summary.odt``, and opens **both**
 the Writer memo and the Draw form (v1 pre-open cheat). The gold PDF is
 **not** the write target. COA / spec are research-only.
 
+``--task reverse-tenant --launch`` copies the CBA excerpt ODT and sample
+roster XLSX into ``$TMP/writeragent-eval2-reverse-tenant``, writes a blank
+``Theatre CBA.ods``, and opens the Writer brief then the Calc workbook
+(Calc last so chat focus is the deliverable). The Writer excerpt is
+research / read-only.
+
 Do not open ``fixtures/`` or the task folder.
 
 Usage:
@@ -35,11 +41,13 @@ Usage:
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --launch
+  .venv/bin/python scripts/eval_2_headed.py --task reverse-tenant --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score path/to/final_proposal.odt
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --score path/to/final_memo.odt
+  .venv/bin/python scripts/eval_2_headed.py --task reverse-tenant --score path/to/final_workbook.ods
 """
 from __future__ import annotations
 
@@ -65,6 +73,7 @@ _AFC_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "afc-sample-83d10b06"
 _TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14c"
 _CADAVER_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "cadaver-proposal-61b0946a"
 _GMP_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "gmp-change-control-58ac1cc5"
+_REVERSE_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "reverse-tenant"
 POPULATION_ODS_NAME = "Population v2.ods"
 LETTER_ODT_NAME = "Current Renewal Letter.odt"
 SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
@@ -75,6 +84,9 @@ GMP_COA_PDF_NAME = "Anti foam COA_MR.pdf"
 GMP_SPEC_ODT_NAME = "Material Spec_MR.odt"
 GMP_FORM_ODG_NAME = "Change Control Form.odg"
 GMP_MEMO_NAME = "MR Risk Assessment Summary.odt"
+CBA_EXCERPT_ODT_NAME = "CBA excerpt.odt"
+ROSTER_XLSX_NAME = "Sample roster and schedule.xlsx"
+THEATRE_CBA_ODS_NAME = "Theatre CBA.ods"
 # Form-920 Section 1 blanks. Labels sit to the left so get_draw_tree
 # can attach label_hint. Names stay stable for fill_draw_fields / oracle.
 GMP_FILLABLE_FIELDS: tuple[tuple[str, str], ...] = (
@@ -102,15 +114,19 @@ _CADAVER_BUDGET_XLSX = _CADAVER_DIR / "fixtures" / CADAVER_BUDGET_XLSX_NAME
 _GMP_COA_PDF = _GMP_DIR / "fixtures" / GMP_COA_PDF_NAME
 _GMP_SPEC_ODT = _GMP_DIR / "fixtures" / GMP_SPEC_ODT_NAME
 _GMP_FORM_ODG = _GMP_DIR / "fixtures" / GMP_FORM_ODG_NAME
+_REVERSE_CBA_ODT = _REVERSE_DIR / "fixtures" / CBA_EXCERPT_ODT_NAME
+_REVERSE_ROSTER_XLSX = _REVERSE_DIR / "fixtures" / ROSTER_XLSX_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
 DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
 DEFAULT_CADAVER_TRIAL_DIR_NAME = "writeragent-eval2-cadaver"
 DEFAULT_GMP_TRIAL_DIR_NAME = "writeragent-eval2-gmp"
+DEFAULT_REVERSE_TRIAL_DIR_NAME = "writeragent-eval2-reverse-tenant"
 TASK_AFC = "afc"
 TASK_TENANT = "tenant-retention"
 TASK_CADAVER = "cadaver-proposal"
 TASK_GMP = "gmp-change-control"
-TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP)
+TASK_REVERSE = "reverse-tenant"
+TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP, TASK_REVERSE)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -237,8 +253,8 @@ def find_afc_population_ods() -> Path:
 
 
 def task_max_tool_rounds(task: str) -> int:
-    """Headed start: 150 for GMP (multidoc + peer), 50 for the others."""
-    if task == TASK_GMP:
+    """Headed start: 150 for GMP / reverse-tenant, 50 for the others."""
+    if task in {TASK_GMP, TASK_REVERSE}:
         return EVAL_2_GMP_MAX_TOOL_ROUNDS
     return EVAL_2_MAX_TOOL_ROUNDS
 
@@ -248,6 +264,7 @@ def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
         TASK_TENANT: DEFAULT_TENANT_TRIAL_DIR_NAME,
         TASK_CADAVER: DEFAULT_CADAVER_TRIAL_DIR_NAME,
         TASK_GMP: DEFAULT_GMP_TRIAL_DIR_NAME,
+        TASK_REVERSE: DEFAULT_REVERSE_TRIAL_DIR_NAME,
     }
     name = names.get(task, DEFAULT_TRIAL_DIR_NAME)
     return Path(tempfile.gettempdir()) / name
@@ -259,6 +276,7 @@ def _task_dirs() -> tuple[Path, ...]:
         _TENANT_DIR.resolve(),
         _CADAVER_DIR.resolve(),
         _GMP_DIR.resolve(),
+        _REVERSE_DIR.resolve(),
     )
 
 
@@ -306,6 +324,33 @@ def write_blank_writer_odt(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("mimetype", "application/vnd.oasis.opendocument.text", compress_type=zipfile.ZIP_STORED)
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("content.xml", content)
+    return path
+
+
+def write_blank_calc_ods(path: Path) -> Path:
+    """Minimal empty Calc workbook so the open Theatre CBA file lives in the trial dir."""
+    manifest = """<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+ <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+ <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+"""
+    content = """<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.2">
+ <office:body><office:spreadsheet>
+  <table:table table:name="Sheet1"><table:table-row><table:table-cell/></table:table-row></table:table>
+ </office:spreadsheet></office:body>
+</office:document-content>
+"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(
+            "mimetype",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            compress_type=zipfile.ZIP_STORED,
+        )
         zf.writestr("META-INF/manifest.xml", manifest)
         zf.writestr("content.xml", content)
     return path
@@ -491,6 +536,26 @@ def stage_gmp_trial(dest_dir: Path) -> tuple[Path, Path]:
     return memo, dest_dir / GMP_FORM_ODG_NAME
 
 
+def find_reverse_tenant_fixtures() -> tuple[Path, Path]:
+    """CBA excerpt ODT + sample roster XLSX. Writer brief is research-only."""
+    if not _REVERSE_CBA_ODT.is_file():
+        raise FileNotFoundError(
+            f"Missing {_REVERSE_CBA_ODT}. Convert the CBA excerpt fixture; "
+            "do not open fixtures/ (siblings leak)."
+        )
+    if not _REVERSE_ROSTER_XLSX.is_file():
+        raise FileNotFoundError(f"Missing {_REVERSE_ROSTER_XLSX}")
+    return _REVERSE_CBA_ODT, _REVERSE_ROSTER_XLSX
+
+
+def stage_reverse_tenant_trial(dest_dir: Path) -> tuple[Path, Path]:
+    """Brief ODT + roster xlsx + blank Theatre CBA. Gold/prompt stay outside."""
+    brief, roster = find_reverse_tenant_fixtures()
+    stage_clean_trial_files([brief, roster], dest_dir, label="Reverse Tenant")
+    workbook = write_blank_calc_ods(dest_dir / THEATRE_CBA_ODS_NAME)
+    return workbook, dest_dir / CBA_EXCERPT_ODT_NAME
+
+
 def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
@@ -537,7 +602,8 @@ def main(argv: list[str] | None = None) -> int:
         default=TASK_AFC,
         help=(
             "Experiment to launch or score (default: afc). "
-            "tenant-retention / cadaver-proposal / gmp-change-control are Writer."
+            "tenant-retention / cadaver-proposal / gmp-change-control are Writer; "
+            "reverse-tenant is Calc (Writer brief is a read)."
         ),
     )
     parser.add_argument(
@@ -545,7 +611,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Stage a clean trial dir, then soffice (Calc for AFC, Writer for "
-            "tenant-retention / cadaver-proposal, Writer+Draw for gmp-change-control)"
+            "tenant-retention / cadaver-proposal, Writer+Draw for gmp-change-control, "
+            "Writer brief + Calc for reverse-tenant)"
         ),
     )
     parser.add_argument(
@@ -556,8 +623,9 @@ def main(argv: list[str] | None = None) -> int:
             "Directory that will contain only the staged refs "
             f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME}, "
             f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, "
-            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, or "
-            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME})"
+            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME}, or "
+            f"$TMP/{DEFAULT_REVERSE_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
@@ -576,6 +644,8 @@ def main(argv: list[str] | None = None) -> int:
         suffix = args.score.suffix.lower()
         if args.task == TASK_GMP:
             from eval_2_gmp_oracle import main as score_main
+        elif args.task == TASK_REVERSE:
+            from eval_2_reverse_tenant_oracle import main as score_main
         elif args.task == TASK_CADAVER:
             from eval_2_cadaver_oracle import main as score_main
         elif args.task == TASK_TENANT or suffix in {".odt", ".docx"}:
@@ -619,6 +689,17 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     # Form first, memo last so Writer is the focused chat doc.
                     launch_office_documents([form, memo])
+                elif args.task == TASK_REVERSE:
+                    workbook, brief = stage_reverse_tenant_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in workbook.parent.iterdir()))
+                    print(f"Staged clean trial dir {workbook.parent} ({staged})")
+                    print(
+                        "Pre-open: Writer CBA excerpt then Calc Theatre CBA. "
+                        "Paste the prompt in the Calc sidebar. "
+                        "The Writer excerpt is research / read-only."
+                    )
+                    # Brief first, workbook last so Calc is the focused chat doc.
+                    launch_office_documents([brief, workbook])
                 else:
                     trial_ods = stage_clean_trial_ods(
                         find_afc_population_ods(),
