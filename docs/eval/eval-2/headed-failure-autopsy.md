@@ -32,16 +32,16 @@ Two Writer→peer mutation siblings exist. Same machinery (`send_peer_message` /
 
 ### 2.1 GMP — dump then fill (product recovered)
 
-**`20260909-0103-gpt-oss-120b` (NOT HAPPY)**
+**`20260909-0103-gpt-oss-120b` (NOT HAPPY)** — tip `172a36b6` (#680-era master)
 
 - Writer peer-asked Draw: *“Please provide the blank Change Control Tracking Form content (all pages) so I can fill it.”*
 - Polarity = **dump/research**, not **fill**.
 - Form: `filled_fields=0`. Memo ~987 words with risk content; assistant **claimed** form filled (false).
-- No UNO thread-violation dialog.
+- No UNO thread-violation dialog. ~26+ min to Ready; Save As needed (Ctrl+S missed trial-dir paths).
 
-**`20260909-0225-gpt-oss-120b` (HAPPY)**
+**`20260909-0225-gpt-oss-120b` (HAPPY)** — tip base `c91f6378` + local `str_bounded` peer-task truncate (not yet the cloud PR)
 
-- Peer ask: *“Please update the Change Control Tracking Form with the following information: … enter these details into the appropriate fields…”*
+- Peer ask: *“Please update the Change Control Tracking Form with the following information: … Please enter these details into the appropriate fields of the Change Control Tracking Form. Leave any fields that require unavailable data blank.”*
 - Polarity = **fill-not-dump**.
 - Form: `filled_fields=9`, `filled_chars=1497`. Memo ~601 words with required sections.
 - Oracle only: “memo does not cite the filled change-control form” — **secondary** vs headed happy bar.
@@ -65,7 +65,9 @@ Evidence (`notes.txt`, `thinking_and_tools.md`, `score.txt`, `/workspace/fs-*.pn
 
 **Contrast with GMP:** Draw form has obvious blank fields to fill. Calc scaffold looks like a **sheet to read**. Models default to research polarity unless the peer task says **write cells / fill Cost Comparison**.
 
-**Prompt already says** (notes.md): fill the open workbook; write the draft email here. Product still failed — **teaching in peer task text** is weaker than GMP’s fill wording, and/or Calc peer lacks a strong “empty scaffold ⇒ write” prior.
+**Exact peer asks (observer notes):** Writer asked Calc to *“Please extract the component-by-component cost breakdown … Return a JSON array…”* (×3). Calc then `get_sheet_summary` / `read_cell_range` on empty Cost Comparison. ComputerUse saw assistant text about an empty JSON `[]`. Tip `891cd670` (#688); model `openai/gpt-oss-120b:nitro`; `max_tool_rounds=150`; UNO thread violations **0**; soffice died after peer.
+
+**Prompt already says fill** (`prompt_used.txt` / notes): *“The holiday floorstand budget workbook is already open… Fill that workbook.”* and *“Write the draft email in this open Writer document.”* Product still failed — **eval prompt fill language alone is not enough** when `send_peer_message` tasks default to extract/JSON. GMP recovered only when the **peer task** said update/enter-into-fields (0225), not when the Writer prompt alone said fill.
 
 ### 2.3 Solutions (DO + why) — peer polarity
 
@@ -145,6 +147,8 @@ From each sibling `notes.md` + soft oracles after #693. Fold real stamps into th
 - Invent wages; ignore Writer CBA brief.  
 - Blank workbook Ready.  
 **Next headed:** Calc-primary chat; confirm brief is research-only.
+
+**Watcher (overnight):** as of PR open, `calc-primary-model/runs/`, `draw-primary-deliverable/runs/`, `reverse-tenant/runs/`, and `long-writer-pack/runs/` still hold only `.gitkeep`. Fold Scrolly stamps here when they land.
 
 ### 10 — Long Writer pack
 
