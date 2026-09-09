@@ -49,12 +49,13 @@ def test_strip_html_tags_streaming_equivalence() -> None:
 
 
 def test_strip_html_tags_overflow_pre_fails_closed() -> None:
-    if not deal_pre_present(StreamingHTMLStripper.feed):
+    if not deal_pre_present(StreamingHTMLStripper._feed_chunk):
         pytest.skip("@deal.pre stripped in release bundle")
-    # Wrapper chunks through feed(); overflow is per-chunk, not whole-string.
+    # Public feed() slices like strip_html_tags; overflow is per-slice on _feed_chunk.
     strip_html_tags("x" * (DEAL_MAX_HTML_CHUNK + 1))
+    StreamingHTMLStripper().feed("x" * (DEAL_MAX_HTML_CHUNK + 1))
     with pytest.raises(deal.PreContractError):
-        StreamingHTMLStripper().feed("x" * (DEAL_MAX_HTML_CHUNK + 1))
+        StreamingHTMLStripper()._feed_chunk("x" * (DEAL_MAX_HTML_CHUNK + 1))
     # Pytest 4096 still reaches the 256-char tag-flush path.
     assert "<" in strip_html_tags("<" + ("a" * 256))
 

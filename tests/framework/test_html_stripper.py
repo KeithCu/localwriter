@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 
+from plugin.framework.deal_shim import DEAL_MAX_HTML_CHUNK
 from plugin.framework.html_stripper import StreamingHTMLStripper, strip_html_tags
 
 
@@ -81,4 +82,25 @@ def test_streaming_html_stripper_safety_cap():
 def test_strip_html_tags_incomplete_non_tag():
     # Synchronous utility should automatically finalize and return "a <b"
     assert strip_html_tags("a <b") == "a <b"
+
+
+def test_streaming_html_stripper_feed_over_deal_max_chunk():
+    """A single feed() larger than DEAL_MAX_HTML_CHUNK must not PreContract.
+
+    _append_response used to pass a whole assistant chunk to feed(); debug
+    @deal.pre required each slice ≤ 4096. This test would have caught that.
+    """
+    body = "Hello <b>" + ("x" * (DEAL_MAX_HTML_CHUNK + 10)) + "</b> world"
+    stripper = StreamingHTMLStripper()
+    out = stripper.feed(body) + stripper.finalize()
+    assert out == "Hello " + ("x" * (DEAL_MAX_HTML_CHUNK + 10)) + " world"
+    assert out == strip_html_tags(body)
+
+
+def test_streaming_html_stripper_feed_tag_spans_deal_slice():
+    """A tag that starts at the last char of one deal slice must still strip."""
+    # '<' is the last char of the first _DEAL_MAX_HTML_CHUNK slice.
+    text = ("a" * (DEAL_MAX_HTML_CHUNK - 1)) + "<b>z</b>"
+    stripper = StreamingHTMLStripper()
+    assert stripper.feed(text) + stripper.finalize() == ("a" * (DEAL_MAX_HTML_CHUNK - 1)) + "z"
 
