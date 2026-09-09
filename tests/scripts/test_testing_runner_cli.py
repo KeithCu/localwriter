@@ -307,6 +307,90 @@ def test_parse_cli_repeat_and_soak_env(monkeypatch) -> None:
         "test_duplicate_slide_copies_shapes",
         "test_duplicate_rename_move_slide",
     ]
+    assert tr._cli_exact_function_names == [
+        "test_duplicate_slide_copies_shapes",
+        "test_duplicate_rename_move_slide",
+    ]
+    rest = tr._parse_cli_args(["--pair", "tree-math"])
+    assert rest == ["test_get_draw_tree", "test_insert_math_draw"]
+    assert tr._cli_exact_function_names == ["test_get_draw_tree", "test_insert_math_draw"]
+    assert "test_get_draw_tree_marks_blank_and_label_hint" not in tr._cli_exact_function_names
+    tr._cli_exact_function_names = []
+
+
+def test_run_module_suite_pair_exact_skips_draw_tree_prefix_bleed() -> None:
+    """--pair tree-math must not run test_get_draw_tree_marks_blank_and_label_hint."""
+    tr.reset_lifecycle_breadcrumb()
+    tr._cli_exact_function_names = ["test_get_draw_tree", "test_insert_math_draw"]
+    ran: list[str] = []
+
+    def test_get_draw_tree(ctx=None):
+        ran.append("tree")
+
+    def test_get_draw_tree_marks_blank_and_label_hint(ctx=None):
+        ran.append("blank")
+
+    def test_insert_math_draw(ctx=None):
+        ran.append("math")
+
+    test_get_draw_tree._is_test = True
+    test_get_draw_tree_marks_blank_and_label_hint._is_test = True
+    test_insert_math_draw._is_test = True
+
+    class _Mod:
+        pass
+
+    module = _Mod()
+    module.test_get_draw_tree = test_get_draw_tree
+    module.test_get_draw_tree_marks_blank_and_label_hint = test_get_draw_tree_marks_blank_and_label_hint
+    module.test_insert_math_draw = test_insert_math_draw
+
+    tr._urp_bridge_dead = False
+    passed, failed, _suite_log = tr.run_module_suite(object(), module, "draw.pair")
+    assert ran == ["tree", "math"]
+    assert passed == 2
+    assert failed == 0
+    tr._cli_exact_function_names = []
+    tr._urp_bridge_dead = False
+    tr.reset_lifecycle_breadcrumb()
+
+
+def test_run_module_suite_fails_ok_test_on_application_error(capsys) -> None:
+    """Harness attribution: TEST returned OK but SalAbort already printed."""
+    tr.reset_lifecycle_breadcrumb()
+    tr.reset_office_death_signals(clear_proc=True)
+    tr._cli_exact_function_names = []
+    ran: list[str] = []
+
+    def test_ok(ctx=None):
+        ran.append("ok")
+        print(tr._APPLICATION_ERROR_MARKER, file=sys.stderr)
+
+    def test_second(ctx=None):
+        ran.append("second")
+
+    test_ok._is_test = True
+    test_second._is_test = True
+
+    class _Mod:
+        pass
+
+    module = _Mod()
+    module.test_ok = test_ok
+    module.test_second = test_second
+
+    tr._urp_bridge_dead = False
+    passed, failed, suite_log = tr.run_module_suite(object(), module, "draw.salabort")
+    assert ran == ["ok"]
+    assert passed == 0
+    assert failed == 1
+    assert tr._urp_bridge_dead is True
+    err = capsys.readouterr().err
+    assert "LIFECYCLE application error after TEST returned draw.salabort.test_ok" in err
+    assert any("Unspecified Application Error" in line for line in suite_log)
+    tr._urp_bridge_dead = False
+    tr.reset_office_death_signals(clear_proc=True)
+    tr.reset_lifecycle_breadcrumb()
 
 
 def test_run_module_suite_fail_names_previous_test(capsys, monkeypatch) -> None:
@@ -331,6 +415,7 @@ def test_run_module_suite_fail_names_previous_test(capsys, monkeypatch) -> None:
     module.test_victim = test_victim
 
     tr._urp_bridge_dead = False
+    tr._cli_exact_function_names = []
     passed, failed, suite_log = tr.run_module_suite(object(), module, "draw.crumb")
     assert passed == 1
     assert failed == 1
@@ -376,6 +461,7 @@ def test_run_module_suite_fails_ok_test_when_bridge_dies_after_return(capsys) ->
 
     ctx = _Ctx()
     tr._urp_bridge_dead = False
+    tr._cli_exact_function_names = []
     passed, failed, suite_log = tr.run_module_suite(ctx, module, "draw.teardown")
     assert ran == ["ok"]
     assert passed == 0
@@ -409,6 +495,7 @@ def test_run_module_suite_stops_after_urp_dispose() -> None:
     module.test_second = test_second
 
     tr._urp_bridge_dead = False
+    tr._cli_exact_function_names = []
     passed, failed, suite_log = tr.run_module_suite(object(), module, "fake.urp")
     assert ran == ["first"]
     assert passed == 0
