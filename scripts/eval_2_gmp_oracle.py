@@ -64,11 +64,18 @@ _RMS_UPDATE_RE = re.compile(
     r"update.{0,24}rms|rms.{0,24}update|change\s+control|form[\s\-]*920",
     re.I,
 )
+# Prompt names the Draw deliverable a Change Control Request; headed
+# HAPPY memos cite that / CCR / "completed … change control" instead of
+# "tracking form" / Form-920. Keep a form-side cite — "change control"
+# alone is the RMS-update theme, not this check.
 _FORM_CITE_RE = re.compile(
     r"change\s+control(?:\s+tracking)?\s+form"
     r"|filled\s+form"
-    r"|draft\s+change\s+control"
-    r"|form[\s\-]*920",
+    r"|draft(?:ed)?(?:\s+a)?\s+change\s+control"
+    r"|change\s+control\s+request"
+    r"|completed.{0,40}change\s+control"
+    r"|form[\s\-]*920"
+    r"|\bCCR\b",
     re.I,
 )
 _QA_EMAIL_RE = re.compile(
