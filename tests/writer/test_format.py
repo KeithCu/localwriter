@@ -162,6 +162,7 @@ def test_insert_content_at_position_text_selection_clears_range():
 
     text_rng = MagicMock()
     text_rng.getText.return_value.createTextCursorByRange.return_value = MagicMock()
+    text_rng.supportsService.return_value = False
 
     sel = MagicMock()
     sel.getCount.return_value = 1
@@ -189,7 +190,8 @@ def test_insert_content_at_position_shape_selection_falls_back_to_doc_end():
     from plugin.writer.format import insert_content_at_position
 
     shape = MagicMock()
-    shape.supportsService.side_effect = lambda s: s == "com.sun.star.drawing.Shape"
+    # LibreOffice often returns 1 rather than True
+    shape.supportsService.side_effect = lambda s: 1 if s == "com.sun.star.drawing.Shape" else 0
 
     sel = MagicMock()
     sel.getCount.return_value = 1
@@ -217,6 +219,35 @@ def test_insert_content_at_position_shape_selection_falls_back_to_doc_end():
     mock_insert.assert_called_once()
     assert mock_insert.call_args.args[2] is body_cursor
     shape.setString.assert_not_called()
+
+
+def test_insert_content_at_position_empty_selection_uses_doc_end():
+    from unittest.mock import MagicMock, patch
+
+    from plugin.writer.format import insert_content_at_position
+
+    sel = MagicMock()
+    sel.getCount.return_value = 0
+
+    controller = MagicMock()
+    controller.getSelection.return_value = sel
+    controller.getViewCursor.side_effect = Exception("no view")
+
+    body_cursor = MagicMock()
+    body_text = MagicMock()
+    body_text.createTextCursor.return_value = body_cursor
+    model = MagicMock()
+    model.getCurrentController.return_value = controller
+    model.getText.return_value = body_text
+
+    with patch("plugin.doc.visual_helpers.is_graphic_object", return_value=False), patch(
+        "plugin.writer.html_import._insert_mixed_or_plain_html"
+    ) as mock_insert:
+        insert_content_at_position(model, MagicMock(), "<p>hi</p>", "selection")
+
+    body_cursor.gotoEnd.assert_called_once_with(False)
+    mock_insert.assert_called_once()
+
 
 
 
