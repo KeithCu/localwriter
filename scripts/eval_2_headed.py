@@ -54,9 +54,16 @@ PDF is **not** the write target. Writer is optional/absent.
 
 Do not open ``fixtures/`` or the task folder.
 
+``--launch`` copies the live LO-user ``writeragent_debug.log`` when the
+trial ends (Enter / Ctrl-C). Pass ``--run-dir`` to write it under that
+stamp; otherwise a ``YYYYMMDD-HHMM`` folder is created under the task
+``runs/`` dir. Mid-stall, before restarting LO, use
+``scripts/save_eval2_debug_log.py DEST_DIR``.
+
 Usage:
   .venv/bin/python scripts/eval_2_headed.py
   .venv/bin/python scripts/eval_2_headed.py --launch
+  .venv/bin/python scripts/eval_2_headed.py --launch --run-dir docs/eval/eval-2/afc-sample-83d10b06/runs/<stamp>
   .venv/bin/python scripts/eval_2_headed.py --launch --trial-dir /tmp/my-afc
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
@@ -88,8 +95,11 @@ import sys
 import tempfile
 import zipfile
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from eval_2_debug_log import lo_user_profile_dirs, snapshot_debug_log
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_TOOL_ROUNDS_KEY = "chatbot.max_tool_rounds"
@@ -203,17 +213,8 @@ TASK_CHOICES = (
 
 
 def writeragent_json_candidates() -> list[Path]:
-    """Same profile locations as bench_embeddings / strip_lru / bench_warm_numpy."""
-    if os.name == "nt":
-        return [Path(os.environ.get("APPDATA", "")) / "LibreOffice" / "4" / "user" / "writeragent.json"]
-    if sys.platform == "darwin":
-        return [Path("~/Library/Application Support/LibreOffice/4/user/writeragent.json").expanduser()]
-    return [
-        Path("~/.config/libreoffice/4/user/config/writeragent.json").expanduser(),
-        Path("~/.config/libreoffice/4/user/writeragent.json").expanduser(),
-        Path("~/.config/libreoffice/24/user/config/writeragent.json").expanduser(),
-        Path("~/.config/libreoffice/24/user/writeragent.json").expanduser(),
-    ]
+    """Same profile locations as bench_embeddings / strip_lru / the debug log."""
+    return [directory / "writeragent.json" for directory in lo_user_profile_dirs()]
 
 
 def find_writeragent_json(
@@ -332,6 +333,33 @@ def task_max_tool_rounds(task: str) -> int:
     if task in {TASK_GMP, TASK_WRITER_CALC, TASK_REVERSE}:
         return EVAL_2_GMP_MAX_TOOL_ROUNDS
     return EVAL_2_MAX_TOOL_ROUNDS
+
+
+def task_doc_dir(task: str) -> Path:
+    """Task folder under docs/eval/eval-2/ (holds fixtures/ + runs/)."""
+    return {
+        TASK_AFC: _AFC_DIR,
+        TASK_TENANT: _TENANT_DIR,
+        TASK_CADAVER: _CADAVER_DIR,
+        TASK_GMP: _GMP_DIR,
+        TASK_WRITER_CALC: _FLOORSTAND_DIR,
+        TASK_CALC_PRIMARY: _CALC_PRIMARY_DIR,
+        TASK_REVERSE: _REVERSE_DIR,
+        TASK_LONG: _LONG_DIR,
+        TASK_DRAW: _DRAW_DIR,
+    }[task]
+
+
+def default_eval2_run_dir(task: str, *, now: datetime | None = None) -> Path:
+    """Durable stamp dir for headed artifacts (debug log, later notes/ods)."""
+    stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M")
+    return task_doc_dir(task) / "runs" / stamp
+
+
+def resolve_headed_run_dir(task: str, run_dir: Path | None, *, now: datetime | None = None) -> Path:
+    if run_dir is not None:
+        return run_dir
+    return default_eval2_run_dir(task, now=now)
 
 
 def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
@@ -909,6 +937,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Durable stamp dir that receives writeragent_debug.log on "
+            "--launch exit (typically docs/eval/eval-2/<task>/runs/<stamp>). "
+            "Default: auto-stamp YYYYMMDD-HHMM under that task's runs/"
+        ),
+    )
+    parser.add_argument(
         "--score",
         type=Path,
         default=None,
@@ -1028,6 +1066,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(str(exc), file=sys.stderr)
                 return 1
             _wait_for_finish(rounds)
+            # Copy before the next trial's LO restart resets the live log.
+            snapshot_debug_log(resolve_headed_run_dir(args.task, args.run_dir))
         else:
             _wait_for_finish(rounds)
     print(f"Restored previous {MAX_TOOL_ROUNDS_KEY} in {config_path}")

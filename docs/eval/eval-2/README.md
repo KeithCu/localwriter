@@ -32,6 +32,19 @@ Do not hand-edit `writeragent.json`. Do not open `fixtures/` or the task
 directory — `--launch` stages a clean trial dir so `document_research`
 cannot list prompt/rubric/gold.
 
+**Debug log (standing rule):** every headed run must keep a **full**
+copy of `writeragent_debug.log`. LO restart for the next trial re-inits
+logging (`Debug log active`) and can reset the live profile file —
+Floorstand Gemini `20260909-1748` lost its tool-call trace that way.
+`--launch` snapshots the live log on Enter / Ctrl-C into `--run-dir`
+(typically `docs/eval/eval-2/<task>/runs/<stamp>/writeragent_debug.log`)
+or an auto-stamp `YYYYMMDD-HHMM` under that task’s `runs/`. Mid-stall,
+**before** restarting LibreOffice:
+
+```bash
+.venv/bin/python scripts/save_eval2_debug_log.py docs/eval/eval-2/<task>/runs/<stamp>
+```
+
 Slot **7 stays PARKED** and is **not wired** into `--task` / `--launch` /
 `--score`. Do not invent helper flags for it. See that stub `run.md`.
 

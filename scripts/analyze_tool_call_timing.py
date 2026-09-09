@@ -18,6 +18,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from eval_2_debug_log import debug_log_candidates, find_debug_log
+
 
 # Debug log line format: "YYYY-MM-DD HH:MM:SS.mmm | [Context] msg"
 LOG_LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) \| (.+)$")
@@ -37,17 +39,12 @@ def parse_timestamp(s):
 
 
 def find_log_path():
-    """Default log locations (extension writes to user config, sometimes under config/)."""
-    candidates = [
-        Path.home() / ".config" / "libreoffice" / "4" / "user" / "config" / "writeragent_debug.log",
-        Path.home() / ".config" / "libreoffice" / "4" / "user" / "writeragent_debug.log",
-        Path.home() / ".config" / "libreoffice" / "24" / "user" / "config" / "writeragent_debug.log",
-        Path.home() / ".config" / "libreoffice" / "24" / "user" / "writeragent_debug.log",
-    ]
-    for p in candidates:
-        if p.exists():
-            return p
-    return candidates[0]  # return first as default for "not found" message
+    """Default log locations (shared with eval_2_debug_log / writeragent.json)."""
+    found = find_debug_log()
+    if found is not None:
+        return found
+    candidates = debug_log_candidates()
+    return candidates[0]  # first candidate for the "not found" message
 
 
 def analyze(log_path):
