@@ -1383,7 +1383,7 @@ def main() -> int:
     same soffice process to stress native-doc open/close. Draw subset::
 
         make test-uno-soak
-        make test-uno-soak FILTER=test_get_draw_tree,test_insert_math_draw REPEAT=50
+        make test-uno-soak FILTER="test_get_draw_tree test_insert_math_draw" REPEAT=50
 
     See ``docs/framework/uno-test-lifecycle.md``.
 
