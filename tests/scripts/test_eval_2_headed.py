@@ -18,6 +18,11 @@ from eval_2_headed import (  # noqa: E402
     DEFAULT_MAX_TOOL_ROUNDS,
     EVAL_2_GMP_MAX_TOOL_ROUNDS,
     EVAL_2_MAX_TOOL_ROUNDS,
+    FLOORSTAND_BUDGET_ODS_NAME,
+    FLOORSTAND_EMAIL_NAME,
+    FLOORSTAND_EMAIL_TRAIL_ODT_NAME,
+    FLOORSTAND_MATRIX_ODS_NAME,
+    FLOORSTAND_ORIG_ODS_NAME,
     GMP_COA_PDF_NAME,
     GMP_FORM_ODG_NAME,
     GMP_MEMO_NAME,
@@ -29,9 +34,11 @@ from eval_2_headed import (  # noqa: E402
     TASK_CADAVER,
     TASK_GMP,
     TASK_TENANT,
+    TASK_WRITER_CALC,
     TENANT_MEMO_NAME,
     _AFC_DIR,
     _CADAVER_DIR,
+    _FLOORSTAND_DIR,
     _GMP_DIR,
     _TENANT_DIR,
     apply_max_tool_rounds,
@@ -41,6 +48,7 @@ from eval_2_headed import (  # noqa: E402
     restore_max_tool_rounds,
     stage_cadaver_trial,
     stage_clean_trial_ods,
+    stage_floorstand_trial,
     stage_gmp_trial,
     stage_tenant_trial,
     task_max_tool_rounds,
@@ -197,12 +205,16 @@ def test_default_eval2_trial_dir_is_tmp_subdir() -> None:
     gmp = default_eval2_trial_dir(TASK_GMP)
     assert gmp.name == "writeragent-eval2-gmp"
     assert gmp.parent == Path(tempfile.gettempdir())
+    floorstand = default_eval2_trial_dir(TASK_WRITER_CALC)
+    assert floorstand.name == "writeragent-eval2-writer-calc"
+    assert floorstand.parent == Path(tempfile.gettempdir())
 
 
 def test_task_max_tool_rounds_gmp_is_150() -> None:
     assert task_max_tool_rounds(TASK_TENANT) == EVAL_2_MAX_TOOL_ROUNDS
     assert task_max_tool_rounds(TASK_CADAVER) == EVAL_2_MAX_TOOL_ROUNDS
     assert task_max_tool_rounds(TASK_GMP) == EVAL_2_GMP_MAX_TOOL_ROUNDS
+    assert task_max_tool_rounds(TASK_WRITER_CALC) == EVAL_2_GMP_MAX_TOOL_ROUNDS
     assert EVAL_2_GMP_MAX_TOOL_ROUNDS == 150
 
 
@@ -271,3 +283,37 @@ def test_stage_gmp_trial_contains_only_refs_memo_and_form(tmp_path: Path) -> Non
 def test_stage_gmp_trial_refuses_real_task_dir() -> None:
     with pytest.raises(ValueError, match="protected"):
         stage_gmp_trial(_GMP_DIR)
+
+
+def test_stage_floorstand_trial_contains_only_refs_email_and_budget(tmp_path: Path) -> None:
+    dest = tmp_path / "trial"
+    dest.mkdir()
+    (dest / "prompt.writeragent.txt").write_text("PROMPT-LEAK", encoding="utf-8")
+    (dest / "rubric.eval2.md").write_text("RUBRIC-LEAK", encoding="utf-8")
+    email, budget = stage_floorstand_trial(dest)
+    names = sorted(p.name for p in dest.iterdir())
+    assert names == sorted(
+        [
+            FLOORSTAND_EMAIL_TRAIL_ODT_NAME,
+            FLOORSTAND_ORIG_ODS_NAME,
+            FLOORSTAND_MATRIX_ODS_NAME,
+            FLOORSTAND_BUDGET_ODS_NAME,
+            FLOORSTAND_EMAIL_NAME,
+        ]
+    )
+    assert email == dest / FLOORSTAND_EMAIL_NAME
+    assert budget == dest / FLOORSTAND_BUDGET_ODS_NAME
+    assert email.is_file()
+    assert budget.is_file()
+    assert "Deliverable Holiday Floorstand Budget.xlsx" not in names
+    assert "Email Trail Floorstands.docx" not in names
+    assert not any(
+        "PROMPT-LEAK" in p.read_text(encoding="utf-8", errors="ignore")
+        for p in dest.iterdir()
+        if p.suffix in {".txt", ".md"}
+    )
+
+
+def test_stage_floorstand_trial_refuses_real_task_dir() -> None:
+    with pytest.raises(ValueError, match="protected"):
+        stage_floorstand_trial(_FLOORSTAND_DIR)
