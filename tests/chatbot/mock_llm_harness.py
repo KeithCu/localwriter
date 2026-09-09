@@ -13,12 +13,18 @@ import unittest
 from http.server import ThreadingHTTPServer
 from typing import Any
 
-from scripts.mock_llm_server import (
-    MOCK_MODEL_ID,
-    CompletionRule,
-    MockLLMConfig,
-    make_handler_class,
-)
+try:
+    from scripts.mock_llm_server import (
+        MOCK_MODEL_ID,
+        CompletionRule,
+        MockLLMConfig,
+        make_handler_class,
+    )
+except ImportError:
+    MOCK_MODEL_ID = "mock-model"
+    CompletionRule = Any  # type: ignore[assignment,misc]
+    MockLLMConfig = Any  # type: ignore[assignment,misc]
+    make_handler_class = None  # type: ignore[assignment,misc]
 
 
 def mock_config(config: Any, **flags: Any) -> Any:
@@ -56,6 +62,9 @@ def start_mock_sidebar_session(*, delay_ms: int = 20, offline: bool = True, **fl
         set_api_key_for_endpoint,
         set_config,
     )
+
+    if make_handler_class is None or MockLLMConfig is Any:
+        raise RuntimeError("scripts.mock_llm_server is not available in stripped release builds")
 
     config = MockLLMConfig(delay_ms=delay_ms, offline=offline)
     mock_config(config, **flags)

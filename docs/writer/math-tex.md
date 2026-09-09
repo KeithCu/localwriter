@@ -719,12 +719,33 @@ Everything here is **outside** WriterAgent’s tree unless noted. Use for **Math
 
 | Name | PyPI / source | Role | Typical deps | Extension fit |
 |------|---------------|------|----------------|-----------------|
-| **mathml-to-latex** | [PyPI](https://pypi.org/project/mathml-to-latex/), [asnunes/py-mathml-to-latex](https://github.com/asnunes/py-mathml-to-latex) | Presentation MathML string → LaTeX string (`MathMLToLaTeX().convert`). Port of the JS **mathml-to-latex**. | Effectively **none** on modern Python (wheel ~32 KiB). | **First spike** for in-extension or offline eval: small, MIT. |
-| **mml2tex** | [PyPI](https://pypi.org/project/mml2tex/) | Wraps **[transpect/mml2tex](https://github.com/transpect/mml2tex)** XSLT via Python. | **`lxml`**, pinned **`saxonche`**. | **Poor default for OXT:** heavy stack; better for **developer machines / CI** proving coverage on hard MathML. |
-| **mathml2latex** | [PyPI](https://pypi.org/project/mathml2latex/), [KiaismAgre/mathml2latex](https://github.com/KiaismAgre/mathml2latex) | BS4-based Presentation MathML → LaTeX. | **beautifulsoup4**. | **Reference / narrow cases:** last release **2019**; audit before any dependency. |
+| **mathml-to-latex** (shipped) | [PyPI](https://pypi.org/project/mathml-to-latex/), [asnunes/py-mathml-to-latex](https://github.com/asnunes/py-mathml-to-latex) | Presentation MathML string → LaTeX string (`MathMLToLaTeX.convert`). Pure Python port of JS `mathml-to-latex`. | **Zero** (stdlib only; ~32 KiB wheel). | **Chosen and shipped:** Lightweight, pure Python, zero binary deps. Ideal for LibreOffice `.oxt` runtime. |
+| **mml2tex-py** | [PyPI](https://pypi.org/project/mml2tex/), [haohanyang/mml2tex-py](https://github.com/haohanyang/mml2tex-py) | Wraps **[transpect/mml2tex](https://github.com/transpect/mml2tex)** XSLT 2.0/3.0 via Python. | **`lxml`**, pinned **`saxonche`** (~80–120 MB binary). | **Poor default for OXT:** Heavy native C++/Java stack. However, **most accurate & actively maintained**; ideal for **developer machines / CI** as a reference oracle. |
+| **bowang/mathml2latex** | [GitHub bowang/mathml2latex](https://github.com/bowang/mathml2latex) | OneNote to Markdown script using `lxml` + 2003 `mmltex.xsl` XSLT 1.0 + unicode regex map. | **`lxml`**. | **Unusable:** Dormant since 2021, not a PyPI package, hardcoded for OneNote `<!--[if mathML]>` markup. |
+| **mathml2latex** (KiaismAgre) | [PyPI](https://pypi.org/project/mathml2latex/), [KiaismAgre/mathml2latex](https://github.com/KiaismAgre/mathml2latex) | BS4-based Presentation MathML → LaTeX. | **beautifulsoup4**. | **Reference / narrow cases:** Dormant (last release 2019); superseded by `mathml-to-latex`. |
 | **mathml2tex** (davidchern) | [GitHub davidchern/mathml2tex](https://github.com/davidchern/mathml2tex) | Rule / BS-style MathML → TeX subset. | Usually **bs4**-class stack. | Treat like **mathml2latex**: useful ideas, verify license + tests. |
 | **latex2mathml** (upstream) | [roniemartinez/latex2mathml](https://github.com/roniemartinez/latex2mathml) | **Forward only** (TeX → MathML). No inverse API. | Pure Python (already a WriterAgent dependency on **import**). | Use **`tests/` fixtures** as **golden pairs** for round-trip experiments (`TeX → MathML → ? → TeX′`), not as reverse engine. |
 | **SymPy** | [sympy](https://pypi.org/project/sympy/) | `latex(expr)` and MathML **printers** from symbolic expressions. | Large package. | **Wrong primary tool:** not a general “parse arbitrary `<math>` document fragment → LaTeX” pipeline; only if you already have a **SymPy** `Expr`. |
+
+### Evaluated Alternatives & Trade-offs (Research Notes)
+
+- **`asnunes/py-mathml-to-latex` (`mathml-to-latex` v1.0.0 on PyPI):**
+  - **Status:** Shipped in WriterAgent (`requirements-vendor.txt`).
+  - **Design:** Pure Python port of Alexandre Nunes' popular JavaScript `mathml-to-latex` library. It walks the MathML AST and emits standard LaTeX commands for Presentation MathML tags (`<mfrac>`, `<msqrt>`, `<mfenced>`, `<msub>`, `<mtable>`, etc.).
+  - **Pros:** Completely self-contained, zero binary dependencies, cross-platform, negligible footprint (~32 KiB). Crucial for running seamlessly across Linux, macOS, and Windows inside LibreOffice's embedded Python interpreter.
+  - **Cons:** Covers common Presentation MathML constructs well, but does not cover every rare publishing edge case.
+
+- **`haohanyang/mml2tex-py` (`mml2tex` v0.1.0 on PyPI):**
+  - **Status:** Actively maintained (recent v0.1.0 release wrapping Saxon/C 12.9).
+  - **Design:** Python wrapper around the transpect `mml2tex` XSLT suite.
+  - **Pros:** Highest mathematical fidelity. Transpect's stylesheets are the gold standard in publishing pipelines and handle complex, deeply nested MathML structures.
+  - **Cons:** Heavy native binary dependencies: `saxonche` (an 80–120 MB C++/Java bridge) and `lxml`. Bundling this into a LibreOffice `.oxt` extension is impractical and error-prone across target platforms.
+  - **Best use:** Golden reference oracle for offline testing and CI test generation.
+
+- **`bowang/mathml2latex`:**
+  - **Status:** Abandoned / dormant (last commit in 2021).
+  - **Design:** A personal CLI script for migrating OneNote math notes to Markdown.
+  - **Cons:** Not published to PyPI; depends on `lxml` to run an old 2003 `mmltex.xsl` stylesheet by Vasil Yaroshevich; relies on ad-hoc regex replacements for missing Unicode symbols; tightly coupled to OneMark's `<!--[if mathML]>` HTML comment wrapper. Unsuitable as a general library.
 
 **In-repo building blocks (not reverse converters):**
 

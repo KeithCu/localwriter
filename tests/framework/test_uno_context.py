@@ -433,7 +433,9 @@ def test_uno_same_proxy_eq_unwraps_target():
     """GUARD_ON proxy ``__eq__`` unwraps ``_target`` so proxy↔unwrapped is same (step 2)."""
     from plugin.framework import thread_guard as tg
     from plugin.framework.uno_context import uno_same
+    from tests.strip_bundle import skip_if_release_build
 
+    skip_if_release_build("GUARD_ON thread guard proxy stripped in release bundle")
     real = object()
     proxy = tg._UnoThreadGuardProxy(real)
     assert proxy is not real
@@ -445,7 +447,9 @@ def test_uno_same_issame_unwraps_proxy_first():
     """``uno.isSame`` must see the real PyUNO target, not the viral proxy wrapper."""
     from plugin.framework import thread_guard as tg
     from plugin.framework.uno_context import uno_same
+    from tests.strip_bundle import skip_if_release_build
 
+    skip_if_release_build("GUARD_ON thread guard proxy stripped in release bundle")
     real_a, real_b = object(), object()
     proxy_a = tg._UnoThreadGuardProxy(real_a)
     seen: list[tuple[object, object]] = []

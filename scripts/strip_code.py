@@ -438,6 +438,9 @@ class _UnoThreadGuardProxy:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self._target(*args, **kwargs)
 
+    def __eq__(self, other: object) -> bool:
+        return self._target == _unwrap_uno(other)
+
 def _unwrap_uno(obj: Any) -> Any:
     if isinstance(obj, _UnoThreadGuardProxy):
         return obj._target
