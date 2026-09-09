@@ -186,6 +186,12 @@ def insert_result_into_calc(doc: Any, uno_ctx: Any, result: Any) -> None:
     try:
         if result is None:
             return
+        if is_shape_tool_status_result(result):
+            log.debug(
+                "Skipping Calc result insert for shape tool status dict (keys=%s)",
+                sorted(result.keys()) if isinstance(result, dict) else type(result).__name__,
+            )
+            return
 
         # Determine anchor cell from selection
         controller = doc.getCurrentController() if doc else None
@@ -491,7 +497,13 @@ def execute_and_insert_result(
                     return post
 
             if is_calc(doc):
-                insert_result_into_calc(doc, ctx, result_data)
+                if is_shape_tool_status_result(result_data):
+                    log.debug(
+                        "Skipping Calc result insert for shape tool status dict (keys=%s)",
+                        sorted(result_data.keys()) if isinstance(result_data, dict) else type(result_data).__name__,
+                    )
+                else:
+                    insert_result_into_calc(doc, ctx, result_data)
             elif is_writer(doc):
                 if is_shape_tool_status_result(result_data):
                     log.debug(

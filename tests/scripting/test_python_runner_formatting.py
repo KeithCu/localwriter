@@ -218,5 +218,27 @@ def test_insert_result_into_calc_exception_shows_msgbox():
     box.assert_called_once()
     assert "Failed to insert result into Calc" in box.call_args[0][2]
 
+
+
+def test_insert_result_into_calc_skips_shape_status_dict():
+    from unittest.mock import MagicMock, patch
+    from plugin.scripting.python_runner import insert_result_into_calc
+
+    doc = MagicMock()
+    with patch("plugin.calc.rich_html.insert_cell_html_rich") as rich:
+        insert_result_into_calc(
+            doc,
+            MagicMock(),
+            {
+                "status": "ok",
+                "message": "Created star24",
+                "index": 0,
+                "page": 0,
+                "shape_count_after": 1,
+                "geometry_applied": True,
+            },
+        )
+    rich.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
