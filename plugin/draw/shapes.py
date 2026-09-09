@@ -703,13 +703,23 @@ class UpsertShape(ToolDrawShapeBase):
             _try_writer_at_page_shape_finalize(ctx.doc, bridge, page, shape)
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
 
+            # Writer: re-apply EnhancedCustomShapeGeometry after AT_PAGE anchor (pre-#527
+            # upsert path). Before-add alone can leave handles-only / invisible on some LO.
+            if (
+                is_custom_shape
+                and custom_shape_type
+                and ctx.doc is not None
+                and ctx.doc.supportsService("com.sun.star.text.TextDocument")
+            ):
+                geometry_applied, geometry_error = _apply_enhanced_custom_shape_type(
+                    shape, custom_shape_type
+                )
+
             _apply_shape_properties(shape, kwargs)
             # setString can still resize Writer AT_PAGE custom shapes (Arch: 4001x4001 → 2249x489).
             _try_writer_reapply_position_after_anchor(ctx.doc, shape, position, size)
             _try_writer_invalidate_and_pump(ctx.doc)
-            # Skip select-after-create: Writer CustomShape often shows handles-only
-            # (no fill) while selected; Universal Sample / Arch paint needs the shape unselected.
-            # _try_writer_select_created_shape(ctx.doc, shape)
+            _try_writer_select_created_shape(ctx.doc, shape)
             _log_shape_uno_snapshot("after_formatting", shape)
             if is_custom_shape:
                 _log_custom_shape_geometry_dump(shape, "after_formatting")
