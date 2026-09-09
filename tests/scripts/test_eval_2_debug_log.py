@@ -90,15 +90,18 @@ def test_snapshot_debug_log_warns_when_missing(tmp_path: Path) -> None:
 
 def test_snapshot_debug_log_returns_dest(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     live = tmp_path / "live.log"
-    live.write_text("trace\n", encoding="utf-8")
+    # Binary write: Path.write_text("trace\n") becomes 7 bytes on Windows (CRLF).
+    body = b"trace\n"
+    live.write_bytes(body)
     dest_dir = tmp_path / "stamp"
     result = snapshot_debug_log(dest_dir, source=live)
     assert result == dest_dir / DEBUG_LOG_FILENAME
     assert result is not None
-    assert result.read_text(encoding="utf-8") == "trace\n"
+    assert result.read_bytes() == body
     printed = capsys.readouterr().out
     assert str(live) in printed
-    assert "6 bytes" in printed
+    assert f"{len(body)} bytes" in printed
+
 
 
 def test_save_eval2_debug_log_helper_prints_source_and_size(

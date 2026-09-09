@@ -1,0 +1,5 @@
+# Gold / eval-2 prompt copies are compared as bytes against the HF tree
+# and task.json "prompt" (LF). Windows checkout with core.autocrlf must
+# not rewrite these as CRLF or test_gold_prompt_is_byte_copy_of_hf_tree fails.
+docs/eval/gdpval/**/prompt.txt text eol=lf
+docs/eval/eval-2/**/prompt.gdpval.txt text eol=lf
