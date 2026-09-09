@@ -4,6 +4,8 @@
 `docs/eval/gdpval/` gold trees except by **adding** a new untouched gold
 id. A multi-model benchmark comes later, when ~10 siblings exist.
 
+Living headed autopsy (product bar + peer polarity + next experiments): [`headed-failure-autopsy.md`](headed-failure-autopsy.md).
+
 Each subdirectory is one experiment. **Ready** means headed helper +
 oracle exist. **Stub** means fixture notes only — not headed-ready gold.
 
