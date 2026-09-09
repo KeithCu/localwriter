@@ -75,9 +75,9 @@ Implemented in [`response_normalizers.py`](../../plugin/framework/client/respons
 
 | Item | Location | Notes |
 |------|----------|-------|
-| `GetImage` core tool | [`get_image.py`](../../plugin/writer/get_image.py) | `tier="core"`, Writer `TextDocument` only |
+| `GetImage` core tool | [`get_image.py`](../../plugin/writer/get_image.py) | `tier="core"`, Writer `TextDocument` + Draw `DrawingDocument` + Impress `PresentationDocument` |
 | Modes | same | `image=<name>`, `selection=true` (or implicit when no name), `page=<n>` (1-based whole-page PNG) |
-| Page render | `_render_page_png` | Native `writer_png_Export` after `jumpToPage`; XRenderable abandoned (BUG-5: `getRendererCount` reports 1 page on multi-page docs). View cursor saved/restored best-effort. Fail-loud — never returns empty PNG. |
+| Page render | `_render_page_png` | Writer: native `writer_png_Export` after `jumpToPage` (XRenderable abandoned — BUG-5). Draw/Impress: `GraphicExportFilter` on the `XDrawPage` (`MediaType=image/png`; same bytes as `draw_png_Export` / `impress_png_Export` after `setCurrentPage`, without a view jump). Fail-loud — never returns empty PNG. |
 | Wire marker | same | Returns `{"status":"ok","source":...,"_mcp_image":{"data":"<b64>","mimeType":"image/png"}}` |
 | Schema gating | [`vision_availability.py`](../../plugin/vision/vision_availability.py) `filter_get_image_for_text_only_model` | On **openai** schema path only: drops `get_image` when `has_native_vision` is false. Fail-open on lookup errors. MCP path always exposes it (client assumed vision-capable). Hook in [`tool.py`](../../plugin/framework/tool.py) `get_schemas`. |
 
@@ -104,7 +104,8 @@ MCP vision clients receive the picture itself, not base64 pasted as text.
 | `normalize_multimodal_messages` per provider | [`tests/framework/test_client_llm.py`](../../tests/framework/test_client_llm.py), [`tests/framework/client/test_response_normalizers.py`](../../tests/framework/client/test_response_normalizers.py) |
 | `filter_get_image_for_text_only_model` | [`tests/vision/test_vision_availability.py`](../../tests/vision/test_vision_availability.py) |
 | `call_tool_result_image` | [`tests/mcp/test_wire_types.py`](../../tests/mcp/test_wire_types.py) |
-| `_render_page_png` error/control-flow | [`tests/writer/test_get_image_render.py`](../../tests/writer/test_get_image_render.py) |
+| `_render_page_png` error/control-flow | [`tests/writer/test_get_image_render.py`](../../tests/writer/test_get_image_render.py) (Writer + Draw/Impress) |
+| Draw/Impress `page=N` PNG (live) | [`tests/writer/test_get_image_uno.py`](../../tests/writer/test_get_image_uno.py) |
 | `_resolve_crop_edges`, `_resolve_orient` | [`tests/writer/images/test_crop_edges.py`](../../tests/writer/images/test_crop_edges.py), [`tests/writer/images/test_images.py`](../../tests/writer/images/test_images.py) |
 
 Host capability table row: [recognition.md §6](recognition.md).
@@ -265,7 +266,7 @@ Normalization belongs in the `LlmClient` layer (`make_chat_request`) so all chat
 - **Not all vision models support tools** on local stacks.
 - **Send-path selection:** Raster images in Writer/Calc selection only; Draw/Impress vectors use other paths.
 - **Main chat model only** for send-path attachment; sub-agents/delegates have separate rules.
-- **`get_image` Writer-only** for now; Calc has specialized list/info/set but not core fetch (see follow-up §4).
+- **`get_image`** is on Writer, Draw, and Impress. Calc still has specialized list/info/set but not core fetch (see follow-up §4). Draw/Impress `page=N` is a screenshot; `get_draw_tree` stays the structure read.
 - **Complementary OCR:** Use `domain=vision` + `extract_structure_from_image` for text and structure + insert; use native multimodal for visual reasoning.
 
 ---
