@@ -13,7 +13,9 @@
 #
 # URP DisposedException on the next factory open: FAIL lines include
 # previous=<last TEST end> (see format_lifecycle_breadcrumb). Soak:
-# --repeat N / make test-uno-soak. docs/framework/uno-test-lifecycle.md
+# --repeat N / make test-uno-soak. SalAbort empty-text
+# ("Unspecified Application Error") fail-closes the OK test.
+# docs/framework/uno-test-lifecycle.md
 
 import logging
 import json
@@ -22,6 +24,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import traceback
 import unittest
@@ -176,6 +179,30 @@ _SOAK_PAIRS: Dict[str, List[str]] = {
     ],
 }
 
+# ``--pair`` uses exact function names. Prefix match on ``test_get_draw_tree``
+# also selected ``test_get_draw_tree_marks_blank_and_label_hint`` (QA soak).
+_cli_exact_function_names: list[str] = []
+
+# VCL SalAbort empty-text fallback (LibreOffice vcl/source/app/salplug.cxx):
+# fprintf(stderr, "Unspecified Application Error\n") then abort()/_exit(1).
+# Not a Draw assertion. The office is dying; URP death is the next symptom.
+_APPLICATION_ERROR_MARKER = "Unspecified Application Error"
+_OFFICE_STDERR_TAIL = 30
+_soffice_proc: Any = None
+_office_stderr_lock = threading.Lock()
+_office_stderr_application_error = False
+_office_stderr_tail: list[str] = []
+
+
+def reset_office_death_signals(*, clear_proc: bool = False) -> None:
+    """Clear SalAbort / stderr flags. Does not drop the live soffice Popen unless asked."""
+    global _soffice_proc, _office_stderr_application_error, _office_stderr_tail
+    with _office_stderr_lock:
+        _office_stderr_application_error = False
+        _office_stderr_tail = []
+    if clear_proc:
+        _soffice_proc = None
+
 
 def reset_lifecycle_breadcrumb() -> None:
     """Clear the previous/current TEST trail (start of a run or unit test)."""
@@ -192,6 +219,151 @@ def reset_lifecycle_breadcrumb() -> None:
     _lifecycle_current_start_pids = ""
     _lifecycle_current_start_mono = 0.0
     _lifecycle_current_bridge = ""
+    reset_office_death_signals()
+
+
+def note_office_stderr_line(line: str, *, echo: bool = False) -> None:
+    """Record one office/Python stderr line; set the SalAbort flag if the marker appears.
+
+    ``echo=True`` reprints on the real stderr (soffice PIPE drain). The TEST-call
+    tee already wrote the line, so it only marks.
+    """
+    global _office_stderr_application_error
+    text = line.rstrip("\r\n")
+    if not text:
+        return
+    if echo:
+        print(text, file=sys.__stderr__, flush=True)
+    with _office_stderr_lock:
+        _office_stderr_tail.append(text)
+        if len(_office_stderr_tail) > _OFFICE_STDERR_TAIL:
+            del _office_stderr_tail[0 : len(_office_stderr_tail) - _OFFICE_STDERR_TAIL]
+        if _APPLICATION_ERROR_MARKER in text:
+            _office_stderr_application_error = True
+
+
+def consume_application_error() -> bool:
+    """Return-and-clear whether Unspecified Application Error was seen since last consume."""
+    global _office_stderr_application_error
+    with _office_stderr_lock:
+        seen = _office_stderr_application_error
+        _office_stderr_application_error = False
+        return seen
+
+
+def office_stderr_tail() -> list[str]:
+    with _office_stderr_lock:
+        return list(_office_stderr_tail)
+
+
+def soffice_exit_code() -> int | None:
+    """``Popen.poll()`` of the harness soffice, or None if still running / no child."""
+    proc = _soffice_proc
+    if proc is None:
+        return None
+    try:
+        return proc.poll()
+    except Exception:
+        return None
+
+
+def attach_soffice_proc(proc: Any) -> None:
+    """Keep the bootstrap Popen and drain its stderr (must be PIPE)."""
+    global _soffice_proc
+    _soffice_proc = proc
+    stream = getattr(proc, "stderr", None)
+    if stream is None:
+        return
+    # Harness-only: bootstrap is before plugin worker_pool. Dedicated daemon so
+    # a full stderr pipe cannot deadlock soffice (AGENTS.md pipe-drain rule).
+    thread = threading.Thread(
+        target=_drain_soffice_stderr,
+        args=(stream,),
+        name="soffice-stderr-drain",
+        daemon=True,
+    )
+    thread.start()
+
+
+def _drain_soffice_stderr(stream: Any) -> None:
+    try:
+        while True:
+            line = stream.readline()
+            if not line:
+                break
+            note_office_stderr_line(line, echo=True)
+    except Exception:
+        pass
+    finally:
+        try:
+            stream.close()
+        except Exception:
+            pass
+
+
+class _StderrMarkerTee:
+    """Wrap ``sys.stderr`` during a TEST call so in-process SalAbort text is flagged."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    def write(self, data: Any) -> int:
+        if isinstance(data, bytes):
+            text = data.decode("utf-8", "replace")
+        else:
+            text = data if isinstance(data, str) else str(data)
+        if text and _APPLICATION_ERROR_MARKER in text:
+            note_office_stderr_line(text, echo=False)
+        return self._inner.write(data)
+
+    def flush(self) -> None:
+        return self._inner.flush()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
+def collect_post_test_death(ctx: Any = None) -> str | None:
+    """Fail-closed reason if the office aborted during this TEST, else None.
+
+    QA: killer printed Unspecified Application Error and still returned OK;
+    the next open saw Binary URP already disposed. getServiceManager can lag
+    SalAbort. Treat the stderr marker or a child exit as URP death.
+    """
+    app_err = consume_application_error()
+    exit_code = soffice_exit_code()
+    pids = _soffice_pids()
+    bridge = probe_uno_bridge(ctx)
+    crumb = format_lifecycle_breadcrumb()
+    tail = office_stderr_tail()
+    tail_note = ""
+    if tail:
+        tail_note = " stderr_tail=%s" % " | ".join(tail[-5:])
+    if app_err:
+        return (
+            "Binary URP bridge disposed during call; Unspecified Application Error "
+            "on office stderr (VCL SalAbort) soffice_exit=%s pids=%s bridge=%s %s%s"
+            % (
+                "-" if exit_code is None else exit_code,
+                pids,
+                bridge,
+                crumb,
+                tail_note,
+            )
+        )
+    if exit_code is not None:
+        return (
+            "Binary URP bridge disposed during call; soffice exited %s during TEST "
+            "pids=%s bridge=%s %s%s"
+            % (exit_code, pids, bridge, crumb, tail_note)
+        )
+    if bridge == "disposed":
+        return (
+            "Binary URP bridge disposed during call; office dead after "
+            "TEST returned (teardown likely killed URP) %s"
+            % crumb
+        )
+    return None
 
 
 def probe_uno_bridge(ctx: Any = None) -> str:
@@ -428,9 +600,10 @@ def _parse_cli_args(argv: Sequence[str]) -> list[str]:
     / ``dup-move`` expands to the two Draw tests that historically sandwich a
     URP death. See ``docs/framework/uno-test-lifecycle.md``.
     """
-    global show_window, use_user_profile, _soak_repeat
+    global show_window, use_user_profile, _soak_repeat, _cli_exact_function_names
     filters: list[str] = []
     _soak_repeat = 1
+    _cli_exact_function_names = []
     soak_from_cli = False
     skip_next = False
     for i, arg in enumerate(argv):
@@ -456,6 +629,7 @@ def _parse_cli_args(argv: Sequence[str]) -> list[str]:
                 names = expand_soak_pair(argv[i + 1])
                 if names:
                     filters.extend(names)
+                    _cli_exact_function_names = list(names)
                 else:
                     filters.append(str(argv[i + 1]))
                 skip_next = True
@@ -463,6 +637,7 @@ def _parse_cli_args(argv: Sequence[str]) -> list[str]:
             names = expand_soak_pair(arg.split("=", 1)[1])
             if names:
                 filters.extend(names)
+                _cli_exact_function_names = list(names)
             else:
                 filters.append(arg.split("=", 1)[1])
         else:
@@ -815,7 +990,14 @@ def _bootstrap_user_profile_gui(officehelper_module: Any) -> Any:
         cmd,
         env=child_env,
         start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
     )
+    attach_soffice_proc(proc)
     # GUI + extension OnStartApp is slower than headless.
     return _connect_uno_accept(proc, accept, path_label="user-profile")
 
@@ -865,7 +1047,14 @@ def _bootstrap_office(officehelper_module: Any) -> Any:
             cmd,
             env=child_env,
             start_new_session=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
         )
+        attach_soffice_proc(proc)
         # Headless usually connects faster than GUI; keep the same retry budget.
         ctx = _connect_uno_accept(
             proc,
@@ -980,11 +1169,14 @@ def run_module_suite(ctx, module, name, doc_model=None):
     # fail on factory open because the *previous suite's last test* killed URP.
     _progress(f"SUITE start {name} python_pid={os.getpid()} soffice.bin={_soffice_pids()}")
     name_filters = _test_function_filters(_cli_filters)
-    if name_filters:
+    if _cli_exact_function_names:
+        exact = set(_cli_exact_function_names)
+        selected = [tf for tf in test_funcs if tf.__name__ in exact]
+    elif name_filters:
         selected = [tf for tf in test_funcs if _function_name_matches(tf.__name__, name_filters)]
     else:
         selected = list(test_funcs)
-    if name_filters and not selected:
+    if (name_filters or _cli_exact_function_names) and not selected:
         msg = f"No tests matched filters {name_filters!r} in {name}"
         _progress(f"SUITE filter miss {name}: {name_filters}")
         _progress(f"SUITE end {name} passed=0 failed=1")
@@ -1027,31 +1219,56 @@ def run_module_suite(ctx, module, name, doc_model=None):
                     accepts_ctx = "ctx" in sig.parameters
                 except Exception:
                     accepts_ctx = True
-                # GHA 33703959362: execute-done then 20min silence, no TEST end.
-                # call vs returned splits body hang from post-return bookkeeping.
-                _progress(f"TEST call {qual}")
-                if accepts_ctx:
-                    test_func(ctx=ctx)
-                else:
-                    test_func()
-                _progress(f"TEST returned {qual}")
-                # Harness attribution (not a product fix): body + @with_native_doc
-                # teardown returned, but getServiceManager is already disposed.
-                # Name *this* test as the killer instead of the next factory open.
-                post_bridge = probe_uno_bridge(ctx)
-                if post_bridge == "disposed":
-                    dead_exc = RuntimeError(
-                        "Binary URP bridge disposed during call; office dead after "
-                        "TEST returned (teardown likely killed URP) %s"
-                        % format_lifecycle_breadcrumb()
-                    )
+                # SalAbort can print after the previous TEST end OK. Fail-closed
+                # here so we do not open another Draw factory on a dying office.
+                gap_death = collect_post_test_death(ctx)
+                if gap_death:
+                    dead_exc = RuntimeError(gap_death)
                     total_failed += 1
                     suite_log.append(f"{test_line} — FAIL ({dead_exc})")
                     suite_log.append("LIFECYCLE %s" % format_lifecycle_breadcrumb())
                     _progress(
-                        "LIFECYCLE office dead after TEST returned %s %s"
-                        % (qual, format_lifecycle_breadcrumb())
+                        "LIFECYCLE office death before TEST call %s soffice_exit=%s %s"
+                        % (qual, soffice_exit_code(), format_lifecycle_breadcrumb())
                     )
+                    _progress(f"TEST end {qual} FAIL {_fail_reason_with_lifecycle(dead_exc)}")
+                    _mark_urp_dead(dead_exc, qual)
+                    record_test_end(qual, "FAIL")
+                    break
+                # GHA 33703959362: execute-done then 20min silence, no TEST end.
+                # call vs returned splits body hang from post-return bookkeeping.
+                _progress(f"TEST call {qual}")
+                # In-process SalAbort text hits Python stderr; soffice PIPE drain
+                # catches the same marker from the child (Popen inherits no longer).
+                old_err = sys.stderr
+                sys.stderr = _StderrMarkerTee(old_err)
+                try:
+                    if accepts_ctx:
+                        test_func(ctx=ctx)
+                    else:
+                        test_func()
+                finally:
+                    sys.stderr = old_err
+                _progress(f"TEST returned {qual}")
+                # Harness attribution (not a product fix): body + @with_native_doc
+                # teardown returned, but SalAbort already printed, soffice exited,
+                # or getServiceManager is disposed. Name *this* test as the killer.
+                death = collect_post_test_death(ctx)
+                if death:
+                    dead_exc = RuntimeError(death)
+                    total_failed += 1
+                    suite_log.append(f"{test_line} — FAIL ({dead_exc})")
+                    suite_log.append("LIFECYCLE %s" % format_lifecycle_breadcrumb())
+                    if _APPLICATION_ERROR_MARKER in death:
+                        _progress(
+                            "LIFECYCLE application error after TEST returned %s soffice_exit=%s %s"
+                            % (qual, soffice_exit_code(), format_lifecycle_breadcrumb())
+                        )
+                    else:
+                        _progress(
+                            "LIFECYCLE office dead after TEST returned %s %s"
+                            % (qual, format_lifecycle_breadcrumb())
+                        )
                     _progress(f"TEST end {qual} FAIL {_fail_reason_with_lifecycle(dead_exc)}")
                     _mark_urp_dead(dead_exc, qual)
                     record_test_end(qual, "FAIL")
@@ -1059,7 +1276,11 @@ def run_module_suite(ctx, module, name, doc_model=None):
                 total_passed += 1
                 suite_log.append(f"{test_line} — OK")
                 record_test_end(qual, "OK")
-                _progress(f"TEST end {qual} OK soffice={_lifecycle_last_end_pids}")
+                exit_code = soffice_exit_code()
+                _progress(
+                    "TEST end %s OK soffice=%s exit=%s"
+                    % (qual, _lifecycle_last_end_pids, "-" if exit_code is None else exit_code)
+                )
             except ModuleNotFoundError as e:
                 # Some "native" tests attempt to use pytest.skip, but LibreOffice's
                 # Python may not have pytest installed.

@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from plugin.testing_runner import (
+    _APPLICATION_ERROR_MARKER,
     _cli_filters,
     _fail_reason,
     _fail_reason_with_lifecycle,
@@ -16,12 +17,17 @@ from plugin.testing_runner import (
     _is_case_id,
     _module_matches_filters,
     _test_function_filters,
+    collect_post_test_death,
+    consume_application_error,
     expand_soak_pair,
     format_lifecycle_breadcrumb,
+    note_office_stderr_line,
     probe_uno_bridge,
     record_test_end,
     record_test_start,
     reset_lifecycle_breadcrumb,
+    reset_office_death_signals,
+    soffice_exit_code,
 )
 
 
@@ -176,6 +182,56 @@ def test_expand_soak_pair_aliases() -> None:
         "test_duplicate_rename_move_slide",
     ]
     assert expand_soak_pair("unknown") == []
+
+
+def test_function_name_matches_draw_tree_prefix_bleed() -> None:
+    """FILTER=test_get_draw_tree also selects the blank/label test; --pair must not."""
+    assert _function_name_matches(
+        "test_get_draw_tree_marks_blank_and_label_hint",
+        ["test_get_draw_tree"],
+    ) is True
+    assert "test_get_draw_tree_marks_blank_and_label_hint" not in expand_soak_pair("tree-math")
+
+
+def test_note_office_stderr_line_sets_salabort_flag() -> None:
+    reset_office_death_signals(clear_proc=True)
+    assert consume_application_error() is False
+    note_office_stderr_line("warn: something else")
+    assert consume_application_error() is False
+    note_office_stderr_line("  %s  " % _APPLICATION_ERROR_MARKER)
+    assert consume_application_error() is True
+    assert consume_application_error() is False
+    reset_office_death_signals(clear_proc=True)
+
+
+def test_collect_post_test_death_application_error() -> None:
+    reset_lifecycle_breadcrumb()
+    reset_office_death_signals(clear_proc=True)
+    note_office_stderr_line(_APPLICATION_ERROR_MARKER)
+    reason = collect_post_test_death(None)
+    assert reason is not None
+    assert "Unspecified Application Error" in reason
+    assert "Binary URP bridge" in reason
+    assert "VCL SalAbort" in reason
+    reset_office_death_signals(clear_proc=True)
+
+
+def test_collect_post_test_death_soffice_exit() -> None:
+    import plugin.testing_runner as tr
+
+    class _DeadProc:
+        def poll(self) -> int:
+            return 1
+
+    reset_lifecycle_breadcrumb()
+    reset_office_death_signals(clear_proc=True)
+    tr._soffice_proc = _DeadProc()
+    assert soffice_exit_code() == 1
+    reason = collect_post_test_death(None)
+    assert reason is not None
+    assert "soffice exited 1" in reason
+    assert "Binary URP bridge" in reason
+    reset_office_death_signals(clear_proc=True)
 
 
 def test_fail_reason_with_lifecycle_keeps_crumb_after_cap() -> None:
