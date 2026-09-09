@@ -4,8 +4,8 @@
 
 No new yaml knobs. Everyday chat stays at the schema default (15).
 Schema max is 200 so a trial can temporarily set 80 or 200 without clamp.
-AFC / Tenant / Cadaver still write **50**. GMP Change Control writes **150**
-(multidoc + peer).
+AFC / Tenant / Cadaver still write **50**. GMP Change Control and
+Writer→Calc Floorstand write **150** (multidoc + peer).
 
 ``--launch`` (default ``--task afc``) copies only the Population ODS into a
 clean trial directory (default ``$TMP/writeragent-eval2-afc``) so
@@ -26,6 +26,13 @@ writes a blank ``MR Risk Assessment Summary.odt``, and opens **both**
 the Writer memo and the Draw form (v1 pre-open cheat). The gold PDF is
 **not** the write target. COA / spec are research-only.
 
+``--task writer-calc-peer-write --launch`` copies the email-trail ODT +
+original store-list ODS + final-matrix ODS + empty budget scaffold into
+``$TMP/writeragent-eval2-writer-calc``, writes a blank
+``Draft Floorstand Email.odt``, and opens **both** the Writer draft and
+the Calc workbook (v1 pre-open cheat). The gold deliverable xlsx is
+**not** the write target. Store lists / email trail are research-only.
+
 Do not open ``fixtures/`` or the task folder.
 
 Usage:
@@ -35,11 +42,13 @@ Usage:
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --launch
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --launch
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --launch
+  .venv/bin/python scripts/eval_2_headed.py --task writer-calc-peer-write --launch
   .venv/bin/python scripts/eval_2_headed.py -- soffice --calc workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --score path/to/final_workbook.ods
   .venv/bin/python scripts/eval_2_headed.py --task tenant-retention --score path/to/final_memo.odt
   .venv/bin/python scripts/eval_2_headed.py --task cadaver-proposal --score path/to/final_proposal.odt
   .venv/bin/python scripts/eval_2_headed.py --task gmp-change-control --score path/to/final_memo.odt
+  .venv/bin/python scripts/eval_2_headed.py --task writer-calc-peer-write --score path/to/final_memo.odt
 """
 from __future__ import annotations
 
@@ -59,12 +68,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_TOOL_ROUNDS_KEY = "chatbot.max_tool_rounds"
 DEFAULT_MAX_TOOL_ROUNDS = 15
 EVAL_2_MAX_TOOL_ROUNDS = 50
-# Multidoc + Draw peer needs more than the Writer-only 50-round start.
+# Multidoc + peer (GMP Draw fill, Floorstand Calc write) needs more than
+# the Writer-only 50-round start.
 EVAL_2_GMP_MAX_TOOL_ROUNDS = 150
 _AFC_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "afc-sample-83d10b06"
 _TENANT_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "tenant-retention-ed2bc14c"
 _CADAVER_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "cadaver-proposal-61b0946a"
 _GMP_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "gmp-change-control-58ac1cc5"
+_FLOORSTAND_DIR = REPO_ROOT / "docs" / "eval" / "eval-2" / "writer-calc-peer-write"
 POPULATION_ODS_NAME = "Population v2.ods"
 LETTER_ODT_NAME = "Current Renewal Letter.odt"
 SURVEY_XLSX_NAME = "Exit Survey Feedback.xlsx"
@@ -75,6 +86,13 @@ GMP_COA_PDF_NAME = "Anti foam COA_MR.pdf"
 GMP_SPEC_ODT_NAME = "Material Spec_MR.odt"
 GMP_FORM_ODG_NAME = "Change Control Form.odg"
 GMP_MEMO_NAME = "MR Risk Assessment Summary.odt"
+FLOORSTAND_EMAIL_TRAIL_ODT_NAME = "Email Trail Floorstands.odt"
+FLOORSTAND_ORIG_ODS_NAME = "Holiday Floorstand Store List Original.ods"
+FLOORSTAND_MATRIX_ODS_NAME = "Holiday Matrix final count.ods"
+FLOORSTAND_BUDGET_ODS_NAME = "Holiday Floorstand Budget.ods"
+FLOORSTAND_EMAIL_NAME = "Draft Floorstand Email.odt"
+FLOORSTAND_COST_SHEET = "Cost Comparison"
+FLOORSTAND_STORE_SHEET = "Final Store List"
 # Form-920 Section 1 blanks. Labels sit to the left so get_draw_tree
 # can attach label_hint. Names stay stable for fill_draw_fields / oracle.
 GMP_FILLABLE_FIELDS: tuple[tuple[str, str], ...] = (
@@ -102,15 +120,21 @@ _CADAVER_BUDGET_XLSX = _CADAVER_DIR / "fixtures" / CADAVER_BUDGET_XLSX_NAME
 _GMP_COA_PDF = _GMP_DIR / "fixtures" / GMP_COA_PDF_NAME
 _GMP_SPEC_ODT = _GMP_DIR / "fixtures" / GMP_SPEC_ODT_NAME
 _GMP_FORM_ODG = _GMP_DIR / "fixtures" / GMP_FORM_ODG_NAME
+_FLOORSTAND_EMAIL_TRAIL_ODT = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_EMAIL_TRAIL_ODT_NAME
+_FLOORSTAND_ORIG_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_ORIG_ODS_NAME
+_FLOORSTAND_MATRIX_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_MATRIX_ODS_NAME
+_FLOORSTAND_BUDGET_ODS = _FLOORSTAND_DIR / "fixtures" / FLOORSTAND_BUDGET_ODS_NAME
 DEFAULT_TRIAL_DIR_NAME = "writeragent-eval2-afc"
 DEFAULT_TENANT_TRIAL_DIR_NAME = "writeragent-eval2-tenant"
 DEFAULT_CADAVER_TRIAL_DIR_NAME = "writeragent-eval2-cadaver"
 DEFAULT_GMP_TRIAL_DIR_NAME = "writeragent-eval2-gmp"
+DEFAULT_FLOORSTAND_TRIAL_DIR_NAME = "writeragent-eval2-writer-calc"
 TASK_AFC = "afc"
 TASK_TENANT = "tenant-retention"
 TASK_CADAVER = "cadaver-proposal"
 TASK_GMP = "gmp-change-control"
-TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP)
+TASK_WRITER_CALC = "writer-calc-peer-write"
+TASK_CHOICES = (TASK_AFC, TASK_TENANT, TASK_CADAVER, TASK_GMP, TASK_WRITER_CALC)
 
 
 def writeragent_json_candidates() -> list[Path]:
@@ -237,8 +261,8 @@ def find_afc_population_ods() -> Path:
 
 
 def task_max_tool_rounds(task: str) -> int:
-    """Headed start: 150 for GMP (multidoc + peer), 50 for the others."""
-    if task == TASK_GMP:
+    """Headed start: 150 for GMP / Floorstand (multidoc + peer), 50 otherwise."""
+    if task in {TASK_GMP, TASK_WRITER_CALC}:
         return EVAL_2_GMP_MAX_TOOL_ROUNDS
     return EVAL_2_MAX_TOOL_ROUNDS
 
@@ -248,6 +272,7 @@ def default_eval2_trial_dir(task: str = TASK_AFC) -> Path:
         TASK_TENANT: DEFAULT_TENANT_TRIAL_DIR_NAME,
         TASK_CADAVER: DEFAULT_CADAVER_TRIAL_DIR_NAME,
         TASK_GMP: DEFAULT_GMP_TRIAL_DIR_NAME,
+        TASK_WRITER_CALC: DEFAULT_FLOORSTAND_TRIAL_DIR_NAME,
     }
     name = names.get(task, DEFAULT_TRIAL_DIR_NAME)
     return Path(tempfile.gettempdir()) / name
@@ -259,6 +284,7 @@ def _task_dirs() -> tuple[Path, ...]:
         _TENANT_DIR.resolve(),
         _CADAVER_DIR.resolve(),
         _GMP_DIR.resolve(),
+        _FLOORSTAND_DIR.resolve(),
     )
 
 
@@ -400,6 +426,51 @@ def write_gmp_change_control_odg(path: Path) -> Path:
     return path
 
 
+def write_floorstand_budget_ods(path: Path) -> Path:
+    """Empty two-tab Calc scaffold. Titles only — no invented figures.
+
+    Not the gold deliverable. Cost Comparison + Final Store List are the
+    write targets; store-list refs stay research-only beside this file.
+    """
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" '
+        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" '
+        'office:version="1.2">\n'
+        " <office:body><office:spreadsheet>\n"
+        f'  <table:table table:name="{_xml_escape(FLOORSTAND_COST_SHEET)}">'
+        '<table:table-row><table:table-cell office:value-type="string">'
+        "<text:p>Holiday Floorstand Budget</text:p>"
+        "</table:table-cell></table:table-row></table:table>\n"
+        f'  <table:table table:name="{_xml_escape(FLOORSTAND_STORE_SHEET)}">'
+        '<table:table-row><table:table-cell office:value-type="string">'
+        "<text:p>Final store list</text:p>"
+        "</table:table-cell></table:table-row></table:table>\n"
+        " </office:spreadsheet></office:body>\n"
+        "</office:document-content>\n"
+    )
+    manifest = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" '
+        'manifest:version="1.2">\n'
+        ' <manifest:file-entry manifest:full-path="/" manifest:version="1.2" '
+        'manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>\n'
+        ' <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>\n'
+        "</manifest:manifest>\n"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr(
+            "mimetype",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            compress_type=zipfile.ZIP_STORED,
+        )
+        zf.writestr("META-INF/manifest.xml", manifest)
+        zf.writestr("content.xml", content)
+    return path
+
+
 def stage_clean_trial_files(sources: list[Path], dest_dir: Path, *, label: str) -> list[Path]:
     """Copy only *sources* into *dest_dir* (wiped). Prompt/rubric/gold stay outside."""
     dest_dir = dest_dir.resolve()
@@ -491,6 +562,37 @@ def stage_gmp_trial(dest_dir: Path) -> tuple[Path, Path]:
     return memo, dest_dir / GMP_FORM_ODG_NAME
 
 
+def find_floorstand_fixtures() -> tuple[Path, Path, Path, Path]:
+    """Email trail + two store lists + budget scaffold. Gold xlsx is not staged."""
+    if not _FLOORSTAND_EMAIL_TRAIL_ODT.is_file():
+        raise FileNotFoundError(
+            f"Missing {_FLOORSTAND_EMAIL_TRAIL_ODT}. Convert the email trail; "
+            "do not open fixtures/ (siblings leak)."
+        )
+    if not _FLOORSTAND_ORIG_ODS.is_file():
+        raise FileNotFoundError(f"Missing {_FLOORSTAND_ORIG_ODS}")
+    if not _FLOORSTAND_MATRIX_ODS.is_file():
+        raise FileNotFoundError(f"Missing {_FLOORSTAND_MATRIX_ODS}")
+    if not _FLOORSTAND_BUDGET_ODS.is_file():
+        raise FileNotFoundError(
+            f"Missing {_FLOORSTAND_BUDGET_ODS}. Rebuild with write_floorstand_budget_ods."
+        )
+    return (
+        _FLOORSTAND_EMAIL_TRAIL_ODT,
+        _FLOORSTAND_ORIG_ODS,
+        _FLOORSTAND_MATRIX_ODS,
+        _FLOORSTAND_BUDGET_ODS,
+    )
+
+
+def stage_floorstand_trial(dest_dir: Path) -> tuple[Path, Path]:
+    """Refs + scaffold workbook + blank email. Gold/prompt stay outside."""
+    trail, orig, matrix, budget = find_floorstand_fixtures()
+    stage_clean_trial_files([trail, orig, matrix, budget], dest_dir, label="Floorstand")
+    email = write_blank_writer_odt(dest_dir / FLOORSTAND_EMAIL_NAME)
+    return email, dest_dir / FLOORSTAND_BUDGET_ODS_NAME
+
+
 def launch_office(mode: str, fixture: Path | None) -> None:
     soffice = shutil.which("soffice")
     if soffice is None:
@@ -537,7 +639,8 @@ def main(argv: list[str] | None = None) -> int:
         default=TASK_AFC,
         help=(
             "Experiment to launch or score (default: afc). "
-            "tenant-retention / cadaver-proposal / gmp-change-control are Writer."
+            "tenant-retention / cadaver-proposal / gmp-change-control / "
+            "writer-calc-peer-write are Writer-started."
         ),
     )
     parser.add_argument(
@@ -545,7 +648,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Stage a clean trial dir, then soffice (Calc for AFC, Writer for "
-            "tenant-retention / cadaver-proposal, Writer+Draw for gmp-change-control)"
+            "tenant-retention / cadaver-proposal, Writer+Draw for "
+            "gmp-change-control, Writer+Calc for writer-calc-peer-write)"
         ),
     )
     parser.add_argument(
@@ -556,8 +660,9 @@ def main(argv: list[str] | None = None) -> int:
             "Directory that will contain only the staged refs "
             f"(default: $TMP/{DEFAULT_TRIAL_DIR_NAME}, "
             f"$TMP/{DEFAULT_TENANT_TRIAL_DIR_NAME}, "
-            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, or "
-            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME})"
+            f"$TMP/{DEFAULT_CADAVER_TRIAL_DIR_NAME}, "
+            f"$TMP/{DEFAULT_GMP_TRIAL_DIR_NAME}, or "
+            f"$TMP/{DEFAULT_FLOORSTAND_TRIAL_DIR_NAME})"
         ),
     )
     parser.add_argument(
@@ -574,7 +679,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.score is not None:
         suffix = args.score.suffix.lower()
-        if args.task == TASK_GMP:
+        if args.task == TASK_WRITER_CALC:
+            from eval_2_floorstand_oracle import main as score_main
+        elif args.task == TASK_GMP:
             from eval_2_gmp_oracle import main as score_main
         elif args.task == TASK_CADAVER:
             from eval_2_cadaver_oracle import main as score_main
@@ -619,6 +726,17 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     # Form first, memo last so Writer is the focused chat doc.
                     launch_office_documents([form, memo])
+                elif args.task == TASK_WRITER_CALC:
+                    email, budget = stage_floorstand_trial(trial_dir)
+                    staged = ", ".join(sorted(p.name for p in email.parent.iterdir()))
+                    print(f"Staged clean trial dir {email.parent} ({staged})")
+                    print(
+                        "Pre-open: Calc budget then Writer email. "
+                        "Open the Calc sidebar once before START. "
+                        "Gold xlsx is not the write target."
+                    )
+                    # Workbook first, email last so Writer is the focused chat doc.
+                    launch_office_documents([budget, email])
                 else:
                     trial_ods = stage_clean_trial_ods(
                         find_afc_population_ods(),
