@@ -25,6 +25,7 @@ DELEGATE_GATEWAY_TOOL_NAMES = frozenset(
     }
 )
 DELEGATE_TASK_CHAT_MAX = 120
+# Display cap only (sidebar preview). Input sanity is DEAL_MAX_SOURCE (8192).
 # Truncate/describe still ~56m after token/dict halves (33211730747); floor to 1.
 _DEAL_TRUNCATE_TASK_LEN = 1 if UNDER_CROSSHAIR else DEAL_MAX_SOURCE
 _DEAL_TRUNCATE_MAX_LEN = 1 if UNDER_CROSSHAIR else DELEGATE_TASK_CHAT_MAX
@@ -140,11 +141,15 @@ def delegate_status_label(func_args: Mapping[str, Any]) -> str:
 
 
 @deal.pre(
-    lambda task, max_len=DELEGATE_TASK_CHAT_MAX, *_unused, **__: ascii_bounded(task, _DEAL_TRUNCATE_TASK_LEN)
+    lambda task, max_len=DELEGATE_TASK_CHAT_MAX, *_unused, **__: str_bounded(task, _DEAL_TRUNCATE_TASK_LEN)
     and type(max_len) is int
     and 1 <= max_len <= _DEAL_TRUNCATE_MAX_LEN
 )
 def _truncate_delegate_task(task: str, max_len: int = DELEGATE_TASK_CHAT_MAX) -> str:
+    # Display-only helper. ascii_bounded on the *full* task PreContract-failed debug
+    # OXTs when specialize task was long / non-ASCII (GMP retest). Chat may show 120
+    # chars; specialize still gets kwargs["task"] intact (specialized_base.execute).
+    # str_bounded + DEAL_MAX_SOURCE is a sanity ceiling; CrossHair stays at 1.
     one_line = task.replace("\n", " ").replace("\r", " ").strip()
     if len(one_line) <= max_len:
         return one_line
