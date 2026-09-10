@@ -577,8 +577,8 @@ def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):
     ]
 
 
-def test_teardown_peer_pair_windows_closes_impress_then_writer(monkeypatch):
-    """GHA 34537826720: skip-teardown left Impress alive; next swriter hung."""
+def test_teardown_peer_pair_windows_closes_impress_skips_writer(monkeypatch):
+    """GHA 34540353452: Impress raw close returned; Writer close_doc hung."""
     from unittest.mock import MagicMock
 
     from tests.chatbot.test_peer_message_uno import _teardown_peer_pair
@@ -613,7 +613,6 @@ def test_teardown_peer_pair_windows_closes_impress_then_writer(monkeypatch):
         ("close_draw_family", impress),
         "post_settle",
         ("reactivate", ctx, writer),
-        ("close_doc", writer),
     ]
 
 

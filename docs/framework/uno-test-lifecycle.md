@@ -66,17 +66,23 @@ Peer tests: POSIX closes Writer first, then `close_draw_family_doc`
 (`setModified(False)`, GC, pre-close settle, `close(True)`). **Windows
 keeps Writer open** and uses a bare Impress `close(True)` (no pre-close
 GC/sleep — the only close that returned, `#710` / 34419828920), drops
-the proxy, `settle_after_draw_family_close`, re-activates Writer
-(`setActiveFrame`, `#707`), then closes Writer. Breadcrumbs:
+the proxy, `settle_after_draw_family_close`, and re-activates Writer
+(`setActiveFrame`, `#707`). Do **not** then `close_doc` that Writer:
+GHA 34540353452 (`c511aab7`) raw-closed Impress in ~25 ms, settle +
+`writer reactivated` printed, then `TestingFactory.close_doc` hung 30s
+at Writer `close(True)` (office still alive; `kill-libreoffice.ps1`
+then killed soffice). Leftover Writer is not the poison (the keeper
+Writer already exists); leftover Impress is. Breadcrumbs:
 `close_draw_family: raw close(True) start/done`,
-`peer_message_uno: writer reactivated`. Do **not** fold Draw-family
-settle into `close_doc`. Not a product fix.
+`peer_message_uno: writer reactivated`,
+`peer_message_uno: skip writer close after impress`. Do **not** fold
+Draw-family settle into `close_doc`. Not a product fix.
 
 **Windows proof** still needs a `workflow_dispatch` of PR CI on the
 branch: `os=windows-latest`, `ci_debug=true`. Look for both peer Impress
-tests finishing (`TEST end … OK`) and the next `swriter` load
-(`test_peer_missing_deck_is_clear_error`) starting after post-close
-settle. Ubuntu PR CI is the automatic gate; this cloud agent cannot run
+tests finishing (`TEST end … OK`) after `skip writer close after impress`,
+then the next `swriter` load (`test_peer_missing_deck_is_clear_error`)
+starting. Ubuntu PR CI is the automatic gate; this cloud agent cannot run
 `windows-latest`.
 
 **Harness-only attribution (not a product fix):** if a test body returns OK

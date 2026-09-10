@@ -129,10 +129,14 @@ def _teardown_peer_pair(writer, impress, ctx=None):
 
     Why this: Windows keeps Writer open and uses a bare Impress
     ``close(True)`` (the only close that returned, #710 / 34419828920),
-    drops the proxy, post-close settles, re-activates Writer (#707), then
-    closes Writer. POSIX still closes Writer first, then the Draw-family
-    path (setModified + pre-close settle + ``close(True)``) and the same
-    post-close settle. Not a product fix.
+    drops the proxy, post-close settles, and re-activates Writer (#707).
+    Do **not** then ``close_doc`` the sibling Writer — GHA 34540353452
+    raw-closed Impress in ~25 ms, settle + ``setActiveFrame`` returned,
+    then ``TestingFactory.close_doc`` hung 30s at Writer ``close(True)``.
+    Leftover Writer is not the poison (keeper Writer already exists);
+    leftover Impress is. POSIX still closes Writer first, then the
+    Draw-family path (setModified + pre-close settle + ``close(True)``)
+    and the same post-close settle. Not a product fix.
     """
     had_impress = impress is not None
     if had_impress and _draw_family_raw_close():
@@ -143,9 +147,8 @@ def _teardown_peer_pair(writer, impress, ctx=None):
         settle_after_draw_family_close()
         _progress("peer_message_uno: impress post-close settle done")
         _reactivate_writer_after_impress(ctx, writer)
-        _progress("peer_message_uno: close writer start")
-        writer = _close(writer)
-        _progress("peer_message_uno: close writer done")
+        # Drop the proxy only. close_doc hung 30s here (34540353452).
+        _progress("peer_message_uno: skip writer close after impress")
         return None, None
     _progress("peer_message_uno: close writer start")
     writer = _close(writer)
