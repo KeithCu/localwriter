@@ -428,7 +428,7 @@ def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
     monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
     monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
     monkeypatch.setattr(
-        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
+        "plugin.tests.testing_utils._draw_family_raw_close",
         lambda: False,
     )
 
@@ -453,33 +453,35 @@ def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
     doc.dispose.assert_not_called()
 
 
-def test_close_draw_family_doc_windows_skips_close_and_dispose(monkeypatch):
-    """GHA 34535868114: dispose() hung the same way as close(True)."""
+def test_close_draw_family_doc_windows_raw_close_skips_pre_close_gc(monkeypatch):
+    """GHA 34537826720: skip left Impress alive; #710 raw close returned."""
     from unittest.mock import MagicMock
 
-    from plugin.tests.testing_utils import (
-        _DRAW_FAMILY_PRE_CLOSE_SETTLE_S,
-        close_draw_family_doc,
-    )
+    from plugin.tests.testing_utils import close_draw_family_doc
 
     order = []
-    monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
-    monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
+
+    def _fail_gc():
+        raise AssertionError("Windows raw close must not gc.collect before close")
+
+    def _fail_sleep(_seconds):
+        raise AssertionError("Windows raw close must not sleep before close")
+
+    monkeypatch.setattr("gc.collect", _fail_gc)
+    monkeypatch.setattr("time.sleep", _fail_sleep)
     monkeypatch.setattr(
-        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
+        "plugin.tests.testing_utils._draw_family_raw_close",
         lambda: True,
     )
     doc = MagicMock()
     doc.supportsService.side_effect = lambda svc: svc.endswith("PresentationDocument")
     doc.RuntimeUID = "impress-uid"
     doc.setModified.side_effect = lambda _modified: order.append("setModified")
+    doc.close.side_effect = lambda _save: order.append("close")
     close_draw_family_doc(doc)
-    assert order == [
-        "setModified",
-        "gc",
-        ("sleep", _DRAW_FAMILY_PRE_CLOSE_SETTLE_S),
-    ]
-    doc.close.assert_not_called()
+    assert order == ["close"]
+    doc.setModified.assert_not_called()
+    doc.close.assert_called_once_with(True)
     doc.dispose.assert_not_called()
 
 
@@ -501,7 +503,7 @@ def test_close_draw_family_doc_logs_svc_and_steps(capsys, monkeypatch):
     monkeypatch.setattr("gc.collect", lambda: None)
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
     monkeypatch.setattr(
-        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
+        "plugin.tests.testing_utils._draw_family_raw_close",
         lambda: False,
     )
     doc = MagicMock()
@@ -515,15 +517,13 @@ def test_close_draw_family_doc_logs_svc_and_steps(capsys, monkeypatch):
     assert "close_draw_family: close(True) done svc=impress uid=uid-9" in err
 
 
-def test_close_draw_family_doc_windows_logs_skip(capsys, monkeypatch):
+def test_close_draw_family_doc_windows_logs_raw_close(capsys, monkeypatch):
     from unittest.mock import MagicMock
 
     from plugin.tests.testing_utils import close_draw_family_doc
 
-    monkeypatch.setattr("gc.collect", lambda: None)
-    monkeypatch.setattr("time.sleep", lambda _seconds: None)
     monkeypatch.setattr(
-        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
+        "plugin.tests.testing_utils._draw_family_raw_close",
         lambda: True,
     )
     doc = MagicMock()
@@ -531,18 +531,122 @@ def test_close_draw_family_doc_windows_logs_skip(capsys, monkeypatch):
     doc.RuntimeUID = "uid-9"
     close_draw_family_doc(doc)
     err = capsys.readouterr().err
-    assert "close_draw_family: skip uno teardown svc=impress uid=uid-9" in err
-    assert "close(True) start" not in err
-    assert "dispose() start" not in err
+    assert "close_draw_family: start svc=impress uid=uid-9" in err
+    assert "close_draw_family: raw close(True) start svc=impress uid=uid-9" in err
+    assert "close_draw_family: raw close(True) done svc=impress uid=uid-9" in err
+    assert "skip uno teardown" not in err
+    assert "setModified" not in err
+    doc.close.assert_called_once_with(True)
 
 
 def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):
-    """GHA 34518091151: Impress close hung while Writer was still open."""
+    """POSIX: Writer first, then Impress (GHA 34518091151)."""
     from unittest.mock import MagicMock
 
     from tests.chatbot.test_peer_message_uno import _teardown_peer_pair
 
     order = []
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._draw_family_raw_close",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._close",
+        lambda doc: order.append(("close_doc", doc)) or None,
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno.close_draw_family_doc",
+        lambda doc: order.append(("close_draw_family", doc)),
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno.settle_after_draw_family_close",
+        lambda: order.append("post_settle"),
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._reactivate_writer_after_impress",
+        lambda ctx, doc: order.append(("reactivate", ctx, doc)),
+    )
+    writer = MagicMock(name="writer")
+    impress = MagicMock(name="impress")
+    out_writer, out_impress = _teardown_peer_pair(writer, impress)
+    assert out_writer is None and out_impress is None
+    assert order == [
+        ("close_doc", writer),
+        ("close_draw_family", impress),
+        "post_settle",
+    ]
+
+
+def test_teardown_peer_pair_windows_closes_impress_then_writer(monkeypatch):
+    """GHA 34537826720: skip-teardown left Impress alive; next swriter hung."""
+    from unittest.mock import MagicMock
+
+    from tests.chatbot.test_peer_message_uno import _teardown_peer_pair
+
+    order = []
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._draw_family_raw_close",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._close",
+        lambda doc: order.append(("close_doc", doc)) or None,
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno.close_draw_family_doc",
+        lambda doc: order.append(("close_draw_family", doc)),
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno.settle_after_draw_family_close",
+        lambda: order.append("post_settle"),
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._reactivate_writer_after_impress",
+        lambda ctx, doc: order.append(("reactivate", ctx, doc)),
+    )
+    writer = MagicMock(name="writer")
+    impress = MagicMock(name="impress")
+    ctx = MagicMock(name="ctx")
+    out_writer, out_impress = _teardown_peer_pair(writer, impress, ctx)
+    assert out_writer is None and out_impress is None
+    assert order == [
+        ("close_draw_family", impress),
+        "post_settle",
+        ("reactivate", ctx, writer),
+        ("close_doc", writer),
+    ]
+
+
+def test_reactivate_writer_after_impress_sets_active_frame(monkeypatch):
+    from unittest.mock import MagicMock, patch
+
+    from tests.chatbot.test_peer_message_uno import _reactivate_writer_after_impress
+
+    frame = MagicMock()
+    writer = MagicMock()
+    writer.getCurrentController.return_value.getFrame.return_value = frame
+    desktop = MagicMock()
+    ctx = MagicMock()
+    with patch(
+        "tests.chatbot.test_peer_message_uno.get_desktop",
+        return_value=desktop,
+    ) as get_desktop:
+        _reactivate_writer_after_impress(ctx, writer)
+    get_desktop.assert_called_once_with(ctx)
+    desktop.setActiveFrame.assert_called_once_with(frame)
+    frame.getContainerWindow.return_value.toFront.assert_called_once_with()
+
+
+def test_teardown_peer_pair_windows_no_impress_just_closes_writer(monkeypatch):
+    from unittest.mock import MagicMock
+
+    from tests.chatbot.test_peer_message_uno import _teardown_peer_pair
+
+    order = []
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._draw_family_raw_close",
+        lambda: True,
+    )
     monkeypatch.setattr(
         "tests.chatbot.test_peer_message_uno._close",
         lambda doc: order.append(("close_doc", doc)) or None,
@@ -556,14 +660,20 @@ def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):
         lambda: order.append("post_settle"),
     )
     writer = MagicMock(name="writer")
-    impress = MagicMock(name="impress")
-    out_writer, out_impress = _teardown_peer_pair(writer, impress)
+    out_writer, out_impress = _teardown_peer_pair(writer, None, MagicMock())
     assert out_writer is None and out_impress is None
-    assert order == [
-        ("close_doc", writer),
-        ("close_draw_family", impress),
-        "post_settle",
-    ]
+    assert order == [("close_doc", writer)]
+
+
+def test_reactivate_writer_after_impress_skips_when_missing():
+    from unittest.mock import MagicMock, patch
+
+    from tests.chatbot.test_peer_message_uno import _reactivate_writer_after_impress
+
+    with patch("tests.chatbot.test_peer_message_uno.get_desktop") as get_desktop:
+        _reactivate_writer_after_impress(None, MagicMock())
+        _reactivate_writer_after_impress(MagicMock(), None)
+    get_desktop.assert_not_called()
 
 
 def test_testing_factory_execute_tool_unknown_name():

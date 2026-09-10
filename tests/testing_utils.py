@@ -895,17 +895,29 @@ _CLOSE_DOC_URP_SETTLE_S = 0.05
 # ``doc.close(True)`` (faulthandler 30s; office still alive). close_doc GCs
 # leftover ``resolve_document_by_url`` wrappers then close()s after only
 # 50 ms — too tight on Windows Draw-family. Pre-close settle uses the same
-# Windows-longer budget; still not inside close_doc.
+# Windows-longer budget; still not inside close_doc. POSIX only: Windows
+# Draw-family close is a bare ``close(True)`` (see ``_draw_family_raw_close``).
 _DRAW_FAMILY_POST_CLOSE_SETTLE_S = 0.75 if sys.platform == "win32" else 0.15
 _DRAW_FAMILY_PRE_CLOSE_SETTLE_S = _DRAW_FAMILY_POST_CLOSE_SETTLE_S
 
 
-def _draw_family_skip_uno_teardown() -> bool:
-    """True when Impress close *and* dispose block the Windows UI thread.
+def _draw_family_raw_close() -> bool:
+    """True when Impress must be closed with a bare ``close(True)``.
 
-    GHA 34532953982: ``close(True)`` hung 30s after Writer-first + settle.
-    GHA 34535868114: ``dispose()`` hung the same way (``dispose() start``,
-    office still alive). Do not call either API on win32.
+    What the breadcrumbs showed:
+    - GHA 34419828920 / #710: raw ``doc.close(True)`` (no pre-close GC)
+      *returned* on Windows; the *next* Writer factory load then hung
+      until ``settle_after_draw_family_close`` was added.
+    - GHA 34518091151: ``close_doc`` (GC + 50 ms + ``close``) hung 30s
+      *inside* Impress close.
+    - GHA 34532953982 / 34535868114: GC + pre-close settle then
+      ``close(True)`` / ``dispose()`` hung the same way.
+    - GHA 34537826720: skipping close/dispose left Impress alive; the
+      next ``private:factory/swriter`` load hung 30s.
+
+    Skip is not a fix. Pre-close GC/sleep before close is the hung path.
+    Raw close + post-close settle is the only sequence that both returned
+    and (with #710's settle) was meant to unwedge the next Writer load.
     """
     return sys.platform == "win32"
 
@@ -932,19 +944,23 @@ def close_draw_family_doc(doc):
     at ``doc.close(True)`` while tearing down Impress in
     ``test_peer_impress_rejected_on_resolved_model`` (Writer still open;
     both factory loads had succeeded). #710's post-close settle never ran.
+    Skipping close/dispose (34537826720) unblocked that teardown, then the
+    *next* ``private:factory/swriter`` load hung 30s — leftover Impress
+    poisons later Writer factory loads (same family as #710).
 
     How: ``close_doc`` GCs leftover peer-resolve wrappers then close()s
-    after 50 ms. On Windows that races URP release of the same model and
-    can block ``XCloseable.close(True)`` until faulthandler kills the
-    suite. A sibling Writer still open in the same soffice makes that
-    worse.
+    after 50 ms. On Windows, GC + sleep *immediately before* ``close`` /
+    ``dispose`` blocks the UI thread (34532953982 / 34535868114). A bare
+    ``close(True)`` with no pre-close GC is the only Impress close that
+    has returned on Windows (#710 / 34419828920).
 
-    Why this: mark unmodified, GC, then the Draw-family pre-close settle.
-    POSIX then ``close(True)``. Windows skips ``close`` *and* ``dispose``
-    — both blocked 30s (34532953982 / 34535868114). Drop the Python
-    proxy; suite-end ``kill-libreoffice`` reaps soffice. Callers close
-    any Writer sibling first and ``settle_after_draw_family_close`` after
-    dropping the local. Logs svc/uid and each step. Not a product fix.
+    Why this: Windows calls ``close(True)`` with no setModified / GC /
+    sleep in front of it, then callers drop the proxy and
+    ``settle_after_draw_family_close``. POSIX still marks unmodified, GC,
+    pre-close settle, then ``close(True)``. Peer tests keep Writer open
+    across the Windows raw close (the #710 returning order) and
+    re-activate it before closing Writer. Logs svc/uid and each step.
+    Not a product fix.
     """
     if not doc:
         return
@@ -957,6 +973,23 @@ def close_draw_family_doc(doc):
     except Exception:
         uid = "?"
     _progress("close_draw_family: start svc=%s uid=%s" % (svc, uid))
+    if _draw_family_raw_close():
+        # Do not GC or sleep here — that is the hung close/dispose path.
+        _progress("close_draw_family: raw close(True) start svc=%s uid=%s" % (svc, uid))
+        try:
+            if hasattr(doc, "close"):
+                doc.close(True)
+            elif hasattr(doc, "dispose"):
+                doc.dispose()
+        except Exception as exc:
+            _log_close_doc_failure(exc)
+            _progress(
+                "close_draw_family: raw close failed svc=%s uid=%s err=%s"
+                % (svc, uid, type(exc).__name__)
+            )
+        else:
+            _progress("close_draw_family: raw close(True) done svc=%s uid=%s" % (svc, uid))
+        return
     try:
         if hasattr(doc, "setModified"):
             doc.setModified(False)
@@ -975,10 +1008,6 @@ def close_draw_family_doc(doc):
         % (_DRAW_FAMILY_PRE_CLOSE_SETTLE_S, svc, uid)
     )
     time.sleep(_DRAW_FAMILY_PRE_CLOSE_SETTLE_S)
-    if _draw_family_skip_uno_teardown():
-        # Do not call close/dispose — both hang the native-test 30s watchdog.
-        _progress("close_draw_family: skip uno teardown svc=%s uid=%s" % (svc, uid))
-        return
     _progress("close_draw_family: close(True) start svc=%s uid=%s" % (svc, uid))
     try:
         if hasattr(doc, "close"):
@@ -998,10 +1027,11 @@ def close_draw_family_doc(doc):
 def settle_after_draw_family_close() -> None:
     """Harness-only: GC + sleep after closing Impress/Draw before the next factory load.
 
-    Call after ``close_draw_family_doc`` / ``TestingFactory.close_doc`` *and*
-    after dropping the local reference. The next ``loadComponentFromURL`` is
-    the hang site if this settle is skipped
-    (see ``tests/chatbot/test_peer_message_uno.py``).
+    Call after ``close_draw_family_doc`` *and* after dropping the local
+    reference. The next ``loadComponentFromURL`` is the hang site if this
+    settle is skipped *or* if Impress was never actually closed
+    (GHA 34537826720 skip-teardown; see
+    ``tests/chatbot/test_peer_message_uno.py``).
     """
     import gc
     import time
