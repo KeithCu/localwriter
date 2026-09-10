@@ -388,6 +388,31 @@ def test_close_doc_none_skips_settle(monkeypatch):
     TestingFactory.close_doc(None)
 
 
+def test_settle_after_draw_family_close_gcs_then_sleeps(monkeypatch):
+    """Post-Impress settle must GC after the caller drops the closed proxy."""
+    from plugin.tests.testing_utils import (
+        _DRAW_FAMILY_POST_CLOSE_SETTLE_S,
+        settle_after_draw_family_close,
+    )
+
+    order = []
+    monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
+    monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
+    settle_after_draw_family_close()
+    assert order == ["gc", ("sleep", _DRAW_FAMILY_POST_CLOSE_SETTLE_S)]
+
+
+def test_settle_after_draw_family_close_windows_longer_than_posix():
+    """Windows is the hang host (GHA 34419828920); POSIX stays a short drain."""
+    from plugin.tests import testing_utils as tu
+
+    assert tu._DRAW_FAMILY_POST_CLOSE_SETTLE_S > tu._CLOSE_DOC_URP_SETTLE_S
+    if tu.sys.platform == "win32":
+        assert tu._DRAW_FAMILY_POST_CLOSE_SETTLE_S == 0.75
+    else:
+        assert tu._DRAW_FAMILY_POST_CLOSE_SETTLE_S == 0.15
+
+
 def test_testing_factory_execute_tool_unknown_name():
     from unittest.mock import MagicMock, patch
 

@@ -14,7 +14,8 @@ from plugin.doc.peer_message import (
 from plugin.framework.async_drain_guard import drain_owner_scope, reset_sentry_state
 from plugin.framework.tool import ToolContext
 from plugin.framework.uno_context import get_desktop, get_runtime_uid
-from plugin.testing_runner import native_test
+from plugin.testing_runner import _progress, native_test
+from plugin.tests.testing_utils import TestingFactory, settle_after_draw_family_close
 
 
 class _Listener:
@@ -55,17 +56,32 @@ def _hidden_prop():
 
 
 def _load(ctx, factory_url):
+    # Name the factory on stderr so a 30s faulthandler dump shows swriter vs
+    # simpress. GHA 34419828920 hung at line 109 — Writer after a raw Impress
+    # close, not the Impress load itself (that would be the next _load line).
+    _progress("peer_message_uno: load start %s" % factory_url)
     desktop = get_desktop(ctx)
-    return desktop.loadComponentFromURL(factory_url, "_blank", 0, (_hidden_prop(),))
+    doc = desktop.loadComponentFromURL(factory_url, "_blank", 0, (_hidden_prop(),))
+    _progress("peer_message_uno: load done %s" % factory_url)
+    return doc
 
 
 def _close(doc):
+    """Close via harness ``close_doc`` (GC + 50 ms, then ``doc.close``).
+
+    What was wrong: local ``doc.close(True)`` skipped that settle. After
+    ``test_peer_impress_rejected_on_resolved_model`` raw-closed Impress, the
+    next test's ``private:factory/swriter`` load hung 30s (GHA 34419828920;
+    office still alive). How: leftover Impress proxies raced the next
+    factory. Why this: same close path as ``@with_native_doc``. Impress
+    callers then drop the local ref and call
+    ``settle_after_draw_family_close`` (not inside ``close_doc`` — that
+    would tax every Writer/Calc close).
+    """
     if doc is None:
-        return
-    try:
-        doc.close(True)
-    except Exception:
-        pass
+        return None
+    TestingFactory.close_doc(doc)
+    return None
 
 
 def _tool_ctx(ctx, doc):
@@ -90,8 +106,11 @@ def test_peer_impress_rejected_on_resolved_model(ctx):
         assert code == "PEER_UNSUPPORTED"
         assert "Impress" in msg
     finally:
-        _close(impress)
-        _close(writer)
+        had_impress = impress is not None
+        impress = _close(impress)
+        if had_impress:
+            settle_after_draw_family_close()
+        writer = _close(writer)
         reset_peer_queues()
         reset_live_panels()
 
@@ -116,8 +135,11 @@ def test_peer_catalog_draw_label_is_not_enough_for_impress(ctx):
         peers = list_v1_peers(ctx, writer)
         assert all(p.get("uid") != impress_uid for p in peers)
     finally:
-        _close(impress)
-        _close(writer)
+        had_impress = impress is not None
+        impress = _close(impress)
+        if had_impress:
+            settle_after_draw_family_close()
+        writer = _close(writer)
 
 
 @native_test
