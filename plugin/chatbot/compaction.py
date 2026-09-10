@@ -7,7 +7,7 @@
 or UNO. Must run inside the caller's ``llm_request_lane`` hold — this
 module must not take that lock.
 
-Policy: ``docs/chat/compaction-dev-plan.md`` (v2).
+Policy: ``docs/chat/compaction-dev-plan.md`` (Compaction v1).
 
 Hermes Agent 0.21.1 (MIT, Nous Research), tag ``v2026.9.7``:
 https://github.com/NousResearch/hermes-agent/tree/v2026.9.7

@@ -104,7 +104,7 @@ sequenceDiagram
 
 ### 2. Module Placement & Public API
 
-Implemented in [`plugin/chatbot/compaction.py`](file:///home/keithcu/Desktop/Python/writeragent/plugin/chatbot/compaction.py). It does not import `panel`, `tool_loop`, or UNO.
+Implemented in [`plugin/chatbot/compaction.py`](../../plugin/chatbot/compaction.py). It does not import `panel`, `tool_loop`, or UNO.
 
 ```python
 # Key Constants
@@ -290,7 +290,7 @@ The current implementation represents **Version 1**. The following features and 
 
 Compaction v1 is covered by comprehensive unit, error, and integration tests:
 
-### Unit Tests ([`tests/chatbot/test_compaction.py`](file:///home/keithcu/Desktop/Python/writeragent/tests/chatbot/test_compaction.py))
+### Unit Tests ([`tests/chatbot/test_compaction.py`](../../tests/chatbot/test_compaction.py))
 - **Threshold Tiers:** Tests 70%, 75%, and 50% ratios across 4k, 8k, 128k, and 512k+ windows.
 - **Fit Guarantee:** Pinned 4k window tests with 2000-token system context proving post-compaction view $\le 4096 - 256$ tokens.
 - **Estimator Verification:** Verifies ASCII, CJK codepoints, Cyrillic UTF-8 byte weighting, and image/audio token constants.
@@ -301,7 +301,7 @@ Compaction v1 is covered by comprehensive unit, error, and integration tests:
 - **Tail Pressure & `#10896` Snap:** Verifies behavior when large tool results or user turns push the tail over budget.
 - **Shrink Gate:** Enforces $\ge$ 5% token reduction on overflow retry.
 
-### Tool Loop Error & Retry Tests ([`tests/chatbot/test_tool_loop_errors.py`](file:///home/keithcu/Desktop/Python/writeragent/tests/chatbot/test_tool_loop_errors.py))
+### Tool Loop Error & Retry Tests ([`tests/chatbot/test_tool_loop_errors.py`](../../tests/chatbot/test_tool_loop_errors.py))
 - Verifies worker respawn with `force_compact=True` on prompt overflow.
 - Verifies maximum 3 attempts before falling back to standard error display.
 - Verifies process death (`llama-server process has terminated`) does not retry.
