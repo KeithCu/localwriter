@@ -43,7 +43,7 @@ make mock-llm
 ```
 
 - **Default Endpoint:** `http://127.0.0.1:18766` (MCP uses ports `8765` / `18765`).
-- **Settings Configuration:** In LibreOffice Settings, configure endpoint `http://127.0.0.1:18766`, text model `writeragent-mock`, and enable **Rich Text Control Sidebar**. Compaction resolves that id to an **8192**-token window (`DEFAULT_MODELS` `ids.mock`; also advertised on `GET /v1/models` as `context_length`).
+- **Settings Configuration:** In LibreOffice Settings, configure endpoint `http://127.0.0.1:18766`, text model `writeragent-mock`, and enable **Rich Text Control Sidebar**. Compaction resolves that id to a **32768**-token window (`DEFAULT_MODELS` `ids.mock`; also advertised on `GET /v1/models` as `context_length`).
 - **Audio / STT:** The server advertises `input_audio` support on chat completions and lists `writeragent-mock-whisper` for STT. The endpoint `POST /v1/audio/transcriptions` returns canned text (default: `"Hello from the mock microphone."`, configurable via `--transcript`).
 - **Librarian / Smolagents Support:** Phrase matching inspects the `### CURRENT QUERY:` suffix so recovery turns (e.g. `hello` after `crash the stream`) do not match prior conversation history.
 
@@ -64,7 +64,7 @@ The mock server matches incoming user queries (case-insensitive, first match win
 | `think tags` | Emits XML `<think>` markers inside `content`. |
 | `reasoning details` | Emits `reasoning_content` + `reasoning_details`, followed by HTML content. |
 | `fill the sidebar` / `very long` | Emits 40 paragraphs + HTML table + nested lists. |
-| `flood history` / `pad the context` | Packet K: large ASCII pad so estimate crosses the mock 8192×70% gate. |
+| `flood history` / `pad the context` | Packet K: large ASCII pad (hand-test / mock unit). Live Packet K grows `ChatSession` via debug `INFLATE_HISTORY` so the 24k HTML stream does not have to land on `session.messages`. |
 | `overflow once` / `prompt too large once` | Packet K: first **stream** POST returns HTTP 400 `prompt is too long`, then OK. Non-stream summarizer is never this fault. |
 | `llama process died` | Packet K: HTTP 400 `llama-server process has terminated` (process death, not overflow retry). |
 | `outline this` / `use the writer toolset` | Calls `delegate_to_specialized_writer_toolset` (`document_research`). |
@@ -407,13 +407,14 @@ See [peer-messaging.md](../chat/peer-messaging.md#dual-mock-peer-tests).
 
 - **Focus:** Proactive compact at the tiered threshold, overflow compact-and-retry (≤3), kill switch, process death ≠ overflow. Chat mode only.
 - **Mode:** Automated (`make test-mock-sidebar FILTER=K`). Unit scripts in `make pytest` (`tests/scripts/test_mock_llm_server.py`, `tests/chatbot/test_compaction.py`).
-- **Window:** `writeragent-mock` is in `DEFAULT_MODELS` (`ids.mock`, `context_length` 8192) so `resolve_context_window` has a denominator. Not Hermes 256k. `chat_max_tokens` is not subtracted.
+- **Window:** `writeragent-mock` is in `DEFAULT_MODELS` (`ids.mock`, `context_length` 32768) so `resolve_context_window` has a denominator. 8192 left `keep=None` against the live Writer system prompt plus 14 tool schemas. Not Hermes 256k. `chat_max_tokens` is not subtracted.
+- **History grow:** URP Packet K calls debug `INFLATE_HISTORY` (`sidebar_test_hooks.inflate_sidebar_history`) to pad `ChatSession.messages` in soffice. Streaming `flood history` through the rich control was not a reliable way to land those bytes on the model-facing list.
 - **Summarizer:** non-stream `request_with_tools` with the compaction system prompt returns a canned summary. Phrase matching does **not** run on dumped `<conversation>` history.
 
 | ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
 |:--:|:----:|----------------|-----------------|------------------------|:--------------:|
-| **K1** | CI | `flood history` until estimate ≥ 70% of 8192 | Grow ChatSession; send until compact | Mock saw a non-stream summarizer; next stream has `[CONVERSATION SUMMARY]` (not raw full history); `next_hello_ok()` | **OK / Landed** |
-| **K2** | CI | floods, then `overflow once` | First stream HTTP 400 `prompt is too long` | Worker respawns with force compact; succeeds on retry (2–3 stream POSTs); `next_hello_ok()` | **OK / Landed** |
+| **K1** | CI | `INFLATE_HISTORY` then `hello` | Grow ChatSession past 32768×75%; send | Mock saw a non-stream summarizer; hello stream has `[CONVERSATION SUMMARY]` (not raw full history); `next_hello_ok()` | **OK / Landed** |
+| **K2** | CI | `INFLATE_HISTORY` then `overflow once` | First stream HTTP 400 `prompt is too long` | Worker respawns with force compact; succeeds on retry (2–3 stream POSTs); `next_hello_ok()` | **OK / Landed** |
 | **K3** | CI | `chat_compaction_enabled: false`, `overflow once` | Send overflow phrase | No summarizer; no respawn; today's `[API error: … prompt is too long]` path; restore flag; `next_hello_ok()` | **OK / Landed** |
 | **K4** | CI | `llama process died` | Send death phrase | No compact retry; error surfaced; `next_hello_ok()` | **OK / Landed** |
 

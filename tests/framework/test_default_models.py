@@ -74,7 +74,7 @@ class TestGetProviderDefaults(unittest.TestCase):
 
         row = next((m for m in DEFAULT_MODELS if m.get("ids", {}).get("mock") == "writeragent-mock"), None)
         self.assertIsNotNone(row)
-        self.assertEqual(row["context_length"], 8192)
+        self.assertEqual(row["context_length"], 32768)
         self.assertFalse(row.get("default_text"))
         self.assertTrue(bool(row["capability"] & ModelCapability.CHAT))
         # Must not become the custom-endpoint Settings default.

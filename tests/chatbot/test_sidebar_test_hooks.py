@@ -64,6 +64,7 @@ from plugin.chatbot.sidebar_test_hooks import (
     component_is_calc,
     find_calc_component,
     handle_debug_sidebar_command,
+    inflate_sidebar_history,
     open_calc_document,
 )
 from tests.chatbot.mock_llm_harness import mock_config
@@ -437,6 +438,48 @@ def test_stub_recorder_child_hang_ready(fake_listener: _FakeListener) -> None:
         assert read_stub_recorder_control().get("hang_ready") is True
     finally:
         clear_stub_recorder_control()
+
+
+def test_handle_debug_sidebar_inflate_history(fake_listener: _FakeListener, monkeypatch) -> None:
+    from plugin.chatbot.sidebar_test_hooks import debug_sidebar_snapshot_path
+
+    class _Session:
+        def __init__(self) -> None:
+            self.messages = [{"role": "system", "content": "sys"}]
+            self.compaction = None
+
+    fake_listener.session = _Session()
+    fake_listener._last_compact_reason = None
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.adopt_runtime_send_listeners", lambda: 0)
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.send_listener", lambda frame=None: fake_listener)
+    handle_debug_sidebar_command("chatbot.debug_sidebar.INFLATE_HISTORY")
+    path = debug_sidebar_snapshot_path()
+    assert os.path.isfile(path)
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    os.remove(path)
+    assert data["session_n_messages"] >= 5
+    assert data["has_compaction"] is False
+    assert sum(data["session_content_chars"]) >= 20000
+
+
+def test_inflate_sidebar_history_in_process(fake_listener: _FakeListener, monkeypatch) -> None:
+    from plugin.chatbot.compaction import estimate_tokens
+
+    class _Session:
+        def __init__(self) -> None:
+            self.messages = [{"role": "system", "content": "sys"}]
+            self.compaction = None
+
+    fake_listener.session = _Session()
+    monkeypatch.setattr("plugin.chatbot.sidebar_test_hooks.send_listener", lambda frame=None: fake_listener)
+    snap = inflate_sidebar_history()
+    assert snap["session_n_messages"] >= 5
+    assert int(snap.get("inflate_pairs") or 0) >= 1
+    # Mock catalog window is 32768; proactive compact fires at 75%.
+    assert estimate_tokens(fake_listener.session.messages) >= int(32768 * 0.75)
+    assert fake_listener.session.messages[0]["role"] == "system"
+    assert fake_listener.session.messages[-1]["role"] == "assistant"
 
 
 def test_clear_sidebar_chat_resets_session_and_widget(fake_listener: _FakeListener) -> None:

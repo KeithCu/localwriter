@@ -1358,6 +1358,10 @@ def test_summarize_chat_payload_doc_len_and_current_query():
     assert rec["has_current_query_mark"] is True
     assert rec["current_query"] == "look up latest Python"
     assert rec["doc_content_len"] == len("Welcome to WriterAgent.")
+    assert rec["n_messages"] == 2
+    assert rec["payload_chars"] == sum(
+        len(m["content"]) for m in payload["messages"] if isinstance(m.get("content"), str)
+    )
     assert rec["decided_tools"] == ["web_research"]
     assert rec["last_assistant_tool_calls"] == []
     assert "add_comment" in rec["advertised_tools"]

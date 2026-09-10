@@ -52,10 +52,11 @@ _STT_PROMPT_NEEDLE = "transcribe this audio exactly"
 
 RAMBLE_PARTS = 200
 FLOOD_PARAS = 40
-# Packet K: ~2000 rough tokens of ASCII so two turns cross the 8192×70% gate.
-HISTORY_FLOOD_CHARS = 8000
+# Packet K: ~6000 rough tokens so two turns cross 32768×75%. 8192 left
+# keep=None once the Writer system prompt + 14 tool schemas filled remainder.
+HISTORY_FLOOD_CHARS = 24000
 HISTORY_FLOOD_MARK = "history-flood-pad"
-MOCK_CONTEXT_WINDOW = 8192
+MOCK_CONTEXT_WINDOW = 32768
 COMPACTION_SUMMARY = (
     "# Goal\n"
     "Continue the LibreOffice sidebar session after mock compaction.\n\n"
@@ -357,6 +358,8 @@ def summarize_chat_payload(
         "last_assistant_tool_calls": _last_assistant_tool_names(messages),
         "decided_tools": decided,
         "doc_content_len": document_content_len(messages),
+        "n_messages": len(messages),
+        "payload_chars": sum(len(_as_text(m.get("content"))) for m in messages if isinstance(m, dict)),
         "has_input_audio": bool(last_user is not None and _content_has_audio(last_user.get("content"))),
         "path": "/v1/chat/completions",
         "is_summarizer": is_compaction_summarizer(payload),
@@ -931,7 +934,7 @@ def _html_tool_wrapup(user_text: str, tool_name: str, tool_text: str) -> str:
 
 
 def _html_history_flood(topic: str) -> str:
-    """Large ASCII pad so ChatSession estimate crosses the mock 8192×70% gate."""
+    """Large ASCII pad so ChatSession estimate crosses the mock 32768×75% gate."""
     safe = html.escape((topic or "flood history").strip()[:80] or "flood history")
     pad = ("x" * 80 + " ") * max(1, HISTORY_FLOOD_CHARS // 81)
     return (

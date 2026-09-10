@@ -102,6 +102,7 @@ DEFAULT_MODELS: list[dict[str, Any]] = [
     {"display_name": "GLM ASR 2512", "capability": ModelCapability.AUDIO, "ids": {"zai": "glm-asr-2512"}, "default_audio": True},
     # Soak / Packet K. Not a hosted default — ``ids.mock`` keeps Settings
     # dropdowns empty. ``resolve_context_window`` matches the id so
-    # writeragent-mock has a small denominator (not Hermes 256k).
-    {"display_name": "WriterAgent Mock", "capability": ModelCapability.CHAT | ModelCapability.AUDIO | ModelCapability.TOOLS, "context_length": 8192, "ids": {"mock": "writeragent-mock"}},
+    # writeragent-mock has a denominator (32768: 8192 left no remainder
+    # after the Writer system prompt + core tool schemas; not Hermes 256k).
+    {"display_name": "WriterAgent Mock", "capability": ModelCapability.CHAT | ModelCapability.AUDIO | ModelCapability.TOOLS, "context_length": 32768, "ids": {"mock": "writeragent-mock"}},
 ]

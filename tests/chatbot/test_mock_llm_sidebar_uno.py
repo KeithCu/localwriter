@@ -2589,41 +2589,41 @@ def _view_stream_rows(rows: list[dict[str, Any]] | None = None) -> list[dict[str
     ]
 
 
-def _flood_until_compact(*, max_turns: int = 4) -> None:
-    """Grow history until proactive compact runs and the next stream uses the view."""
+def _inflate_history(ctx: Any = None) -> dict[str, Any]:
+    """Grow ChatSession in soffice past the mock 32768×75% gate (no 24k HTML stream)."""
+    from plugin.chatbot.sidebar_test_hooks import inflate_sidebar_history
 
-    assert _session is not None
-    for unused in range(max_turns):
-        _send_and_wait("flood history", timeout=90.0)
-        rows = _captures()
-        if _summarizer_rows(rows) and _view_stream_rows(rows):
-            return
-    rows = _captures()
-    raise AssertionError(
-        "K expected proactive compact within %d floods; summarizer=%s view=%s last=%r"
-        % (max_turns, bool(_summarizer_rows(rows)), bool(_view_stream_rows(rows)), rows[-3:] if rows else rows)
-    )
+    snap = inflate_sidebar_history(ctx=ctx)
+    n = int(snap.get("session_n_messages") or 0)
+    chars = snap.get("session_content_chars") or []
+    assert n >= 5, "K inflate did not grow ChatSession: %r" % snap
+    assert sum(int(c) for c in chars) >= 20000, "K inflate pads missing: %r" % snap
+    return snap
 
 
 @native_test
 def test_k1_proactive_compact_then_hello(ctx):
     _ensure_compaction_enabled(True)
     _k_reset()
-    _flood_until_compact()
+    _inflate_history(ctx)
+    from scripts.mock_llm_server import clear_captures
+
+    clear_captures(_session.config)
+    _send_and_wait("hello", timeout=90.0)
     rows = _captures()
     assert _summarizer_rows(rows), "K1 expected non-stream summarizer POST: %r" % rows
     assert _view_stream_rows(rows), "K1 expected a stream that is not raw full history: %r" % rows
-    _hello_ok()
-    hello_rows = [row for row in _captures() if (row.get("current_query") or "").strip().lower() == "hello"]
-    assert hello_rows, "K1 recovery hello never reached the mock"
+    hello_rows = [row for row in rows if (row.get("current_query") or "").strip().lower() == "hello"]
+    assert hello_rows, "K1 hello never reached the mock"
     assert any(row.get("stream") and not row.get("http_error") for row in hello_rows), hello_rows
+    _hello_ok()
 
 
 @native_test
 def test_k2_overflow_once_retries_then_hello(ctx):
     _ensure_compaction_enabled(True)
     _k_reset()
-    _flood_until_compact()
+    _inflate_history(ctx)
     from scripts.mock_llm_server import clear_captures
 
     clear_captures(_session.config)

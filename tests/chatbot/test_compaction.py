@@ -545,7 +545,7 @@ def test_resolve_context_window_writeragent_mock():
         model="writeragent-mock",
         endpoint="http://127.0.0.1:18766",
     )
-    assert C.resolve_context_window(client) == 8192
+    assert C.resolve_context_window(client) == 32768
     assert C.resolve_context_window(client) != 256000
 
 
