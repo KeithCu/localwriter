@@ -26,6 +26,7 @@ Top-level keys from the config dataclass (Settings dialog, chat, images).
 | `temperature` | `float` | `-1.0` |  |  |
 | `additional_instructions` | `string` | `""` |  |  |
 | `chat_max_tokens` | `int` | `16384` |  |  |
+| `chat_compaction_enabled` | `boolean` | `true` |  |  |
 | `request_timeout` | `int` | `120` |  |  |
 | `stt_model` | `string` | `""` |  |  |
 | `image_base_size` | `int` | `512` |  |  |
