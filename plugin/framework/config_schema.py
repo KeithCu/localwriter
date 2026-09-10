@@ -305,6 +305,10 @@ class WriterAgentConfig:
     temperature: float = -1.0
     additional_instructions: str = ""
     chat_max_tokens: int = 16384
+    # Sidebar history auto-compact (plugin/chatbot/compaction.py). Unused by the
+    # tool loop until PR2; default ON matches the v2 plan. False disables both
+    # proactive compact and overflow retry once wired.
+    chat_compaction_enabled: bool = True
     request_timeout: int = 120
     stt_model: str = ""
     api_keys_by_endpoint: Dict[str, str] = dataclasses.field(default_factory=dict)
