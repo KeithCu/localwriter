@@ -25,6 +25,7 @@ from plugin.framework.default_models import DEFAULT_MODELS, get_provider_default
 from plugin.framework.url_utils import normalize_endpoint_url, get_api_version_suffix
 from plugin.framework.client.provider_detection import get_provider_from_endpoint
 from plugin.framework.errors import NetworkError
+from plugin.framework.openrouter_model_id import openrouter_model_ids_equivalent
 from plugin.framework.config import (
     get_api_key_for_endpoint,
     get_config_bool_safe,
@@ -61,6 +62,10 @@ ENDPOINT_PRESETS = [
 _model_fetch_cache: dict[str, list[str] | None] = {}
 _model_fetch_image_cache: dict[str, list[str] | None] = {}
 _model_fetch_vision_cache: dict[str, list[str] | None] = {}
+# Same key as _model_fetch_cache. Per-id context tokens harvested from /v1/models
+# (context_length or context_window only). None after a failed fetch. Lookup
+# never HTTP — compact reads this; Settings/sidebar populate it.
+_model_context_cache: dict[str, dict[str, int] | None] = {}
 # POST /api/show, once per process. Value is {capabilities: list[str], num_ctx: int|None}.
 # Vision probes and the #570 crash sentence share this so the first probe pays for both.
 _ollama_show_cache: dict[str, dict[str, Any]] = {}
@@ -131,6 +136,37 @@ def _vision_input_model_ids_from_v1_entries(entries: list[Any]) -> list[str]:
     return out
 
 
+def _parse_positive_ctx(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def _context_tokens_from_v1_entries(entries: list[Any]) -> dict[str, int]:
+    """Harvest advertised windows. Prefer context_length (OR/Together) over context_window (Groq).
+
+    Do not read max_context_length — that is a trained max (LM Studio / Ollama-class
+    #570), not the live load window.
+    """
+    out: dict[str, int] = {}
+    for m in entries:
+        if not isinstance(m, dict):
+            continue
+        mid = m.get("id")
+        if not mid:
+            continue
+        tokens = _parse_positive_ctx(m.get("context_length"))
+        if tokens is None:
+            tokens = _parse_positive_ctx(m.get("context_window"))
+        if tokens is not None:
+            out[str(mid)] = tokens
+    return out
+
+
 def _parse_v1_models_response(data: Any) -> tuple[list[str], list[str], list[str]] | None:
     """Return (all_ids, image_output_ids, vision_input_ids) from a /v1/models JSON body."""
     entries = _v1_models_entries_from_body(data)
@@ -147,10 +183,20 @@ def _parse_v1_models_response(data: Any) -> tuple[list[str], list[str], list[str
     return models, image_models, vision_models
 
 
-def _store_model_fetch_caches(cache_key: str, models: list[str] | None, image_models: list[str] | None, vision_models: list[str] | None = None) -> None:
+def _store_model_fetch_caches(
+    cache_key: str,
+    models: list[str] | None,
+    image_models: list[str] | None,
+    vision_models: list[str] | None = None,
+    context_tokens: dict[str, int] | None = None,
+) -> None:
     _model_fetch_cache[cache_key] = models
     _model_fetch_image_cache[cache_key] = image_models if models is not None else None
     _model_fetch_vision_cache[cache_key] = vision_models if models is not None else None
+    if models is None:
+        _model_context_cache[cache_key] = None
+    else:
+        _model_context_cache[cache_key] = dict(context_tokens) if context_tokens else {}
 
 
 def _model_fetch_cache_key(url: str, base: str, api_key_override: str | None = None) -> str:
@@ -235,7 +281,14 @@ def fetch_available_models(endpoint, api_key_override: str | None = None):
         parsed = _parse_v1_models_response(data)
         if parsed is not None:
             models, image_models, vision_models = parsed
-            _store_model_fetch_caches(cache_key, models, image_models, vision_models)
+            entries = _v1_models_entries_from_body(data) or []
+            _store_model_fetch_caches(
+                cache_key,
+                models,
+                image_models,
+                vision_models,
+                _context_tokens_from_v1_entries(entries),
+            )
             provider = get_provider_from_endpoint(base)
             if provider == "zai":
                 preview = models[:5] if models else []
@@ -619,16 +672,6 @@ def parse_ollama_runtime_num_ctx(show_body: Any) -> int | None:
     return _num_ctx_from_modelfile(show_body.get("modelfile"))
 
 
-def _parse_positive_ctx(value: Any) -> int | None:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        return None
-    if parsed <= 0:
-        return None
-    return parsed
-
-
 def _num_ctx_from_parameters(parameters: Any) -> int | None:
     if isinstance(parameters, dict):
         for key, val in parameters.items():
@@ -722,6 +765,38 @@ def query_ollama_runtime_num_ctx(endpoint: str, model_id: str) -> int | None:
     num_ctx = info.get("num_ctx")
     if isinstance(num_ctx, int) and num_ctx > 0:
         return num_ctx
+    return None
+
+
+def cached_v1_context_tokens(endpoint: str, model_id: str, provider: str | None = None) -> int | None:
+    """Already-memoized /v1/models window for ``model_id``, or None. Does not HTTP.
+
+    Compact must not fetch: OpenRouter/Together lists are huge and the sidebar
+    skips those providers on purpose. Cache miss → caller falls back to catalog.
+    """
+    if not endpoint or not model_id:
+        return None
+    base = normalize_endpoint_url(endpoint)
+    if not base or not endpoint_url_suitable_for_v1_models_fetch(base):
+        return None
+    is_owu = get_config_bool_safe("is_openwebui")
+    suffix = get_api_version_suffix(base, is_openwebui=is_owu)
+    cache_key = _model_fetch_cache_key(f"{base}{suffix}/models", base, None)
+    lengths = _model_context_cache.get(cache_key)
+    if not isinstance(lengths, dict) or not lengths:
+        return None
+    mid = str(model_id).strip()
+    tokens = lengths.get(mid)
+    if isinstance(tokens, int) and tokens > 0:
+        return tokens
+    if provider == "openrouter":
+        for cached_id, cached_tokens in lengths.items():
+            if (
+                isinstance(cached_tokens, int)
+                and cached_tokens > 0
+                and openrouter_model_ids_equivalent(cached_id, mid)
+            ):
+                return cached_tokens
     return None
 
 

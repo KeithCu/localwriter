@@ -30,6 +30,7 @@ class TestFetchAvailableModelsCache(unittest.TestCase):
         for k in keys_to_del:
             del cfg._model_fetch_cache[k]
             cfg._model_fetch_image_cache.pop(k, None)
+            cfg._model_context_cache.pop(k, None)
 
     def test_second_call_does_not_http(self):
         from plugin.framework.client import model_fetcher as cfg
@@ -114,6 +115,7 @@ class TestTextModelPlaceholderGuards(unittest.TestCase):
                     if ('58904' in k):
                         del cfg._model_fetch_cache[k]
                         cfg._model_fetch_image_cache.pop(k, None)
+                        cfg._model_context_cache.pop(k, None)
                 with patch('plugin.framework.client.requests.sync_request') as mock_sync:
                     mock_sync.return_value = {'data': [{'id': 'm1'}]}
                     r = cfg.fetch_available_models(endpoint, api_key_override='from-override')
@@ -143,6 +145,7 @@ class TestTextModelPlaceholderGuards(unittest.TestCase):
                     if ('58905' in k):
                         del cfg._model_fetch_cache[k]
                         cfg._model_fetch_image_cache.pop(k, None)
+                        cfg._model_context_cache.pop(k, None)
                 with patch('plugin.framework.client.requests.sync_request') as mock_sync:
                     mock_sync.return_value = {'data': [{'id': 'x'}]}
                     cfg.fetch_available_models(endpoint)
@@ -193,6 +196,9 @@ class TestFetchAvailableImageModels(unittest.TestCase):
         for k in list(cfg._model_fetch_cache):
             if '58907' in k or '58908' in k or 'together.xyz' in k or 'openrouter.ai' in k:
                 del cfg._model_fetch_cache[k]
+        for k in list(cfg._model_context_cache):
+            if '58907' in k or '58908' in k or 'together.xyz' in k or 'openrouter.ai' in k:
+                cfg._model_context_cache.pop(k, None)
 
     def test_openrouter_queries_dedicated_images_endpoint(self):
         from plugin.framework.client import model_fetcher as cfg
@@ -395,3 +401,68 @@ class TestFilterFetchedModels(unittest.TestCase):
         self.assertIn("whisper-1", out)
         self.assertNotIn("glm-5.2", out)
         self.assertNotIn("gpt-4o", out)
+
+
+class TestV1ContextHarvest(unittest.TestCase):
+    """Harvest context_length / context_window from /v1/models; lookup never HTTP."""
+
+    ENDPOINT = "http://127.0.0.1:58923"
+
+    def setUp(self):
+        self._clear()
+
+    def tearDown(self):
+        self._clear()
+
+    def _clear(self):
+        import plugin.framework.client.model_fetcher as mf
+
+        for store in (mf._model_fetch_cache, mf._model_fetch_image_cache, mf._model_context_cache):
+            for key in [k for k in store if "58923" in k]:
+                store.pop(key, None)
+
+    def test_groq_context_window_harvested(self):
+        from plugin.framework.client import model_fetcher as mf
+
+        payload = {"data": [{"id": "openai/gpt-oss-120b", "context_window": 131072}]}
+        with patch("plugin.framework.client.requests.sync_request", return_value=payload):
+            mf.fetch_available_models(self.ENDPOINT)
+        self.assertEqual(
+            mf.cached_v1_context_tokens(self.ENDPOINT, "openai/gpt-oss-120b"),
+            131072,
+        )
+
+    def test_prefers_context_length_over_context_window(self):
+        from plugin.framework.client import model_fetcher as mf
+
+        payload = {
+            "data": [
+                {"id": "m", "context_length": 1000, "context_window": 2000},
+            ]
+        }
+        with patch("plugin.framework.client.requests.sync_request", return_value=payload):
+            mf.fetch_available_models(self.ENDPOINT)
+        self.assertEqual(mf.cached_v1_context_tokens(self.ENDPOINT, "m"), 1000)
+
+    def test_ignores_non_positive_and_max_context_length(self):
+        from plugin.framework.client import model_fetcher as mf
+
+        payload = {
+            "data": [
+                {"id": "zero", "context_length": 0},
+                {"id": "neg", "context_window": -8},
+                {"id": "lms", "max_context_length": 262144},
+            ]
+        }
+        with patch("plugin.framework.client.requests.sync_request", return_value=payload):
+            mf.fetch_available_models(self.ENDPOINT)
+        self.assertIsNone(mf.cached_v1_context_tokens(self.ENDPOINT, "zero"))
+        self.assertIsNone(mf.cached_v1_context_tokens(self.ENDPOINT, "neg"))
+        self.assertIsNone(mf.cached_v1_context_tokens(self.ENDPOINT, "lms"))
+
+    def test_lookup_does_not_http(self):
+        from plugin.framework.client import model_fetcher as mf
+
+        with patch("plugin.framework.client.requests.sync_request") as mock_sync:
+            self.assertIsNone(mf.cached_v1_context_tokens(self.ENDPOINT, "openai/gpt-oss-120b"))
+            mock_sync.assert_not_called()

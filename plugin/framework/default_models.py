@@ -84,7 +84,9 @@ def get_provider_defaults(provider):
 
 
 DEFAULT_MODELS: list[dict[str, Any]] = [
-    {"display_name": "Free Models (Auto)", "capability": ModelCapability.CHAT | ModelCapability.VISION | ModelCapability.TOOLS, "context_length": 131072, "ids": {"openrouter": "openrouter/free"}},
+    # openrouter/free is a router, not a model. OpenRouter lists 200k
+    # (https://openrouter.ai/openrouter/free); the routed hop may be smaller.
+    {"display_name": "Free Models (Auto)", "capability": ModelCapability.CHAT | ModelCapability.VISION | ModelCapability.TOOLS, "context_length": 200000, "ids": {"openrouter": "openrouter/free"}},
     {"display_name": "DeepSeek V3", "capability": ModelCapability.CHAT | ModelCapability.TOOLS, "context_length": 163840, "ids": {"deepseek": "deepseek-chat"}, "default_text": True},
     {"display_name": "DeepSeek V4 Flash", "capability": ModelCapability.CHAT | ModelCapability.TOOLS, "context_length": 163840, "ids": {"together": "deepseek-ai/DeepSeek-V4-Flash-0731"}},
     {"display_name": "MiniMax M3", "capability": ModelCapability.CHAT | ModelCapability.VISION | ModelCapability.TOOLS, "context_length": 1000000, "ids": {"together": "MiniMaxAI/MiniMax-M3"}, "default_text": True},

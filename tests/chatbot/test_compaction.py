@@ -538,6 +538,12 @@ def test_resolve_context_window_uses_client_config_model():
     assert C.resolve_context_window(client) == 131072
 
 
+def test_resolve_context_window_openrouter_free_catalog():
+    """OpenRouter lists the free router at 200k (hop may be smaller)."""
+    client = DummyClient(provider="openrouter", model="openrouter/free")
+    assert C.resolve_context_window(client) == 200000
+
+
 def test_resolve_context_window_writeragent_mock():
     """Mock soak id is not a hosted provider; catalog + any-id fallback."""
     client = DummyClient(
@@ -547,6 +553,88 @@ def test_resolve_context_window_writeragent_mock():
     )
     assert C.resolve_context_window(client) == 32768
     assert C.resolve_context_window(client) != 256000
+
+
+def _clear_v1_context_cache_keys(substr):
+    import plugin.framework.client.model_fetcher as mf
+
+    for store in (mf._model_fetch_cache, mf._model_fetch_image_cache, mf._model_context_cache):
+        for key in [k for k in store if substr in k]:
+            store.pop(key, None)
+
+
+def test_resolve_context_window_prefers_cached_live_over_catalog():
+    """Settings/sidebar harvest wins over stale DEFAULT_MODELS (Together MiniMax)."""
+    from unittest.mock import patch
+
+    from plugin.framework.client import model_fetcher as mf
+
+    endpoint = "http://127.0.0.1:58921"
+    _clear_v1_context_cache_keys("58921")
+    payload = [{"id": "MiniMaxAI/MiniMax-M3", "context_length": 524288}]
+    try:
+        with patch("plugin.framework.client.requests.sync_request", return_value=payload):
+            mf.fetch_available_models(endpoint)
+        client = DummyClient(
+            provider="together",
+            endpoint=endpoint,
+            model="MiniMaxAI/MiniMax-M3",
+        )
+        assert C.resolve_context_window(client) == 524288
+    finally:
+        _clear_v1_context_cache_keys("58921")
+
+
+def test_resolve_context_window_openrouter_nitro_uses_cached_base():
+    from unittest.mock import patch
+
+    from plugin.framework.client import model_fetcher as mf
+
+    endpoint = "http://127.0.0.1:58922"
+    _clear_v1_context_cache_keys("58922")
+    payload = {"data": [{"id": "openai/gpt-oss-120b", "context_length": 99999}]}
+    try:
+        with patch("plugin.framework.client.requests.sync_request", return_value=payload):
+            mf.fetch_available_models(endpoint)
+        client = DummyClient(
+            provider="openrouter",
+            endpoint=endpoint,
+            model="openai/gpt-oss-120b:nitro",
+        )
+        assert C.resolve_context_window(client) == 99999
+    finally:
+        _clear_v1_context_cache_keys("58922")
+
+
+def test_ollama_ignores_v1_context_cache(monkeypatch):
+    from unittest.mock import patch
+
+    from plugin.framework.client import model_fetcher as mf
+
+    endpoint = "http://127.0.0.1:58924"
+    _clear_v1_context_cache_keys("58924")
+    payload = {"data": [{"id": "llama3", "context_length": 32768}]}
+    try:
+        with patch("plugin.framework.client.requests.sync_request", return_value=payload):
+            mf.fetch_available_models(endpoint)
+        monkeypatch.setattr(C, "query_ollama_runtime_num_ctx", lambda *a, **k: None)
+        client = DummyClient(provider="ollama", endpoint=endpoint, model="llama3")
+        assert C.resolve_context_window(client) is None
+    finally:
+        _clear_v1_context_cache_keys("58924")
+
+
+def test_resolve_context_window_does_not_fetch_v1_models():
+    from unittest.mock import patch
+
+    client = DummyClient(
+        provider="groq",
+        endpoint="http://127.0.0.1:58925",
+        model="not-in-catalog/model",
+    )
+    with patch("plugin.framework.client.requests.sync_request") as mock_sync:
+        assert C.resolve_context_window(client) is None
+        mock_sync.assert_not_called()
 
 
 def test_compact_session_max_tokens_never_reads_chat_max_tokens():

@@ -179,9 +179,12 @@ Uses Hermes Agent's rough token estimator adapted with standard library `re` and
 
 ### 5. Context Window Resolution (`resolve_context_window`)
 
-1. **Ollama live `num_ctx`:** When provider is `"ollama"`, queries `/api/show` for runtime `num_ctx` via `query_ollama_runtime_num_ctx`. Does not fall back to trained context length.
-2. **Catalog lookup:** Looks up the model in `DEFAULT_MODELS`, resolving OpenRouter aliases with `openrouter_model_ids_equivalent`.
-3. **Unknown (`None`):** If the window cannot be resolved, returns `None`. Compaction safely skips execution (`reason="no_window"`), preventing erroneous truncation.
+1. **Ollama live `num_ctx`:** When provider is `"ollama"`, queries `/api/show` for runtime `num_ctx` via `query_ollama_runtime_num_ctx`. Missing `num_ctx` returns `None` immediately — no `/v1/models` cache and no catalog (issue #570).
+2. **Cached `/v1/models` length:** For every other provider, `cached_v1_context_tokens` reads the process memo filled when Settings/sidebar already fetched the list (`context_length` or Groq `context_window`). Harvest only — compact does **not** GET `/v1/models`. OpenRouter uses `:nitro` / dynamic-suffix equivalence. Sidebar skips OpenRouter/Together fetches (`massive_providers`); those live lengths appear only after Settings has fetched.
+3. **Catalog lookup:** `DEFAULT_MODELS` as before, including the custom any-id pass (`writeragent-mock` → 32768).
+4. **Unknown (`None`):** If the window cannot be resolved, returns `None`. Compaction safely skips execution (`reason="no_window"`), preventing erroneous truncation.
+
+See [`context-window-fidelity-brief.md`](context-window-fidelity-brief.md).
 
 ### 6. Trigger Policy & Headroom
 
@@ -281,9 +284,9 @@ The current implementation represents **Version 1**. The following features and 
 
 ### 6. Context-window resolution fidelity
 
-- Compaction stays inert when `resolve_context_window` returns `None` (unknown model / LM Studio / custom).
-- Research brief (provider → source-of-truth → WA today → small fix plan): [`context-window-fidelity-brief.md`](context-window-fidelity-brief.md).
-- Do **not** invent Hermes-sized fallbacks or subtract `chat_max_tokens` on llama.cpp (#570).
+- **Shipped.** Resolver order is Ollama `num_ctx` → cached `/v1/models` length → `DEFAULT_MODELS` → `None`. Details: [`context-window-fidelity-brief.md`](context-window-fidelity-brief.md).
+- Still inert when the window is unknown (unlisted id, LM Studio OpenAI row with no length field, llama.cpp without a published window).
+- Do **not** invent Hermes-sized fallbacks, harvest `max_context_length`, or subtract `chat_max_tokens` on llama.cpp (#570).
 
 ### 7. Dynamic Provider-Aware `max_tokens` Reservation
 - Some cloud providers decouple output generation limits from context windows, while local `llama.cpp` shares `n_ctx` between prompt and completion.
@@ -313,6 +316,7 @@ Compaction v1 is covered by comprehensive unit, error, and integration tests:
 - **Document Snapshot Exclusion:** Proves `messages[0]` is never passed to summarizer and live document context is always prefixed dynamically.
 - **Tool-Pair Integrity:** Asserts `tool_calls` and `role=tool` messages are never separated across summary boundaries.
 - **Failure Safety:** Validates that LLM summarizer exceptions leave `session.messages` and `session.compaction` completely intact.
+- **Window resolver:** Cached `/v1/models` length beats catalog; Ollama ignores the v1 cache; compact does not GET `/v1/models`.
 - **Overflow Classification:** Tests distinction between retryable overflow phrases and non-retryable server process death or rate limits.
 - **Tail Pressure & `#10896` Snap:** Verifies behavior when large tool results or user turns push the tail over budget.
 - **Shrink Gate:** Enforces more than 5% token reduction on overflow retry (`after < before * 0.95`).

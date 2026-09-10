@@ -53,6 +53,7 @@ class TestGetProviderDefaults(unittest.TestCase):
         self.assertTrue(bool(caps & ModelCapability.CHAT))
         self.assertTrue(bool(caps & ModelCapability.TOOLS))
         self.assertTrue(bool(caps & ModelCapability.VISION))
+        self.assertEqual(free_m["context_length"], 200000)
 
     def test_gemini_31_pro_catalog(self):
         from plugin.framework.default_models import DEFAULT_MODELS

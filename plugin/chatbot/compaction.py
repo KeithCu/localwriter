@@ -29,7 +29,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from plugin.framework.client.model_fetcher import query_ollama_runtime_num_ctx
+from plugin.framework.client.model_fetcher import cached_v1_context_tokens, query_ollama_runtime_num_ctx
 from plugin.framework.config import get_config_bool_safe
 from plugin.framework.default_models import DEFAULT_MODELS, resolve_model_id
 from plugin.framework.openrouter_model_id import openrouter_model_ids_equivalent
@@ -322,7 +322,7 @@ def keep_recent_tokens(window, system_tokens, tool_tokens, force=False):
 
 
 def resolve_context_window(client, model_id=None):
-    """Ollama: live ``num_ctx`` only. Else catalog ``context_length``. None → skip compact."""
+    """Ollama: live ``num_ctx`` only. Else cached /v1/models, then catalog. None → skip compact."""
     model_id = str(model_id or (client.config or {}).get("model") or "").strip() or None
     if not model_id:
         return None
@@ -332,7 +332,7 @@ def resolve_context_window(client, model_id=None):
         provider = None
     if provider == "ollama":
         # Issue #570: trained context_length is not the runtime window.
-        # Missing num_ctx → None; do not fall back to the cloud catalog.
+        # Missing num_ctx → None; do not fall back to v1 cache or catalog.
         try:
             endpoint = client._endpoint()
         except Exception:
@@ -341,6 +341,15 @@ def resolve_context_window(client, model_id=None):
         if isinstance(num_ctx, int) and num_ctx > 0:
             return num_ctx
         return None
+    try:
+        endpoint = client._endpoint()
+    except Exception:
+        endpoint = None
+    if endpoint:
+        # Harvest-only: Settings/sidebar already fetched. Do not GET /v1/models here.
+        live = cached_v1_context_tokens(endpoint, model_id, provider)
+        if isinstance(live, int) and live > 0:
+            return live
     for row in DEFAULT_MODELS:
         rid = resolve_model_id(row, provider)
         matched = rid == model_id
