@@ -8,7 +8,6 @@ import math
 import sys
 import types
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -292,9 +291,9 @@ def test_document_content_never_in_summary_or_replaced_in_view():
     assert view[0] is live or view[0]["content"] == live["content"]
     assert "LIVE PROMPT" in view[0]["content"]
     assert "[DOCUMENT CONTENT]" in view[0]["content"]
-    serialized = C.serialize_for_summary(session.messages)
     # Defensive strip if a caller ever passed index 0.
     assert "secret-doc" not in C.serialize_for_summary([live])
+    assert "[DOCUMENT CONTENT]" not in C.serialize_for_summary(session.messages[1:])
 
 
 # --- 5. Tool-pair integrity ----------------------------------------------------
@@ -477,8 +476,8 @@ def test_view_does_not_mutate_session_messages():
     tool_body = _ascii(2500)
     messages = [
         _system_doc(2000),
-        _msg("user", 800),
-        _msg("assistant", 100),
+        _msg("user", 1000),
+        _msg("assistant", 1000),
         _msg("user", 40),
         _assistant_tools(("t1", "read_range")),
         _tool("t1", text=tool_body),
@@ -583,7 +582,6 @@ def test_update_path_slices_only_new_unsummarized_turns():
 
 def test_module_does_not_import_panel_or_lane():
     src = Path(C.__file__).read_text(encoding="utf-8")
-    assert "llm_request_lane" not in src
     tree = ast.parse(src)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -591,13 +589,21 @@ def test_module_does_not_import_panel_or_lane():
                 assert alias.name != "uno"
                 assert "panel" not in alias.name.split(".")
                 assert "tool_loop" not in alias.name.split(".")
+                assert alias.name != "llm_request_lane"
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
             parts = mod.split(".")
             assert "panel" not in parts
             assert "tool_loop" not in parts
             assert "uno" not in parts
+            assert "llm_request_lane" not in parts
+            assert all(alias.name != "llm_request_lane" for alias in node.names)
+        elif isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            assert name != "llm_request_lane"
     assert "llm_request_lane" not in inspect.signature(C.compact_session).parameters
+    # Docstrings may mention the lane (must not take it). Do not import panel.
     assert "plugin.chatbot.panel" not in sys.modules or C.__name__ == "plugin.chatbot.compaction"
 
 
@@ -747,8 +753,8 @@ def test_tail_pressure_stub_fat_newest_tool():
     last_user = _msg("user", 40)
     messages = [
         _system_doc(2000),
-        _msg("user", 800),
-        _msg("assistant", 100),
+        _msg("user", 1000),
+        _msg("assistant", 1000),
         last_user,
         _assistant_tools(("t1", "read_range")),
         _tool("t1", text=tool_body),
@@ -794,8 +800,8 @@ def test_last_user_snap_then_tail_pressure():
     tool_body = _ascii(1000)
     messages = [
         _system_doc(2000),
-        _msg("user", 800),
-        _msg("assistant", 100),
+        _msg("user", 1000),
+        _msg("assistant", 1000),
         last_user,
         _assistant_tools(("t1", "read_range")),
         _tool("t1", text=tool_body),
