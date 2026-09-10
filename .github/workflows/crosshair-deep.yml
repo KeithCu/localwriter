@@ -60,7 +60,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv sync --dev
+          # Same as PR CI: do not let unpinned dev deps float past uv.lock.
+          uv sync --frozen --dev
 
       - name: Create build directory
         run: |

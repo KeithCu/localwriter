@@ -78,7 +78,9 @@ dev = [
     "fg-data-profiling",
     "pandas-montecarlo",
     "sympy",
-    "pint",
+    # 0.26 (2026-09-10) uses PEP 695 type-params; mypy python_version=3.11
+    # follows pint internals and fails [syntax] (GHA 34520496629). Stay on 0.25.x.
+    "pint>=0.25.3,<0.26",
     "matplotlib",
     "deal",
     "crosshair-tool",
@@ -159,6 +161,15 @@ ignore_errors = true
 module = "sounddevice"
 ignore_missing_imports = true
 disable_error_code = ["import-untyped"]
+
+# Do not typecheck pint internals. plugin.scripting.venv_diagnostics / units
+# import pint; follow_imports=normal then parses site-packages. pint 0.26
+# PEP 695 type-params break mypy at python_version=3.11 (GHA 34520496629).
+# Keep python_version=3.11 (LO/dev floor). Not a product API change.
+[[tool.mypy.overrides]]
+module = ["pint", "pint.*"]
+follow_imports = "skip"
+ignore_errors = true
 
 [tool.bandit]
 # Same scope as ty/mypy/pyright: extension code only (see Makefile `bandit` target).
