@@ -2,14 +2,23 @@
 # Copyright (c) 2026 KeithCu
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""UNO-free conversation compaction (PR1: module only, no tool-loop wire).
-
-Builds a cached model-facing view over a duck-typed session
+"""UNO-free conversation compaction. Cached view over a duck-typed session
 (``messages``, ``compaction``). Does not import ``panel``, ``tool_loop``,
 or UNO. Must run inside the caller's ``llm_request_lane`` hold — this
 module must not take that lock.
 
-Policy knobs: ``docs/chat/compaction-dev-plan.md`` (v2, OpenClaw + Hermes).
+Policy: ``docs/chat/compaction-dev-plan.md`` (v2).
+
+Hermes Agent 0.21.1 (MIT, Nous Research), tag ``v2026.9.7``:
+https://github.com/NousResearch/hermes-agent/tree/v2026.9.7
+Near copies: ``estimate_tokens_rough``, ``_temporal_anchoring_rule`` (MIT
+comments at those defs). Algorithms: ``compaction_ratio``,
+``ensure_last_user_in_tail``, ``pressure_stub_newest_tool_group``,
+``serialize_for_summary`` stubs, ``should_retry_overflow`` 5% gate.
+Not a port of ``ContextCompressor`` (4931 LOC).
+
+OpenClaw file:line cites remain on overflow markers, keepRecent cap,
+``IMAGE_BLOCK_TOKENS``, and the heading skeleton.
 """
 
 from __future__ import annotations
@@ -29,12 +38,17 @@ log = logging.getLogger(__name__)
 
 CHARS_PER_TOKEN = 4
 # Tier constants. COMPACTION_RATIO_SMALL is the llama.cpp product number.
+# 75% / 50% / 512k from Hermes _SMALL_CTX_* + _effective_threshold_percent
+# (context_compressor.py:986-989, :2235-2239). 70% is WA, not Hermes.
+# https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L2235-L2239
 COMPACTION_RATIO_SMALL = 0.70  # W <= 8192  (WA product; Hermes 85% is too late on 4k)
 COMPACTION_RATIO_DEFAULT = 0.75  # 8192 < W < 512_000  (Hermes small-context floor)
 COMPACTION_RATIO_LARGE = 0.50  # W >= 512_000  (Hermes large-window default)
 SMALL_CTX_WINDOW_LIMIT = 512_000
 MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3  # OpenClaw agent-compaction-constants.ts:30
-MIN_SHRINK_RATIO = 0.95  # Hermes turn_overflow: shrank iff after < before * this
+# Hermes TurnOverflow.compress_scored_by_tokens: shrank iff after < before * 0.95
+# https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/turn_overflow.py#L203
+MIN_SHRINK_RATIO = 0.95
 KEEP_RECENT_FRACTION = 0.30
 KEEP_RECENT_FLOOR = 2048  # preference, not a hard min after remaining-budget clamp
 KEEP_RECENT_CAP = 20_000  # OpenClaw DEFAULT_COMPACTION_SETTINGS.keepRecentTokens
@@ -42,7 +56,9 @@ MIN_TAIL_TOKENS = 256  # hard floor; below this, nothing to gain
 MAX_SUMMARY_CHARS = 16_000  # OpenClaw safety rail only; view cap is _summary_budget * 4
 IMAGE_BLOCK_TOKENS = 2000  # OpenClaw compaction.ts:278 (Hermes default is 1500)
 AUDIO_BLOCK_TOKENS = 2000
-PRUNE_MIN_CHARS = 200  # Hermes context_compressor.py:661
+# Hermes ContextCompressor._PRUNE_MIN_CHARS
+# https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L661
+PRUNE_MIN_CHARS = 200
 MAX_TOOL_CALL_ARGS_CHARS = 4000  # serialize_for_summary assistant tool_calls cap
 DOCUMENT_MARKERS = ("[DOCUMENT CONTENT]", "[END DOCUMENT]")
 _SUMMARY_TRUNCATION_MARKER = "\n\n[Compaction summary truncated to fit budget]"
@@ -95,8 +111,9 @@ _NON_OVERFLOW_MARKERS = (
     "tpm",
 )
 
-# Adapted from hermes-agent agent/model_metadata.py:1957-1983
+# Adapted from Nous Research Hermes Agent 0.21.1 (MIT).
 # estimate_tokens_rough / _CJK_DENSE_RE.
+# https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/model_metadata.py#L1957-L1983
 # Copyright (c) 2025 Nous Research. MIT License.
 # Byte-counting (not chars) is the corrective for non-CJK, non-ASCII text:
 # Cyrillic/Greek/Arabic are 2 bytes/char so count ~chars/2, matching real BPE
@@ -112,8 +129,10 @@ SUMMARIZATION_SYSTEM_PROMPT = (
     "Do not include the live document snapshot — it is rebuilt every send."
 )
 
-# OpenClaw SUMMARIZATION_PROMPT headings (compaction.ts:498-529), office-flavored,
-# plus Hermes Completed Actions [tool: name] (context_compressor.py:3420-3427).
+# OpenClaw SUMMARIZATION_PROMPT headings (compaction.ts:498-529), office-flavored.
+# Completed Actions [tool: name] fragment from Hermes _summary_template_sections
+# (context_compressor.py:3420-3427). Not the full Hermes template.
+# https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L3420-L3427
 # Temporal anchoring is appended at call time so a clock failure can omit it.
 SUMMARIZATION_PROMPT = """\
 Summarize the conversation inside <conversation> for a later model turn.
@@ -171,15 +190,22 @@ def gen_reserve(window):
     """Generation tokens the compacted view must leave free.
 
     Independent of ``chat_max_tokens`` (which would zero a 4k remainder).
-    4k-viable analog of Hermes's 85% cap: Ollama's OpenAI-compatible
-    endpoint silently clips over-window prompts, so exact-fill of ``n_ctx``
-    never reaches overflow retry. 4096 → 256; 8192+ → 512.
+    WA-only: a 4k-viable analog of Hermes's 85% small-window cap, not a
+    Hermes function. Ollama's OpenAI-compatible endpoint silently clips
+    over-window prompts, so exact-fill of ``n_ctx`` never reaches overflow
+    retry. 4096 → 256; 8192+ → 512.
     """
     return min(512, max(256, window // 16))
 
 
 def compaction_ratio(window):
-    """Window-tiered trigger. Hermes ``_effective_threshold_percent`` without 64k floor."""
+    """Window-tiered trigger.
+
+    Algorithm from Hermes ``ContextCompressor._effective_threshold_percent``
+    (``context_compressor.py:2235-2239``). WA drops the 64k
+    ``MINIMUM_CONTEXT_LENGTH`` floor and adds a 70% tier for ``W <= 8192``.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L2235-L2239
+    """
     if window >= SMALL_CTX_WINDOW_LIMIT:
         return COMPACTION_RATIO_LARGE
     if window <= 8192:
@@ -188,6 +214,10 @@ def compaction_ratio(window):
 
 
 def estimate_tokens_rough(text):
+    """CJK=1 + UTF-8 bytes/4. Near-copy of Hermes ``estimate_tokens_rough``.
+
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/model_metadata.py#L1966-L1983
+    """
     if not text:
         return 0
     text = str(text)
@@ -245,6 +275,14 @@ def tool_schema_tokens(tools):
 
 
 def prompt_tokens(messages, tools):
+    """Messages plus tool schemas.
+
+    Same idea as Hermes ``estimate_request_tokens_rough``
+    (``model_metadata.py:2155-2167``): count the request, not just the
+    transcript. WA ``json.dumps``s the schema; Hermes sums cached field
+    lengths.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/model_metadata.py#L2155-L2167
+    """
     return estimate_tokens(messages) + tool_schema_tokens(tools)
 
 
@@ -338,9 +376,14 @@ def _is_cut_point(msg):
 def find_cut_index(messages, keep_tokens, start_index=1):
     """First index of a verbatim tail whose token sum is <= keep_tokens.
 
-    Ceiling walk (not OpenClaw's floor). start_index is 1 (skip DOCUMENT
-    CONTENT) or the previous first_kept_index. None if nothing to compact
-    or if even the last user turn cannot fit in keep_tokens.
+    Ceiling walk (not OpenClaw's floor). Newest-first accumulate is the
+    same direction as Hermes ``_walk_tail_budget``
+    (``context_compressor.py:2589-2608``); Hermes has a ``min_tail``
+    message-count floor, WA is a pure token ceiling.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L2589-L2608
+    start_index is 1 (skip DOCUMENT CONTENT) or the previous
+    first_kept_index. None if nothing to compact or if even the last
+    user turn cannot fit in keep_tokens.
     """
     n = len(messages)
     if keep_tokens <= 0 or n <= start_index:
@@ -371,6 +414,10 @@ def find_cut_index(messages, keep_tokens, start_index=1):
 
 
 def _is_real_user(msg):
+    """Non-empty user text. Simpler analog of Hermes ``_is_actionable_user_turn``.
+
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L3660-L3670
+    """
     if msg.get("role") != "user":
         return False
     text = flatten_content(msg.get("content"))[0].strip()
@@ -381,12 +428,13 @@ def _is_real_user(msg):
 def ensure_last_user_in_tail(messages, cut, start_index, keep_tokens):
     """Pull cut back so the last real user is in the tail (Hermes #10896).
 
-    Hermes lets this win over the token budget. WriterAgent cannot: a 4k
-    remaining-budget ceiling is the product. If the snap would make
-    ``estimate(messages[new_cut:]) > keep_tokens``, return None rather
-    than blow the fit guarantee. A user message is already a clean
-    boundary — do not backward-align into the preceding assistant+tools
-    group (Hermes #22566).
+    Algorithm from Hermes ``_ensure_last_user_message_in_tail``
+    (``context_compressor.py:3977-4003``). Hermes lets this win over the
+    token budget; WA re-checks ``keep`` and returns None.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L3977-L4003
+    https://github.com/NousResearch/hermes-agent/issues/10896
+    A user message is already a clean boundary — do not backward-align
+    into the preceding assistant+tools group (Hermes :3986-3988 / #22566).
     """
     last = None
     for i in range(len(messages) - 1, start_index - 1, -1):
@@ -440,9 +488,15 @@ def newest_assistant_tool_span(messages, start_index):
 def pressure_stub_newest_tool_group(messages, keep_tokens, start_index=1):
     """Copy messages; stub newest-group role=tool bodies > PRUNE_MIN_CHARS.
 
-    Largest first, newest last-resort (Hermes ``_pressure_demote_tail``)
-    until the #10896 tail fits keep: last real user immediately before
-    the group + the group, or the group alone if there is no such user.
+    Algorithm from Hermes ``_pressure_demote_tail``
+    (``context_compressor.py:2687-2735``). WA is newest-group-only and
+    view-only; stub format follows the generic
+    ``_summarize_tool_result`` fallback ``[{name}] ({N} chars result)``
+    (:1391-1392), not the per-tool ``_sum_terminal`` dispatch.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L2687-L2735
+    Largest first, newest last-resort until the #10896 tail fits keep:
+    last real user immediately before the group + the group, or the
+    group alone if there is no such user.
 
     Must not no-op when group <= keep but last_user + group > keep
     (typical #10896 overflow). Last user is never stubbed.
@@ -508,7 +562,13 @@ def _strip_document_span(text):
 
 
 def serialize_for_summary(messages):
-    """ROLE: text lines. Stub role=tool bodies > PRUNE_MIN_CHARS. Session unchanged."""
+    """ROLE: text lines. Stub role=tool bodies > PRUNE_MIN_CHARS. Session unchanged.
+
+    Prune idea from Hermes ``_PRUNE_MIN_CHARS`` / old-tool stub
+    (``context_compressor.py:661``). Not ``_prune_old_tool_results`` or
+    SessionDB archive.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L661
+    """
     lines = []
     for i, msg in enumerate(messages):
         role = msg.get("role") or ""
@@ -536,7 +596,12 @@ def summary_pair(summary):
 
 
 def sanitize_tool_pairs(messages):
-    """Drop orphan role=tool; strip dangling tool_calls (keep assistant text if any)."""
+    """Drop orphan role=tool; strip dangling tool_calls (keep assistant text if any).
+
+    Same job as Hermes ``_sanitize_tool_pairs``
+    (``context_compressor.py:3846-3884``); not a port of that method.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L3846-L3884
+    """
     if not messages:
         return []
     out = []
@@ -629,6 +694,12 @@ def is_context_overflow_error(text):
 
 
 def should_retry_overflow(attempts, compact_reason, tokens_before=None, tokens_after=None):
+    """Cap retries and skip when compact did not shrink enough.
+
+    5% gate from Hermes ``TurnOverflow.compress_scored_by_tokens``
+    (``turn_overflow.py:179-208``, ``new_tokens < original * 0.95`` at :203).
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/turn_overflow.py#L179-L208
+    """
     if attempts >= MAX_OVERFLOW_COMPACTION_ATTEMPTS:
         return False
     if compact_reason in ("nothing_to_compact", "no_window", "failed", "aborted", "disabled"):
@@ -644,7 +715,13 @@ def should_retry_overflow(attempts, compact_reason, tokens_before=None, tokens_a
 
 
 def _today_for_prompt():
-    """YYYY-MM-DD; '' on clock failure. Hermes uses hermes_time; we use datetime."""
+    """YYYY-MM-DD; '' on clock failure.
+
+    Same idea as Hermes ``_today_for_prompt``
+    (``context_compressor.py:1584-1594``). Hermes uses ``hermes_time``;
+    WA uses ``datetime.date.today()``.
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L1584-L1594
+    """
     try:
         return datetime.date.today().isoformat()
     except Exception:
@@ -652,6 +729,13 @@ def _today_for_prompt():
 
 
 def _temporal_anchoring_rule():
+    """Dated past-tense rule for the summarizer. Near-copy of Hermes.
+
+    Adapted from ``ContextCompressor._temporal_anchoring_rule``
+    (``context_compressor.py:3392-3405``).
+    https://github.com/NousResearch/hermes-agent/blob/v2026.9.7/agent/context_compressor.py#L3392-L3405
+    Copyright (c) 2025 Nous Research. MIT License.
+    """
     today = _today_for_prompt()
     if not today:
         return ""

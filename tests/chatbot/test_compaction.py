@@ -749,7 +749,8 @@ def test_negative_85_percent_on_4k():
 
 
 def test_five_percent_shrink_gate():
-    # Hermes :203 is new_tokens < original * 0.95. Exact 5% is not a shrink.
+    # Hermes turn_overflow.compress_scored_by_tokens :203 is new_tokens < original * 0.95.
+    # Exact 5% is not a shrink.
     assert C.should_retry_overflow(0, "ok", 1000, 950) is False
     assert C.should_retry_overflow(0, "ok", 1000, 949) is True
     assert C.should_retry_overflow(0, "ok", 1000, 960) is False
