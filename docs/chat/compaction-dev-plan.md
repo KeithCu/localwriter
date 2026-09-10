@@ -63,15 +63,15 @@ sequenceDiagram
   participant LLM as LlmClient
   UI->>UI: refresh_document_context
   UI->>W: run_in_background(_spawn_llm_worker)
-  Note over W: with llm_request_lane()  (non-reentrant Lock)
+  Note over W: with llm_request_lane() (non-reentrant Lock)
   W->>C: compact_session(session, client, tools, force=...)
-  alt should_compact / force and remainder >= MIN_TAIL
+  alt should_compact or force (remainder at least MIN_TAIL)
     W->>UI: STATUS "Compacting conversation..." via queue
-    C->>C: find_cut_index ceiling walk (tail tokens <= keep)
-    C->>C: if None, pressure-stub newest tool group in the view; re-walk
-    C->>C: ensure_last_user_in_tail (Hermes #10896); re-check keep
-    C->>C: if snap None and not yet stubbed, pressure-stub, re-walk, re-snap
-    C->>C: serialize_for_summary with tool stubs >200 chars + assistant tool_calls
+    C->>C: find_cut_index ceiling walk (tail tokens at most keep)
+    C->>C: if None, pressure-stub newest tool group and re-walk
+    C->>C: ensure_last_user_in_tail (Hermes issue 10896) and re-check keep
+    C->>C: if snap None and not stubbed, pressure-stub, re-walk, and re-snap
+    C->>C: serialize_for_summary (tool stubs over 200 chars + assistant tool_calls)
     C->>LLM: request_with_tools(summarizer, stream=False, stop_checker)
     LLM-->>C: summary text
     C->>C: session.compaction = CompactionState
@@ -79,7 +79,7 @@ sequenceDiagram
   end
   W->>LLM: stream_request_with_tools(messages_for_llm(session))
   LLM-->>UI: CHUNK / STREAM_DONE / ERROR via Queue
-  alt prompt overflow and attempts < 3 and after < 0.95 * before
+  alt prompt overflow (attempts under 3, shrunk by at least 5%)
     UI->>UI: _set_status Compacting (drain thread OK)
     UI->>W: _spawn_llm_worker(..., force_compact=True)
     Note over UI: host does NOT _set_status Thinking when force_compact
