@@ -428,7 +428,7 @@ def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
     monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
     monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
     monkeypatch.setattr(
-        "plugin.tests.testing_utils._draw_family_close_via_dispose",
+        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
         lambda: False,
     )
 
@@ -453,8 +453,8 @@ def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
     doc.dispose.assert_not_called()
 
 
-def test_close_draw_family_doc_windows_uses_dispose(monkeypatch):
-    """GHA 34532953982: Windows close(True) hung after Writer-first + settle."""
+def test_close_draw_family_doc_windows_skips_close_and_dispose(monkeypatch):
+    """GHA 34535868114: dispose() hung the same way as close(True)."""
     from unittest.mock import MagicMock
 
     from plugin.tests.testing_utils import (
@@ -466,23 +466,21 @@ def test_close_draw_family_doc_windows_uses_dispose(monkeypatch):
     monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
     monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
     monkeypatch.setattr(
-        "plugin.tests.testing_utils._draw_family_close_via_dispose",
+        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
         lambda: True,
     )
     doc = MagicMock()
     doc.supportsService.side_effect = lambda svc: svc.endswith("PresentationDocument")
     doc.RuntimeUID = "impress-uid"
     doc.setModified.side_effect = lambda _modified: order.append("setModified")
-    doc.dispose.side_effect = lambda: order.append("dispose")
     close_draw_family_doc(doc)
     assert order == [
         "setModified",
         "gc",
         ("sleep", _DRAW_FAMILY_PRE_CLOSE_SETTLE_S),
-        "dispose",
     ]
-    doc.dispose.assert_called_once_with()
     doc.close.assert_not_called()
+    doc.dispose.assert_not_called()
 
 
 def test_close_draw_family_doc_none_skips_settle(monkeypatch):
@@ -503,7 +501,7 @@ def test_close_draw_family_doc_logs_svc_and_steps(capsys, monkeypatch):
     monkeypatch.setattr("gc.collect", lambda: None)
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
     monkeypatch.setattr(
-        "plugin.tests.testing_utils._draw_family_close_via_dispose",
+        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
         lambda: False,
     )
     doc = MagicMock()
@@ -515,6 +513,27 @@ def test_close_draw_family_doc_logs_svc_and_steps(capsys, monkeypatch):
     assert "close_draw_family: setModified(False) ok" in err
     assert "close_draw_family: close(True) start svc=impress uid=uid-9" in err
     assert "close_draw_family: close(True) done svc=impress uid=uid-9" in err
+
+
+def test_close_draw_family_doc_windows_logs_skip(capsys, monkeypatch):
+    from unittest.mock import MagicMock
+
+    from plugin.tests.testing_utils import close_draw_family_doc
+
+    monkeypatch.setattr("gc.collect", lambda: None)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        "plugin.tests.testing_utils._draw_family_skip_uno_teardown",
+        lambda: True,
+    )
+    doc = MagicMock()
+    doc.supportsService.side_effect = lambda svc: svc.endswith("PresentationDocument")
+    doc.RuntimeUID = "uid-9"
+    close_draw_family_doc(doc)
+    err = capsys.readouterr().err
+    assert "close_draw_family: skip uno teardown svc=impress uid=uid-9" in err
+    assert "close(True) start" not in err
+    assert "dispose() start" not in err
 
 
 def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):

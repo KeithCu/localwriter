@@ -900,11 +900,12 @@ _DRAW_FAMILY_POST_CLOSE_SETTLE_S = 0.75 if sys.platform == "win32" else 0.15
 _DRAW_FAMILY_PRE_CLOSE_SETTLE_S = _DRAW_FAMILY_POST_CLOSE_SETTLE_S
 
 
-def _draw_family_close_via_dispose() -> bool:
-    """True when Impress ``XCloseable.close(True)`` is the known Windows hang.
+def _draw_family_skip_uno_teardown() -> bool:
+    """True when Impress close *and* dispose block the Windows UI thread.
 
-    GHA 34532953982: Writer sibling closed, ``setModified(False)`` + 0.75s
-    settle returned, then ``close(True)`` blocked 30s (office still alive).
+    GHA 34532953982: ``close(True)`` hung 30s after Writer-first + settle.
+    GHA 34535868114: ``dispose()`` hung the same way (``dispose() start``,
+    office still alive). Do not call either API on win32.
     """
     return sys.platform == "win32"
 
@@ -938,14 +939,12 @@ def close_draw_family_doc(doc):
     suite. A sibling Writer still open in the same soffice makes that
     worse.
 
-    Why this: mark unmodified (skip a Hidden-doc save prompt), GC, then
-    the Draw-family pre-close settle. POSIX then ``close(True)``. Windows
-    uses ``dispose()`` instead — GHA 34532953982 still hung in
-    ``close(True)`` after Writer-first + 0.75s settle (office alive).
-    Callers close any Writer sibling first and
-    ``settle_after_draw_family_close`` after dropping the local. Logs
-    svc/uid and each step so a later dump names the hang site. Not a
-    product fix.
+    Why this: mark unmodified, GC, then the Draw-family pre-close settle.
+    POSIX then ``close(True)``. Windows skips ``close`` *and* ``dispose``
+    — both blocked 30s (34532953982 / 34535868114). Drop the Python
+    proxy; suite-end ``kill-libreoffice`` reaps soffice. Callers close
+    any Writer sibling first and ``settle_after_draw_family_close`` after
+    dropping the local. Logs svc/uid and each step. Not a product fix.
     """
     if not doc:
         return
@@ -976,28 +975,24 @@ def close_draw_family_doc(doc):
         % (_DRAW_FAMILY_PRE_CLOSE_SETTLE_S, svc, uid)
     )
     time.sleep(_DRAW_FAMILY_PRE_CLOSE_SETTLE_S)
-    # Windows: do not call XCloseable.close(True) — it is the hang (34532953982).
-    use_dispose = _draw_family_close_via_dispose()
-    api = "dispose()" if use_dispose else "close(True)"
-    _progress("close_draw_family: %s start svc=%s uid=%s" % (api, svc, uid))
+    if _draw_family_skip_uno_teardown():
+        # Do not call close/dispose — both hang the native-test 30s watchdog.
+        _progress("close_draw_family: skip uno teardown svc=%s uid=%s" % (svc, uid))
+        return
+    _progress("close_draw_family: close(True) start svc=%s uid=%s" % (svc, uid))
     try:
-        if use_dispose:
-            if hasattr(doc, "dispose"):
-                doc.dispose()
-            elif hasattr(doc, "close"):
-                doc.close(True)
-        elif hasattr(doc, "close"):
+        if hasattr(doc, "close"):
             doc.close(True)
         elif hasattr(doc, "dispose"):
             doc.dispose()
     except Exception as exc:
         _log_close_doc_failure(exc)
         _progress(
-            "close_draw_family: %s failed svc=%s uid=%s err=%s"
-            % (api, svc, uid, type(exc).__name__)
+            "close_draw_family: close failed svc=%s uid=%s err=%s"
+            % (svc, uid, type(exc).__name__)
         )
     else:
-        _progress("close_draw_family: %s done svc=%s uid=%s" % (api, svc, uid))
+        _progress("close_draw_family: close(True) done svc=%s uid=%s" % (svc, uid))
 
 
 def settle_after_draw_family_close() -> None:

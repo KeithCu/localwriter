@@ -102,10 +102,11 @@ def _teardown_peer_pair(writer, impress):
     ``resolve_document_by_url`` wrappers then close()s after only 50 ms.
 
     Why this: close Writer first (generic ``close_doc``), then the
-    Draw-family close path (``setModified(False)`` + longer pre-close
-    settle; Windows ``dispose()`` because ``close(True)`` still hung in
-    GHA 34532953982; POSIX ``close(True)``), then the existing post-close
-    settle. Not a product fix.
+    Draw-family path (``setModified(False)`` + longer settle). POSIX
+    ``close(True)``. Windows skips ``close``/``dispose`` (both hung 30s
+    in 34532953982 / 34535868114) and drops the proxy; suite-end kill
+    reaps soffice. Then the existing post-close settle. Not a product
+    fix.
     """
     had_impress = impress is not None
     _progress("peer_message_uno: close writer start")
