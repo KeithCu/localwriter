@@ -454,7 +454,10 @@ def test_compaction_flag_false_does_not_respawn(test_instance):
 
     recovered = _handle_stream_error(
         test_instance,
-        _overflow_payload("truncating input prompt"),
+        _overflow_payload(
+            "HTTP Error 500 from AI Provider: Internal Server Error. "
+            "truncating input prompt"
+        ),
         compaction_enabled=False,
     )
 
@@ -491,6 +494,7 @@ def test_llm_worker_run_never_calls_set_status(test_instance):
         captured["fn"] = fn
 
     client = MagicMock()
+    client._stopped = False
     client.stream_request_with_tools.return_value = {"content": "ok"}
     view = [{"role": "system", "content": "view"}]
     q = MagicMock()
@@ -576,6 +580,7 @@ def test_llm_worker_skips_compact_when_flag_false(test_instance):
         captured["fn"] = fn
 
     client = MagicMock()
+    client._stopped = False
     client.stream_request_with_tools.return_value = {}
     view = [{"role": "user", "content": "hi"}]
     with (
@@ -603,6 +608,7 @@ def test_final_stream_compacts_then_sends_view(test_instance):
         captured["fn"] = fn
 
     client = MagicMock()
+    client._stopped = False
     view = [{"role": "system", "content": "final-view"}]
     with (
         patch("plugin.chatbot.tool_loop.run_in_background", side_effect=capture_run),
