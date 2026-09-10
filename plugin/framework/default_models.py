@@ -100,4 +100,8 @@ DEFAULT_MODELS: list[dict[str, Any]] = [
     {"display_name": "Nvidia Parakeet TDT 0.6B v3", "capability": ModelCapability.AUDIO, "ids": {"together": "nvidia/parakeet-tdt-0.6b-v3"}, "default_audio": True},
     {"display_name": "GLM 5.2", "capability": ModelCapability.CHAT | ModelCapability.TOOLS, "context_length": 200000, "ids": {"zai": "glm-5.2"}, "default_text": True},
     {"display_name": "GLM ASR 2512", "capability": ModelCapability.AUDIO, "ids": {"zai": "glm-asr-2512"}, "default_audio": True},
+    # Soak / Packet K. Not a hosted default — ``ids.mock`` keeps Settings
+    # dropdowns empty. ``resolve_context_window`` matches the id so
+    # writeragent-mock has a small denominator (not Hermes 256k).
+    {"display_name": "WriterAgent Mock", "capability": ModelCapability.CHAT | ModelCapability.AUDIO | ModelCapability.TOOLS, "context_length": 8192, "ids": {"mock": "writeragent-mock"}},
 ]

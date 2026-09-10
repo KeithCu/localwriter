@@ -318,6 +318,16 @@ def resolve_context_window(client, model_id=None):
         cl = row.get("context_length")
         if isinstance(cl, int) and cl > 0:
             return cl
+    # Custom OpenAI-compatible endpoints (including writeragent-mock) are
+    # provider ``custom``, so the provider-keyed walk misses them. Match any
+    # catalog id. Ollama already returned above — never this fallback.
+    for row in DEFAULT_MODELS:
+        ids = row.get("ids")
+        if not isinstance(ids, dict) or model_id not in ids.values():
+            continue
+        cl = row.get("context_length")
+        if isinstance(cl, int) and cl > 0:
+            return cl
     return None
 
 

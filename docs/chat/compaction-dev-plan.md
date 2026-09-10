@@ -1626,7 +1626,7 @@ Host-level (`tests/chatbot/test_tool_loop_errors.py`):
 - **`chat_compaction_enabled: false` + overflow payload does not respawn**, does append today's overflow sentence, returns non-True-retry.
 - Worker `run()` does not call `_set_status` (patch it; assert not called from the background function). Mock `compact_session` so the test does not HTTP.
 
-No UNO test in v2.
+Host-level unit tests are in `tests/chatbot/test_tool_loop_errors.py`. Mock-sidebar Packet K (`make test-mock-sidebar FILTER=K`) covers proactive compact, overflow retry, kill switch, and death-vs-overflow against `writeragent-mock` (catalog window 8192).
 
 `make typecheck` after edits. PR1 also `make schema-docs`.
 

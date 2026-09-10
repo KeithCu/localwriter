@@ -1,6 +1,6 @@
 # Mock LLM Sidebar Test Plan & Reference
 
-This document is the comprehensive reference for **automated** Rich Text Control Sidebar tests against the local mock LLM server (`make test-mock-sidebar`): server configuration, trigger phrases, harness hooks, and CI packets B–G.
+This document is the comprehensive reference for **automated** Rich Text Control Sidebar tests against the local mock LLM server (`make test-mock-sidebar`): server configuration, trigger phrases, harness hooks, and CI packets B–G, P, and K.
 
 Visual rendering, scroll pin, theme, resize, and “watch the sidebar” cases are **not** part of this harness. Use the product with `make mock-llm` if you care about those.
 
@@ -8,7 +8,7 @@ Visual rendering, scroll pin, theme, resize, and “watch the sidebar” cases a
 
 ## 1. Executive Status Dashboard
 
-Packets **B through G** plus **P** (dual-sidebar peer) run via `testing_runner`. There is no Packet A or H.
+Packets **B through G** plus **P** (dual-sidebar peer) and **K** (compaction) run via `testing_runner`. There is no Packet A or H.
 
 This plan is **finished**. Mouse Stop, HITL Change dialog, live DuckDuckGo, and F11/F18 wait mismatches are dropped — not a backlog. Packet P (dual Writer+Calc peer) uses the same `open_calc_document` helper as E12/G17.
 
@@ -21,6 +21,7 @@ This plan is **finished**. Mouse Stop, HITL Change dialog, live DuckDuckGo, and 
 | **[Packet F](#packet-f--http--sse-errors-and-hangs)** | HTTP 4xx/5xx errors, socket hangs, SSE quirks | Automated (CI) | **Done.** 15 Landed. |
 | **[Packet G](#packet-g--mocked-audio-and-stt)** | Mocked Record / Stop Rec, `input_audio`, STT | Automated (CI) | **Done.** 21 Landed (incl. G17 Calc deck). |
 | **[Packet P](#packet-p--dual-sidebar-peer-673)** | Writer+Calc mock peer round-trip (specialized-inner #673) | Automated (`FILTER=P`) | **Landed** (unit scripts always; live dual deck uses `open_calc_document`). |
+| **[Packet K](#packet-k--sidebar-compaction-712--713)** | Proactive compact, overflow retry, kill switch, death ≠ overflow | Automated (`FILTER=K`) | **Landed.** Chat mode only (Web Research / Librarian share the worker). |
 
 
 
@@ -42,7 +43,7 @@ make mock-llm
 ```
 
 - **Default Endpoint:** `http://127.0.0.1:18766` (MCP uses ports `8765` / `18765`).
-- **Settings Configuration:** In LibreOffice Settings, configure endpoint `http://127.0.0.1:18766`, text model `writeragent-mock`, and enable **Rich Text Control Sidebar**.
+- **Settings Configuration:** In LibreOffice Settings, configure endpoint `http://127.0.0.1:18766`, text model `writeragent-mock`, and enable **Rich Text Control Sidebar**. Compaction resolves that id to an **8192**-token window (`DEFAULT_MODELS` `ids.mock`; also advertised on `GET /v1/models` as `context_length`).
 - **Audio / STT:** The server advertises `input_audio` support on chat completions and lists `writeragent-mock-whisper` for STT. The endpoint `POST /v1/audio/transcriptions` returns canned text (default: `"Hello from the mock microphone."`, configurable via `--transcript`).
 - **Librarian / Smolagents Support:** Phrase matching inspects the `### CURRENT QUERY:` suffix so recovery turns (e.g. `hello` after `crash the stream`) do not match prior conversation history.
 
@@ -63,6 +64,9 @@ The mock server matches incoming user queries (case-insensitive, first match win
 | `think tags` | Emits XML `<think>` markers inside `content`. |
 | `reasoning details` | Emits `reasoning_content` + `reasoning_details`, followed by HTML content. |
 | `fill the sidebar` / `very long` | Emits 40 paragraphs + HTML table + nested lists. |
+| `flood history` / `pad the context` | Packet K: large ASCII pad so estimate crosses the mock 8192×70% gate. |
+| `overflow once` / `prompt too large once` | Packet K: first **stream** POST returns HTTP 400 `prompt is too long`, then OK. Non-stream summarizer is never this fault. |
+| `llama process died` | Packet K: HTTP 400 `llama-server process has terminated` (process death, not overflow retry). |
 | `outline this` / `use the writer toolset` | Calls `delegate_to_specialized_writer_toolset` (`document_research`). |
 | `empty nested answer` | Specialized delegate emits inner `final_answer` with an empty `answer`. |
 | `endless nested outline` | Specialized delegate loops without finishing until `max_tool_rounds`. |
@@ -90,7 +94,7 @@ The mock server matches incoming user queries (case-insensitive, first match win
 Run scripted tests using `make test-mock-sidebar`. Tests run out-of-process against a live LibreOffice instance via URP.
 
 ```bash
-make test-mock-sidebar                 # Run all automated packets (F, B, C, D, E, G, P)
+make test-mock-sidebar                 # Run all automated packets (F, B, C, D, E, G, P, K)
 make test-mock-sidebar FILTER=B        # Run Packet B (Stop & Send/Record FSM)
 make test-mock-sidebar FILTER=C        # Run Packet C (Empty/truncated responses)
 make test-mock-sidebar FILTER=D        # Run Packet D (Reasoning vs content)
@@ -98,6 +102,7 @@ make test-mock-sidebar FILTER=E        # Run Packet E (Tools & HITL)
 make test-mock-sidebar FILTER=F        # Run Packet F (HTTP/SSE errors)
 make test-mock-sidebar FILTER=G        # Run Packet G (Mocked audio & STT)
 make test-mock-sidebar FILTER=P        # Packet P only (dual Writer+Calc peer, not the whole soak)
+make test-mock-sidebar FILTER=K        # Packet K only (sidebar compaction smoke)
 make test-mock-sidebar FILTER=p1       # Single peer case
 make test-mock-sidebar FILTER=b13      # Run a single case by ID
 make test-mock-sidebar FILTER=e12      # Calc list_sheets (opens Calc after Writer deck)
@@ -395,6 +400,24 @@ Every test must satisfy:
 | **P3** | mock-sidebar + unit | Writer Ready, then `keep talking` (slow SSE); `KICK_PEERS` after Stop enabled | Writer busy when Calc `send_peer_message`s | Reply queues (no inject); after Stop/Ready + kick, extracted send starts | **Landed** (live may SkipTest if dual-deck Send misses ramble; units `test_p3_*` always lock; E12 follow-up if Calc deck missing) |
 
 See [peer-messaging.md](../chat/peer-messaging.md#dual-mock-peer-tests).
+
+---
+
+### Packet K — Sidebar compaction (#712 + #713)
+
+- **Focus:** Proactive compact at the tiered threshold, overflow compact-and-retry (≤3), kill switch, process death ≠ overflow. Chat mode only.
+- **Mode:** Automated (`make test-mock-sidebar FILTER=K`). Unit scripts in `make pytest` (`tests/scripts/test_mock_llm_server.py`, `tests/chatbot/test_compaction.py`).
+- **Window:** `writeragent-mock` is in `DEFAULT_MODELS` (`ids.mock`, `context_length` 8192) so `resolve_context_window` has a denominator. Not Hermes 256k. `chat_max_tokens` is not subtracted.
+- **Summarizer:** non-stream `request_with_tools` with the compaction system prompt returns a canned summary. Phrase matching does **not** run on dumped `<conversation>` history.
+
+| ID | Mode | Mock / Trigger | Steps / Actions | Expected Pass Behavior | Status / Notes |
+|:--:|:----:|----------------|-----------------|------------------------|:--------------:|
+| **K1** | CI | `flood history` until estimate ≥ 70% of 8192 | Grow ChatSession; send until compact | Mock saw a non-stream summarizer; next stream has `[CONVERSATION SUMMARY]` (not raw full history); `next_hello_ok()` | **OK / Landed** |
+| **K2** | CI | floods, then `overflow once` | First stream HTTP 400 `prompt is too long` | Worker respawns with force compact; succeeds on retry (2–3 stream POSTs); `next_hello_ok()` | **OK / Landed** |
+| **K3** | CI | `chat_compaction_enabled: false`, `overflow once` | Send overflow phrase | No summarizer; no respawn; today's `[API error: … prompt is too long]` path; restore flag; `next_hello_ok()` | **OK / Landed** |
+| **K4** | CI | `llama process died` | Send death phrase | No compact retry; error surfaced; `next_hello_ok()` | **OK / Landed** |
+
+Smol ReAct web-research subagent compaction is out of scope.
 
 ---
 

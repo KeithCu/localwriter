@@ -52,6 +52,18 @@ _STT_PROMPT_NEEDLE = "transcribe this audio exactly"
 
 RAMBLE_PARTS = 200
 FLOOD_PARAS = 40
+# Packet K: ~2000 rough tokens of ASCII so two turns cross the 8192×70% gate.
+HISTORY_FLOOD_CHARS = 8000
+HISTORY_FLOOD_MARK = "history-flood-pad"
+MOCK_CONTEXT_WINDOW = 8192
+COMPACTION_SUMMARY = (
+    "# Goal\n"
+    "Continue the LibreOffice sidebar session after mock compaction.\n\n"
+    "# Progress / Completed Actions\n"
+    "1. Prior flood-history turns were summarized for Packet K.\n\n"
+    "# Open Questions\n"
+    "Answer the latest user turn from this summary plus the verbatim tail.\n"
+)
 DEFAULT_CHUNK_CHARS = 24
 DEFAULT_FAIL_AFTER_CHUNKS = 4
 
@@ -81,6 +93,11 @@ _SPECIALIZED_INNER_PRE_FINISH = (
 # Phrase → scenario. First match wins. Keep distinct from research/comment keywords.
 _SCENARIO_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("hang", re.compile(r"\bhang the stream\b", re.IGNORECASE)),
+    # Packet K: more specific than fail_http / flood. Summarizer POSTs are
+    # classified before phrase match so dumped history cannot re-trigger these.
+    ("overflow_once", re.compile(r"\b(overflow once|prompt too large once)\b", re.IGNORECASE)),
+    ("process_death", re.compile(r"\bllama process died\b", re.IGNORECASE)),
+    ("history_flood", re.compile(r"\b(flood history|pad the context)\b", re.IGNORECASE)),
     ("fail_http", re.compile(r"\b(crash the stream|error\s*500)\b", re.IGNORECASE)),
     ("rate_limit", re.compile(r"\b(rate limit|error\s*429)\b", re.IGNORECASE)),
     ("auth_401", re.compile(r"\b(error\s*401|unauthorized)\b", re.IGNORECASE)),
@@ -133,6 +150,8 @@ _FAULT_SCENARIOS = frozenset(
         "truncated_json",
         "two_dones",
         "event_ping",
+        "overflow_once",
+        "process_death",
     }
 )
 
@@ -169,6 +188,9 @@ SCENARIO_IDS = frozenset(
         "list_pages",
         "peer_total",
         "peer_wait",
+        "overflow_once",
+        "process_death",
+        "history_flood",
     }
 )
 FAIL_MODES = ("none", "http500", "http429", "hang")
@@ -219,6 +241,8 @@ class MockLLMConfig:
     decide_hook: Any = field(default=None, repr=False, compare=False)
     # When True, specialized inner never finishes after send_peer_message (Scrolly hang).
     peer_wait_after_accepted: bool = False
+    # Packet K: first matching *stream* POST returns prompt-too-large, then OK.
+    overflow_once_seen: int = 0
 
 
 def response_delay_s(config: MockLLMConfig, *, stream: bool) -> float:
@@ -247,6 +271,8 @@ class Completion:
     # Packet F stream quirks (not HTTP status): handled in do_POST.
     # event_ping | two_dones | malformed | truncated | empty_body | connection_reset
     sse_quirk: str | None = None
+    # Override openai_error_body message (Packet K overflow / process death).
+    http_error_message: str | None = None
 
 
 @dataclass
@@ -333,12 +359,17 @@ def summarize_chat_payload(
         "doc_content_len": document_content_len(messages),
         "has_input_audio": bool(last_user is not None and _content_has_audio(last_user.get("content"))),
         "path": "/v1/chat/completions",
+        "is_summarizer": is_compaction_summarizer(payload),
+        "has_conversation_summary": messages_have_conversation_summary(messages),
     }
     if config is not None:
         rec["forced_scenario"] = config.scenario
     if completion is not None:
         rec["finish_reason"] = completion.finish_reason
         rec["empty_content"] = completion.content is None
+        if completion.http_error:
+            rec["http_error"] = completion.http_error
+            rec["http_error_message"] = completion.http_error_message
     return rec
 
 
@@ -355,6 +386,28 @@ def snapshot_captures(config: MockLLMConfig) -> list[dict[str, Any]]:
 def clear_captures(config: MockLLMConfig) -> None:
     with config._capture_lock:
         config.captures.clear()
+
+
+def is_compaction_summarizer(payload: dict[str, Any]) -> bool:
+    """True for compact_session's non-tool ``request_with_tools`` POST.
+
+    Phrase matching on dumped ``<conversation>`` would re-fire overflow / flood
+    / death. Classify before ``detect_scenario``.
+    """
+    tools = payload.get("tools")
+    if tools:
+        return False
+    messages = payload.get("messages") if isinstance(payload.get("messages"), list) else []
+    return "conversation compaction assistant" in _system_text(messages).lower()
+
+
+def messages_have_conversation_summary(messages: list[Any]) -> bool:
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        if "[CONVERSATION SUMMARY]" in _as_text(msg.get("content")):
+            return True
+    return False
 
 
 def current_query_text(user_text: str) -> str:
@@ -877,6 +930,16 @@ def _html_tool_wrapup(user_text: str, tool_name: str, tool_text: str) -> str:
     )
 
 
+def _html_history_flood(topic: str) -> str:
+    """Large ASCII pad so ChatSession estimate crosses the mock 8192×70% gate."""
+    safe = html.escape((topic or "flood history").strip()[:80] or "flood history")
+    pad = ("x" * 80 + " ") * max(1, HISTORY_FLOOD_CHARS // 81)
+    return (
+        f"<p>Packet K {HISTORY_FLOOD_MARK} about {safe}.</p>"
+        f"<pre>{pad[:HISTORY_FLOOD_CHARS]}</pre>"
+    )
+
+
 def _html_flood(topic: str) -> str:
     safe = html.escape((topic or "flood").strip()[:80] or "flood")
     paras = "".join(f"<p>Flood paragraph {i} about {safe}. Padding for VisArea and caret-follow.</p>" for i in range(1, FLOOD_PARAS + 1))
@@ -1145,6 +1208,25 @@ def _scenario_user_turn(
     config: MockLLMConfig,
 ) -> Completion | None:
     reasoning = "Mock thinking: pick HTML chat or call tool."
+    if scenario == "overflow_once":
+        with config._capture_lock:
+            seen = int(config.overflow_once_seen or 0)
+            config.overflow_once_seen = seen + 1
+        if seen == 0:
+            return Completion(
+                http_error=400,
+                http_error_message="prompt is too long",
+                finish_reason="stop",
+            )
+        return Completion(content=_html_chat(user_text, turn), reasoning=reasoning, finish_reason="stop")
+    if scenario == "process_death":
+        return Completion(
+            http_error=400,
+            http_error_message="llama-server process has terminated",
+            finish_reason="stop",
+        )
+    if scenario == "history_flood":
+        return Completion(content=_html_history_flood(user_text), reasoning=reasoning, finish_reason="stop")
     if scenario == "fail_http":
         return Completion(http_error=500, finish_reason="stop")
     if scenario == "rate_limit":
@@ -1311,6 +1393,8 @@ def decide_completion(payload: dict[str, Any], config: MockLLMConfig, turns: _Tu
     scripted = apply_scripted_rules(payload, config)
     if scripted is not None:
         return scripted
+    if is_compaction_summarizer(payload):
+        return Completion(content=COMPACTION_SUMMARY, finish_reason="stop")
     messages = payload.get("messages") if isinstance(payload.get("messages"), list) else []
     tool_names = _tool_names(payload.get("tools"))
     user_text = _last_user_text(messages)
@@ -1580,6 +1664,7 @@ def models_list_body() -> dict[str, Any]:
         "id": MOCK_MODEL_ID,
         "object": "model",
         "owned_by": "writeragent-mock",
+        "context_length": MOCK_CONTEXT_WINDOW,
         "architecture": {"input_modalities": ["text", "audio"], "output_modalities": ["text"]},
     }
     stt = {
@@ -1679,7 +1764,8 @@ def make_handler_class(config: MockLLMConfig, turns: _TurnState | None = None) -
                     err_type = "authentication_error"
                 else:
                     err_type = "server_error"
-                self._send_json(status, openai_error_body("mock LLM soak failure", err_type))
+                message = dummy.http_error_message or "mock LLM soak failure"
+                self._send_json(status, openai_error_body(message, err_type))
                 return True
             if hang and not stream:
                 self.send_response(200)
