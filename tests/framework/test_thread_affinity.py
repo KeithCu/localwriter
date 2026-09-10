@@ -128,27 +128,54 @@ def test_direct_affine_access_from_run_in_background_fails(uno_thread_safety):
 
 def test_guarded_getter_from_background_fails_with_marshal_fixture(uno_thread_safety, monkeypatch):
     """doc_type entrypoints call assert_main_thread even on mocks."""
+    from plugin.doc import doc_type
     from plugin.framework.errors import UnoObjectError
 
+    # What was wrong (GHA 34423268523, Windows xdist gw2): the worker did
+    # ``from plugin.doc import doc_type`` after ``run_in_background`` started.
+    # ``join(timeout=3)`` returned with ``err`` still None; captured log had
+    # only worker_pool "Starting task" — no completion, no violation. How:
+    # first import of ``plugin.doc`` (package ``__init__`` → CommonModule) ran
+    # on the dedicated worker while the Layer B pump was live, so the getter
+    # never reached ``assert_main_thread`` before the timeout. Why this: load
+    # the module on the test thread; the worker only calls the getter. Event +
+    # liveness / unexpected-exception notes so a future miss names the cause
+    # (alive thread vs wrong type vs GUARD_ON / designated-main).
     monkeypatch.setattr(tg, "GUARD_ON", True)
+    done = threading.Event()
     err: BaseException | None = None
+    notes: dict[str, object] = {}
 
-    def worker():
+    def worker() -> None:
         nonlocal err
         try:
-            from plugin.doc import doc_type
-
+            notes["guard_on"] = tg.GUARD_ON
+            notes["on_main_thread"] = tg.on_main_thread()
+            designated = tg.get_designated_main_thread()
+            notes["designated_name"] = None if designated is None else designated.name
+            notes["current_name"] = threading.current_thread().name
+            notes["task_name"] = tg.get_background_task_name()
             doc_type.get_document_type(MagicMock())
-        except (RuntimeError, UnoObjectError) as e:
-            err = e
+            notes["returned"] = True
+        except BaseException as exc:
+            err = exc
+            notes["exc_type"] = type(exc).__name__
+        finally:
+            done.set()
 
     t = run_in_background(worker, name="run_get_doc_type", daemon=False)
-    t.join(timeout=3.0)
-    assert err is not None
+    finished = done.wait(timeout=3.0)
+    t.join(timeout=1.0)
+    state = (
+        f"finished={finished} alive={t.is_alive()} notes={notes!r} "
+        f"GUARD_ON={tg.GUARD_ON} designated={tg.get_designated_main_thread()!r}"
+    )
+    assert finished, f"worker did not finish; {state}"
+    assert err is not None, f"guard did not raise; {state}"
     msg = str(err)
     if isinstance(err, UnoObjectError) and err.__cause__ is not None:
         msg = str(err.__cause__)
-    assert "UNO thread violation" in msg
+    assert "UNO thread violation" in msg, f"unexpected {type(err).__name__}: {err!r}; {state}"
 
 
 def test_charts_process_events_regression_must_marshal(uno_thread_safety, monkeypatch):

@@ -166,6 +166,7 @@ For fast CI tests where LibreOffice is not running:
 - `test_yellow_context_allows_inline_when_on_main_thread`: Asserts GUI formula evaluation on main thread executes inline without errors.
 - `test_notify_thread_violation_never_blocks`: Asserts guard violation reporting uses non-blocking `post_to_main_thread`.
 - `test_charts_process_events_regression_must_marshal`: Prevents regressions of the chart event loop hang (commit `0cfc6891`).
+- `test_guarded_getter_from_background_fails_with_marshal_fixture`: Asserts `@main_thread_only` on `doc_type.get_document_type` still raises from `run_in_background` under the Layer B pump. Import `plugin.doc` on the test thread before spawning — first import on the worker hung Windows xdist (GHA 34423268523: `join` timed out with only "Starting task" logged).
 
 ---
 
