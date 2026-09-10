@@ -42,12 +42,23 @@ in `tests/chatbot/test_peer_message_uno.py` at `_load("private:factory/swriter")
 (line 109), immediately after `test_peer_impress_rejected_on_resolved_model`
 passed. That predecessor used a local `doc.close(True)` and skipped
 `close_doc`. Office stayed alive (`kill-libreoffice.ps1` still found PIDs).
-Peer tests now close through `TestingFactory.close_doc`, drop the Impress
-local, then `settle_after_draw_family_close` (GC + 0.75s Windows / 0.15s
-else) before the next factory load. `_load` prints
-`peer_message_uno: load start <url>` so a later faulthandler dump names
-swriter vs simpress. Do **not** fold that post-close sleep into
-`close_doc` (would tax every Writer/Calc close). Not a product fix.
+`#710` routed peer closes through `TestingFactory.close_doc` and added
+`settle_after_draw_family_close` (GC + 0.75s Windows / 0.15s else) *after*
+Impress close.
+
+**Peer Impress `close_doc` hang (Windows):** GHA 34518091151 (master
+`e01439f1`) hung 30s *inside* `close_doc` at `doc.close(True)` while that
+same test closed Impress with Writer still open. Both factory loads had
+printed `peer_message_uno: load start/done` for `swriter` then `simpress`.
+`#710`'s post-close settle never ran. Office stayed alive
+(`kill-libreoffice.ps1` still found soffice PIDs). Peer tests now close
+the Writer sibling first, then `close_draw_family_doc` (not `close_doc`:
+`setModified(False)`, GC, the same Windows-longer settle, logged
+`close(True)`), drop the local, then `settle_after_draw_family_close`.
+`_load` / `_teardown_peer_pair` / `close_draw_family` print breadcrumbs so
+a later faulthandler dump names the step. Do **not** fold Draw-family
+settle into `close_doc` (would tax every Writer/Calc close). Not a product
+fix.
 
 **Harness-only attribution (not a product fix):** if a test body returns OK
 but the office already aborted, the runner fails *that* test instead of

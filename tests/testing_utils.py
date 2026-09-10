@@ -890,15 +890,104 @@ _CLOSE_DOC_URP_SETTLE_S = 0.05
 # closed Impress/Draw proxy, GC, then let URP finish before the next factory
 # load. Do not put this inside close_doc — that would tax every Writer/Calc
 # close. Windows needs longer; POSIX is a short drain. Not a product fix.
+#
+# GHA 34518091151 (#710 path): the hang moved *into* close_doc at Impress
+# ``doc.close(True)`` (faulthandler 30s; office still alive). close_doc GCs
+# leftover ``resolve_document_by_url`` wrappers then close()s after only
+# 50 ms — too tight on Windows Draw-family. Pre-close settle uses the same
+# Windows-longer budget; still not inside close_doc.
 _DRAW_FAMILY_POST_CLOSE_SETTLE_S = 0.75 if sys.platform == "win32" else 0.15
+_DRAW_FAMILY_PRE_CLOSE_SETTLE_S = _DRAW_FAMILY_POST_CLOSE_SETTLE_S
+
+
+def _draw_family_doc_label(doc) -> str:
+    """Harness-only: impress / draw / unknown for close breadcrumbs."""
+    try:
+        if doc.supportsService("com.sun.star.presentation.PresentationDocument"):
+            return "impress"
+    except Exception:
+        pass
+    try:
+        if doc.supportsService("com.sun.star.drawing.DrawingDocument"):
+            return "draw"
+    except Exception:
+        pass
+    return "unknown"
+
+
+def close_draw_family_doc(doc):
+    """Harness-only Impress/Draw close. Does **not** go through ``close_doc``.
+
+    What was wrong: GHA 34518091151 hung 30s in ``TestingFactory.close_doc``
+    at ``doc.close(True)`` while tearing down Impress in
+    ``test_peer_impress_rejected_on_resolved_model`` (Writer still open;
+    both factory loads had succeeded). #710's post-close settle never ran.
+
+    How: ``close_doc`` GCs leftover peer-resolve wrappers then close()s
+    after 50 ms. On Windows that races URP release of the same model and
+    can block ``XCloseable.close(True)`` until faulthandler kills the
+    suite. A sibling Writer still open in the same soffice makes that
+    worse.
+
+    Why this: mark unmodified (skip a Hidden-doc save prompt), GC, then
+    the Draw-family pre-close settle before ``close(True)``. Callers close
+    any Writer sibling first and ``settle_after_draw_family_close`` after
+    dropping the local. Logs svc/uid and each step so a later dump names
+    the hang site. Not a product fix.
+    """
+    if not doc:
+        return
+    from plugin.testing_runner import _progress
+
+    svc = _draw_family_doc_label(doc)
+    uid = "?"
+    try:
+        uid = str(getattr(doc, "RuntimeUID", None) or "?")
+    except Exception:
+        uid = "?"
+    _progress("close_draw_family: start svc=%s uid=%s" % (svc, uid))
+    try:
+        if hasattr(doc, "setModified"):
+            doc.setModified(False)
+            _progress("close_draw_family: setModified(False) ok svc=%s uid=%s" % (svc, uid))
+    except Exception as exc:
+        _progress(
+            "close_draw_family: setModified skipped svc=%s uid=%s err=%s"
+            % (svc, uid, type(exc).__name__)
+        )
+    import gc
+    import time
+
+    gc.collect()
+    _progress(
+        "close_draw_family: gc done; sleep %.2fs svc=%s uid=%s"
+        % (_DRAW_FAMILY_PRE_CLOSE_SETTLE_S, svc, uid)
+    )
+    time.sleep(_DRAW_FAMILY_PRE_CLOSE_SETTLE_S)
+    _progress("close_draw_family: close(True) start svc=%s uid=%s" % (svc, uid))
+    try:
+        if hasattr(doc, "close"):
+            doc.close(True)
+        elif hasattr(doc, "dispose"):
+            _progress("close_draw_family: dispose() start svc=%s uid=%s" % (svc, uid))
+            doc.dispose()
+    except Exception as exc:
+        _log_close_doc_failure(exc)
+        _progress(
+            "close_draw_family: close failed svc=%s uid=%s err=%s"
+            % (svc, uid, type(exc).__name__)
+        )
+    else:
+        _progress("close_draw_family: close done svc=%s uid=%s" % (svc, uid))
 
 
 def settle_after_draw_family_close() -> None:
     """Harness-only: GC + sleep after closing Impress/Draw before the next factory load.
 
-    Call after ``TestingFactory.close_doc`` *and* after dropping the local
-    reference. The next ``loadComponentFromURL`` is the hang site if this
-    settle is skipped (see ``tests/chatbot/test_peer_message_uno.py``).
+    Call after ``close_draw_family_doc`` / ``TestingFactory.close_doc`` *and*
+    after dropping the local reference. The next ``loadComponentFromURL`` is
+    the hang site if this settle is skipped
+    (see ``tests/chatbot/test_peer_message_uno.py``).
     """
     import gc
     import time

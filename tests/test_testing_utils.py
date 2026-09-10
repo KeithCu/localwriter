@@ -407,10 +407,103 @@ def test_settle_after_draw_family_close_windows_longer_than_posix():
     from plugin.tests import testing_utils as tu
 
     assert tu._DRAW_FAMILY_POST_CLOSE_SETTLE_S > tu._CLOSE_DOC_URP_SETTLE_S
+    assert tu._DRAW_FAMILY_PRE_CLOSE_SETTLE_S == tu._DRAW_FAMILY_POST_CLOSE_SETTLE_S
     if tu.sys.platform == "win32":
         assert tu._DRAW_FAMILY_POST_CLOSE_SETTLE_S == 0.75
     else:
         assert tu._DRAW_FAMILY_POST_CLOSE_SETTLE_S == 0.15
+
+
+def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
+    """Impress close must not use close_doc's 50 ms path (GHA 34518091151)."""
+    from unittest.mock import MagicMock
+
+    from plugin.tests.testing_utils import (
+        TestingFactory,
+        _DRAW_FAMILY_PRE_CLOSE_SETTLE_S,
+        close_draw_family_doc,
+    )
+
+    order = []
+    monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
+    monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
+
+    def _fail_close_doc(_doc):
+        raise AssertionError("close_draw_family_doc must not call close_doc")
+
+    monkeypatch.setattr(TestingFactory, "close_doc", _fail_close_doc)
+    doc = MagicMock()
+    doc.supportsService.side_effect = lambda svc: svc.endswith("PresentationDocument")
+    doc.RuntimeUID = "impress-uid"
+    doc.setModified.side_effect = lambda _modified: order.append("setModified")
+    doc.close.side_effect = lambda _save: order.append("close")
+    close_draw_family_doc(doc)
+    assert order == [
+        "setModified",
+        "gc",
+        ("sleep", _DRAW_FAMILY_PRE_CLOSE_SETTLE_S),
+        "close",
+    ]
+    doc.setModified.assert_called_once_with(False)
+    doc.close.assert_called_once_with(True)
+
+
+def test_close_draw_family_doc_none_skips_settle(monkeypatch):
+    from plugin.tests.testing_utils import close_draw_family_doc
+
+    def _fail_sleep(_seconds):
+        raise AssertionError("close_draw_family_doc(None) must not sleep")
+
+    monkeypatch.setattr("time.sleep", _fail_sleep)
+    close_draw_family_doc(None)
+
+
+def test_close_draw_family_doc_logs_svc_and_steps(capsys, monkeypatch):
+    from unittest.mock import MagicMock
+
+    from plugin.tests.testing_utils import close_draw_family_doc
+
+    monkeypatch.setattr("gc.collect", lambda: None)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    doc = MagicMock()
+    doc.supportsService.side_effect = lambda svc: svc.endswith("PresentationDocument")
+    doc.RuntimeUID = "uid-9"
+    close_draw_family_doc(doc)
+    err = capsys.readouterr().err
+    assert "close_draw_family: start svc=impress uid=uid-9" in err
+    assert "close_draw_family: setModified(False) ok" in err
+    assert "close_draw_family: close(True) start svc=impress uid=uid-9" in err
+    assert "close_draw_family: close done svc=impress uid=uid-9" in err
+
+
+def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):
+    """GHA 34518091151: Impress close hung while Writer was still open."""
+    from unittest.mock import MagicMock
+
+    from tests.chatbot.test_peer_message_uno import _teardown_peer_pair
+
+    order = []
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno._close",
+        lambda doc: order.append(("close_doc", doc)) or None,
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno.close_draw_family_doc",
+        lambda doc: order.append(("close_draw_family", doc)),
+    )
+    monkeypatch.setattr(
+        "tests.chatbot.test_peer_message_uno.settle_after_draw_family_close",
+        lambda: order.append("post_settle"),
+    )
+    writer = MagicMock(name="writer")
+    impress = MagicMock(name="impress")
+    out_writer, out_impress = _teardown_peer_pair(writer, impress)
+    assert out_writer is None and out_impress is None
+    assert order == [
+        ("close_doc", writer),
+        ("close_draw_family", impress),
+        "post_settle",
+    ]
 
 
 def test_testing_factory_execute_tool_unknown_name():
