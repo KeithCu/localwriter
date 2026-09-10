@@ -728,7 +728,7 @@ class ToolCallingMixin:
         # than today's sentence. Kill switch offs this path too.
         if get_config_bool_safe("chat_compaction_enabled"):
             stop_checker = self.resolve_stop_checker()
-            stopped = bool(self.stop_requested or (stop_checker and stop_checker()))
+            stopped = bool(self.stop_requested or stop_checker())
             retry_q = self._active_batched_q or self._active_q
             if (
                 not stopped
