@@ -12,6 +12,7 @@ def test_init_with_system_prompt_sets_system_message():
     assert session.messages[0] == {"role": "system", "content": "You are helpful."}
     assert session.base_system_prompt == "You are helpful."
     assert session.document_context == ""
+    assert session.compaction is None
 
 
 def test_init_without_system_prompt_leaves_messages_empty():
@@ -103,13 +104,22 @@ def test_clear_resets_messages_and_document_context():
     session.add_user_message("keep me not")
     mock_db.reset_mock()
 
+    session.compaction = object()
     session.clear()
 
     mock_db.clear.assert_called_once()
     assert session.document_context == ""
+    assert session.compaction is None
     assert len(session.messages) == 1
     assert session.messages[0] == {"role": "system", "content": "Sys"}
     mock_db.add_message.assert_called_with("system", "Sys")
+
+
+def test_clear_resets_compaction():
+    session = ChatSession(system_prompt="Sys")
+    session.compaction = object()
+    session.clear()
+    assert session.compaction is None
 
 
 def test_history_load_uses_persisted_messages():
