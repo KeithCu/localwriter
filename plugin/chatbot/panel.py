@@ -79,6 +79,10 @@ class ChatSession:
         self.active_specialized_domain = None
         self.python_tool_domain = None
         self.tool_streamed_texts = {}
+        # Cached compact view (CompactionState). Duck-typed by compaction.py;
+        # never persisted. New chat / clear() must drop it or the next send
+        # would keep summarizing against a stale first_kept_index.
+        self.compaction = None
 
         if session_id:
             try:
@@ -156,6 +160,7 @@ class ChatSession:
         """Reset to just the system prompt."""
         self.messages = []
         self.document_context = ""
+        self.compaction = None
         if self.db:
             self.db.clear()
             

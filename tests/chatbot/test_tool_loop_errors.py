@@ -330,3 +330,328 @@ def test_handle_stream_error_keeps_named_window_sentence(test_instance):
     joined = "".join(test_instance.responses)
     assert named in joined
     assert "[API error:" not in joined
+
+
+def _prime_active_tool_loop(instance):
+    import dataclasses
+
+    instance._active_q = MagicMock()
+    instance._active_batched_q = None
+    instance._active_client = MagicMock()
+    instance._active_max_tokens = 128
+    instance._active_tools = []
+    instance._active_query_text = "hello"
+    instance.sidebar_state = dataclasses.replace(
+        instance.sidebar_state,
+        tool_loop=ToolLoopState(round_num=0, pending_tools=[], max_rounds=8, status="Thinking..."),
+    )
+
+
+def _overflow_payload(message="prompt is too long"):
+    return {"status": "error", "code": "HTTP_ERROR", "message": message}
+
+
+def _handle_stream_error(instance, payload, compaction_enabled=True):
+    with (
+        patch("plugin.chatbot.tool_loop.get_text_model", return_value="chat-model"),
+        patch("plugin.chatbot.tool_loop.get_current_endpoint", return_value="https://example"),
+        patch("plugin.chatbot.tool_loop.get_stt_model", return_value=""),
+        patch("plugin.chatbot.tool_loop.get_config_bool_safe", return_value=compaction_enabled),
+    ):
+        return instance._handle_stream_error(payload)
+
+
+def test_overflow_respawns_worker_with_force_compact(test_instance):
+    """Prompt-too-large respawns the worker; drain thread never calls compact_session."""
+    _prime_active_tool_loop(test_instance)
+    with (
+        patch("plugin.chatbot.tool_loop.run_in_background") as mock_bg,
+        patch("plugin.chatbot.tool_loop.compact_session") as mock_compact,
+    ):
+        recovered = _handle_stream_error(test_instance, _overflow_payload())
+
+    assert recovered is True
+    mock_bg.assert_called_once()
+    mock_compact.assert_not_called()
+    assert test_instance._overflow_compact_attempts == 1
+    assert "Compacting conversation..." in test_instance.statuses
+    assert not any(str(s).startswith("Thinking") for s in test_instance.statuses)
+    assert test_instance._terminal_status is None
+    joined = "".join(test_instance.responses)
+    assert "[API error:" not in joined
+    from plugin.framework.client.errors import local_model_overflow_message
+
+    assert local_model_overflow_message() not in joined
+
+
+def test_overflow_attempt_3_falls_through(test_instance):
+    _prime_active_tool_loop(test_instance)
+    test_instance._overflow_compact_attempts = 3
+    test_instance._spawn_llm_worker = MagicMock()
+
+    recovered = _handle_stream_error(test_instance, _overflow_payload())
+
+    assert recovered is not True
+    test_instance._spawn_llm_worker.assert_not_called()
+    assert "[API error:" in "".join(test_instance.responses)
+    assert test_instance._terminal_status == "Error"
+
+
+def test_process_death_does_not_retry_overflow(test_instance):
+    _prime_active_tool_loop(test_instance)
+    test_instance._spawn_llm_worker = MagicMock()
+    payload = {
+        "status": "error",
+        "code": "HTTP_ERROR",
+        "message": (
+            "HTTP Error 500 from AI Provider: Internal Server Error. "
+            "llama-server process has terminated: exit status 0xc0000005"
+        ),
+    }
+
+    recovered = _handle_stream_error(test_instance, payload)
+
+    assert recovered is not True
+    test_instance._spawn_llm_worker.assert_not_called()
+    from plugin.framework.client.errors import local_model_overflow_message
+
+    assert local_model_overflow_message() in "".join(test_instance.responses)
+    assert test_instance._terminal_status == "Error"
+
+
+@pytest.mark.parametrize(
+    "reason,tokens_before,tokens_after",
+    [
+        ("nothing_to_compact", 1000, 1000),
+        ("no_window", 1000, 1000),
+        ("failed", 1000, 900),
+        ("aborted", 1000, 900),
+        ("disabled", 1000, 900),
+        ("ok", 1000, 950),  # exact 5% is not a shrink
+        ("ok", 1000, 960),
+        ("ok", 1000, 951),
+    ],
+)
+def test_overflow_does_not_retry_after_failed_or_tiny_shrink(
+    test_instance, reason, tokens_before, tokens_after
+):
+    _prime_active_tool_loop(test_instance)
+    test_instance._last_compact_reason = reason
+    test_instance._last_compact_tokens_before = tokens_before
+    test_instance._last_compact_tokens_after = tokens_after
+    test_instance._spawn_llm_worker = MagicMock()
+
+    recovered = _handle_stream_error(test_instance, _overflow_payload())
+
+    assert recovered is not True
+    test_instance._spawn_llm_worker.assert_not_called()
+    assert test_instance._terminal_status == "Error"
+
+
+def test_compaction_flag_false_does_not_respawn(test_instance):
+    _prime_active_tool_loop(test_instance)
+    test_instance._spawn_llm_worker = MagicMock()
+
+    recovered = _handle_stream_error(
+        test_instance,
+        _overflow_payload(
+            "HTTP Error 500 from AI Provider: Internal Server Error. "
+            "truncating input prompt"
+        ),
+        compaction_enabled=False,
+    )
+
+    assert recovered is not True
+    test_instance._spawn_llm_worker.assert_not_called()
+    from plugin.framework.client.errors import local_model_overflow_message
+
+    assert local_model_overflow_message() in "".join(test_instance.responses)
+    assert test_instance._terminal_status == "Error"
+
+
+def test_force_compact_skips_host_thinking_status(test_instance):
+    with patch("plugin.chatbot.tool_loop.run_in_background"):
+        test_instance._spawn_llm_worker(
+            MagicMock(), MagicMock(), 128, [], 0, force_compact=True
+        )
+    assert not any(str(s).startswith("Thinking") for s in test_instance.statuses)
+
+    test_instance.statuses.clear()
+    with patch("plugin.chatbot.tool_loop.run_in_background"):
+        test_instance._spawn_llm_worker(
+            MagicMock(), MagicMock(), 128, [], 0, force_compact=False
+        )
+    assert any(str(s).startswith("Thinking") for s in test_instance.statuses)
+
+
+def test_llm_worker_run_never_calls_set_status(test_instance):
+    from plugin.chatbot.compaction import CompactResult
+    from plugin.framework.async_stream import StreamQueueKind
+
+    captured = {}
+
+    def capture_run(fn, name=None, dedicated=False):
+        captured["fn"] = fn
+
+    client = MagicMock()
+    client._stopped = False
+    client.stream_request_with_tools.return_value = {"content": "ok"}
+    view = [{"role": "system", "content": "view"}]
+    q = MagicMock()
+    compact_inside_lane = {"value": False}
+
+    class _Lane:
+        def __enter__(self):
+            compact_inside_lane["in"] = True
+            return self
+
+        def __exit__(self, *exc):
+            compact_inside_lane["in"] = False
+            return False
+
+    def fake_compact(*args, **kwargs):
+        del args, kwargs
+        compact_inside_lane["value"] = compact_inside_lane.get("in", False)
+        return CompactResult(False, "below_threshold", 10, 10)
+
+    with (
+        patch("plugin.chatbot.tool_loop.run_in_background", side_effect=capture_run),
+        patch("plugin.chatbot.tool_loop.llm_request_lane", side_effect=_Lane),
+        patch("plugin.chatbot.tool_loop.get_config_bool_safe", return_value=True),
+        patch("plugin.chatbot.tool_loop.compact_session", side_effect=fake_compact) as mock_compact,
+        patch("plugin.chatbot.tool_loop.resolve_context_window", return_value=8192),
+        patch("plugin.chatbot.tool_loop.messages_for_llm", return_value=view),
+    ):
+        test_instance._spawn_llm_worker(q, client, 128, [{"name": "t"}], 0)
+        # Host Thinking is expected on the caller; the background run must not UNO.
+        test_instance._set_status = MagicMock()
+        captured["fn"]()
+
+    test_instance._set_status.assert_not_called()
+    mock_compact.assert_called_once()
+    assert mock_compact.call_args.kwargs["force"] is False
+    assert mock_compact.call_args.kwargs["max_tokens"] == 128
+    assert mock_compact.call_args.kwargs["tools"] == [{"name": "t"}]
+    assert compact_inside_lane["value"] is True
+    client.stream_request_with_tools.assert_called_once()
+    assert client.stream_request_with_tools.call_args[0][0] is view
+    q.put.assert_any_call((StreamQueueKind.STREAM_DONE, {"content": "ok"}))
+
+
+def test_llm_worker_run_force_compact_and_aborted_stops(test_instance):
+    from plugin.chatbot.compaction import CompactResult
+    from plugin.framework.async_stream import StreamQueueKind
+
+    captured = {}
+
+    def capture_run(fn, name=None, dedicated=False):
+        captured["fn"] = fn
+
+    client = MagicMock()
+    q = MagicMock()
+    with (
+        patch("plugin.chatbot.tool_loop.run_in_background", side_effect=capture_run),
+        patch("plugin.chatbot.tool_loop.llm_request_lane") as mock_lane,
+        patch("plugin.chatbot.tool_loop.get_config_bool_safe", return_value=True),
+        patch(
+            "plugin.chatbot.tool_loop.compact_session",
+            return_value=CompactResult(False, "aborted", 10, 10),
+        ) as mock_compact,
+        patch("plugin.chatbot.tool_loop.resolve_context_window", return_value=8192),
+        patch("plugin.chatbot.tool_loop.messages_for_llm", return_value=[]),
+    ):
+        mock_lane.return_value.__enter__ = MagicMock()
+        mock_lane.return_value.__exit__ = MagicMock(return_value=False)
+        test_instance._spawn_llm_worker(q, client, 128, [], 1, force_compact=True)
+        assert not any(str(s).startswith("Thinking") for s in test_instance.statuses)
+        test_instance._set_status = MagicMock()
+        captured["fn"]()
+
+    test_instance._set_status.assert_not_called()
+    assert mock_compact.call_args.kwargs["force"] is True
+    client.stream_request_with_tools.assert_not_called()
+    q.put.assert_called_with((StreamQueueKind.STOPPED,))
+
+
+def test_llm_worker_skips_compact_when_flag_false(test_instance):
+    captured = {}
+
+    def capture_run(fn, name=None, dedicated=False):
+        captured["fn"] = fn
+
+    client = MagicMock()
+    client._stopped = False
+    client.stream_request_with_tools.return_value = {}
+    view = [{"role": "user", "content": "hi"}]
+    with (
+        patch("plugin.chatbot.tool_loop.run_in_background", side_effect=capture_run),
+        patch("plugin.chatbot.tool_loop.llm_request_lane") as mock_lane,
+        patch("plugin.chatbot.tool_loop.get_config_bool_safe", return_value=False),
+        patch("plugin.chatbot.tool_loop.compact_session") as mock_compact,
+        patch("plugin.chatbot.tool_loop.messages_for_llm", return_value=view),
+    ):
+        mock_lane.return_value.__enter__ = MagicMock()
+        mock_lane.return_value.__exit__ = MagicMock(return_value=False)
+        test_instance._spawn_llm_worker(MagicMock(), client, 64, [], 0)
+        captured["fn"]()
+
+    mock_compact.assert_not_called()
+    assert client.stream_request_with_tools.call_args[0][0] is view
+
+
+def test_final_stream_compacts_then_sends_view(test_instance):
+    from plugin.chatbot.compaction import CompactResult
+
+    captured = {}
+
+    def capture_run(fn, name=None, dedicated=False):
+        captured["fn"] = fn
+
+    client = MagicMock()
+    client._stopped = False
+    view = [{"role": "system", "content": "final-view"}]
+    with (
+        patch("plugin.chatbot.tool_loop.run_in_background", side_effect=capture_run),
+        patch("plugin.chatbot.tool_loop.llm_request_lane") as mock_lane,
+        patch("plugin.chatbot.tool_loop.get_config_bool_safe", return_value=True),
+        patch(
+            "plugin.chatbot.tool_loop.compact_session",
+            return_value=CompactResult(False, "below_threshold", 4, 4),
+        ) as mock_compact,
+        patch("plugin.chatbot.tool_loop.resolve_context_window", return_value=8192),
+        patch("plugin.chatbot.tool_loop.messages_for_llm", return_value=view),
+    ):
+        mock_lane.return_value.__enter__ = MagicMock()
+        mock_lane.return_value.__exit__ = MagicMock(return_value=False)
+        test_instance._spawn_final_stream(MagicMock(), client, 256)
+        test_instance._set_status = MagicMock()
+        captured["fn"]()
+
+    test_instance._set_status.assert_not_called()
+    mock_compact.assert_called_once()
+    assert mock_compact.call_args.kwargs["force"] is False
+    assert mock_compact.call_args.kwargs["max_tokens"] == 256
+    client.stream_chat_response.assert_called_once()
+    assert client.stream_chat_response.call_args[0][0] is view
+
+
+def test_start_tool_calling_resets_overflow_attempts(test_instance):
+    test_instance._overflow_compact_attempts = 2
+    test_instance._spawn_llm_worker = MagicMock()
+    test_instance._refresh_active_tools_for_session = MagicMock()
+
+    def execute_fn(name, args, call_id, ctx):
+        del name, args, call_id, ctx
+        return "{}"
+
+    with (
+        patch("plugin.chatbot.tool_loop.get_config_int", return_value=8),
+        patch("plugin.chatbot.tool_loop.get_config", return_value=False),
+        patch("plugin.chatbot.tool_loop.get_toolkit", return_value=MagicMock()),
+        patch("plugin.chatbot.tool_loop.run_stream_drain_loop"),
+        patch("plugin.chatbot.rich_text.finalize_sidebar_assistant_response"),
+    ):
+        test_instance._start_tool_calling_async(
+            MagicMock(), MagicMock(), 128, [], execute_fn
+        )
+    assert test_instance._overflow_compact_attempts == 0
