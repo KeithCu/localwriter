@@ -17,6 +17,7 @@ from plugin.framework.uno_context import get_desktop, get_runtime_uid
 from plugin.testing_runner import _progress, native_test
 from plugin.tests.testing_utils import (
     TestingFactory,
+    _draw_family_raw_close,
     close_draw_family_doc,
     settle_after_draw_family_close,
 )
@@ -78,9 +79,8 @@ def _close(doc):
     next test's ``private:factory/swriter`` load hung 30s (GHA 34419828920;
     office still alive). How: leftover Impress proxies raced the next
     factory. Why this: same close path as ``@with_native_doc``. Impress
-    teardown is ``_teardown_peer_pair`` (Writer first, then
-    ``close_draw_family_doc`` + ``settle_after_draw_family_close``) — not
-    this helper. Do not fold Draw-family settle into ``close_doc``.
+    teardown is ``_teardown_peer_pair`` — not this helper. Do not fold
+    Draw-family settle into ``close_doc``.
     """
     if doc is None:
         return None
@@ -88,27 +88,68 @@ def _close(doc):
     return None
 
 
-def _teardown_peer_pair(writer, impress):
-    """Close the sibling Writer before Impress.
+def _reactivate_writer_after_impress(ctx, writer):
+    """Point the desktop back at Writer after Impress close.
+
+    Closing another app can leave ``getCurrentComponent()`` empty even
+    while Writer remains open (box UNO proof; ``_restore_writer_after_calc``
+    / #707). Re-activate before the next ``private:factory/swriter`` load
+    so the factory is not racing a wedged Impress current component.
+    Hidden docs may have no container window; ``setActiveFrame`` is the
+    important call.
+    """
+    if ctx is None or writer is None:
+        return
+    try:
+        frame = writer.getCurrentController().getFrame()
+        try:
+            win = frame.getContainerWindow()
+            if win is not None:
+                win.toFront()
+        except Exception:
+            pass
+        get_desktop(ctx).setActiveFrame(frame)
+        _progress("peer_message_uno: writer reactivated")
+    except Exception as exc:
+        _progress(
+            "peer_message_uno: writer reactivate skipped err=%s" % type(exc).__name__
+        )
+
+
+def _teardown_peer_pair(writer, impress, ctx=None):
+    """Close the Writer+Impress peer pair without poisoning the next load.
 
     What was wrong: GHA 34518091151 hung 30s in ``TestingFactory.close_doc``
     at ``doc.close(True)`` while this suite closed Impress with Writer still
-    open (``test_peer_impress_rejected_on_resolved_model`` finally). Both
-    factory loads had succeeded. #710's ``settle_after_draw_family_close``
-    never ran — that settle is *after* close.
+    open. #710's ``settle_after_draw_family_close`` never ran. Later
+    Writer-first + GC/sleep then close/dispose also hung (34532953982 /
+    34535868114). Skipping close (34537826720) unblocked the first test
+    then hung the next ``private:factory/swriter`` load — leftover Impress
+    wedges later Writer factory loads (same family as #710).
 
-    How: Windows ``XCloseable.close(True)`` on Impress can block when a
-    Writer sibling is still open, and ``close_doc`` GCs leftover
-    ``resolve_document_by_url`` wrappers then close()s after only 50 ms.
-
-    Why this: close Writer first (generic ``close_doc``), then the
-    Draw-family path (``setModified(False)`` + longer settle). POSIX
-    ``close(True)``. Windows skips ``close``/``dispose`` (both hung 30s
-    in 34532953982 / 34535868114) and drops the proxy; suite-end kill
-    reaps soffice. Then the existing post-close settle. Not a product
-    fix.
+    Why this: Windows keeps Writer open and uses a bare Impress
+    ``close(True)`` (the only close that returned, #710 / 34419828920),
+    drops the proxy, post-close settles, and re-activates Writer (#707).
+    Do **not** then ``close_doc`` the sibling Writer — GHA 34540353452
+    raw-closed Impress in ~25 ms, settle + ``setActiveFrame`` returned,
+    then ``TestingFactory.close_doc`` hung 30s at Writer ``close(True)``.
+    Leftover Writer is not the poison (keeper Writer already exists);
+    leftover Impress is. POSIX still closes Writer first, then the
+    Draw-family path (setModified + pre-close settle + ``close(True)``)
+    and the same post-close settle. Not a product fix.
     """
     had_impress = impress is not None
+    if had_impress and _draw_family_raw_close():
+        _progress("peer_message_uno: close impress start")
+        close_draw_family_doc(impress)
+        impress = None
+        _progress("peer_message_uno: close impress done")
+        settle_after_draw_family_close()
+        _progress("peer_message_uno: impress post-close settle done")
+        _reactivate_writer_after_impress(ctx, writer)
+        # Drop the proxy only. close_doc hung 30s here (34540353452).
+        _progress("peer_message_uno: skip writer close after impress")
+        return None, None
     _progress("peer_message_uno: close writer start")
     writer = _close(writer)
     _progress("peer_message_uno: close writer done")
@@ -143,7 +184,7 @@ def test_peer_impress_rejected_on_resolved_model(ctx):
         assert code == "PEER_UNSUPPORTED"
         assert "Impress" in msg
     finally:
-        writer, impress = _teardown_peer_pair(writer, impress)
+        writer, impress = _teardown_peer_pair(writer, impress, ctx)
         reset_peer_queues()
         reset_live_panels()
 
@@ -168,7 +209,7 @@ def test_peer_catalog_draw_label_is_not_enough_for_impress(ctx):
         peers = list_v1_peers(ctx, writer)
         assert all(p.get("uid") != impress_uid for p in peers)
     finally:
-        writer, impress = _teardown_peer_pair(writer, impress)
+        writer, impress = _teardown_peer_pair(writer, impress, ctx)
 
 
 @native_test
