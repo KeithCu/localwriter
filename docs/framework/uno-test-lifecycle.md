@@ -51,14 +51,19 @@ Impress close.
 same test closed Impress with Writer still open. Both factory loads had
 printed `peer_message_uno: load start/done` for `swriter` then `simpress`.
 `#710`'s post-close settle never ran. Office stayed alive
-(`kill-libreoffice.ps1` still found soffice PIDs). Peer tests now close
-the Writer sibling first, then `close_draw_family_doc` (not `close_doc`:
-`setModified(False)`, GC, the same Windows-longer settle, logged
-`close(True)`), drop the local, then `settle_after_draw_family_close`.
-`_load` / `_teardown_peer_pair` / `close_draw_family` print breadcrumbs so
-a later faulthandler dump names the step. Do **not** fold Draw-family
-settle into `close_doc` (would tax every Writer/Calc close). Not a product
-fix.
+(`kill-libreoffice.ps1` still found soffice PIDs).
+
+GHA 34532953982 (this PR, after Writer-first + 0.75s pre-close settle)
+still hung in `close_draw_family_doc` at `doc.close(True)` — breadcrumbs
+showed `close writer done`, `setModified(False) ok`, `gc done; sleep
+0.75s`, then `close(True) start` and faulthandler 30s. Office stayed
+alive. Peer tests now close the Writer sibling first, then
+`close_draw_family_doc` (not `close_doc`: `setModified(False)`, GC, the
+Windows-longer settle, then **`dispose()` on Windows** / `close(True)` on
+POSIX), drop the local, then `settle_after_draw_family_close`. `_load` /
+`_teardown_peer_pair` / `close_draw_family` print breadcrumbs so a later
+dump names the step. Do **not** fold Draw-family settle into `close_doc`
+(would tax every Writer/Calc close). Not a product fix.
 
 **Harness-only attribution (not a product fix):** if a test body returns OK
 but the office already aborted, the runner fails *that* test instead of

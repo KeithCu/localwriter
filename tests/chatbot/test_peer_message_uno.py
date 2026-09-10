@@ -103,8 +103,9 @@ def _teardown_peer_pair(writer, impress):
 
     Why this: close Writer first (generic ``close_doc``), then the
     Draw-family close path (``setModified(False)`` + longer pre-close
-    settle + logged ``close(True)``), then the existing post-close settle.
-    Not a product fix.
+    settle; Windows ``dispose()`` because ``close(True)`` still hung in
+    GHA 34532953982; POSIX ``close(True)``), then the existing post-close
+    settle. Not a product fix.
     """
     had_impress = impress is not None
     _progress("peer_message_uno: close writer start")

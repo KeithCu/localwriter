@@ -900,6 +900,15 @@ _DRAW_FAMILY_POST_CLOSE_SETTLE_S = 0.75 if sys.platform == "win32" else 0.15
 _DRAW_FAMILY_PRE_CLOSE_SETTLE_S = _DRAW_FAMILY_POST_CLOSE_SETTLE_S
 
 
+def _draw_family_close_via_dispose() -> bool:
+    """True when Impress ``XCloseable.close(True)`` is the known Windows hang.
+
+    GHA 34532953982: Writer sibling closed, ``setModified(False)`` + 0.75s
+    settle returned, then ``close(True)`` blocked 30s (office still alive).
+    """
+    return sys.platform == "win32"
+
+
 def _draw_family_doc_label(doc) -> str:
     """Harness-only: impress / draw / unknown for close breadcrumbs."""
     try:
@@ -930,10 +939,13 @@ def close_draw_family_doc(doc):
     worse.
 
     Why this: mark unmodified (skip a Hidden-doc save prompt), GC, then
-    the Draw-family pre-close settle before ``close(True)``. Callers close
-    any Writer sibling first and ``settle_after_draw_family_close`` after
-    dropping the local. Logs svc/uid and each step so a later dump names
-    the hang site. Not a product fix.
+    the Draw-family pre-close settle. POSIX then ``close(True)``. Windows
+    uses ``dispose()`` instead — GHA 34532953982 still hung in
+    ``close(True)`` after Writer-first + 0.75s settle (office alive).
+    Callers close any Writer sibling first and
+    ``settle_after_draw_family_close`` after dropping the local. Logs
+    svc/uid and each step so a later dump names the hang site. Not a
+    product fix.
     """
     if not doc:
         return
@@ -964,21 +976,28 @@ def close_draw_family_doc(doc):
         % (_DRAW_FAMILY_PRE_CLOSE_SETTLE_S, svc, uid)
     )
     time.sleep(_DRAW_FAMILY_PRE_CLOSE_SETTLE_S)
-    _progress("close_draw_family: close(True) start svc=%s uid=%s" % (svc, uid))
+    # Windows: do not call XCloseable.close(True) — it is the hang (34532953982).
+    use_dispose = _draw_family_close_via_dispose()
+    api = "dispose()" if use_dispose else "close(True)"
+    _progress("close_draw_family: %s start svc=%s uid=%s" % (api, svc, uid))
     try:
-        if hasattr(doc, "close"):
+        if use_dispose:
+            if hasattr(doc, "dispose"):
+                doc.dispose()
+            elif hasattr(doc, "close"):
+                doc.close(True)
+        elif hasattr(doc, "close"):
             doc.close(True)
         elif hasattr(doc, "dispose"):
-            _progress("close_draw_family: dispose() start svc=%s uid=%s" % (svc, uid))
             doc.dispose()
     except Exception as exc:
         _log_close_doc_failure(exc)
         _progress(
-            "close_draw_family: close failed svc=%s uid=%s err=%s"
-            % (svc, uid, type(exc).__name__)
+            "close_draw_family: %s failed svc=%s uid=%s err=%s"
+            % (api, svc, uid, type(exc).__name__)
         )
     else:
-        _progress("close_draw_family: close done svc=%s uid=%s" % (svc, uid))
+        _progress("close_draw_family: %s done svc=%s uid=%s" % (api, svc, uid))
 
 
 def settle_after_draw_family_close() -> None:

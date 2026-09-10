@@ -415,7 +415,7 @@ def test_settle_after_draw_family_close_windows_longer_than_posix():
 
 
 def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
-    """Impress close must not use close_doc's 50 ms path (GHA 34518091151)."""
+    """POSIX Impress close uses close(True), never close_doc (GHA 34518091151)."""
     from unittest.mock import MagicMock
 
     from plugin.tests.testing_utils import (
@@ -427,6 +427,10 @@ def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
     order = []
     monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
     monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
+    monkeypatch.setattr(
+        "plugin.tests.testing_utils._draw_family_close_via_dispose",
+        lambda: False,
+    )
 
     def _fail_close_doc(_doc):
         raise AssertionError("close_draw_family_doc must not call close_doc")
@@ -446,6 +450,39 @@ def test_close_draw_family_doc_setmodified_gc_settle_then_close(monkeypatch):
     ]
     doc.setModified.assert_called_once_with(False)
     doc.close.assert_called_once_with(True)
+    doc.dispose.assert_not_called()
+
+
+def test_close_draw_family_doc_windows_uses_dispose(monkeypatch):
+    """GHA 34532953982: Windows close(True) hung after Writer-first + settle."""
+    from unittest.mock import MagicMock
+
+    from plugin.tests.testing_utils import (
+        _DRAW_FAMILY_PRE_CLOSE_SETTLE_S,
+        close_draw_family_doc,
+    )
+
+    order = []
+    monkeypatch.setattr("gc.collect", lambda: order.append("gc"))
+    monkeypatch.setattr("time.sleep", lambda seconds: order.append(("sleep", seconds)))
+    monkeypatch.setattr(
+        "plugin.tests.testing_utils._draw_family_close_via_dispose",
+        lambda: True,
+    )
+    doc = MagicMock()
+    doc.supportsService.side_effect = lambda svc: svc.endswith("PresentationDocument")
+    doc.RuntimeUID = "impress-uid"
+    doc.setModified.side_effect = lambda _modified: order.append("setModified")
+    doc.dispose.side_effect = lambda: order.append("dispose")
+    close_draw_family_doc(doc)
+    assert order == [
+        "setModified",
+        "gc",
+        ("sleep", _DRAW_FAMILY_PRE_CLOSE_SETTLE_S),
+        "dispose",
+    ]
+    doc.dispose.assert_called_once_with()
+    doc.close.assert_not_called()
 
 
 def test_close_draw_family_doc_none_skips_settle(monkeypatch):
@@ -465,6 +502,10 @@ def test_close_draw_family_doc_logs_svc_and_steps(capsys, monkeypatch):
 
     monkeypatch.setattr("gc.collect", lambda: None)
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        "plugin.tests.testing_utils._draw_family_close_via_dispose",
+        lambda: False,
+    )
     doc = MagicMock()
     doc.supportsService.side_effect = lambda svc: svc.endswith("PresentationDocument")
     doc.RuntimeUID = "uid-9"
@@ -473,7 +514,7 @@ def test_close_draw_family_doc_logs_svc_and_steps(capsys, monkeypatch):
     assert "close_draw_family: start svc=impress uid=uid-9" in err
     assert "close_draw_family: setModified(False) ok" in err
     assert "close_draw_family: close(True) start svc=impress uid=uid-9" in err
-    assert "close_draw_family: close done svc=impress uid=uid-9" in err
+    assert "close_draw_family: close(True) done svc=impress uid=uid-9" in err
 
 
 def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):
