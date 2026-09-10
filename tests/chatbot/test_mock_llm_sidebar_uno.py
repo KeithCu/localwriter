@@ -2,7 +2,7 @@
 # Copyright (c) 2026 KeithCu
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Native Packet F (HTTP/SSE), B (Stop/Send FSM), C (empty/truncated), D (reasoning), E (tools/HITL), and G (mocked audio) on a live chat sidebar.
+"""Native Packet F (HTTP/SSE), B (Stop/Send FSM), C (empty/truncated), D (reasoning), E (tools/HITL), G (mocked audio), and K (compaction) on a live chat sidebar.
 
 Run via ``make test-mock-sidebar`` (visible soffice, LibreOffice user profile).
 Subset: ``make test-mock-sidebar FILTER=C`` (packet), ``FILTER=c1`` (case), or a ``test_*`` name.
@@ -521,6 +521,7 @@ def _reset_mock_runtime() -> None:
 
     _session.config.transcript = DEFAULT_TRANSCRIPT
     _session.config.scenario = "none"
+    _session.config.overflow_once_seen = 0
     from scripts.mock_llm_server import clear_captures
 
     clear_captures(_session.config)
@@ -2540,4 +2541,162 @@ def test_slash_popup_mock_records_lru(ctx):
     assert ranked["visible"], ranked
     assert ranked["items"][0] == "mock-bravo", ranked
     _slash_type("", sl)
+
+
+def _clear_chat() -> None:
+    from plugin.chatbot.sidebar_test_hooks import clear_sidebar_chat
+
+    sl = getattr(_session, "listener", None)
+    clear_sidebar_chat(listener=sl)
+
+
+def _ensure_compaction_enabled(enabled: bool) -> None:
+    """Toggle ``chat_compaction_enabled`` and wait for the OXT config cache."""
+    from plugin.framework.config import get_config_bool, set_config
+
+    if bool(get_config_bool("chat_compaction_enabled")) == bool(enabled):
+        return
+    set_config("chat_compaction_enabled", enabled)
+    if os.environ.get("WRITERAGENT_UNO_USER_PROFILE") == "1":
+        time.sleep(2.1)
+
+
+def _k_reset() -> None:
+    _reset_mock_runtime()
+    assert _session is not None
+    _session.config.delay_ms = 0
+    _clear_chat()
+
+
+def _summarizer_rows(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    return [row for row in (rows if rows is not None else _captures()) if row.get("is_summarizer")]
+
+
+def _overflow_rows(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    out = []
+    for row in rows if rows is not None else _captures():
+        msg = str(row.get("http_error_message") or "")
+        if row.get("http_error") == 400 and "prompt is too long" in msg:
+            out.append(row)
+    return out
+
+
+def _view_stream_rows(rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in (rows if rows is not None else _captures())
+        if row.get("stream") and row.get("has_conversation_summary") and not row.get("is_summarizer")
+    ]
+
+
+def _inflate_history(ctx: Any = None) -> dict[str, Any]:
+    """Grow ChatSession in soffice past the mock 32768×75% gate (no 24k HTML stream)."""
+    from plugin.chatbot.sidebar_test_hooks import inflate_sidebar_history
+
+    snap = inflate_sidebar_history(ctx=ctx)
+    n = int(snap.get("session_n_messages") or 0)
+    chars = snap.get("session_content_chars") or []
+    assert n >= 5, "K inflate did not grow ChatSession: %r" % snap
+    assert sum(int(c) for c in chars) >= 20000, "K inflate pads missing: %r" % snap
+    return snap
+
+
+@native_test
+def test_k1_proactive_compact_then_hello(ctx):
+    _ensure_compaction_enabled(True)
+    _k_reset()
+    _inflate_history(ctx)
+    from scripts.mock_llm_server import clear_captures
+
+    clear_captures(_session.config)
+    _send_and_wait("hello", timeout=90.0)
+    rows = _captures()
+    assert _summarizer_rows(rows), "K1 expected non-stream summarizer POST: %r" % rows
+    assert _view_stream_rows(rows), "K1 expected a stream that is not raw full history: %r" % rows
+    hello_rows = [row for row in rows if (row.get("current_query") or "").strip().lower() == "hello"]
+    assert hello_rows, "K1 hello never reached the mock"
+    assert any(row.get("stream") and not row.get("http_error") for row in hello_rows), hello_rows
+    _hello_ok()
+
+
+@native_test
+def test_k2_overflow_once_retries_then_hello(ctx):
+    _ensure_compaction_enabled(True)
+    _k_reset()
+    _inflate_history(ctx)
+    from scripts.mock_llm_server import clear_captures
+
+    clear_captures(_session.config)
+    _session.config.overflow_once_seen = 0
+    before = _transcript()
+    _send_and_wait("overflow once", timeout=90.0)
+    rows = _captures()
+    assert _overflow_rows(rows), "K2 expected one prompt-too-large error: %r" % rows
+    overflow_streams = [
+        row
+        for row in rows
+        if row.get("stream") and "overflow once" in (row.get("current_query") or "").lower()
+    ]
+    assert 2 <= len(overflow_streams) <= 3, "K2 expected respawn ≤3, got %d: %r" % (
+        len(overflow_streams),
+        overflow_streams,
+    )
+    suffix = _suffix(before)
+    assert "assistant:" in suffix.lower() or "mock" in suffix.lower(), (
+        "K2 expected a successful retry stream, got %r" % suffix[-400:]
+    )
+    assert "[API error:" not in suffix or _view_stream_rows(rows) or any(
+        row.get("stream") and not row.get("http_error") for row in overflow_streams
+    ), "K2 retry did not succeed: %r captures=%r" % (suffix[-400:], rows)
+    _hello_ok()
+
+
+@native_test
+def test_k3_kill_switch_overflow_no_retry(ctx):
+    _k_reset()
+    _ensure_compaction_enabled(False)
+    try:
+        from scripts.mock_llm_server import clear_captures
+
+        clear_captures(_session.config)
+        _session.config.overflow_once_seen = 0
+        _send_and_wait("overflow once", timeout=60.0, wait_for="API error")
+        rows = _captures()
+        assert _overflow_rows(rows), "K3 expected overflow error: %r" % rows
+        assert not _summarizer_rows(rows), "K3 kill switch must not call the summarizer: %r" % rows
+        overflow_streams = [
+            row
+            for row in rows
+            if row.get("stream") and "overflow once" in (row.get("current_query") or "").lower()
+        ]
+        assert len(overflow_streams) == 1, "K3 must not respawn: %r" % overflow_streams
+        body = _transcript()
+        assert "[API error:" in body or "prompt is too long" in body.lower(), (
+            "K3 expected today's overflow sentence, got %r" % body[-500:]
+        )
+    finally:
+        _ensure_compaction_enabled(True)
+    _hello_ok()
+
+
+@native_test
+def test_k4_process_death_does_not_compact_retry(ctx):
+    _ensure_compaction_enabled(True)
+    _k_reset()
+    from scripts.mock_llm_server import clear_captures
+
+    clear_captures(_session.config)
+    _send_and_wait("llama process died", timeout=60.0)
+    rows = _captures()
+    assert not _summarizer_rows(rows), "K4 death must not enter compact retry: %r" % rows
+    death_streams = [
+        row
+        for row in rows
+        if "llama process died" in (row.get("current_query") or "").lower() and not row.get("is_summarizer")
+    ]
+    assert len(death_streams) == 1, "K4 must not respawn: %r" % death_streams
+    assert death_streams[0].get("http_error") == 400, death_streams
+    body = _transcript()
+    _assert_errorish(body, "API error", "llama-server", "overflowed", "terminated")
+    _hello_ok()
 

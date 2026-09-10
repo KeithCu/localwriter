@@ -31,6 +31,12 @@ log = logging.getLogger("writeragent.sidebar_test_hooks")
 _HOOKS_UNAVAILABLE = "sidebar test hooks are not in release builds"
 _DEBUG_SIDEBAR_PREFIX = "chatbot.debug_sidebar"
 _DEBUG_SNAPSHOT_NAME = "writeragent_debug_sidebar.json"
+# Packet K: URP tests cannot stream 24k HTML through the rich control and
+# still land those bytes on ChatSession.messages. Inflate in soffice so
+# estimate crosses the mock 32768×75% gate (and force-compact can cut).
+_INFLATE_TARGET_TOKENS = 28000
+_INFLATE_PAIR_TOKENS = 4000
+_INFLATE_MAX_PAIRS = 16
 
 # Debug-only. This module is replaced by a stub in release OXTs (no WeakSet).
 _LIVE_CHAT_PANELS: WeakSet[Any] = WeakSet()
@@ -112,6 +118,47 @@ def _history_user_tail(sl: Any) -> str:
     return ""
 
 
+def _session_snapshot_fields(sl: Any) -> dict[str, Any]:
+    """Packet K: URP cannot read ``session.messages``; snapshot from soffice."""
+    session = getattr(sl, "session", None) if sl is not None else None
+    messages = list(getattr(session, "messages", None) or []) if session is not None else []
+    compaction = getattr(session, "compaction", None) if session is not None else None
+    return {
+        "session_n_messages": len(messages),
+        "session_roles": [str(m.get("role") or "") for m in messages if isinstance(m, dict)],
+        "session_content_chars": [
+            len(str(m.get("content") or "")) for m in messages if isinstance(m, dict)
+        ],
+        "has_compaction": compaction is not None,
+        "last_compact_reason": getattr(sl, "_last_compact_reason", None) if sl is not None else None,
+    }
+
+
+def _inflate_session_history(session: Any) -> int:
+    """Append large user/assistant pads onto ``session.messages`` (no UI, no DB).
+
+    Streaming ``flood history`` through the rich control completed HTTP 200
+    but did not grow the model-facing list enough for proactive compact or
+    overflow retry (``nothing_to_compact`` / ``below_threshold``). Direct
+    append is the URP-safe grow path.
+    """
+    if session is None:
+        return 0
+    messages = getattr(session, "messages", None)
+    if not isinstance(messages, list):
+        return 0
+    from plugin.chatbot.compaction import estimate_tokens
+
+    if not messages:
+        messages.append({"role": "system", "content": "Packet K inflate"})
+    added = 0
+    while estimate_tokens(messages) < _INFLATE_TARGET_TOKENS and added < _INFLATE_MAX_PAIRS:
+        added += 1
+        messages.append({"role": "user", "content": "inflate history %d" % added})
+        messages.append({"role": "assistant", "content": "x" * (_INFLATE_PAIR_TOKENS * 4)})
+    return added
+
+
 def _write_debug_snapshot(sl: Any) -> dict[str, Any]:
     send = sl.sidebar_state.send if sl is not None else None
     audio = sl.sidebar_state.audio if sl is not None else None
@@ -130,6 +177,7 @@ def _write_debug_snapshot(sl: Any) -> dict[str, Any]:
         "history_user_tail": _history_user_tail(sl) if sl is not None else "",
         "approval_active": bool(getattr(sl, "_approval_event", None)) if sl is not None else False,
         **_slash_snapshot_fields(sl),
+        **_session_snapshot_fields(sl),
         "slash_lru": _slash_lru_names(),
     }
     with open(debug_sidebar_snapshot_path(), "w", encoding="utf-8") as handle:
@@ -167,6 +215,15 @@ def handle_debug_sidebar_command(command: str) -> None:
     op = (rest or "SNAPSHOT").upper().replace("-", "_")
     sl = _listener_with_slash_popup(send_listener())
     if op == "SNAPSHOT":
+        _write_debug_snapshot(sl)
+        return
+    # Packet K: mutate ChatSession in soffice (URP cannot touch .messages).
+    if op == "INFLATE_HISTORY":
+        if sl is None:
+            log.warning("debug_sidebar %s: no SendButtonListener", op)
+            _write_debug_snapshot(None)
+            return
+        _inflate_session_history(getattr(sl, "session", None))
         _write_debug_snapshot(sl)
         return
     # Factory scalc over URP after a Writer deck never returns (Dummy-thread
@@ -1286,6 +1343,21 @@ def transcript_text(*, listener: Any = None) -> str:
 def transcript_contains(needle: str, *, listener: Any = None) -> bool:
     _require_debug()
     return needle in transcript_text(listener=listener)
+
+
+def inflate_sidebar_history(*, ctx: Any = None) -> dict[str, Any]:
+    """Grow ChatSession.messages in soffice past the mock compaction gate."""
+    _require_debug()
+    sl = send_listener()
+    session = getattr(sl, "session", None) if sl is not None else None
+    messages = getattr(session, "messages", None)
+    # In-process listener only. A URP proxy has no ChatSession.messages list.
+    if isinstance(messages, list):
+        added = _inflate_session_history(session)
+        data = _write_debug_snapshot(sl)
+        data["inflate_pairs"] = added
+        return data
+    return execute_debug_sidebar_op("INFLATE_HISTORY", ctx=ctx)
 
 
 def clear_sidebar_chat(*, listener: Any = None) -> None:

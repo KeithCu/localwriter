@@ -12,7 +12,10 @@ from urllib.request import Request, urlopen
 import pytest
 
 from scripts.mock_llm_server import (
+    COMPACTION_SUMMARY,
     DEFAULT_TRANSCRIPT,
+    HISTORY_FLOOD_MARK,
+    MOCK_CONTEXT_WINDOW,
     MOCK_MODEL_ID,
     MOCK_STT_MODEL_ID,
     RAMBLE_PARTS,
@@ -25,6 +28,7 @@ from scripts.mock_llm_server import (
     current_query_text,
     decide_completion,
     detect_scenario,
+    is_compaction_summarizer,
     iter_sse_payloads,
     make_handler_class,
     match_completion_rule,
@@ -32,6 +36,7 @@ from scripts.mock_llm_server import (
     parse_peer_catalog,
     parse_peer_envelope,
     response_delay_s,
+    summarize_chat_payload,
     sync_response_body,
 )
 
@@ -47,6 +52,7 @@ def test_models_list_includes_mock_id():
     assert MOCK_STT_MODEL_ID in ids
     chat = next(row for row in body["data"] if row["id"] == MOCK_MODEL_ID)
     assert "audio" in chat["architecture"]["input_modalities"]
+    assert chat["context_length"] == MOCK_CONTEXT_WINDOW
 
 
 def test_response_delay_s_sync_override():
@@ -340,6 +346,71 @@ def test_http_models_and_health(mock_http):
     with urlopen(mock_http + "/v1/models", timeout=5) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     assert data["data"][0]["id"] == MOCK_MODEL_ID
+    assert data["data"][0]["context_length"] == MOCK_CONTEXT_WINDOW
+
+
+def test_http_overflow_once_then_ok_and_summarizer():
+    config = MockLLMConfig(delay_ms=0, offline=True)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler_class(config))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    host, port = httpd.server_address[:2]
+    base = f"http://{host}:{port}"
+    try:
+        payload = {
+            "model": MOCK_MODEL_ID,
+            "stream": True,
+            "messages": [{"role": "user", "content": "overflow once"}],
+            "tools": _tools("web_research"),
+        }
+        req = Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(req, timeout=5)
+        assert exc_info.value.code == 400
+        err_body = exc_info.value.read().decode("utf-8")
+        assert "prompt is too long" in err_body
+        raw, unused_ctype = _post_json(base + "/v1/chat/completions", payload)
+        assert unused_ctype is not None
+        assert "[DONE]" in raw
+        assert "<p>" in raw
+        summary_raw, _ctype = _post_json(
+            base + "/v1/chat/completions",
+            {
+                "model": MOCK_MODEL_ID,
+                "stream": False,
+                "messages": [
+                    {"role": "system", "content": "You are a conversation compaction assistant."},
+                    {"role": "user", "content": "<conversation>\nUSER: overflow once\n</conversation>"},
+                ],
+            },
+        )
+        body = json.loads(summary_raw)
+        assert body["choices"][0]["message"]["content"] == COMPACTION_SUMMARY
+        death_req = Request(
+            base + "/v1/chat/completions",
+            data=json.dumps(
+                {
+                    "model": MOCK_MODEL_ID,
+                    "stream": True,
+                    "messages": [{"role": "user", "content": "llama process died"}],
+                    "tools": _tools("web_research"),
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with pytest.raises(HTTPError) as death_exc:
+            urlopen(death_req, timeout=5)
+        assert death_exc.value.code == 400
+        assert "llama-server process has terminated" in death_exc.value.read().decode("utf-8")
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
 
 
 def test_http_stream_chit_chat(mock_http):
@@ -516,6 +587,92 @@ def test_detect_scenario_phrases_and_force():
     assert detect_scenario("show a table") == "table"
     assert detect_scenario("send a table please") == "table"
     assert detect_scenario("hello") == ""
+    assert detect_scenario("please flood history") == "history_flood"
+    assert detect_scenario("pad the context now") == "history_flood"
+    assert detect_scenario("overflow once then continue") == "overflow_once"
+    assert detect_scenario("prompt too large once") == "overflow_once"
+    assert detect_scenario("llama process died") == "process_death"
+
+
+def test_history_flood_and_compaction_summarizer():
+    cfg = MockLLMConfig(delay_ms=0)
+    flood = decide_completion(
+        {"messages": [{"role": "user", "content": "flood history"}], "tools": _tools("web_research")},
+        cfg,
+    )
+    assert flood.content and HISTORY_FLOOD_MARK in flood.content
+    assert flood.http_error is None
+    summarizer_payload = {
+        "stream": False,
+        "tools": None,
+        "messages": [
+            {"role": "system", "content": "You are a conversation compaction assistant for LibreOffice."},
+            {
+                "role": "user",
+                "content": (
+                    "<conversation>\nUSER: overflow once\nASSISTANT: pad\n"
+                    "USER: llama process died\n</conversation>\n\n"
+                    "Summarize the conversation inside <conversation>."
+                ),
+            },
+        ],
+    }
+    assert is_compaction_summarizer(summarizer_payload)
+    summary = decide_completion(summarizer_payload, cfg)
+    assert summary.content == COMPACTION_SUMMARY
+    assert summary.http_error is None
+    rec = summarize_chat_payload(summarizer_payload, summary, cfg)
+    assert rec["is_summarizer"] is True
+    view_payload = {
+        "stream": True,
+        "tools": _tools("web_research"),
+        "messages": [
+            {"role": "system", "content": "base"},
+            {"role": "user", "content": "[CONVERSATION SUMMARY]\n" + COMPACTION_SUMMARY + "\n[END SUMMARY]"},
+            {"role": "assistant", "content": "Acknowledged. I will continue from the summary above."},
+            {"role": "user", "content": "hello"},
+        ],
+    }
+    rec_view = summarize_chat_payload(view_payload, Completion(content="hi"), cfg)
+    assert rec_view["has_conversation_summary"] is True
+    assert rec_view["is_summarizer"] is False
+
+
+def test_overflow_once_then_ok_and_process_death():
+    cfg = MockLLMConfig(delay_ms=0)
+    tools = _tools("web_research", "add_comment")
+    first = decide_completion(
+        {"stream": True, "messages": [{"role": "user", "content": "overflow once"}], "tools": tools},
+        cfg,
+    )
+    assert first.http_error == 400
+    assert first.http_error_message == "prompt is too long"
+    second = decide_completion(
+        {"stream": True, "messages": [{"role": "user", "content": "overflow once"}], "tools": tools},
+        cfg,
+    )
+    assert second.http_error is None
+    assert second.content
+    death = decide_completion(
+        {"stream": True, "messages": [{"role": "user", "content": "llama process died"}], "tools": tools},
+        cfg,
+    )
+    assert death.http_error == 400
+    assert death.http_error_message and "llama-server process has terminated" in death.http_error_message
+    # Dumped history must not overflow the summarizer.
+    dumped = decide_completion(
+        {
+            "stream": False,
+            "tools": None,
+            "messages": [
+                {"role": "system", "content": "You are a conversation compaction assistant."},
+                {"role": "user", "content": "<conversation>\nUSER: overflow once\n</conversation>"},
+            ],
+        },
+        cfg,
+    )
+    assert dumped.content == COMPACTION_SUMMARY
+    assert dumped.http_error is None
 
 
 def test_ramble_and_empty_and_flood():
@@ -1201,6 +1358,10 @@ def test_summarize_chat_payload_doc_len_and_current_query():
     assert rec["has_current_query_mark"] is True
     assert rec["current_query"] == "look up latest Python"
     assert rec["doc_content_len"] == len("Welcome to WriterAgent.")
+    assert rec["n_messages"] == 2
+    assert rec["payload_chars"] == sum(
+        len(m["content"]) for m in payload["messages"] if isinstance(m.get("content"), str)
+    )
     assert rec["decided_tools"] == ["web_research"]
     assert rec["last_assistant_tool_calls"] == []
     assert "add_comment" in rec["advertised_tools"]

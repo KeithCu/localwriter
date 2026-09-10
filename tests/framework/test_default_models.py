@@ -68,6 +68,20 @@ class TestGetProviderDefaults(unittest.TestCase):
         self.assertTrue(bool(caps & ModelCapability.VISION))
         self.assertTrue(bool(caps & ModelCapability.AUDIO))
 
+    def test_writeragent_mock_catalog_window(self):
+        from plugin.framework.default_models import DEFAULT_MODELS
+        from plugin.framework.constants import ModelCapability
+
+        row = next((m for m in DEFAULT_MODELS if m.get("ids", {}).get("mock") == "writeragent-mock"), None)
+        self.assertIsNotNone(row)
+        self.assertEqual(row["context_length"], 32768)
+        self.assertFalse(row.get("default_text"))
+        self.assertTrue(bool(row["capability"] & ModelCapability.CHAT))
+        # Must not become the custom-endpoint Settings default.
+        self.assertIsNone(get_provider_defaults("custom").get("text_model"))
+        self.assertIsNone(resolve_model_id(row, "openai"))
+        self.assertIsNone(resolve_model_id(row, "custom"))
+
     def test_together_deepseek_v4_flash_catalog(self):
         from plugin.framework.default_models import DEFAULT_MODELS
         from plugin.framework.constants import ModelCapability

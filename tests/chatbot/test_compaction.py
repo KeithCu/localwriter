@@ -538,6 +538,17 @@ def test_resolve_context_window_uses_client_config_model():
     assert C.resolve_context_window(client) == 131072
 
 
+def test_resolve_context_window_writeragent_mock():
+    """Mock soak id is not a hosted provider; catalog + any-id fallback."""
+    client = DummyClient(
+        provider="custom",
+        model="writeragent-mock",
+        endpoint="http://127.0.0.1:18766",
+    )
+    assert C.resolve_context_window(client) == 32768
+    assert C.resolve_context_window(client) != 256000
+
+
 def test_compact_session_max_tokens_never_reads_chat_max_tokens():
     session = DummySession(_history_3x1000())
     client = DummyClient()

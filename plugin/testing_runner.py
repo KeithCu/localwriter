@@ -1787,8 +1787,8 @@ def main() -> int:
         python -m plugin.testing_runner --repeat 20 test_draw_uno
         python -m plugin.testing_runner --repeat 50 --pair tree-math
 
-    Extra tokens select tests: packet letter (``B``/``C``/``D``/``E``/``F``/``G``/``P``), case id
-    (``f3a`` / ``p1``), or full ``test_*`` name. Prefer ``make test-mock-sidebar FILTER=P``
+    Extra tokens select tests: packet letter (``B``/``C``/``D``/``E``/``F``/``G``/``P``/``K``), case id
+    (``f3a`` / ``p1`` / ``k1``), or full ``test_*`` name. Prefer ``make test-mock-sidebar FILTER=P``
     for the dual-sidebar peer Packet.
 
     ``--repeat N`` (or ``WRITERAGENT_UNO_SOAK=N``) re-runs selected suites in the
