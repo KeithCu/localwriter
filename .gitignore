@@ -44,7 +44,6 @@ vendor*/
 *.egg-info/
 writeragent.egg*/
 extension/META-INF/manifest.xml
-uv.lock
 
 _manifest.py
 description.xml
