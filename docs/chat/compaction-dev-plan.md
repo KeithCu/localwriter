@@ -21,13 +21,23 @@ WriterAgent sidebar chat sends conversational history along with a freshly rebui
 
 - **Pure, UNO-free module:** All compaction logic lives in `plugin/chatbot/compaction.py`, fully decoupled from LibreOffice/UNO and easily unit-tested with standard pytest.
 - **Cached model-facing view (`messages_for_llm`):** Original turns remain untouched in `session.messages` and the SQLite history database. The UI continues to show full message history; only the payload dispatched to the LLM worker is compacted.
-- **Tiered compaction threshold:** 70% of window for small contexts ($\le$ 8k), 75% for mid-size contexts ($<$ 512k), and 50% for large contexts ($\ge$ 512k).
+- **Tiered compaction threshold:** 70% of window for small contexts (<= 8k), 75% for mid-size contexts (< 512k), and 50% for large contexts (>= 512k).
 - **Remaining-budget ceiling & `GEN_RESERVE`:** Tail length is clamped to available headroom after accounting for document snapshot, summarizer budget, tools, and generation reserve. Exact fill of `n_ctx` is rejected.
 - **Tool-pair integrity & last-user preservation:** Assistant `tool_calls` are never separated from their corresponding `role=tool` responses, and the last real user prompt is snapped into the verbatim tail (Hermes `#10896`).
 - **Tail-pressure stubbing:** If oversized tool results in the newest turn group threaten context limits on 4k windows, tool result bodies are stubbed in the view (`[name] (N chars)`), leaving the underlying session messages intact.
-- **Overflow retry loop:** On prompt-too-large HTTP errors (distinguished from server process crashes), the turn is automatically retried with `force_compact=True` up to 3 times, gated by a $\ge$ 5% shrink requirement.
+- **Overflow retry loop:** On prompt-too-large HTTP errors (distinguished from server process crashes), the turn is automatically retried with `force_compact=True` up to 3 times, gated by a more-than-5% shrink (`after < before * 0.95`; exact 5% is not a shrink).
 - **Dedicated worker execution:** Compaction runs inside the existing `llm_request_lane` lock on background worker threads, never stalling the UI thread.
 - **Single kill switch:** `chat_compaction_enabled` in `writeragent.json` disables both proactive compaction and overflow retries.
+
+### Invariants
+
+Do not break these:
+
+- Never compact `messages[0]`. `[DOCUMENT CONTENT]` is rebuilt every send; the summarizer sees `messages[prev_kept:new_cut]`, never index 0.
+- Never mutate `session.messages` or rewrite `history_db`. Compaction is a cached view (`session.compaction` + `messages_for_llm`).
+- `chat_compaction_enabled: false` disables overflow retry as well as proactive compact. One kill switch.
+- No 256k unknown-window fallback. Unresolved window → `no_window` and skip.
+- Do not subtract `chat_max_tokens` from the trigger window. llama.cpp shares `n_ctx` with output (issue #570); `GEN_RESERVE` is the headroom.
 
 ---
 
@@ -79,7 +89,7 @@ sequenceDiagram
   end
   W->>LLM: stream_request_with_tools(messages_for_llm(session))
   LLM-->>UI: CHUNK / STREAM_DONE / ERROR via Queue
-  alt prompt overflow (attempts under 3, shrunk by at least 5%)
+  alt prompt overflow (attempts under 3, after < 0.95 * before)
     UI->>UI: _set_status Compacting (drain thread OK)
     UI->>W: _spawn_llm_worker(..., force_compact=True)
     Note over UI: host does NOT _set_status Thinking when force_compact
@@ -98,7 +108,7 @@ sequenceDiagram
 3. **Calculate ceiling tail budget:** Determine maximum allowable tail tokens (`keep_recent_tokens`) by subtracting system/document tokens, tool tokens, summarizer budget, and `GEN_RESERVE` from `window`.
 4. **Locate boundary cut:** Perform a reverse ceiling walk to find `cut_index` where `tail_sum <= keep_tokens`. Snap forward to preserve tool-call/result integrity. Snap backward if necessary to guarantee the last real user turn is in the tail (`ensure_last_user_in_tail`).
 5. **Apply tail pressure if needed:** If the newest assistant+tools group exceeds budget on tight windows, stub those tool bodies in the view (`pressure_stub_newest_tool_group`) and re-walk.
-6. **Generate summary:** Serialize the uncompacted slice (`messages[prev_kept:new_cut]`), stubbing tool result bodies $> 200$ chars, and issue a single non-streaming LLM request with temporal anchoring.
+6. **Generate summary:** Serialize the uncompacted slice (`messages[prev_kept:new_cut]`), stubbing tool result bodies > 200 chars, and issue a single non-streaming LLM request with temporal anchoring.
 7. **Construct and verify model view:** Build the view with live system message, summary user/assistant pair, and verbatim tail. If `after > window - GEN_RESERVE`, revert and fail safely.
 8. **Cache state:** Store `CompactionState` on `session.compaction` so subsequent rounds and turns reuse the summary.
 
@@ -114,7 +124,7 @@ COMPACTION_RATIO_DEFAULT = 0.75  # 8192 < W < 512_000
 COMPACTION_RATIO_LARGE = 0.50    # W >= 512_000
 SMALL_CTX_WINDOW_LIMIT = 512_000
 MAX_OVERFLOW_COMPACTION_ATTEMPTS = 3
-MIN_SHRINK_RATIO = 0.95          # Must shrink by >= 5% to retry
+MIN_SHRINK_RATIO = 0.95          # Retry only if after < before * 0.95 (exact 5% is not a shrink)
 KEEP_RECENT_FRACTION = 0.30
 KEEP_RECENT_FLOOR = 2048
 KEEP_RECENT_CAP = 20_000
@@ -205,7 +215,7 @@ On small contexts (4k), exact fill of `n_ctx` causes generation overflow or Olla
 
 ### 9. Tail-Pressure Stubs & Summarizer Serialization
 
-- **Summarizer Input:** `serialize_for_summary(messages)` stubs older `role=tool` responses $> 200$ chars into `[tool_name] (N chars)` and formats assistant tool calls as `name(args)` capped at 4000 characters.
+- **Summarizer Input:** `serialize_for_summary(messages)` stubs older `role=tool` responses > 200 chars into `[tool_name] (N chars)` and formats assistant tool calls as `name(args)` capped at 4000 characters.
 - **View-Only Tail Pressure:** `pressure_stub_newest_tool_group` stubs oversized tool responses in the newest assistant+tools group *only in the model view*. `session.messages` retains full output.
 
 ### 10. Overflow Retry Loop vs. Process Death
@@ -216,7 +226,7 @@ In `_handle_stream_error` (`plugin/chatbot/tool_loop.py`):
    - Rate limits / 429 TPM errors do **not** retry.
    - Known overflow strings (`context length exceeded`, `prompt too long`, `truncating input prompt`, etc.) trigger retry.
 2. Max 3 retry attempts.
-3. Requires $\ge$ 5% shrink (`tokens_after < tokens_before * 0.95`).
+3. Requires more than 5% shrink (`tokens_after < tokens_before * 0.95`). Exact 5% is not a shrink.
 4. Respawns worker thread with `force_compact=True`. Never executes compaction on the UI drain thread.
 
 ---
@@ -298,14 +308,14 @@ Compaction v1 is covered by comprehensive unit, error, and integration tests:
 
 ### Unit Tests ([`tests/chatbot/test_compaction.py`](../../tests/chatbot/test_compaction.py))
 - **Threshold Tiers:** Tests 70%, 75%, and 50% ratios across 4k, 8k, 128k, and 512k+ windows.
-- **Fit Guarantee:** Pinned 4k window tests with 2000-token system context proving post-compaction view $\le 4096 - 256$ tokens.
+- **Fit Guarantee:** Pinned 4k window tests with 2000-token system context proving post-compaction view <= 4096 - 256 tokens.
 - **Estimator Verification:** Verifies ASCII, CJK codepoints, Cyrillic UTF-8 byte weighting, and image/audio token constants.
 - **Document Snapshot Exclusion:** Proves `messages[0]` is never passed to summarizer and live document context is always prefixed dynamically.
 - **Tool-Pair Integrity:** Asserts `tool_calls` and `role=tool` messages are never separated across summary boundaries.
 - **Failure Safety:** Validates that LLM summarizer exceptions leave `session.messages` and `session.compaction` completely intact.
 - **Overflow Classification:** Tests distinction between retryable overflow phrases and non-retryable server process death or rate limits.
 - **Tail Pressure & `#10896` Snap:** Verifies behavior when large tool results or user turns push the tail over budget.
-- **Shrink Gate:** Enforces $\ge$ 5% token reduction on overflow retry.
+- **Shrink Gate:** Enforces more than 5% token reduction on overflow retry (`after < before * 0.95`).
 
 ### Tool Loop Error & Retry Tests ([`tests/chatbot/test_tool_loop_errors.py`](../../tests/chatbot/test_tool_loop_errors.py))
 - Verifies worker respawn with `force_compact=True` on prompt overflow.
@@ -349,7 +359,7 @@ Sources: `hermes-agent` 0.21.1 (Nous Research, MIT), `agent/context_compressor.p
 #### Trigger Math & Folklore
 Hermes uses a multi-layered trigger system:
 1. Config default starts at `0.50` (`50%`).
-2. **Small-context raise-only floor (75%):** For all models with window $< 512,000$, `_effective_threshold_percent` overrides the ratio to `max(threshold, 0.75)`. Thus, **75% is Hermes's true measured default for all common context sizes** (128k, 200k, 256k).
+2. **Small-context raise-only floor (75%):** For all models with window < 512,000, `_effective_threshold_percent` overrides the ratio to `max(threshold, 0.75)`. Thus, **75% is Hermes's true measured default for all common context sizes** (128k, 200k, 256k).
 3. **Absolute 64k token floor & 85% cap:** Hermes enforces `MINIMUM_CONTEXT_LENGTH = 64_000` (rejecting models below 64k). When the 64k floor exceeds 85% of effective window, it caps at 85%.
 4. **Gateway Hygiene:** An independent pre-agent safety net triggers at 85% (`gateway/run_turn.py`).
 
@@ -358,7 +368,7 @@ Hermes uses a multi-layered trigger system:
 - `_ensure_last_user_message_in_tail` (`#10896`): Guarantees the last real user prompt is preserved in the tail, winning over token budget in Hermes. WriterAgent adapted this snap but enforces the ceiling to prevent 4k overflows.
 
 #### Pruning & Stubs
-- Phase 1 tool pruning (`_prune_old_tool_results`): Stubs tool results $> 200$ chars outside the protected tail to `[tool_name] (N chars)`.
+- Phase 1 tool pruning (`_prune_old_tool_results`): Stubs tool results > 200 chars outside the protected tail to `[tool_name] (N chars)`.
 - `_pressure_demote_tail`: When the tail exceeds budget under pressure, stubs tool bodies in the tail starting with the largest results.
 
 #### Rough Token Estimator
@@ -368,13 +378,13 @@ Hermes avoided `tiktoken` in favor of `estimate_tokens_rough`: ASCII at 4 chars/
 
 | Topic / Knob | OpenClaw | Hermes Agent | WriterAgent v1 |
 | --- | --- | --- | --- |
-| **Client trigger** | `tokens > window - reserve` (reserve 16k–20k; small window cap) | Config 50%, raised to 75% for $W < 512k$, capped at 85% for small models | **Tiered ratio:** 70% ($W \le 8k$), 75% ($8k < W < 512k$), 50% ($W \ge 512k$) |
-| **Small contexts (4k/8k)** | Reserve capped at 50% | Rejects models $< 64k$; 10k tail blows 4k | Tail clamped to remainder after `GEN_RESERVE`; 70% trigger; tail-pressure stubs |
-| **Tail selection** | Floor: walk until $\ge keepRecent$ | Lean: clamp 10k–25k; last user wins over budget | Ceiling: walk until $\le keep$; last user snapped with ceiling re-check |
-| **Tool result handling** | Keeps tool-call/result pairs intact | Phase 1 prune $>200$ chars + tail pressure demotion | Summarizer input stub $>200$ chars + view-only tail pressure stub for newest group |
+| **Client trigger** | `tokens > window - reserve` (reserve 16k–20k; small window cap) | Config 50%, raised to 75% for W < 512k, capped at 85% for small models | **Tiered ratio:** 70% (W <= 8k), 75% (8k < W < 512k), 50% (W >= 512k) |
+| **Small contexts (4k/8k)** | Reserve capped at 50% | Rejects models < 64k; 10k tail blows 4k | Tail clamped to remainder after `GEN_RESERVE`; 70% trigger; tail-pressure stubs |
+| **Tail selection** | Floor: walk until >= keepRecent | Lean: clamp 10k–25k; last user wins over budget | Ceiling: walk until <= keep; last user snapped with ceiling re-check |
+| **Tool result handling** | Keeps tool-call/result pairs intact | Phase 1 prune >200 chars + tail pressure demotion | Summarizer input stub >200 chars + view-only tail pressure stub for newest group |
 | **Transcript mutation** | Compacted view; full transcript on disk | In-place SQLite rewrite + soft archive (`active=0`) | In-memory cached view; `session.messages` and DB untouched |
 | **Estimator** | CJK chars/4 + last assistant usage delta | CJK=1 + UTF-8 bytes/4 (`estimate_tokens_rough`) | Hermes `estimate_tokens_rough` extract; images=2000 |
-| **Overflow retry** | 3 attempts; active even if compaction disabled | 3 attempts; requires $>5\%$ token shrink | 3 attempts; requires $\ge 5\%$ token shrink; disabled if kill switch off |
+| **Overflow retry** | 3 attempts; active even if compaction disabled | 3 attempts; requires more than 5% token shrink | 3 attempts; requires more than 5% token shrink (`after < before * 0.95`); disabled if kill switch off |
 | **Failure behavior** | Leave history intact | Drop middle with fallback summary by default | Leave history intact (revert to uncompacted state) |
 
 #### Common Folklore Debunked
@@ -389,11 +399,11 @@ Hermes avoided `tiktoken` in favor of `estimate_tokens_rough`: ASCII at 4 chars/
 | `estimate_tokens_rough` + `_CJK_DENSE_RE` | ~25 | **Steal Function** | Superior to chars/4 for Cyrillic/Arabic. MIT copyright retained. |
 | `_effective_threshold_percent` | ~5 | **Steal Algorithm** | Window-tiered ratio concept adapted; dropped 64k model rejection. |
 | `_ensure_last_user_message_in_tail` (`#10896`) | ~15 | **Steal Algorithm** | Snaps last user into tail; WriterAgent enforces ceiling check. |
-| `_prune_old_tool_results` ($> 200$ chars) | ~40 | **Steal Algorithm** | Stubs large tool bodies in summarizer serialization. |
+| `_prune_old_tool_results` (> 200 chars) | ~40 | **Steal Algorithm** | Stubs large tool bodies in summarizer serialization. |
 | `_pressure_demote_tail` | ~40 | **Steal Algorithm** | Adapted into ~15 lines to stub newest tool group in model view. |
 | `_temporal_anchoring_rule` | ~20 | **Steal Prompt** | Current date injection into summarizer prompt; fails gracefully. |
 | Completed Actions `[tool: name]` | prompt | **Steal Fragment** | Folded into summary prompt headings. |
-| Overflow 5% shrink gate | ~30 | **Steal Gate** | Disallows retry loops if compaction shrank $< 5\%$. |
+| Overflow 5% shrink gate | ~30 | **Steal Gate** | Disallows retry if `after >= before * 0.95` (exact 5% is not a shrink). |
 | `ContextCompressor` class | 4,931 | **Omit** | Monolithic class with complex session locks and aux clients. |
 | `conversation_compression.py` | 4,028 | **Omit** | Database commit fences and thread managers unnecessary for WA. |
 | `hermes_state_compression.py` | 669 | **Omit** | In-place SQLite lineage rewriting rejected for WriterAgent. |

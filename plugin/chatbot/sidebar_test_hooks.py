@@ -147,12 +147,12 @@ def _inflate_session_history(session: Any) -> int:
     messages = getattr(session, "messages", None)
     if not isinstance(messages, list):
         return 0
-    from plugin.chatbot.compaction import estimate_tokens
+    from plugin.chatbot.compaction import estimate_tokens, messages_for_llm
 
     if not messages:
         messages.append({"role": "system", "content": "Packet K inflate"})
     added = 0
-    while estimate_tokens(messages) < _INFLATE_TARGET_TOKENS and added < _INFLATE_MAX_PAIRS:
+    while estimate_tokens(messages_for_llm(session)) < _INFLATE_TARGET_TOKENS and added < _INFLATE_MAX_PAIRS:
         added += 1
         messages.append({"role": "user", "content": "inflate history %d" % added})
         messages.append({"role": "assistant", "content": "x" * (_INFLATE_PAIR_TOKENS * 4)})
@@ -224,6 +224,13 @@ def handle_debug_sidebar_command(command: str) -> None:
             _write_debug_snapshot(None)
             return
         _inflate_session_history(getattr(sl, "session", None))
+        ms = getattr(sl, "model_selector", None)
+        if ms is not None:
+            from plugin.chatbot.dialogs import set_control_text
+            from plugin.framework.client.model_fetcher import set_text_model
+
+            set_control_text(ms, "writeragent-mock")
+            set_text_model("writeragent-mock", update_lru=False)
         _write_debug_snapshot(sl)
         return
     # Factory scalc over URP after a Writer deck never returns (Dummy-thread

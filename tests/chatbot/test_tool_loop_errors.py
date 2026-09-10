@@ -655,3 +655,28 @@ def test_start_tool_calling_resets_overflow_attempts(test_instance):
             MagicMock(), MagicMock(), 128, [], execute_fn
         )
     assert test_instance._overflow_compact_attempts == 0
+
+
+def test_overflow_does_not_retry_when_stop_requested(test_instance):
+    _prime_active_tool_loop(test_instance)
+    test_instance.stop_requested = True
+    test_instance._spawn_llm_worker = MagicMock()
+
+    recovered = _handle_stream_error(test_instance, _overflow_payload())
+
+    assert recovered is not True
+    test_instance._spawn_llm_worker.assert_not_called()
+    assert test_instance._terminal_status == "Error"
+
+
+def test_overflow_does_not_retry_when_stop_checker_active(test_instance):
+    _prime_active_tool_loop(test_instance)
+    test_instance.resolve_stop_checker = MagicMock(return_value=lambda: True)
+    test_instance._spawn_llm_worker = MagicMock()
+
+    recovered = _handle_stream_error(test_instance, _overflow_payload())
+
+    assert recovered is not True
+    test_instance._spawn_llm_worker.assert_not_called()
+    assert test_instance._terminal_status == "Error"
+

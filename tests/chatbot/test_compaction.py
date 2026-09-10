@@ -880,3 +880,141 @@ def test_tool_schema_tokens_in_numerator():
     assert C.prompt_tokens(msgs, tools) == C.estimate_tokens(msgs) + C.tool_schema_tokens(tools)
     assert C.tool_schema_tokens(None) == 0
     assert C.tool_schema_tokens([]) == 0
+
+
+# --- Coverage hardening & edge case tests --------------------------------------
+
+
+def test_empty_or_whitespace_summary_fails():
+    session1 = DummySession(_history_3x1000())
+    client1 = DummyClient(content="")
+    result1 = C.compact_session(session1, client1, window=4096, enabled=True)
+    assert result1.reason == "failed"
+    assert result1.compacted is False
+    assert session1.compaction is None
+
+    session2 = DummySession(_history_3x1000())
+    client2 = DummyClient(content="   \n\t  ")
+    result2 = C.compact_session(session2, client2, window=4096, enabled=True)
+    assert result2.reason == "failed"
+    assert result2.compacted is False
+    assert session2.compaction is None
+
+
+def test_summary_truncation_while_loop_and_cap_summary():
+    # cap_summary unit checks
+    assert C.cap_summary("short", 100) == "short"
+    capped = C.cap_summary("a" * 200, 100)
+    assert len(capped) <= 100
+    assert capped.endswith(C._SUMMARY_TRUNCATION_MARKER)
+
+    # Client returns an oversized summary (~2000 tokens) exceeding _summary_budget(4096)=512
+    session = DummySession(_history_3x1000())
+    client = DummyClient(content="Summary paragraph.\n" + ("detail info " * 600))
+    result = C.compact_session(session, client, window=4096, enabled=True)
+    assert result.compacted is True
+    assert result.reason == "ok"
+    assert session.compaction is not None
+    assert C._SUMMARY_TRUNCATION_MARKER in session.compaction.summary
+    assert C.estimate_tokens(C.summary_pair(session.compaction.summary)) <= C._summary_budget(4096)
+
+
+def test_stop_checker_after_http_returns_aborts():
+    session = DummySession(_history_3x1000())
+    client = DummyClient(content="valid summary")
+    calls = {"n": 0}
+
+    def _checker():
+        calls["n"] += 1
+        # False on first call (preflight check), True on second call (after client.request_with_tools)
+        return calls["n"] > 1
+
+    result = C.compact_session(session, client, window=4096, enabled=True, stop_checker=_checker)
+    assert result.reason == "aborted"
+    assert result.compacted is False
+    assert session.compaction is None
+    assert len(client.calls) == 1
+
+
+def test_multi_round_tool_sequence_cut():
+    # User turn followed by sequential tool iterations (round 1 then round 2)
+    messages = [
+        _system_doc(50),
+        _msg("user", 20),
+        _assistant_tools(("t1", "tool_1")),
+        _tool("t1", 30),
+        _assistant_tools(("t2", "tool_2")),
+        _tool("t2", 30),
+        _msg("assistant", 20),
+    ]
+    # Ceiling walk trying to keep tail tokens
+    keep = C.estimate_message_tokens(messages[-1]) + C.estimate_message_tokens(messages[-2])
+    cut = C.find_cut_index(messages, keep, start_index=1)
+    assert cut is not None
+    # Must snap forward off tool result (cannot be at index 3 or 5)
+    assert messages[cut]["role"] in ("user", "assistant")
+
+
+def test_flatten_content_and_tool_name_fallbacks():
+    assert C.flatten_content(None) == ("", 0, 0)
+    assert C.flatten_content(12345) == ("", 0, 0)
+    mixed_content = [
+        {"type": "text", "text": "hello"},
+        "stray_string",
+        None,
+        {"type": "unknown_type"},
+        {"type": "text", "text": "world"},
+    ]
+    text, n_img, n_aud = C.flatten_content(mixed_content)
+    assert text == "hello world"
+    assert n_img == 0
+    assert n_aud == 0
+
+    # _tool_name_for fallback when no matching tool_call_id
+    msgs = [_msg("user", 10), _tool("unmatched_id", 20)]
+    assert C._tool_name_for(msgs, 1) == "tool"
+
+    # _tool_name_for fallback when preceding assistant has no tool_calls
+    msgs_no_tcs = [{"role": "assistant", "content": "no tools"}, _tool("t1", 20)]
+    assert C._tool_name_for(msgs_no_tcs, 1) == "tool"
+
+
+def test_llama_cpp_overflow_fallback_phrasing():
+    assert C.is_context_overflow_error("error: llama.cpp context buffer overflow occurred") is True
+    assert C.is_context_overflow_error("llama.cpp internal error: prompt overflow") is True
+
+
+def test_newest_assistant_tool_span_empty_tool_calls_and_no_assistant():
+    msgs_no_tcs = [_system_doc(10), _msg("user", 10), {"role": "assistant", "content": "plain text"}]
+    assert C.newest_assistant_tool_span(msgs_no_tcs, 1) is None
+
+    msgs_no_asst = [_system_doc(10), _msg("user", 10)]
+    assert C.newest_assistant_tool_span(msgs_no_asst, 1) is None
+
+
+def test_messages_for_llm_empty_returns_empty():
+    assert C.messages_for_llm(DummySession([])) == []
+    assert C.messages_for_llm(None) == []
+
+
+def test_resolve_context_window_provider_exceptions():
+    class ExceptionClient:
+        config = {"model": "openai/gpt-oss-120b"}
+
+        def _get_provider(self):
+            raise RuntimeError("provider unavailable")
+
+    # Should not crash on provider exception; falls back to catalog matching
+    assert C.resolve_context_window(ExceptionClient()) == 131072
+
+    class BadEndpointClient:
+        config = {"model": "llama3"}
+
+        def _get_provider(self):
+            return "ollama"
+
+        def _endpoint(self):
+            raise RuntimeError("endpoint failed")
+
+    assert C.resolve_context_window(BadEndpointClient()) is None
+

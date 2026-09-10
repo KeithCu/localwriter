@@ -98,6 +98,11 @@ def _setup_mock(ctx):
             "(View → Sidebar must be on). decks=%s" % (names,)
         )
     ensure_sidebar_chat_mode(controls)
+    if controls and "model_selector" in controls:
+        from plugin.chatbot.dialogs import set_control_text
+        from scripts.mock_llm_server import MOCK_MODEL_ID
+
+        set_control_text(controls["model_selector"], MOCK_MODEL_ID)
     _session.controls = controls
     _session.listener = sl
     _set_writer_body(ctx, WELCOME_BODY)
@@ -2591,8 +2596,20 @@ def _view_stream_rows(rows: list[dict[str, Any]] | None = None) -> list[dict[str
 
 def _inflate_history(ctx: Any = None) -> dict[str, Any]:
     """Grow ChatSession in soffice past the mock 32768×75% gate (no 24k HTML stream)."""
-    from plugin.chatbot.sidebar_test_hooks import inflate_sidebar_history
+    from plugin.chatbot.sidebar_test_hooks import (
+        chat_dialog_controls,
+        current_component,
+        inflate_sidebar_history,
+    )
+    from plugin.chatbot.dialogs import set_control_text
+    from plugin.framework.client.model_fetcher import set_text_model
+    from scripts.mock_llm_server import MOCK_MODEL_ID
 
+    set_text_model(MOCK_MODEL_ID, update_lru=False)
+    if ctx is not None:
+        ctrls = chat_dialog_controls(ctx, current_component(ctx)) or {}
+        if "model_selector" in ctrls:
+            set_control_text(ctrls["model_selector"], MOCK_MODEL_ID)
     snap = inflate_sidebar_history(ctx=ctx)
     n = int(snap.get("session_n_messages") or 0)
     chars = snap.get("session_content_chars") or []
@@ -2617,6 +2634,32 @@ def test_k1_proactive_compact_then_hello(ctx):
     assert hello_rows, "K1 hello never reached the mock"
     assert any(row.get("stream") and not row.get("http_error") for row in hello_rows), hello_rows
     _hello_ok()
+
+
+@native_test
+def test_k1b_update_compaction_second_turn(ctx):
+    _ensure_compaction_enabled(True)
+    _k_reset()
+    _inflate_history(ctx)
+    from scripts.mock_llm_server import clear_captures
+
+    clear_captures(_session.config)
+    _send_and_wait("hello", timeout=90.0)
+    rows1 = _captures()
+    assert _summarizer_rows(rows1), "K1b first turn expected summarizer POST: %r" % rows1
+
+    # Inflate history a second time so tokens cross the 75% gate again on turn 2
+    _inflate_history(ctx)
+    clear_captures(_session.config)
+    _send_and_wait("hello again", timeout=90.0)
+    rows2 = _captures()
+    summarizer_rows = _summarizer_rows(rows2)
+    assert summarizer_rows, "K1b second turn expected UPDATE summarizer POST: %r" % rows2
+    assert any("<previous-summary>" in str(row.get("user_text") or "") for row in summarizer_rows), (
+        "K1b expected <previous-summary> in update summarizer prompt: %r" % summarizer_rows
+    )
+    _hello_ok()
+
 
 
 @native_test
