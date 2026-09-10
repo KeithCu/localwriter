@@ -269,18 +269,24 @@ The current implementation represents **Version 1**. The following features and 
 - In screenshot-heavy Calc sessions, prompts can trigger HTTP 413 (Payload Too Large) due to serialized base64 image bytes even when token counts appear within limits.
 - Future work can incorporate Hermes's byte-based scoring (`_recover_payload_too_large`) to downscale images or prune older screenshots on 413 errors.
 
-### 6. Dynamic Provider-Aware `max_tokens` Reservation
+### 6. Context-window resolution fidelity
+
+- Compaction stays inert when `resolve_context_window` returns `None` (unknown model / LM Studio / custom).
+- Research brief (provider → source-of-truth → WA today → small fix plan): [`context-window-fidelity-brief.md`](context-window-fidelity-brief.md).
+- Do **not** invent Hermes-sized fallbacks or subtract `chat_max_tokens` on llama.cpp (#570).
+
+### 7. Dynamic Provider-Aware `max_tokens` Reservation
 - Some cloud providers decouple output generation limits from context windows, while local `llama.cpp` shares `n_ctx` between prompt and completion.
 - Inspect provider capabilities to dynamically subtract `chat_max_tokens` when supported, or rely on `GEN_RESERVE` for shared-context engines.
 
-### 7. Native Server-Side Compaction Integration
+### 8. Native Server-Side Compaction Integration
 - Leverage vendor-native context management (such as OpenAI Responses API `/responses/compact` or Anthropic server compaction) when connecting to compatible endpoints.
 - See [`docs/chat/responses-api-plan.md`](responses-api-plan.md) for details.
 
-### 8. Long-Term Memory Flush Integration
+### 9. Long-Term Memory Flush Integration
 - Trigger a memory extraction / flush turn (similar to OpenClaw's pre-compaction memory flush) before summarizing, saving durable facts into `MEMORY.md` before turns leave the active context.
 
-### 9. Session Persistence of Compaction State Across Restarts
+### 10. Session Persistence of Compaction State Across Restarts
 - In v1, restarting LibreOffice reloads raw message turns from SQLite, re-summarizing only when the threshold is crossed again.
 - Persisting `CompactionState` directly in `history_db` would avoid re-summarizing upon opening an existing long session.
 
