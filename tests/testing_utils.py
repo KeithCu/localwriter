@@ -882,6 +882,31 @@ def _default_native_doc_reuse(doc_type: str) -> bool:
 # the SfxItemPool path. Measured 0/80 on the killer; post-close wait did not help.
 _CLOSE_DOC_URP_SETTLE_S = 0.05
 
+# GHA 34419828920 (master bf6c2ea2): peer test_peer_impress_rejected_on_resolved_model
+# raw-closed Impress via doc.close(True), then the *next* test hung 30s in
+# private:factory/swriter load (test_peer_message_uno.py:109). Office stayed
+# alive (kill-libreoffice.ps1 still found soffice PIDs). close_doc's 50 ms is
+# pre-close (release proxies before teardown). This is post-close: drop the
+# closed Impress/Draw proxy, GC, then let URP finish before the next factory
+# load. Do not put this inside close_doc — that would tax every Writer/Calc
+# close. Windows needs longer; POSIX is a short drain. Not a product fix.
+_DRAW_FAMILY_POST_CLOSE_SETTLE_S = 0.75 if sys.platform == "win32" else 0.15
+
+
+def settle_after_draw_family_close() -> None:
+    """Harness-only: GC + sleep after closing Impress/Draw before the next factory load.
+
+    Call after ``TestingFactory.close_doc`` *and* after dropping the local
+    reference. The next ``loadComponentFromURL`` is the hang site if this
+    settle is skipped (see ``tests/chatbot/test_peer_message_uno.py``).
+    """
+    import gc
+    import time
+
+    gc.collect()
+    time.sleep(_DRAW_FAMILY_POST_CLOSE_SETTLE_S)
+
+
 # offapi/com/sun/star/sheet/CellFlags.idl — VALUE|DATETIME|STRING|ANNOTATION|FORMULA|HARDATTR|STYLES|OBJECTS|EDITATTR|FORMATTED
 _CALC_CLEAR_ALL = 1 | 2 | 4 | 8 | 16 | 32 | 64 | 128 | 256 | 512
 

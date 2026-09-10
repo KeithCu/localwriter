@@ -37,6 +37,18 @@ proof LibreOffice is healthy. If SalAbort still prints, `#698` fail-closed
 still names that test. Details and soak rates:
 [salabort-svxshape-close.md](salabort-svxshape-close.md).
 
+**Peer Impress → next Writer factory (Windows):** GHA 34419828920 hung 30s
+in `tests/chatbot/test_peer_message_uno.py` at `_load("private:factory/swriter")`
+(line 109), immediately after `test_peer_impress_rejected_on_resolved_model`
+passed. That predecessor used a local `doc.close(True)` and skipped
+`close_doc`. Office stayed alive (`kill-libreoffice.ps1` still found PIDs).
+Peer tests now close through `TestingFactory.close_doc`, drop the Impress
+local, then `settle_after_draw_family_close` (GC + 0.75s Windows / 0.15s
+else) before the next factory load. `_load` prints
+`peer_message_uno: load start <url>` so a later faulthandler dump names
+swriter vs simpress. Do **not** fold that post-close sleep into
+`close_doc` (would tax every Writer/Calc close). Not a product fix.
+
 **Harness-only attribution (not a product fix):** if a test body returns OK
 but the office already aborted, the runner fails *that* test instead of
 letting the next factory open be the named victim:
