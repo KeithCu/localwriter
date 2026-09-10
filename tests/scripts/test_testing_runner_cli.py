@@ -780,3 +780,64 @@ def test_geometric_leftover_525_skips_locally(monkeypatch) -> None:
         )
         is True
     )
+
+
+def test_headless_connect_delays_windows_longer(monkeypatch) -> None:
+    """Windows headless budget exceeds the intermittent ~22s pipe-miss window."""
+    import plugin.testing_runner as tr
+
+    monkeypatch.setattr(tr.sys, "platform", "win32")
+    win = tr._headless_connect_delays()
+    monkeypatch.setattr(tr.sys, "platform", "linux")
+    linux = tr._headless_connect_delays()
+    assert sum(win) > sum(linux)
+    assert sum(win) >= 40.0
+
+
+def test_connect_uno_accept_logs_stderr_tail_on_miss(monkeypatch) -> None:
+    """Connect-fail path surfaces soffice stderr_tail for Windows GHA digs."""
+    import plugin.testing_runner as tr
+
+    class _Proc:
+        def poll(self):
+            return None
+
+    class _NoConnect(Exception):
+        pass
+
+    # Mimic com.sun.star.connection.NoConnectException name used in except.
+    import types
+    import sys
+
+    fake_mod = types.ModuleType("com.sun.star.connection")
+    fake_mod.NoConnectException = type("NoConnectException", (Exception,), {})
+    # Build nested com.sun.star.connection
+    com = types.ModuleType("com")
+    sun = types.ModuleType("com.sun")
+    star = types.ModuleType("com.sun.star")
+    conn = fake_mod
+    sys.modules["com"] = com
+    sys.modules["com.sun"] = sun
+    sys.modules["com.sun.star"] = star
+    sys.modules["com.sun.star.connection"] = conn
+
+    logs: list[str] = []
+    monkeypatch.setattr(tr, "_progress", lambda msg: logs.append(msg))
+    monkeypatch.setattr(tr, "_uno_resolver_for_local_ctx", lambda: types.SimpleNamespace(
+        resolve=lambda url: (_ for _ in ()).throw(conn.NoConnectException("pipe miss"))
+    ))
+    monkeypatch.setattr(tr, "_soffice_pids", lambda: "1,2")
+    monkeypatch.setattr(tr, "office_stderr_tail", lambda: ["prefix warn", "still starting"])
+    monkeypatch.setattr(tr.time, "sleep", lambda _d: None)
+
+    try:
+        tr._connect_uno_accept(_Proc(), "pipe,name=x;urp;", path_label="headless", delays=(0.1, 0.1))
+        raise AssertionError("expected RuntimeError")
+    except RuntimeError as exc:
+        assert "could not connect" in str(exc)
+
+    joined = "\n".join(logs)
+    assert "attempt=1/2" in joined
+    assert "connected=False" in joined
+    assert "stderr_tail=" in joined
+    assert "still starting" in joined
