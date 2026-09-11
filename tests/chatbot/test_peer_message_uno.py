@@ -366,8 +366,9 @@ def test_peer_unique_name_and_self_reject(ctx):
 
 
 # Windows: skip all Writer/Calc close_doc in this file (34544965319).
-# Impress still runs last so leftover Impress is not in front of Writer
-# tests; teardown raw-closes Impress and the runner recycles office.
+# Impress still runs last. Teardown raw-closes the first Impress; a
+# second close killed soffice (34547869791) so that one is skipped.
+# The runner recycles office after the suite.
 
 
 @native_test
