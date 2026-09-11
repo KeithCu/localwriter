@@ -71,6 +71,20 @@ def _load(ctx, factory_url):
     return doc
 
 
+# After a Windows Impress teardown, ``close_doc`` on *any* later Writer in
+# this soffice hangs 30s (GHA 34542928132: missing_deck loads succeeded,
+# then ``_close(other)`` in finally). Drop the proxy only. POSIX never sets
+# this. Reset is not required — the suite ends or the runner recycles office.
+_windows_skip_close_after_impress = False
+
+
+def _doc_uid(doc) -> str:
+    try:
+        return str(getattr(doc, "RuntimeUID", None) or "?")
+    except Exception:
+        return "?"
+
+
 def _close(doc):
     """Close Writer/Calc via harness ``close_doc`` (GC + 50 ms, then ``doc.close``).
 
@@ -79,12 +93,25 @@ def _close(doc):
     next test's ``private:factory/swriter`` load hung 30s (GHA 34419828920;
     office still alive). How: leftover Impress proxies raced the next
     factory. Why this: same close path as ``@with_native_doc``. Impress
-    teardown is ``_teardown_peer_pair`` — not this helper. Do not fold
-    Draw-family settle into ``close_doc``.
+    teardown is ``_teardown_peer_pair`` — not this helper.
+
+    GHA 34542928132: after #717 skipped Writer close on the Impress pair,
+    both ``swriter`` loads in ``test_peer_missing_deck_is_clear_error``
+    returned, then ``TestingFactory.close_doc`` hung 30s in this helper.
+    On Windows after Impress, drop the proxy — do not call ``close_doc``.
+    Logs uid and start/done so the next red dump names which close hung.
+    Do not fold Draw-family settle into ``close_doc``.
     """
+    global _windows_skip_close_after_impress
     if doc is None:
         return None
+    uid = _doc_uid(doc)
+    if _windows_skip_close_after_impress:
+        _progress("peer_message_uno: skip close after impress uid=%s" % uid)
+        return None
+    _progress("peer_message_uno: close_doc start uid=%s" % uid)
     TestingFactory.close_doc(doc)
+    _progress("peer_message_uno: close_doc done uid=%s" % uid)
     return None
 
 
@@ -134,9 +161,12 @@ def _teardown_peer_pair(writer, impress, ctx=None):
     raw-closed Impress in ~25 ms, settle + ``setActiveFrame`` returned,
     then ``TestingFactory.close_doc`` hung 30s at Writer ``close(True)``.
     Leftover Writer is not the poison (keeper Writer already exists);
-    leftover Impress is. POSIX still closes Writer first, then the
-    Draw-family path (setModified + pre-close settle + ``close(True)``)
-    and the same post-close settle. Not a product fix.
+    leftover Impress is. GHA 34542928132: later Writer+Writer
+    ``close_doc`` in the same soffice also hung — this path arms
+    skip-close and asks the runner to recycle office. POSIX still
+    closes Writer first, then the Draw-family path (setModified +
+    pre-close settle + ``close(True)``) and the same post-close
+    settle. Not a product fix.
     """
     had_impress = impress is not None
     if had_impress and _draw_family_raw_close():
@@ -148,6 +178,14 @@ def _teardown_peer_pair(writer, impress, ctx=None):
         _progress("peer_message_uno: impress post-close settle done")
         _reactivate_writer_after_impress(ctx, writer)
         # Drop the proxy only. close_doc hung 30s here (34540353452).
+        # Later Writer+Writer ``_close`` in this soffice also hung
+        # (34542928132). Arm skip-close for the rest of the suite and
+        # ask the runner to recycle office before the next suite.
+        global _windows_skip_close_after_impress
+        _windows_skip_close_after_impress = True
+        from plugin.testing_runner import request_office_recycle_after_suite
+
+        request_office_recycle_after_suite()
         _progress("peer_message_uno: skip writer close after impress")
         return None, None
     _progress("peer_message_uno: close writer start")
@@ -164,52 +202,6 @@ def _teardown_peer_pair(writer, impress, ctx=None):
 
 def _tool_ctx(ctx, doc):
     return ToolContext(doc=doc, ctx=ctx, doc_type="writer", services=None, caller="chat")
-
-
-@native_test
-def test_peer_impress_rejected_on_resolved_model(ctx):
-    reset_peer_queues()
-    reset_live_panels()
-    reset_sentry_state()
-    writer = None
-    impress = None
-    try:
-        writer = _load(ctx, "private:factory/swriter")
-        impress = _load(ctx, "private:factory/simpress")
-        assert writer is not None and impress is not None
-        impress_uid = get_runtime_uid(impress)
-        assert impress_uid
-        model, code, msg = resolve_peer_target(ctx, writer, impress_uid)
-        assert model is None
-        assert code == "PEER_UNSUPPORTED"
-        assert "Impress" in msg
-    finally:
-        writer, impress = _teardown_peer_pair(writer, impress, ctx)
-        reset_peer_queues()
-        reset_live_panels()
-
-
-@native_test
-def test_peer_catalog_draw_label_is_not_enough_for_impress(ctx):
-    """get_open_documents labels Impress as draw; v1 still rejects the model."""
-    from plugin.doc.document_research import get_open_documents
-    from plugin.doc.peer_message import list_v1_peers
-
-    reset_live_panels()
-    writer = None
-    impress = None
-    try:
-        writer = _load(ctx, "private:factory/swriter")
-        impress = _load(ctx, "private:factory/simpress")
-        catalog = get_open_documents(ctx, writer)
-        impress_uid = get_runtime_uid(impress)
-        rec = next((r for r in catalog if r.get("uid") == impress_uid), None)
-        assert rec is not None
-        assert rec.get("doc_type") == "draw"
-        peers = list_v1_peers(ctx, writer)
-        assert all(p.get("uid") != impress_uid for p in peers)
-    finally:
-        writer, impress = _teardown_peer_pair(writer, impress, ctx)
 
 
 @native_test
@@ -338,3 +330,55 @@ def test_peer_unique_name_and_self_reject(ctx):
         _close(writer)
         reset_peer_queues()
         reset_live_panels()
+
+
+# Windows: run Impress *after* Writer+Writer / Writer+Calc tests. Those tests
+# call ``_close`` → ``close_doc``, which hangs once Impress has been in this
+# soffice (GHA 34542928132). Impress teardown then skips Writer close_doc and
+# requests an office recycle so later suites are not poisoned.
+
+
+@native_test
+def test_peer_impress_rejected_on_resolved_model(ctx):
+    reset_peer_queues()
+    reset_live_panels()
+    reset_sentry_state()
+    writer = None
+    impress = None
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        impress = _load(ctx, "private:factory/simpress")
+        assert writer is not None and impress is not None
+        impress_uid = get_runtime_uid(impress)
+        assert impress_uid
+        model, code, msg = resolve_peer_target(ctx, writer, impress_uid)
+        assert model is None
+        assert code == "PEER_UNSUPPORTED"
+        assert "Impress" in msg
+    finally:
+        writer, impress = _teardown_peer_pair(writer, impress, ctx)
+        reset_peer_queues()
+        reset_live_panels()
+
+
+@native_test
+def test_peer_catalog_draw_label_is_not_enough_for_impress(ctx):
+    """get_open_documents labels Impress as draw; v1 still rejects the model."""
+    from plugin.doc.document_research import get_open_documents
+    from plugin.doc.peer_message import list_v1_peers
+
+    reset_live_panels()
+    writer = None
+    impress = None
+    try:
+        writer = _load(ctx, "private:factory/swriter")
+        impress = _load(ctx, "private:factory/simpress")
+        catalog = get_open_documents(ctx, writer)
+        impress_uid = get_runtime_uid(impress)
+        rec = next((r for r in catalog if r.get("uid") == impress_uid), None)
+        assert rec is not None
+        assert rec.get("doc_type") == "draw"
+        peers = list_v1_peers(ctx, writer)
+        assert all(p.get("uid") != impress_uid for p in peers)
+    finally:
+        writer, impress = _teardown_peer_pair(writer, impress, ctx)

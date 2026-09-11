@@ -568,6 +568,9 @@ def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):
     )
     writer = MagicMock(name="writer")
     impress = MagicMock(name="impress")
+    import tests.chatbot.test_peer_message_uno as peer
+
+    peer._windows_skip_close_after_impress = False
     out_writer, out_impress = _teardown_peer_pair(writer, impress)
     assert out_writer is None and out_impress is None
     assert order == [
@@ -575,6 +578,7 @@ def test_teardown_peer_pair_closes_writer_before_impress(monkeypatch):
         ("close_draw_family", impress),
         "post_settle",
     ]
+    assert peer._windows_skip_close_after_impress is False
 
 
 def test_teardown_peer_pair_windows_closes_impress_skips_writer(monkeypatch):
@@ -607,13 +611,26 @@ def test_teardown_peer_pair_windows_closes_impress_skips_writer(monkeypatch):
     writer = MagicMock(name="writer")
     impress = MagicMock(name="impress")
     ctx = MagicMock(name="ctx")
-    out_writer, out_impress = _teardown_peer_pair(writer, impress, ctx)
-    assert out_writer is None and out_impress is None
-    assert order == [
-        ("close_draw_family", impress),
-        "post_settle",
-        ("reactivate", ctx, writer),
-    ]
+    recycle_calls = []
+    monkeypatch.setattr(
+        "plugin.testing_runner.request_office_recycle_after_suite",
+        lambda: recycle_calls.append("recycle"),
+    )
+    import tests.chatbot.test_peer_message_uno as peer
+
+    peer._windows_skip_close_after_impress = False
+    try:
+        out_writer, out_impress = _teardown_peer_pair(writer, impress, ctx)
+        assert out_writer is None and out_impress is None
+        assert order == [
+            ("close_draw_family", impress),
+            "post_settle",
+            ("reactivate", ctx, writer),
+        ]
+        assert peer._windows_skip_close_after_impress is True
+        assert recycle_calls == ["recycle"]
+    finally:
+        peer._windows_skip_close_after_impress = False
 
 
 def test_reactivate_writer_after_impress_sets_active_frame(monkeypatch):
@@ -634,6 +651,43 @@ def test_reactivate_writer_after_impress_sets_active_frame(monkeypatch):
     get_desktop.assert_called_once_with(ctx)
     desktop.setActiveFrame.assert_called_once_with(frame)
     frame.getContainerWindow.return_value.toFront.assert_called_once_with()
+
+
+def test_close_skips_after_windows_impress(monkeypatch):
+    """GHA 34542928132: missing_deck close_doc hung after Impress."""
+    from unittest.mock import MagicMock
+
+    import tests.chatbot.test_peer_message_uno as peer
+    from plugin.tests.testing_utils import TestingFactory
+
+    doc = MagicMock()
+    doc.RuntimeUID = "uid-later"
+    calls = []
+    monkeypatch.setattr(
+        TestingFactory, "close_doc", lambda _doc: calls.append("close_doc")
+    )
+    peer._windows_skip_close_after_impress = True
+    try:
+        assert peer._close(doc) is None
+        assert calls == []
+    finally:
+        peer._windows_skip_close_after_impress = False
+
+
+def test_close_logs_uid_before_close_doc(capsys, monkeypatch):
+    from unittest.mock import MagicMock
+
+    import tests.chatbot.test_peer_message_uno as peer
+    from plugin.tests.testing_utils import TestingFactory
+
+    doc = MagicMock()
+    doc.RuntimeUID = "uid-7"
+    monkeypatch.setattr(TestingFactory, "close_doc", lambda _doc: None)
+    peer._windows_skip_close_after_impress = False
+    peer._close(doc)
+    err = capsys.readouterr().err
+    assert "peer_message_uno: close_doc start uid=uid-7" in err
+    assert "peer_message_uno: close_doc done uid=uid-7" in err
 
 
 def test_teardown_peer_pair_windows_no_impress_just_closes_writer(monkeypatch):
