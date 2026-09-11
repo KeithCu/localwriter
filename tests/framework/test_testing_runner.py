@@ -19,12 +19,14 @@ from plugin.testing_runner import (
     _test_function_filters,
     collect_post_test_death,
     consume_application_error,
+    consume_office_recycle_request,
     expand_soak_pair,
     format_lifecycle_breadcrumb,
     note_office_stderr_line,
     probe_uno_bridge,
     record_test_end,
     record_test_start,
+    request_office_recycle_after_suite,
     reset_lifecycle_breadcrumb,
     reset_office_death_signals,
     soffice_exit_code,
@@ -232,6 +234,17 @@ def test_collect_post_test_death_soffice_exit() -> None:
     assert "soffice exited 1" in reason
     assert "Binary URP bridge" in reason
     reset_office_death_signals(clear_proc=True)
+
+
+def test_office_recycle_request_is_consumed_once() -> None:
+    """Windows Impress teardown asks the runner to recycle after the suite."""
+    import plugin.testing_runner as tr
+
+    tr._recycle_office_after_suite = False
+    assert consume_office_recycle_request() is False
+    request_office_recycle_after_suite()
+    assert consume_office_recycle_request() is True
+    assert consume_office_recycle_request() is False
 
 
 def test_fail_reason_with_lifecycle_keeps_crumb_after_cap() -> None:

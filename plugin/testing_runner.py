@@ -192,6 +192,10 @@ _soffice_proc: Any = None
 _office_stderr_lock = threading.Lock()
 _office_stderr_application_error = False
 _office_stderr_tail: list[str] = []
+# Set by Windows peer teardown / skipped close_doc; consumed after that
+# suite so later suites get a fresh soffice (GHA 34544965319: second
+# Writer close_doc hung before any Impress in the same office).
+_recycle_office_after_suite = False
 
 
 def reset_office_death_signals(*, clear_proc: bool = False) -> None:
@@ -1046,6 +1050,83 @@ def _terminate_bootstrap_soffice() -> None:
         pass
 
 
+def request_office_recycle_after_suite() -> None:
+    """Ask ``run_all_tests`` to kill+rebootstrap soffice after this suite.
+
+    Windows peer leftover docs leave ``close_doc`` hung for the rest of
+    that office (GHA 34544965319: second Writer close before Impress;
+    34542928132: Writer close after Impress). Recycle so later suites
+    are not poisoned. Not a product fix.
+    """
+    global _recycle_office_after_suite
+    _recycle_office_after_suite = True
+
+
+def consume_office_recycle_request() -> bool:
+    """Return-and-clear the after-suite recycle flag."""
+    global _recycle_office_after_suite
+    wanted = _recycle_office_after_suite
+    _recycle_office_after_suite = False
+    return wanted
+
+
+def _recycle_harness_office(old_ctx: Any) -> tuple[Any, Any]:
+    """Kill the current soffice and bootstrap a fresh one.
+
+    Do **not** ``close`` leftover docs first — that is the hung path.
+    Do **not** mark URP dead unless the new bootstrap fails.
+    """
+    from plugin.framework.uno_context import get_desktop, set_fallback_ctx
+
+    _progress("LIFECYCLE recycle office after impress start")
+    _terminate_bootstrap_soffice()
+    time.sleep(0.5)
+    reset_office_death_signals(clear_proc=True)
+    try:
+        from tests.testing_utils import _NATIVE_DOC_POOL
+
+        _NATIVE_DOC_POOL.clear()
+    except Exception:
+        pass
+    try:
+        _ensure_libreoffice_python_path()
+        import officehelper
+        import uno
+
+        new_ctx = _bootstrap_office(officehelper)
+        if new_ctx is None:
+            raise RuntimeError("recycle bootstrap returned None")
+        set_fallback_ctx(new_ctx)
+        from plugin.framework.config import init_config
+
+        init_config(new_ctx)
+        new_keeper = None
+        if not use_user_profile:
+            from plugin.main import bootstrap
+
+            bootstrap(ctx=new_ctx)
+            hidden_prop = uno.createUnoStruct(
+                "com.sun.star.beans.PropertyValue",
+                Name="Hidden",
+                Value=True,
+            )
+            new_keeper = get_desktop(new_ctx).loadComponentFromURL(
+                "private:factory/swriter", "_blank", 0, (hidden_prop,)
+            )
+        _progress(
+            "LIFECYCLE recycle office after impress done pids=%s"
+            % _soffice_pids()
+        )
+        return new_ctx, new_keeper
+    except Exception as exc:
+        _progress(
+            "LIFECYCLE recycle office after impress failed err=%s:%s"
+            % (type(exc).__name__, exc)
+        )
+        _mark_urp_dead(exc, "recycle office after impress")
+        return old_ctx, None
+
+
 def _bootstrap_office(officehelper_module: Any) -> Any:
     """Start soffice without leaking the test runner's Python env into the child.
 
@@ -1714,6 +1795,8 @@ def run_all_tests(ctx: Any) -> str:
                     p, f = _run_suite(ctx, suites, sys_module_name.replace("plugin.tests.", ""), test_module, doc_to_pass)
                     total_passed += p
                     total_failed += f
+                    if consume_office_recycle_request():
+                        ctx, keeper_doc = _recycle_harness_office(ctx)
                 except ImportError as e:
                     print(f"Skipping {filename} due to ImportError: {e}")
                 except Exception as e:
