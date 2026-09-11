@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 from plugin.doc.live_panels import register_live_panel, reset_live_panels, unregister_live_panel
 from plugin.doc.peer_message import (
     SendPeerMessage,
@@ -71,11 +73,17 @@ def _load(ctx, factory_url):
     return doc
 
 
-# After a Windows Impress teardown, ``close_doc`` on *any* later Writer in
-# this soffice hangs 30s (GHA 34542928132: missing_deck loads succeeded,
-# then ``_close(other)`` in finally). Drop the proxy only. POSIX never sets
-# this. Reset is not required — the suite ends or the runner recycles office.
-_windows_skip_close_after_impress = False
+def _windows_skip_doc_close() -> bool:
+    """True when this suite must not call Writer/Calc ``close_doc``.
+
+    GHA 34544965319: ``test_peer_missing_deck_is_clear_error`` ran *before*
+    any Impress in this file. First ``close_doc`` (``other``, uid=30)
+    returned; the second (``writer``, uid=29) hung 30s at ``doc.close``.
+    Dual hidden-Writer ``close_doc`` is the hang — leftover Impress from
+    *this* suite is not required. Drop the proxy on win32. POSIX still
+    ``close_doc``.
+    """
+    return sys.platform == "win32"
 
 
 def _doc_uid(doc) -> str:
@@ -88,26 +96,22 @@ def _doc_uid(doc) -> str:
 def _close(doc):
     """Close Writer/Calc via harness ``close_doc`` (GC + 50 ms, then ``doc.close``).
 
-    What was wrong: local ``doc.close(True)`` skipped that settle. After
-    ``test_peer_impress_rejected_on_resolved_model`` raw-closed Impress, the
-    next test's ``private:factory/swriter`` load hung 30s (GHA 34419828920;
-    office still alive). How: leftover Impress proxies raced the next
-    factory. Why this: same close path as ``@with_native_doc``. Impress
-    teardown is ``_teardown_peer_pair`` — not this helper.
-
-    GHA 34542928132: after #717 skipped Writer close on the Impress pair,
-    both ``swriter`` loads in ``test_peer_missing_deck_is_clear_error``
-    returned, then ``TestingFactory.close_doc`` hung 30s in this helper.
-    On Windows after Impress, drop the proxy — do not call ``close_doc``.
-    Logs uid and start/done so the next red dump names which close hung.
-    Do not fold Draw-family settle into ``close_doc``.
+    POSIX: same path as ``@with_native_doc``. Windows: drop the proxy —
+    GHA 34544965319 hung 30s on the *second* Writer ``close_doc`` in
+    ``test_peer_missing_deck_is_clear_error`` before any Impress in this
+    file. Logs uid and start/done/skip so the next red dump names which
+    close hung. Impress teardown is ``_teardown_peer_pair``. Do not fold
+    Draw-family settle into ``close_doc``.
     """
-    global _windows_skip_close_after_impress
     if doc is None:
         return None
     uid = _doc_uid(doc)
-    if _windows_skip_close_after_impress:
-        _progress("peer_message_uno: skip close after impress uid=%s" % uid)
+    if _windows_skip_doc_close():
+        _progress("peer_message_uno: skip close (windows) uid=%s" % uid)
+        # Leftover hidden docs poison later suites' close_doc (34544965319).
+        from plugin.testing_runner import request_office_recycle_after_suite
+
+        request_office_recycle_after_suite()
         return None
     _progress("peer_message_uno: close_doc start uid=%s" % uid)
     TestingFactory.close_doc(doc)
@@ -161,12 +165,14 @@ def _teardown_peer_pair(writer, impress, ctx=None):
     raw-closed Impress in ~25 ms, settle + ``setActiveFrame`` returned,
     then ``TestingFactory.close_doc`` hung 30s at Writer ``close(True)``.
     Leftover Writer is not the poison (keeper Writer already exists);
-    leftover Impress is. GHA 34542928132: later Writer+Writer
-    ``close_doc`` in the same soffice also hung — this path arms
-    skip-close and asks the runner to recycle office. POSIX still
-    closes Writer first, then the Draw-family path (setModified +
-    pre-close settle + ``close(True)``) and the same post-close
-    settle. Not a product fix.
+    leftover Impress is. GHA 34544965319: dual hidden-Writer
+    ``close_doc`` hung *before* any Impress in this file — ``_close``
+    skips all Writer/Calc ``close_doc`` on win32. This path still
+    asks the runner to recycle office so later suites are not
+    poisoned by leftover docs. POSIX still closes Writer first, then
+    the Draw-family path (setModified + pre-close settle +
+    ``close(True)``) and the same post-close settle. Not a product
+    fix.
     """
     had_impress = impress is not None
     if had_impress and _draw_family_raw_close():
@@ -178,11 +184,8 @@ def _teardown_peer_pair(writer, impress, ctx=None):
         _progress("peer_message_uno: impress post-close settle done")
         _reactivate_writer_after_impress(ctx, writer)
         # Drop the proxy only. close_doc hung 30s here (34540353452).
-        # Later Writer+Writer ``_close`` in this soffice also hung
-        # (34542928132). Arm skip-close for the rest of the suite and
-        # ask the runner to recycle office before the next suite.
-        global _windows_skip_close_after_impress
-        _windows_skip_close_after_impress = True
+        # Writer+Writer close_doc also hung before any Impress
+        # (34544965319). Recycle so later suites are not poisoned.
         from plugin.testing_runner import request_office_recycle_after_suite
 
         request_office_recycle_after_suite()
@@ -332,10 +335,9 @@ def test_peer_unique_name_and_self_reject(ctx):
         reset_live_panels()
 
 
-# Windows: run Impress *after* Writer+Writer / Writer+Calc tests. Those tests
-# call ``_close`` → ``close_doc``, which hangs once Impress has been in this
-# soffice (GHA 34542928132). Impress teardown then skips Writer close_doc and
-# requests an office recycle so later suites are not poisoned.
+# Windows: skip all Writer/Calc close_doc in this file (34544965319).
+# Impress still runs last so leftover Impress is not in front of Writer
+# tests; teardown raw-closes Impress and the runner recycles office.
 
 
 @native_test

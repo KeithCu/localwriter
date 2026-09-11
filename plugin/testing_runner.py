@@ -192,9 +192,9 @@ _soffice_proc: Any = None
 _office_stderr_lock = threading.Lock()
 _office_stderr_application_error = False
 _office_stderr_tail: list[str] = []
-# Set by Windows peer-Impress teardown; consumed after that suite so later
-# suites get a fresh soffice (GHA 34542928132: Writer close_doc hung after
-# Impress in the same office).
+# Set by Windows peer teardown / skipped close_doc; consumed after that
+# suite so later suites get a fresh soffice (GHA 34544965319: second
+# Writer close_doc hung before any Impress in the same office).
 _recycle_office_after_suite = False
 
 
@@ -1053,9 +1053,10 @@ def _terminate_bootstrap_soffice() -> None:
 def request_office_recycle_after_suite() -> None:
     """Ask ``run_all_tests`` to kill+rebootstrap soffice after this suite.
 
-    Windows Impress leaves Writer ``close_doc`` hung for the rest of that
-    office (GHA 34542928132). Recycle so later suites are not poisoned.
-    Not a product fix.
+    Windows peer leftover docs leave ``close_doc`` hung for the rest of
+    that office (GHA 34544965319: second Writer close before Impress;
+    34542928132: Writer close after Impress). Recycle so later suites
+    are not poisoned. Not a product fix.
     """
     global _recycle_office_after_suite
     _recycle_office_after_suite = True

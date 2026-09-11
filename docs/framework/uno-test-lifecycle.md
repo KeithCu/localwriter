@@ -81,23 +81,35 @@ Then `test_peer_missing_deck_is_clear_error` loaded **two**
 and hung 30s in `TestingFactory.close_doc` from `_close(other)` in
 `finally`. That test never opens Impress — leftover Impress/process
 state poisons later Writer `close_doc` in the same soffice, not only
-factory load. Isolation: Writer+Writer / Writer+Calc peer tests run
-**before** the Impress pair so their `close_doc` happens on a clean
-office. After Impress, `_close` drops the proxy (`skip close after
-impress uid=…`) and the runner recycles soffice
-(`LIFECYCLE recycle office after impress`) before the next suite.
-Breadcrumbs: `close_draw_family: raw close(True) start/done`,
+factory load.
+
+GHA 34544965319 (`#718` isolate: Impress **last**):
+`test_peer_missing_deck_is_clear_error` ran **first**, before any
+Impress in this file. First `close_doc` (`other`, uid=30) returned;
+the second (`writer`, uid=29) hung 30s at `doc.close`. Dual
+hidden-Writer `close_doc` is the hang — leftover Impress from *this*
+suite is not required. Isolation by reordering did not unblock
+`missing_deck`. Office stayed alive (`kill-libreoffice.ps1` then
+killed soffice).
+
+Windows `_close` therefore drops the proxy on every Writer/Calc
+(`skip close (windows) uid=…`) and asks the runner to recycle soffice
+(`LIFECYCLE recycle office after impress`) after this suite. Impress
+still runs last; teardown keeps the raw Impress `close(True)` +
+`setActiveFrame` path and does not `close_doc` the sibling Writer.
+POSIX still `close_doc`. Breadcrumbs:
+`close_draw_family: raw close(True) start/done`,
 `peer_message_uno: writer reactivated`,
 `peer_message_uno: skip writer close after impress`,
-`peer_message_uno: close_doc start/done uid=…`. Do **not** fold
-Draw-family settle into `close_doc`. Not a product fix.
+`peer_message_uno: skip close (windows) uid=…`,
+`peer_message_uno: close_doc start/done uid=…` (POSIX). Do **not**
+fold Draw-family settle into `close_doc`. Not a product fix.
 
 **Windows proof** still needs a `workflow_dispatch` of PR CI on the
-branch: `os=windows-latest`, `ci_debug=true`. Look for Writer-only peer
-tests finishing (`close_doc start/done`) *before* the Impress pair,
-both Impress tests `TEST end … OK`, then `LIFECYCLE recycle office after
-impress done`. Ubuntu PR CI is the automatic gate; this cloud agent
-cannot run `windows-latest`.
+branch: `os=windows-latest`, `ci_debug=true`. Look for
+`skip close (windows)`, all six peer tests `TEST end … OK`, then
+`LIFECYCLE recycle office after impress done`. Ubuntu PR CI is the
+automatic gate; this cloud agent cannot run `windows-latest`.
 
 **Harness-only attribution (not a product fix):** if a test body returns OK
 but the office already aborted, the runner fails *that* test instead of
