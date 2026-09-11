@@ -97,19 +97,35 @@ Windows `_close` therefore drops the proxy on every Writer/Calc
 (`LIFECYCLE recycle office after impress`) after this suite. Impress
 still runs last; teardown keeps the raw Impress `close(True)` +
 `setActiveFrame` path and does not `close_doc` the sibling Writer.
+
+GHA 34547869791 (master `0e570b15`, tip of `#718`): all four Writer/Calc
+peer tests `TEST end … OK` (`skip close (windows)`). First Impress
+raw close returned in ~21 ms (`writer reactivated`). Second Impress
+`raw close(True)` raised `DisposedException` after ~7 s and soffice
+**exited 0** — fail-closed
+`test_peer_catalog_draw_label_is_not_enough_for_impress` and skipped
+remaining suites. Two Windows Impress raw closes in one soffice (after
+leftover skipped Writer docs) is the killer. Skip the *second* Impress
+close (`skip second impress close (windows)`); leftover last Impress
+dies with recycle. Do not skip the first close — leftover Impress
+before a later Writer load hangs (34537826720).
+
 POSIX still `close_doc`. Breadcrumbs:
 `close_draw_family: raw close(True) start/done`,
 `peer_message_uno: writer reactivated`,
 `peer_message_uno: skip writer close after impress`,
+`peer_message_uno: skip second impress close (windows)`,
 `peer_message_uno: skip close (windows) uid=…`,
 `peer_message_uno: close_doc start/done uid=…` (POSIX). Do **not**
 fold Draw-family settle into `close_doc`. Not a product fix.
 
 **Windows proof** still needs a `workflow_dispatch` of PR CI on the
 branch: `os=windows-latest`, `ci_debug=true`. Look for
-`skip close (windows)`, all six peer tests `TEST end … OK`, then
-`LIFECYCLE recycle office after impress done`. Ubuntu PR CI is the
-automatic gate; this cloud agent cannot run `windows-latest`.
+`skip close (windows)`, first Impress `raw close(True)` +
+`skip second impress close (windows)`, all six peer tests
+`TEST end … OK`, then `LIFECYCLE recycle office after impress done`.
+Ubuntu PR CI is the automatic gate; this cloud agent cannot run
+`windows-latest`.
 
 **Harness-only attribution (not a product fix):** if a test body returns OK
 but the office already aborted, the runner fails *that* test instead of
