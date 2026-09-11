@@ -1050,6 +1050,39 @@ def _terminate_bootstrap_soffice() -> None:
         pass
 
 
+def _same_testing_runner_file(mod: Any) -> bool:
+    """True when ``mod`` is this file loaded under another ``sys.modules`` name."""
+    other = getattr(mod, "__file__", None)
+    if not other or not __file__:
+        return False
+    try:
+        return os.path.normcase(os.path.realpath(other)) == os.path.normcase(
+            os.path.realpath(__file__)
+        )
+    except Exception:
+        return False
+
+
+def _office_recycle_holders() -> list[Any]:
+    """Modules that share this file's recycle flag.
+
+    ``python -m plugin.testing_runner`` executes as ``__main__``. Peer
+    tests ``import plugin.testing_runner`` and get a second module
+    object. GHA 34549510317: all six peer tests OK, but recycle never
+    ran — the flag was set on the import copy and consumed on
+    ``__main__``. Touch both. Not a product fix.
+    """
+    seen: list[Any] = []
+    for name in ("__main__", "plugin.testing_runner", __name__):
+        mod = sys.modules.get(name)
+        if mod is None or mod in seen:
+            continue
+        if name != __name__ and not _same_testing_runner_file(mod):
+            continue
+        seen.append(mod)
+    return seen or [sys.modules[__name__]]
+
+
 def request_office_recycle_after_suite() -> None:
     """Ask ``run_all_tests`` to kill+rebootstrap soffice after this suite.
 
@@ -1058,15 +1091,17 @@ def request_office_recycle_after_suite() -> None:
     34542928132: Writer close after Impress). Recycle so later suites
     are not poisoned. Not a product fix.
     """
-    global _recycle_office_after_suite
-    _recycle_office_after_suite = True
+    for mod in _office_recycle_holders():
+        mod._recycle_office_after_suite = True
 
 
 def consume_office_recycle_request() -> bool:
     """Return-and-clear the after-suite recycle flag."""
-    global _recycle_office_after_suite
-    wanted = _recycle_office_after_suite
-    _recycle_office_after_suite = False
+    wanted = False
+    for mod in _office_recycle_holders():
+        if getattr(mod, "_recycle_office_after_suite", False):
+            wanted = True
+        mod._recycle_office_after_suite = False
     return wanted
 
 

@@ -110,6 +110,16 @@ close (`skip second impress close (windows)`); leftover last Impress
 dies with recycle. Do not skip the first close — leftover Impress
 before a later Writer load hangs (34537826720).
 
+GHA 34549510317 (`#719`): all six peer tests `TEST end … OK` (skip
+second Impress close printed). Recycle **did not run** — next suite
+started on the same soffice (`6052,1752`). Later
+`doc.test_text_helpers_uno` hung 30s in `create_native_doc` (leftover
+Impress + skipped Writer docs; office still alive). Cause:
+`python -m plugin.testing_runner` is `__main__`; tests imported
+`plugin.testing_runner` and set the recycle flag on that copy.
+`request_office_recycle_after_suite` / `consume_office_recycle_request`
+now touch both module objects.
+
 POSIX still `close_doc`. Breadcrumbs:
 `close_draw_family: raw close(True) start/done`,
 `peer_message_uno: writer reactivated`,

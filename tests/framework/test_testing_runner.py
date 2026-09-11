@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from plugin.testing_runner import (
@@ -245,6 +246,24 @@ def test_office_recycle_request_is_consumed_once() -> None:
     request_office_recycle_after_suite()
     assert consume_office_recycle_request() is True
     assert consume_office_recycle_request() is False
+
+
+def test_office_recycle_request_reaches_minus_m_main(monkeypatch) -> None:
+    """GHA 34549510317: ``-m`` is ``__main__``; tests import the package name."""
+    import types
+
+    import plugin.testing_runner as tr
+
+    fake_main = types.ModuleType("__main__")
+    fake_main.__file__ = tr.__file__
+    fake_main._recycle_office_after_suite = False
+    monkeypatch.setitem(sys.modules, "__main__", fake_main)
+    tr._recycle_office_after_suite = False
+    request_office_recycle_after_suite()
+    assert fake_main._recycle_office_after_suite is True
+    assert consume_office_recycle_request() is True
+    assert fake_main._recycle_office_after_suite is False
+    assert tr._recycle_office_after_suite is False
 
 
 def test_fail_reason_with_lifecycle_keeps_crumb_after_cap() -> None:
